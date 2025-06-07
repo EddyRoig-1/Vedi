@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Progress - Track Your Order</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Header Styles */
+        .progress-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .back-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.3rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-2px);
+        }
+
+        .header-info {
+            flex: 1;
+        }
+
+        .restaurant-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .customer-info {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: inline-block;
+        }
+
+        /* Content Styles */
+        .progress-content {
+            padding: 24px 20px;
+            padding-bottom: 120px;
+        }
+
+        .progress-content.both-buttons-visible {
+            padding-bottom: 180px;
+        }
+
+        .order-info-card {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            text-align: center;
+        }
+
+        .order-number {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 16px;
+            display: inline-block;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .order-number.completed {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+        }
+
+        .order-status-text {
+            font-size: 1.1rem;
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+
+        .estimated-time {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .estimated-time.completed {
+            color: #48bb78;
+        }
+
+        /* Order Tracker */
+        .order-tracker {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .tracker-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .progress-steps {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .progress-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #e2e8f0;
+            transform: translateY(-50%);
+            z-index: 1;
+            border-radius: 2px;
+        }
+
+        .progress-line-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.8s ease;
+            border-radius: 2px;
+        }
+
+        .progress-step {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            z-index: 2;
+            position: relative;
+            transition: all 0.3s ease;
+            border: 4px solid #f7fafc;
+        }
+
+        .progress-step.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            animation: pulse 2s infinite;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .progress-step.completed {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .step-label {
+            font-size: 0.7rem;
+            margin-top: 8px;
+            text-align: center;
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .step-icon {
+            font-size: 1.2rem;
+        }
+
+        .progress-description {
+            text-align: center;
+            color: #4a5568;
+            font-size: 1rem;
+            padding: 0 16px;
+        }
+
+        /* Order Details */
+        .order-details {
+            background: transparent;
+            border-radius: 20px 20px 0 0;
+            padding: 0;
+            margin-bottom: 24px;
+            box-shadow: none;
+            border: none;
+            overflow: visible;
+        }
+
+        .order-items-container {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .order-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .item-quantity {
+            font-size: 0.9rem;
+            color: #718096;
+        }
+
+        .item-price {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 1rem;
+        }
+
+        /* Order Summary */
+        .order-summary {
+            background: white;
+            border-radius: 0 0 20px 20px;
+            padding: 0;
+            margin-top: 0;
+            margin-bottom: 30px;
+            margin-left: 0;
+            margin-right: 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            border-top: none;
+            overflow: hidden;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            font-size: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+
+        .summary-row.total {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            border-radius: 0 0 20px 20px;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        /* Completion Message */
+        .completion-message {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border: 2px solid #48bb78;
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 24px;
+            text-align: center;
+            display: none;
+        }
+
+        .completion-message.show {
+            display: block;
+            animation: slideInDown 0.5s ease;
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .completion-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+
+        .completion-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .completion-text {
+            color: #4a5568;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 1000;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 18px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-orders {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-orders:hover {
+            background: linear-gradient(135deg, #5a6fd8, #6a4190);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-new-order {
+            background: #059669;
+            color: white;
+            display: none;
+        }
+
+        .btn-new-order:hover {
+            background: #047857;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
+        }
+
+        .btn-new-order.show {
+            display: flex;
+            animation: slideInUp 0.5s ease;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+            text-align: center;
+        }
+
+        /* Special Instructions */
+        .special-instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 8px;
+            color: #1565c0;
+        }
+
+        .special-instructions-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        /* Real-time indicator */
+        .real-time-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #48bb78;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .progress-header {
+                padding: 20px 16px;
+            }
+
+            .progress-content {
+                padding: 20px 16px;
+                padding-bottom: 140px;
+            }
+
+            .progress-content.both-buttons-visible {
+                padding-bottom: 200px;
+            }
+
+            .order-info-card, .order-tracker, .order-details, .completion-message {
+                padding: 20px;
+            }
+
+            .restaurant-title {
+                font-size: 1.5rem;
+            }
+
+            .action-buttons {
+                width: calc(100% - 20px);
+                bottom: 20px;
+            }
+
+            .progress-step {
+                width: 50px;
+                height: 50px;
+            }
+
+            .step-icon {
+                font-size: 1rem;
+            }
+
+            .completion-icon {
+                font-size: 3rem;
+            }
+
+            .completion-title {
+                font-size: 1.3rem;
+            }
+
+            .order-summary {
+                padding: 16px;
+            }
+
+            .summary-row.total {
+                margin: 16px -16px -16px -16px;
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="progress-header">
+            <div class="real-time-indicator">● LIVE</div>
+            <div class="header-content">
+                <div class="header-info">
+                    <h1 class="restaurant-title" id="restaurantName">Restaurant</h1>
+                    <div class="customer-info">
+                        <strong id="customerName">Customer</strong> • Table #<span id="tableNumber">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="progress-content" id="progressContent">
+            <!-- Loading State -->
+            <div class="loading" id="loadingMessage">
+                <div class="loading-spinner"></div>
+                <h3>Loading your order...</h3>
+                <p>Please wait while we fetch your order details</p>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- Completion Message -->
+            <div class="completion-message" id="completionMessage">
+                <div class="completion-icon">🍽️</div>
+                <div class="completion-title">Order Complete!</div>
+                <div class="completion-text">
+                    Your delicious meal is ready. Thank you for dining with us!<br>
+                    We hope you enjoyed your experience.
+                </div>
+            </div>
+
+            <!-- Order Info Card -->
+            <div class="order-info-card" id="orderInfoCard" style="display: none;">
+                <div class="order-number" id="orderNumber">Order #--</div>
+                <div class="order-status-text" id="orderStatusText">Checking status...</div>
+                <div class="estimated-time" id="estimatedTime">--</div>
+            </div>
+
+            <!-- Order Tracker -->
+            <div class="order-tracker" id="orderTracker" style="display: none;">
+                <h2 class="tracker-title">Order Progress</h2>
+                <div class="progress-steps">
+                    <div class="progress-line">
+                        <div class="progress-line-fill" id="progressLineFill"></div>
+                    </div>
+                    <div class="progress-step" id="step-pending">
+                        <div class="step-icon">📝</div>
+                    </div>
+                    <div class="progress-step" id="step-preparing">
+                        <div class="step-icon">👨‍🍳</div>
+                    </div>
+                    <div class="progress-step" id="step-ready">
+                        <div class="step-icon">🔔</div>
+                    </div>
+                    <div class="progress-step" id="step-completed">
+                        <div class="step-icon">✅</div>
+                    </div>
+                </div>
+                <div class="step-label" style="display: flex; justify-content: space-between; margin-top: 8px;">
+                    <span>Received</span>
+                    <span>Preparing</span>
+                    <span>Ready</span>
+                    <span>Completed</span>
+                </div>
+                <div class="progress-description" id="progressDescription">
+                    We're processing your order...
+                </div>
+            </div>
+
+            <!-- Order Details -->
+            <div class="order-details" id="orderDetails" style="display: none;">
+                <div class="order-items-container">
+                    <h3 class="section-title">🍽️ Your Order</h3>
+                    <div id="orderItemsList">
+                        <!-- Order items will be populated here -->
+                    </div>
+                    <div id="specialInstructions" style="display: none;">
+                        <div class="special-instructions">
+                            <div class="special-instructions-title">Special Instructions:</div>
+                            <div id="specialInstructionsText"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="order-summary">
+                    <div class="summary-row">
+                        <span>Subtotal:</span>
+                        <span id="orderSubtotal">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Tax:</span>
+                        <span id="orderTax">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Service Fee:</span>
+                        <span id="orderServiceFee">$2.00</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total:</span>
+                        <span id="orderTotal">$0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons" id="actionButtons">
+            <button class="btn btn-orders" onclick="goToCustomerOrders()">
+                View All Orders
+            </button>
+            <button class="btn btn-new-order" id="newOrderBtn" onclick="createNewOrder()">
+                Create New Order
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let customerSession = {};
+        let orderData = {};
+        let orderUpdateListener = null;
+        let restaurantData = null;
+        let hasPlayedReadyNotification = false;
+        let audioContext = null;
+        let vibrationInterval = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Order progress page loaded');
+            
+            try {
+                // Initialize audio context for sounds
+                initializeAudio();
+                
+                await loadCustomerSession();
+                await loadRestaurantData();
+                await loadOrderData();
+                setupRealtimeTracking();
+                
+            } catch (error) {
+                console.error('❌ Page initialization error:', error);
+                showError('Failed to load your order. Please try again.');
+            }
+        });
+
+        // Load customer session data
+        async function loadCustomerSession() {
+            // Try to get from sessionStorage first (from login)
+            const sessionData = sessionStorage.getItem('customerSession');
+            if (sessionData) {
+                customerSession = JSON.parse(sessionData);
+                console.log('👤 Customer session loaded:', customerSession);
+            } else {
+                // Fallback to URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                customerSession = {
+                    name: urlParams.get('name') || 'Guest',
+                    phone: urlParams.get('phone') || '',
+                    restaurantId: urlParams.get('r') || urlParams.get('restaurant'),
+                    tableNumber: urlParams.get('table')
+                };
+            }
+
+            // Update display
+            document.getElementById('customerName').textContent = customerSession.name?.split(' ')[0] || 'Customer';
+            document.getElementById('tableNumber').textContent = customerSession.tableNumber || '--';
+        }
+
+        // Load restaurant data
+        async function loadRestaurantData() {
+            if (customerSession.restaurantId) {
+                try {
+                    restaurantData = await VediAPI.getRestaurant(customerSession.restaurantId);
+                    document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+                    console.log('🏪 Restaurant data loaded:', restaurantData.name);
+                } catch (error) {
+                    console.error('❌ Failed to load restaurant data:', error);
+                    restaurantData = { name: 'Restaurant', currency: 'USD' };
+                    document.getElementById('restaurantName').textContent = 'Restaurant';
+                }
+            } else {
+                restaurantData = { name: 'Restaurant', currency: 'USD' };
+                document.getElementById('restaurantName').textContent = 'Restaurant';
+            }
+        }
+
+        // Load order data from Firebase
+        async function loadOrderData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderNumber = urlParams.get('orderNumber');
+            
+            if (orderNumber) {
+                // Load specific order by order number
+                try {
+                    orderData = await VediAPI.getOrderByNumber(orderNumber);
+                    console.log('📋 Order data loaded by number:', orderData);
+                    displayOrderInfo();
+                } catch (error) {
+                    console.error('❌ Failed to load order by number:', error);
+                    showError('Order not found. Please check the order number.');
+                }
+            } else if (customerSession.phone) {
+                // Find most recent active order for customer using new convenience method
+                try {
+                    orderData = await VediAPI.getMostRecentActiveOrder(customerSession.phone);
+                    
+                    if (orderData) {
+                        console.log('📋 Most recent active order loaded:', orderData);
+                        displayOrderInfo();
+                    } else {
+                        showError('No active orders found. Please place an order first.');
+                    }
+                } catch (error) {
+                    console.error('❌ Failed to load customer orders:', error);
+                    showError('Failed to load your orders. Please try again.');
+                }
+            } else {
+                showError('Customer information not found. Please login again.');
+            }
+        }
+
+        // Setup real-time order tracking
+        function setupRealtimeTracking() {
+            if (!orderData.orderNumber) return;
+
+            console.log('🔄 Setting up real-time tracking for order:', orderData.orderNumber);
+            
+            // Use real-time listener by order number
+            if (typeof VediAPI.listenToOrderByNumber === 'function') {
+                orderUpdateListener = VediAPI.listenToOrderByNumber(orderData.orderNumber, (updatedOrder) => {
+                    if (updatedOrder) {
+                        console.log('🔄 Real-time order update received:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        orderData = updatedOrder;
+                        
+                        // Check for status changes that require notifications
+                        if (previousStatus !== updatedOrder.status) {
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    }
+                });
+            } else {
+                console.warn('⚠️ Real-time tracking not available - using polling fallback');
+                // Fallback to periodic updates
+                setInterval(async () => {
+                    try {
+                        const updatedOrder = await VediAPI.getOrderByNumber(orderData.orderNumber);
+                        if (updatedOrder && updatedOrder.status !== orderData.status) {
+                            const previousStatus = orderData.status;
+                            orderData = updatedOrder;
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                            updateOrderProgress();
+                        }
+                    } catch (error) {
+                        console.error('❌ Error in polling update:', error);
+                    }
+                }, 10000); // Poll every 10 seconds
+            }
+        }
+
+        // Handle status changes
+        function handleStatusChange(previousStatus, newStatus) {
+            console.log(`📊 Order status changed: ${previousStatus} → ${newStatus}`);
+            
+            // Play notification when order becomes ready
+            if (newStatus === 'ready' && !hasPlayedReadyNotification) {
+                playOrderReadyNotification();
+                hasPlayedReadyNotification = true;
+            }
+            
+            // Handle completion
+            if (newStatus === 'completed') {
+                handleOrderCompletion();
+            }
+        }
+
+        // Display order information
+        function displayOrderInfo() {
+            // Hide loading
+            document.getElementById('loadingMessage').style.display = 'none';
+
+            // Show order info
+            document.getElementById('orderNumber').textContent = `Order #${orderData.orderNumber}`;
+            document.getElementById('orderInfoCard').style.display = 'block';
+            document.getElementById('orderTracker').style.display = 'block';
+            document.getElementById('orderDetails').style.display = 'block';
+
+            // Populate order items
+            const orderItemsList = document.getElementById('orderItemsList');
+            if (orderData.items && orderData.items.length > 0) {
+                orderItemsList.innerHTML = orderData.items.map(item => `
+                    <div class="order-item">
+                        <div class="item-info">
+                            <div class="item-name">${item.name}</div>
+                            <div class="item-quantity">Qty: ${item.quantity}</div>
+                        </div>
+                        <div class="item-price">${formatPrice(item.price * item.quantity)}</div>
+                    </div>
+                `).join('');
+            }
+
+            // Show special instructions if any
+            if (orderData.specialInstructions) {
+                document.getElementById('specialInstructions').style.display = 'block';
+                document.getElementById('specialInstructionsText').textContent = orderData.specialInstructions;
+            }
+
+            // Show order summary with proper formatting
+            document.getElementById('orderSubtotal').textContent = formatPrice(orderData.subtotal || orderData.total);
+            document.getElementById('orderTax').textContent = formatPrice(orderData.tax || 0);
+            document.getElementById('orderServiceFee').textContent = formatPrice(orderData.serviceFee || 0);
+            document.getElementById('orderTotal').textContent = formatPrice(orderData.total);
+
+            // Update progress
+            updateOrderProgress();
+        }
+
+        // Update order progress visualization
+        function updateOrderProgress() {
+            if (!orderData) return;
+
+            const steps = ['pending', 'preparing', 'ready', 'completed'];
+            const currentStepIndex = steps.indexOf(orderData.status);
+
+            // Update progress line
+            const progressFill = document.getElementById('progressLineFill');
+            const progressPercentage = (currentStepIndex / (steps.length - 1)) * 100;
+            progressFill.style.width = `${progressPercentage}%`;
+
+            // Update step circles
+            steps.forEach((step, index) => {
+                const stepElement = document.getElementById(`step-${step}`);
+                if (stepElement) {
+                    stepElement.classList.remove('active', 'completed');
+                    
+                    if (index < currentStepIndex) {
+                        stepElement.classList.add('completed');
+                    } else if (index === currentStepIndex) {
+                        stepElement.classList.add('active');
+                    }
+                }
+            });
+
+            // Update status text and description
+            updateStatusText();
+
+            console.log('📊 Order progress updated:', orderData.status, 'Step index:', currentStepIndex);
+        }
+
+        // Update status text and descriptions
+        function updateStatusText() {
+            const statusText = document.getElementById('orderStatusText');
+            const estimatedTime = document.getElementById('estimatedTime');
+            const progressDescription = document.getElementById('progressDescription');
+            const orderNumber = document.getElementById('orderNumber');
+
+            switch (orderData.status) {
+                case 'pending':
+                    statusText.textContent = 'Order received and confirmed';
+                    estimatedTime.textContent = orderData.estimatedTime || 'Estimated time: 20-25 minutes';
+                    progressDescription.textContent = 'Your order has been received and we\'re preparing to cook your delicious meal.';
+                    break;
+                case 'preparing':
+                    statusText.textContent = 'Currently being prepared';
+                    estimatedTime.textContent = orderData.estimatedTime || '10-15 minutes remaining';
+                    progressDescription.textContent = 'Our chefs are now preparing your order with fresh ingredients.';
+                    break;
+                case 'ready':
+                    statusText.textContent = 'Ready for pickup/delivery';
+                    estimatedTime.textContent = 'Ready now!';
+                    progressDescription.textContent = 'Your order is ready! We\'ll bring it to your table shortly.';
+                    break;
+                case 'completed':
+                    statusText.textContent = 'Order completed';
+                    estimatedTime.textContent = 'Enjoy your meal!';
+                    estimatedTime.classList.add('completed');
+                    progressDescription.textContent = 'Your order has been delivered. Thank you for dining with us!';
+                    orderNumber.classList.add('completed');
+                    break;
+                default:
+                    statusText.textContent = 'Checking status...';
+                    estimatedTime.textContent = '--';
+                    progressDescription.textContent = 'We\'re checking on your order status.';
+            }
+        }
+
+        // Handle order completion
+        function handleOrderCompletion() {
+            console.log('🎉 Order completed - updating UI');
+            
+            // Show completion message
+            const completionMessage = document.getElementById('completionMessage');
+            completionMessage.classList.add('show');
+            
+            // Show the "Create New Order" button
+            const newOrderBtn = document.getElementById('newOrderBtn');
+            newOrderBtn.classList.add('show');
+            
+            // Add class to progress content to increase bottom padding
+            const progressContent = document.getElementById('progressContent');
+            progressContent.classList.add('both-buttons-visible');
+            
+            // Stop real-time tracking when completed
+            if (orderUpdateListener) {
+                orderUpdateListener();
+                orderUpdateListener = null;
+            }
+        }
+
+        // Utility functions
+        function formatPrice(amount) {
+            if (!amount && amount !== 0) return '$0.00';
+            const currency = restaurantData?.currency || 'USD';
+            const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '$';
+            return `${symbol}${Number(amount).toFixed(2)}`;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            document.getElementById('loadingMessage').style.display = 'none';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 10000);
+        }
+
+        // Navigation functions
+        function createNewOrder() {
+            console.log('🆕 Creating new order...');
+            
+            const params = new URLSearchParams();
+            if (customerSession.restaurantId) {
+                params.set('r', customerSession.restaurantId);
+            }
+            if (customerSession.tableNumber) {
+                params.set('table', customerSession.tableNumber);
+            }
+            
+            window.location.href = `menu.html?${params.toString()}`;
+        }
+
+        function goToCustomerOrders() {
+            console.log('📋 Going to customer orders...');
+            
+            const params = new URLSearchParams();
+            if (customerSession.restaurantId) {
+                params.set('r', customerSession.restaurantId);
+            }
+            if (customerSession.tableNumber) {
+                params.set('table', customerSession.tableNumber);
+            }
+            
+            window.location.href = `customer-orders.html?${params.toString()}`;
+        }
+
+        // Audio notification functions
+        function initializeAudio() {
+            try {
+                const initAudioContext = () => {
+                    if (!audioContext) {
+                        try {
+                            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                            console.log('🔊 Audio context initialized:', audioContext.state);
+                            
+                            if (audioContext.state === 'suspended') {
+                                audioContext.resume().then(() => {
+                                    console.log('🔊 Audio context resumed');
+                                }).catch(err => {
+                                    console.error('⚠️ Failed to resume audio context:', err);
+                                });
+                            }
+                        } catch (err) {
+                            console.error('⚠️ Failed to create audio context:', err);
+                            audioContext = null;
+                        }
+                    }
+                };
+
+                ['click', 'touchstart', 'keydown', 'mousedown', 'touchend'].forEach(eventType => {
+                    document.addEventListener(eventType, function initAudio() {
+                        initAudioContext();
+                    });
+                });
+
+                initAudioContext();
+            } catch (error) {
+                console.error('⚠️ Audio initialization failed:', error);
+            }
+        }
+
+        function playBeep(frequency = 800, duration = 300) {
+            if (audioContext && audioContext.state !== 'closed') {
+                try {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+
+                    oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                    oscillator.type = 'sine';
+
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + duration / 1000);
+                    
+                    console.log(`✅ Beep played: ${frequency}Hz for ${duration}ms`);
+                } catch (error) {
+                    console.error('⚠️ Error playing beep:', error);
+                }
+            }
+        }
+
+        function vibratePhone(pattern = [200, 100, 200]) {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(pattern);
+                console.log('📳 Phone vibrating');
+            }
+        }
+
+        function playOrderReadyNotification() {
+            console.log('🔔 Order is ready - playing notification');
+            
+            // Show browser notification
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    new Notification('🍽️ Order Ready!', {
+                        body: `Order #${orderData.orderNumber} is ready for pickup!`,
+                        tag: 'order-ready',
+                        requireInteraction: true
+                    });
+                } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(function(permission) {
+                        if (permission === 'granted') {
+                            new Notification('🍽️ Order Ready!', {
+                                body: `Order #${orderData.orderNumber} is ready for pickup!`,
+                                tag: 'order-ready',
+                                requireInteraction: true
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Play beep sounds
+            const beepPattern = [
+                { freq: 880, duration: 400 },
+                { freq: 660, duration: 400 },
+                { freq: 880, duration: 400 },
+            ];
+
+            let patternIndex = 0;
+            let totalBeeps = 0;
+            const maxCycles = 3;
+
+            const beepInterval = setInterval(() => {
+                const pattern = beepPattern[patternIndex];
+                playBeep(pattern.freq, pattern.duration);
+                
+                patternIndex = (patternIndex + 1) % beepPattern.length;
+                
+                if (patternIndex === 0) {
+                    totalBeeps++;
+                    if (totalBeeps >= maxCycles) {
+                        clearInterval(beepInterval);
+                    }
+                }
+            }, 600);
+
+            // Vibrate for mobile devices
+            let vibrationCount = 0;
+            const maxVibrations = 10;
+            
+            vibrationInterval = setInterval(() => {
+                vibratePhone([400, 200]);
+                vibrationCount++;
+                
+                if (vibrationCount >= maxVibrations) {
+                    clearInterval(vibrationInterval);
+                    vibrationInterval = null;
+                }
+            }, 600);
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (orderUpdateListener) {
+                orderUpdateListener();
+            }
+            if (vibrationInterval) {
+                clearInterval(vibrationInterval);
+            }
+        });
+    </script>
+</body>
+</html>
