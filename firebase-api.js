@@ -602,6 +602,39 @@ const VediAPI = {
   },
 
   /**
+   * Get customer's most recent active order
+   * @param {string} customerPhone - Customer phone number
+   * @returns {Promise<Object|null>} Most recent active order or null
+   */
+  async getMostRecentActiveOrder(customerPhone) {
+    try {
+      const orders = await this.getOrdersByCustomer(customerPhone);
+      const activeOrders = orders.filter(order => 
+        order.status === 'pending' || 
+        order.status === 'preparing' || 
+        order.status === 'ready'
+      );
+      
+      if (activeOrders.length > 0) {
+        // Sort by creation date and return most recent
+        activeOrders.sort((a, b) => {
+          const dateA = this.timestampToDate(a.createdAt);
+          const dateB = this.timestampToDate(b.createdAt);
+          return dateB - dateA;
+        });
+        console.log('✅ Most recent active order found:', activeOrders[0].orderNumber);
+        return activeOrders[0];
+      }
+      
+      console.log('ℹ️ No active orders found for customer');
+      return null;
+    } catch (error) {
+      console.error('❌ Get most recent active order error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Update order status
    * @param {string} orderId - Order ID
    * @param {string} status - New status
