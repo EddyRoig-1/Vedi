@@ -1510,7 +1510,7 @@
             
             if (nextBtn) {
                 if (currentStep === totalSteps) {
-                    nextBtn.innerHTML = existingRestaurant ? '💾 Update Restaurant' : '🚀 Complete Setup';
+                    nextBtn.innerHTML = '🚀 Complete Setup';
                 } else {
                     nextBtn.innerHTML = 'Next Step →';
                 }
@@ -1574,7 +1574,7 @@
                 // Prepare restaurant data for Firebase
                 const restaurantData = {
                     ...formData,
-                    ownerUserId: currentUser.id,
+                    ownerUserId: currentUser.id, // Always required
                     setupCompleted: true
                 };
                 
@@ -1582,17 +1582,10 @@
                 
                 let savedRestaurant;
                 
-                if (existingRestaurant) {
-                    // Update existing restaurant
-                    savedRestaurant = await VediAPI.updateRestaurant(existingRestaurant.id, restaurantData);
-                    console.log('✅ Restaurant updated:', savedRestaurant);
-                    showSuccess('Restaurant updated successfully!');
-                } else {
-                    // Create new restaurant
-                    savedRestaurant = await VediAPI.createRestaurant(restaurantData);
-                    console.log('✅ Restaurant created:', savedRestaurant);
-                    showSuccess('Restaurant created successfully!');
-                }
+                // Always create new restaurant since this is setup flow
+                savedRestaurant = await VediAPI.createRestaurant(restaurantData);
+                console.log('✅ Restaurant created:', savedRestaurant);
+                showSuccess('Restaurant created successfully!');
                 
                 hideLoading();
                 
@@ -1924,16 +1917,13 @@
             }
         });
 
-        // Handle auth state changes
+        // Handle auth state changes (optional - for session monitoring)
         if (typeof firebaseAuth !== 'undefined') {
             firebaseAuth.onAuthStateChanged(async (user) => {
-                if (!user && currentUser) {
-                    // User logged out
-                    console.log('🚪 User logged out, redirecting...');
-                    showError('Session expired. Redirecting to login...');
-                    setTimeout(() => {
-                        window.location.href = '../Landing-Signup-Login/login.html';
-                    }, 2000);
+                if (user && !currentUser) {
+                    // User became available during setup
+                    currentUser = await VediAPI.getCurrentUser();
+                    console.log('✅ User authenticated during setup:', currentUser?.email);
                 }
             });
         }
