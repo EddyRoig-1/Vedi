@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Order - Login</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 400px;
+            min-height: 500px;
+        }
+
+        .login-page {
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border-radius: 50%;
+            margin: 0 auto 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            font-weight: bold;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .restaurant-info {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .restaurant-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        .table-info {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff40;
+            border-top: 2px solid #ffffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .welcome-back {
+            background: #e8f5e8;
+            color: #27ae60;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 10px;
+                max-width: none;
+            }
+            
+            .login-page {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-page">
+            <div class="logo">🍽️</div>
+            <h1>Welcome!</h1>
+            <p class="subtitle">Please enter your details to start ordering</p>
+            
+            <div class="restaurant-info" id="restaurantInfo">
+                <div class="restaurant-name" id="restaurantName">Loading restaurant...</div>
+                <div class="table-info" id="tableInfo">Table #--</div>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+            <div class="welcome-back" id="welcomeMessage"></div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="customerName">Your Name</label>
+                    <input type="text" id="customerName" name="customerName" placeholder="Enter your full name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="phoneNumber">Phone Number</label>
+                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 123-4567" required>
+                </div>
+                
+                <button type="submit" class="btn" id="submitBtn">
+                    <span class="loading-spinner" id="loadingSpinner"></span>
+                    <span id="buttonText">Start Ordering</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let restaurantData = null;
+        let tableNumber = null;
+        let restaurantId = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Get URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                tableNumber = urlParams.get('table');
+                restaurantId = urlParams.get('restaurant') || urlParams.get('r');
+
+                // Load restaurant information
+                if (restaurantId) {
+                    await loadRestaurantInfo();
+                } else {
+                    showError('Restaurant not found. Please scan a valid QR code.');
+                    return;
+                }
+
+                // Update table display
+                updateTableDisplay();
+
+                // Add phone input formatting
+                setupPhoneFormatting();
+
+                // Check for returning customer when phone is entered
+                setupCustomerCheck();
+
+            } catch (error) {
+                console.error('Page initialization error:', error);
+                showError('Failed to load restaurant information');
+            }
+        });
+
+        // Load restaurant information
+        async function loadRestaurantInfo() {
+            try {
+                restaurantData = await VediAPI.getRestaurant(restaurantId);
+                document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+            } catch (error) {
+                console.error('Failed to load restaurant:', error);
+                document.getElementById('restaurantName').textContent = 'Unknown Restaurant';
+            }
+        }
+
+        // Update table display
+        function updateTableDisplay() {
+            const tableInfoElement = document.getElementById('tableInfo');
+            if (tableNumber) {
+                tableInfoElement.textContent = `Table #${tableNumber}`;
+            } else {
+                // Hide table info if no table number
+                document.getElementById('restaurantInfo').style.display = 'none';
+            }
+        }
+
+        // Setup phone number formatting
+        function setupPhoneFormatting() {
+            const phoneInput = document.getElementById('phoneNumber');
+            phoneInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length >= 6) {
+                    value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
+                } else if (value.length >= 3) {
+                    value = `(${value.slice(0,3)}) ${value.slice(3)}`;
+                }
+                e.target.value = value;
+            });
+        }
+
+        // Setup customer recognition
+        function setupCustomerCheck() {
+            const phoneInput = document.getElementById('phoneNumber');
+            const nameInput = document.getElementById('customerName');
+            
+            phoneInput.addEventListener('blur', async function() {
+                const phone = cleanPhoneNumber(phoneInput.value);
+                if (phone.length >= 10) {
+                    await checkReturningCustomer(phone);
+                }
+            });
+        }
+
+        // Check if customer has ordered before
+        async function checkReturningCustomer(phone) {
+            try {
+                const previousOrders = await VediAPI.getOrdersByCustomer(phone);
+                
+                if (previousOrders && previousOrders.length > 0) {
+                    // Customer has ordered before
+                    const lastOrder = previousOrders[0]; // Most recent order
+                    const customerName = lastOrder.customerName;
+                    
+                    if (customerName) {
+                        // Pre-fill name
+                        document.getElementById('customerName').value = customerName;
+                        
+                        // Show welcome back message
+                        const orderCount = previousOrders.length;
+                        showWelcomeMessage(`Welcome back, ${customerName}! You've ordered ${orderCount} time${orderCount > 1 ? 's' : ''} before.`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking customer history:', error);
+                // Don't show error to user - just continue normally
+            }
+        }
+
+        // Handle login form submission
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('customerName').value.trim();
+            const phone = cleanPhoneNumber(document.getElementById('phoneNumber').value);
+            
+            if (!name || !phone) {
+                showError('Please enter both your name and phone number');
+                return;
+            }
+
+            if (phone.length < 10) {
+                showError('Please enter a valid phone number');
+                return;
+            }
+
+            if (!restaurantId) {
+                showError('Restaurant information not found');
+                return;
+            }
+
+            try {
+                setLoading(true);
+                hideMessages();
+
+                // Store customer session data (no signup needed)
+                const customerSession = {
+                    name: name,
+                    phone: phone,
+                    restaurantId: restaurantId,
+                    restaurantName: restaurantData?.name || 'Restaurant',
+                    tableNumber: tableNumber,
+                    sessionStart: new Date().toISOString()
+                };
+
+                // Store in sessionStorage for this browsing session
+                sessionStorage.setItem('customerSession', JSON.stringify(customerSession));
+
+                console.log('✅ Customer session created:', customerSession);
+
+                // Redirect to menu page
+                const redirectUrl = `menu.html?r=${restaurantId}${tableNumber ? `&table=${tableNumber}` : ''}`;
+                window.location.href = redirectUrl;
+
+            } catch (error) {
+                console.error('❌ Customer login error:', error);
+                showError('Failed to start your session. Please try again.');
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Utility functions
+        function cleanPhoneNumber(phone) {
+            return phone.replace(/\D/g, '');
+        }
+
+        function setLoading(loading) {
+            const submitBtn = document.getElementById('submitBtn');
+            const spinner = document.getElementById('loadingSpinner');
+            const buttonText = document.getElementById('buttonText');
+            
+            submitBtn.disabled = loading;
+            spinner.style.display = loading ? 'inline-block' : 'none';
+            buttonText.textContent = loading ? 'Please wait...' : 'Start Ordering';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showWelcomeMessage(message) {
+            const welcomeDiv = document.getElementById('welcomeMessage');
+            welcomeDiv.textContent = message;
+            welcomeDiv.style.display = 'block';
+        }
+
+        function hideMessages() {
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('welcomeMessage').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
