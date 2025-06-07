@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order History - Your Past Orders</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Header Styles */
+        .orders-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .back-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.3rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-2px);
+        }
+
+        .header-info {
+            flex: 1;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .customer-info {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: inline-block;
+        }
+
+        .order-restaurant {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Content Styles */
+        .orders-content {
+            padding: 24px 20px;
+            padding-bottom: 100px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Active Order */
+        .active-order {
+            background: linear-gradient(135deg, #fef5e7, #fbefc7);
+            border: 2px solid #f6e05e;
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 24px;
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 4px 20px rgba(246, 224, 94, 0.3); }
+            50% { box-shadow: 0 8px 30px rgba(246, 224, 94, 0.5); }
+        }
+
+        .active-order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .active-order-badge {
+            background: linear-gradient(135deg, #d69e2e, #b7791f);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .active-order-number {
+            font-weight: 700;
+            color: #744210;
+            font-size: 1.1rem;
+        }
+
+        .active-order-restaurant {
+            font-weight: 600;
+            color: #744210;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .active-order-status {
+            color: #744210;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        .active-order-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .active-order-btn {
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: auto;
+        }
+
+        .btn-track {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-track:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-add {
+            background: rgba(116, 66, 16, 0.1);
+            color: #744210;
+            border: 2px solid #d69e2e;
+        }
+
+        .btn-add:hover {
+            background: rgba(116, 66, 16, 0.2);
+            transform: translateY(-1px);
+        }
+
+        /* Order History */
+        .order-history {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .order-card {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .order-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .order-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .order-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .order-card.expanded {
+            cursor: default;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        .order-card.expanded::before {
+            transform: scaleX(1);
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .order-info {
+            flex: 1;
+        }
+
+        .order-number {
+            font-weight: 700;
+            color: #2d3748;
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .order-restaurant {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .order-date {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .order-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-cancelled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-preparing {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-ready {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .order-total {
+            text-align: right;
+        }
+
+        .total-amount {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #667eea;
+        }
+
+        .total-items {
+            color: #718096;
+            font-size: 0.85rem;
+        }
+
+        /* Order Details (Expandable) */
+        .order-details {
+            display: none;
+            margin-top: 20px;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 20px;
+        }
+
+        .order-card.expanded .order-details {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .order-items {
+            margin-bottom: 20px;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .order-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .item-quantity {
+            font-size: 0.85rem;
+            color: #718096;
+        }
+
+        .item-price {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        /* Order Summary */
+        .order-summary {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .summary-row:last-child {
+            margin-bottom: 0;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+            color: #2d3748;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #718096;
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 24px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        .empty-state p {
+            margin-bottom: 32px;
+            font-size: 1.1rem;
+        }
+
+        /* Action Buttons */
+        .bottom-actions {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            background: white;
+            padding: 10px 0;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .bottom-actions .btn-primary {
+            max-width: 380px;
+            width: calc(100% - 40px);
+            margin: 0 20px;
+            padding: 12px;
+            background: #667eea;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .bottom-actions .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 16px 24px;
+            border-radius: 16px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .orders-header {
+                padding: 20px 16px;
+            }
+
+            .orders-content {
+                padding: 20px 16px;
+                padding-bottom: 100px;
+            }
+
+            .order-card {
+                padding: 20px;
+            }
+
+            .active-order {
+                padding: 20px;
+            }
+
+            .page-title {
+                font-size: 1.5rem;
+            }
+
+            .active-order-actions {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="orders-header">
+            <div class="header-content">
+                <div class="header-info">
+                    <h1 class="page-title">Order History</h1>
+                    <div class="customer-info">
+                        <strong id="customerName">Customer</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="orders-content" id="ordersContent">
+            <!-- Loading State -->
+            <div class="loading" id="loadingMessage">
+                <div class="loading-spinner"></div>
+                <h3>Loading your orders...</h3>
+                <p>Please wait while we fetch your order history</p>
+            </div>
+
+            <!-- Error State -->
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- Active Order Section -->
+            <div class="section" id="activeOrderSection" style="display: none;">
+                <h2 class="section-title">🔥 Current Order</h2>
+                <div class="active-order" id="activeOrderCard">
+                    <div class="active-order-header">
+                        <div class="active-order-badge">
+                            <span>🍳</span>
+                            <span>Active</span>
+                        </div>
+                        <div class="active-order-number" id="activeOrderNumber">Order #--</div>
+                    </div>
+                    <div class="active-order-restaurant" id="activeOrderRestaurant">Restaurant Name</div>
+                    <div class="active-order-status" id="activeOrderStatus">
+                        <div class="status-indicator"></div>
+                        <span>Order is being prepared...</span>
+                    </div>
+                    <div class="active-order-actions">
+                        <button class="active-order-btn btn-track" onclick="trackActiveOrder()">
+                            Track Progress
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order History Section -->
+            <div class="section" id="orderHistorySection" style="display: none;">
+                <h2 class="section-title">📋 Past Orders</h2>
+                <div class="order-history" id="orderHistoryList">
+                    <!-- Order history will be populated here -->
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <div class="empty-icon">📝</div>
+                <h3>No Orders Yet</h3>
+                <p>You haven't placed any orders yet. Start by browsing delicious menus from your favorite restaurants!</p>
+                <button class="btn-primary" onclick="goBackToApp()">
+                    🍽️ Explore Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Actions -->
+        <div class="bottom-actions" id="bottomActions" style="display: none;">
+            <button class="btn-primary" onclick="createNewOrder()">
+                Create New Order
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let customerSession = {};
+        let customerOrders = [];
+        let orderUpdateListener = null;
+        let restaurantData = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Customer orders page loaded');
+            
+            try {
+                await loadCustomerSession();
+                await loadRestaurantData();
+                await loadOrderHistory();
+                setupRealtimeUpdates();
+            } catch (error) {
+                console.error('❌ Page initialization error:', error);
+                showError('Failed to load your orders. Please try again.');
+            }
+        });
+
+        // Load customer session data
+        async function loadCustomerSession() {
+            // Try to get from sessionStorage first (from login)
+            const sessionData = sessionStorage.getItem('customerSession');
+            if (sessionData) {
+                customerSession = JSON.parse(sessionData);
+                console.log('👤 Customer session loaded:', customerSession);
+            } else {
+                // Fallback to URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                customerSession = {
+                    name: urlParams.get('name') || 'Guest',
+                    phone: urlParams.get('phone') || '',
+                    restaurantId: urlParams.get('r') || urlParams.get('restaurant'),
+                    tableNumber: urlParams.get('table')
+                };
+            }
+
+            if (!customerSession.phone) {
+                throw new Error('Customer phone number not found');
+            }
+
+            // Update display
+            document.getElementById('customerName').textContent = customerSession.name.split(' ')[0] || 'Customer';
+        }
+
+        // Load restaurant data
+        async function loadRestaurantData() {
+            if (customerSession.restaurantId) {
+                try {
+                    restaurantData = await VediAPI.getRestaurant(customerSession.restaurantId);
+                    console.log('🏪 Restaurant data loaded:', restaurantData.name);
+                } catch (error) {
+                    console.error('❌ Failed to load restaurant data:', error);
+                    restaurantData = { name: 'Restaurant', currency: 'USD' };
+                }
+            } else {
+                restaurantData = { name: 'Restaurant', currency: 'USD' };
+            }
+        }
+
+        // Load order history from Firebase
+        async function loadOrderHistory() {
+            console.log('📚 Loading order history from Firebase...');
+            
+            try {
+                // Get orders by customer phone
+                const orders = await VediAPI.getOrdersByCustomer(customerSession.phone);
+                customerOrders = orders || [];
+                
+                console.log('📋 Orders loaded:', customerOrders.length, 'orders');
+                
+                // Sort by creation date (newest first)
+                customerOrders.sort((a, b) => {
+                    const dateA = VediAPI.timestampToDate(a.createdAt || a.timestamp);
+                    const dateB = VediAPI.timestampToDate(b.createdAt || b.timestamp);
+                    return dateB - dateA;
+                });
+                
+                updateDisplay();
+                
+            } catch (error) {
+                console.error('❌ Error loading order history:', error);
+                showError('Failed to load your order history. Please try again.');
+                document.getElementById('loadingMessage').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+            }
+        }
+
+        // Setup real-time order updates
+        function setupRealtimeUpdates() {
+            if (!customerSession.phone) return;
+
+            console.log('🔄 Setting up real-time order updates...');
+            
+            // Check if the listenToCustomerOrders method exists
+            if (typeof VediAPI.listenToCustomerOrders === 'function') {
+                orderUpdateListener = VediAPI.listenToCustomerOrders(customerSession.phone, (updatedOrders) => {
+                    console.log('🔄 Real-time order update received:', updatedOrders.length, 'orders');
+                    
+                    customerOrders = updatedOrders || [];
+                    
+                    // Sort by creation date (newest first)
+                    customerOrders.sort((a, b) => {
+                        const dateA = VediAPI.timestampToDate(a.createdAt || a.timestamp);
+                        const dateB = VediAPI.timestampToDate(b.createdAt || b.timestamp);
+                        return dateB - dateA;
+                    });
+                    
+                    updateDisplay();
+                });
+            } else {
+                console.warn('⚠️ Real-time updates not available - listenToCustomerOrders method missing');
+                // Fallback to periodic refresh
+                setInterval(async () => {
+                    try {
+                        const orders = await VediAPI.getOrdersByCustomer(customerSession.phone);
+                        if (orders && orders.length !== customerOrders.length) {
+                            customerOrders = orders;
+                            customerOrders.sort((a, b) => {
+                                const dateA = VediAPI.timestampToDate(a.createdAt || a.timestamp);
+                                const dateB = VediAPI.timestampToDate(b.createdAt || b.timestamp);
+                                return dateB - dateA;
+                            });
+                            updateDisplay();
+                        }
+                    } catch (error) {
+                        console.error('❌ Error in periodic order refresh:', error);
+                    }
+                }, 30000); // Check every 30 seconds
+            }
+        }
+
+        // Update page display
+        function updateDisplay() {
+            console.log('🎨 Updating display...');
+            
+            // Hide loading
+            document.getElementById('loadingMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            if (!customerOrders || customerOrders.length === 0) {
+                // Show empty state
+                document.getElementById('emptyState').style.display = 'block';
+                document.getElementById('activeOrderSection').style.display = 'none';
+                document.getElementById('orderHistorySection').style.display = 'none';
+                document.getElementById('bottomActions').style.display = 'none';
+                return;
+            }
+
+            // Separate current orders from past orders
+            const currentOrders = customerOrders.filter(order => 
+                order.status === 'pending' || 
+                order.status === 'preparing' || 
+                order.status === 'ready'
+            );
+            
+            const pastOrders = customerOrders.filter(order => 
+                order.status === 'completed' || 
+                order.status === 'cancelled'
+            );
+
+            console.log('📊 Current orders:', currentOrders.length, 'Past orders:', pastOrders.length);
+
+            // Show active order section if there are current orders
+            if (currentOrders.length > 0) {
+                displayCurrentOrders(currentOrders);
+                document.getElementById('activeOrderSection').style.display = 'block';
+            } else {
+                document.getElementById('activeOrderSection').style.display = 'none';
+            }
+
+            // Show order history if there are past orders
+            if (pastOrders.length > 0) {
+                displayOrderHistory(pastOrders);
+                document.getElementById('orderHistorySection').style.display = 'block';
+            } else {
+                document.getElementById('orderHistorySection').style.display = 'none';
+            }
+            
+            // Show bottom actions if there are any orders
+            document.getElementById('bottomActions').style.display = 'block';
+            document.getElementById('emptyState').style.display = 'none';
+        }
+
+        // Display current orders
+        function displayCurrentOrders(currentOrders) {
+            if (currentOrders.length === 1) {
+                // Single current order - show in the active order card
+                displaySingleActiveOrder(currentOrders[0]);
+            } else {
+                // Multiple current orders - show all in active order section
+                displayMultipleActiveOrders(currentOrders);
+            }
+        }
+
+        // Display single active order
+        function displaySingleActiveOrder(order) {
+            const activeOrderNumber = document.getElementById('activeOrderNumber');
+            const activeOrderRestaurant = document.getElementById('activeOrderRestaurant');
+            const activeOrderStatus = document.getElementById('activeOrderStatus');
+            
+            activeOrderNumber.textContent = `Order #${order.orderNumber}`;
+            activeOrderRestaurant.textContent = restaurantData?.name || order.restaurantName || 'Restaurant';
+            
+            // Update status based on current order status
+            const statusText = getStatusText(order.status);
+            activeOrderStatus.innerHTML = `
+                <div class="status-indicator"></div>
+                <span>${statusText}</span>
+            `;
+        }
+
+        // Display multiple active orders
+        function displayMultipleActiveOrders(currentOrders) {
+            const activeOrderSection = document.getElementById('activeOrderSection');
+            
+            activeOrderSection.innerHTML = `
+                <h2 class="section-title">🔥 Current Orders (${currentOrders.length})</h2>
+                <div class="current-orders-list">
+                    ${currentOrders.map((order, index) => `
+                        <div class="active-order" style="margin-bottom: 20px;">
+                            <div class="active-order-header">
+                                <div class="active-order-badge">
+                                    <span>🍳</span>
+                                    <span>${getStatusBadge(order.status)}</span>
+                                </div>
+                                <div class="active-order-number">Order #${order.orderNumber}</div>
+                            </div>
+                            <div class="active-order-restaurant">${restaurantData?.name || order.restaurantName || 'Restaurant'}</div>
+                            <div class="active-order-status">
+                                <div class="status-indicator"></div>
+                                <span>${getStatusText(order.status)}</span>
+                            </div>
+                            <div class="active-order-actions">
+                                <button class="active-order-btn btn-track" onclick="trackSpecificOrder('${order.orderNumber}')">
+                                    Track Progress
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Display order history
+        function displayOrderHistory(pastOrders) {
+            const orderHistoryList = document.getElementById('orderHistoryList');
+            
+            orderHistoryList.innerHTML = pastOrders.map((order, index) => {
+                const orderDate = VediAPI.timestampToDate(order.createdAt || order.timestamp);
+                const dateDisplay = formatOrderDate(orderDate);
+                
+                const statusClass = getStatusClass(order.status);
+                const statusText = getStatusText(order.status);
+                
+                return `
+                    <div class="order-card" onclick="toggleOrderDetails(${index})" id="order-${index}">
+                        <div class="order-header">
+                            <div class="order-info">
+                                <div class="order-number">Order #${order.orderNumber}</div>
+                                <div class="order-restaurant">
+                                    🏪 ${restaurantData?.name || order.restaurantName || 'Restaurant'}
+                                </div>
+                                <div class="order-date">${dateDisplay}</div>
+                                <div class="order-status ${statusClass}">${statusText}</div>
+                            </div>
+                            <div class="order-total">
+                                <div class="total-amount">${formatPrice(order.total)}</div>
+                                <div class="total-items">${order.items?.length || 0} item${(order.items?.length || 0) !== 1 ? 's' : ''}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="order-details">
+                            ${order.items ? `
+                                <div class="order-items">
+                                    ${order.items.map(item => `
+                                        <div class="order-item">
+                                            <div class="item-info">
+                                                <div class="item-name">${item.name}</div>
+                                                <div class="item-quantity">Qty: ${item.quantity}</div>
+                                            </div>
+                                            <div class="item-price">${formatPrice(item.price * item.quantity)}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                
+                                <div class="order-summary">
+                                    <div class="summary-row">
+                                        <span>Subtotal:</span>
+                                        <span>${formatPrice(order.subtotal || order.total)}</span>
+                                    </div>
+                                    ${order.tax ? `
+                                        <div class="summary-row">
+                                            <span>Tax:</span>
+                                            <span>${formatPrice(order.tax)}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${order.serviceFee ? `
+                                        <div class="summary-row">
+                                            <span>Service Fee:</span>
+                                            <span>${formatPrice(order.serviceFee)}</span>
+                                        </div>
+                                    ` : ''}
+                                    <div class="summary-row">
+                                        <span>Total:</span>
+                                        <span>${formatPrice(order.total)}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            ${order.specialInstructions ? `
+                                <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
+                                    <div style="font-weight: 600; color: #1565c0; margin-bottom: 4px;">Special Instructions:</div>
+                                    <div style="color: #1565c0;">${order.specialInstructions}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Utility functions
+        function getStatusText(status) {
+            switch (status) {
+                case 'pending': return 'Order received and being processed...';
+                case 'preparing': return 'Your order is being prepared by our chefs!';
+                case 'ready': return 'Order is ready! We\'ll bring it to your table.';
+                case 'completed': return 'Completed';
+                case 'cancelled': return 'Cancelled';
+                default: return 'Order is being processed...';
+            }
+        }
+
+        function getStatusBadge(status) {
+            switch (status) {
+                case 'pending': return 'Pending';
+                case 'preparing': return 'Preparing';
+                case 'ready': return 'Ready';
+                case 'completed': return 'Completed';
+                case 'cancelled': return 'Cancelled';
+                default: return 'Active';
+            }
+        }
+
+        function getStatusClass(status) {
+            return `status-${status}`;
+        }
+
+        function formatPrice(amount) {
+            if (!amount && amount !== 0) return '$0.00';
+            const currency = restaurantData?.currency || 'USD';
+            const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '$';
+            return `${symbol}${Number(amount).toFixed(2)}`;
+        }
+
+        function formatOrderDate(date) {
+            const now = new Date();
+            const orderDate = new Date(date);
+            const isToday = orderDate.toDateString() === now.toDateString();
+            const isYesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString() === orderDate.toDateString();
+            
+            if (isToday) {
+                return `Today at ${orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            } else if (isYesterday) {
+                return `Yesterday at ${orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            } else {
+                return `${orderDate.toLocaleDateString()} at ${orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            }
+        }
+
+        function toggleOrderDetails(index) {
+            const orderCard = document.getElementById(`order-${index}`);
+            orderCard.classList.toggle('expanded');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Action handlers
+        function trackActiveOrder() {
+            console.log('📊 Tracking active order...');
+            
+            const currentOrders = customerOrders.filter(order => 
+                order.status === 'pending' || 
+                order.status === 'preparing' || 
+                order.status === 'ready'
+            );
+            
+            if (currentOrders.length > 0) {
+                const mostRecentOrder = currentOrders[0];
+                const params = new URLSearchParams({
+                    orderNumber: mostRecentOrder.orderNumber,
+                    r: customerSession.restaurantId || ''
+                });
+                
+                window.location.href = `order-tracking.html?${params.toString()}`;
+            }
+        }
+
+        function trackSpecificOrder(orderNumber) {
+            console.log('📊 Tracking specific order:', orderNumber);
+            
+            const params = new URLSearchParams({
+                orderNumber: orderNumber,
+                r: customerSession.restaurantId || ''
+            });
+            
+            window.location.href = `order-tracking.html?${params.toString()}`;
+        }
+
+        function createNewOrder() {
+            console.log('🆕 Creating new order...');
+            
+            const params = new URLSearchParams();
+            if (customerSession.restaurantId) {
+                params.set('r', customerSession.restaurantId);
+            }
+            if (customerSession.tableNumber) {
+                params.set('table', customerSession.tableNumber);
+            }
+            
+            window.location.href = `menu.html?${params.toString()}`;
+        }
+
+        function goBackToApp() {
+            console.log('🔙 Going back to main app...');
+            
+            const params = new URLSearchParams();
+            if (customerSession.restaurantId) {
+                params.set('r', customerSession.restaurantId);
+            }
+            if (customerSession.tableNumber) {
+                params.set('table', customerSession.tableNumber);
+            }
+            
+            window.location.href = `menu.html?${params.toString()}`;
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (orderUpdateListener) {
+                orderUpdateListener();
+            }
+        });
+    </script>
+</body>
+</html>
