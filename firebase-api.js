@@ -1,68 +1,4 @@
-listenToOrderByNumber(orderNumber, callback) {
-    return firebaseDb.collection('orders')
-      .where('orderNumber', '==', orderNumber)
-      .limit(1)
-      .onSnapshot(querySnapshot => {
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          callback({ id: doc.id, ...doc.data() });
-        } else {
-          callback(null);
-        }
-      });
-  },
-
-  /**
-   * Listen to venue-wide order updates across all restaurants
-   * @param {string} venueId - Venue ID
-   * @param {Function} callback - Callback function for updates
-   * @returns {Promise<Function>} Unsubscribe function
-   */
-  async listenToVenueOrders(venueId, callback) {
-    try {
-      // Get restaurants for this venue
-      const restaurants = await this.getRestaurantsByVenue(venueId);
-      
-      if (restaurants.length === 0) {
-        callback([]);
-        return () => {}; // Empty unsubscribe function
-      }
-      
-      const unsubscribeFunctions = [];
-      let allVenueOrders = [];
-      
-      restaurants.forEach(restaurant => {
-        const unsubscribe = this.listenToOrders(restaurant.id, (restaurantOrders) => {
-          // Update orders for this restaurant
-          allVenueOrders = allVenueOrders.filter(order => 
-            order.restaurantId !== restaurant.id
-          );
-          
-          const ordersWithRestaurant = restaurantOrders.map(order => ({
-            ...order,
-            restaurantName: restaurant.name,
-            restaurantCurrency: restaurant.currency
-          }));
-          
-          allVenueOrders = allVenueOrders.concat(ordersWithRestaurant);
-          
-          // Call the callback with all venue orders
-          callback(allVenueOrders);
-        });
-        
-        unsubscribeFunctions.push(unsubscribe);
-      });
-      
-      // Return a function that unsubscribes from all listeners
-      return () => {
-        unsubscribeFunctions.forEach(unsub => unsub());
-      };
-      
-    } catch (error) {
-      console.error('❌ Listen to venue orders error:', error);
-      throw error;
-    }
-  }// firebase-api.js - Complete Vedi Firebase API Implementation
+// firebase-api.js - Complete Vedi Firebase API Implementation with Loss Tracking
 
 const VediAPI = {
   // ============================================================================
@@ -831,32 +767,6 @@ const VediAPI = {
   },
 
   /**
-   * Update existing venue
-   * @param {string} venueId - Venue ID
-   * @param {Object} venueData - Updated data
-   * @returns {Promise<Object>} Updated venue
-   */
-  async updateVenue(venueId, venueData) {
-    try {
-      const updateData = {
-        ...venueData,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      
-      await firebaseDb.collection('venues').doc(venueId).update(updateData);
-      
-      const doc = await firebaseDb.collection('venues').doc(venueId).get();
-      
-      console.log('✅ Venue updated:', venueId);
-      return { id: doc.id, ...doc.data() };
-      
-    } catch (error) {
-      console.error('❌ Update venue error:', error);
-      throw error;
-    }
-  },
-
-  /**
    * Get venue by manager user ID
    * @param {string} managerUserId - Manager's user ID
    * @returns {Promise<Object|null>} Venue or null
@@ -898,20 +808,277 @@ const VediAPI = {
     }
   },
 
+  // ============================================================================
+  // LOSS INCIDENT MANAGEMENT
+  // ============================================================================
+
   /**
-   * Get venue by ID
-   * @param {string} venueId - Venue ID
-   * @returns {Promise<Object>} Venue data
+   * Create new loss incident
+   * @param {Object} incidentData - Incident information
+   * @returns {Promise<Object>} Created incident
    */
-  async getVenue(venueId) {
+  async createLossIncident(incidentData) {
     try {
-      const doc = await firebaseDb.collection('venues').doc(venueId).get();
-      if (doc.exists) {
-        return { id: doc.id, ...doc.data() };
-      }
-      throw new Error('Venue not found');
+      const incident = {
+        ...incidentData,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      const docRef = await firebaseDb.collection('lossIncidents').add(incident);
+      const doc = await docRef.get();
+      
+      console.log('✅ Loss incident created:', docRef.id);
+      return { id: doc.id, ...doc.data() };
+      
     } catch (error) {
-      console.error('❌ Get venue error:', error);
+      console.error('❌ Create loss incident error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get loss incidents for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @param {Object} options - Query options (limit, orderBy, timePeriod, type, severity)
+   * @returns {Promise<Array>} Array of incidents
+   */
+  async getLossIncidents(restaurantId, options = {}) {
+    try {
+      let query = firebaseDb.collection('lossIncidents')
+        .where('restaurantId', '==', restaurantId);
+      
+      // Add type filter
+      if (options.type && options.type !== 'all') {
+        query = query.where('type', '==', options.type);
+      }
+      
+      // Add severity filter
+      if (options.severity && options.severity !== 'all') {
+        query = query.where('severity', '==', options.severity);
+      }
+      
+      // Add status filter
+      if (options.status && options.status !== 'all') {
+        query = query.where('status', '==', options.status);
+      }
+      
+      // Add ordering
+      if (options.orderBy) {
+        query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
+      } else {
+        query = query.orderBy('createdAt', 'desc');
+      }
+      
+      // Add limit
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      // Add time period filter
+      if (options.timePeriod) {
+        const startDate = this.getTimePeriodStart(options.timePeriod);
+        if (startDate) {
+          query = query.where('createdAt', '>=', startDate);
+        }
+      }
+      
+      const querySnapshot = await query.get();
+      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      console.log('✅ Retrieved loss incidents:', incidents.length);
+      return incidents;
+      
+    } catch (error) {
+      console.error('❌ Get loss incidents error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get loss incidents for all restaurants in a venue
+   * @param {string} venueId - Venue ID
+   * @param {Object} options - Query options
+   * @returns {Promise<Array>} Array of incidents across venue
+   */
+  async getLossIncidentsByVenue(venueId, options = {}) {
+    try {
+      let query = firebaseDb.collection('lossIncidents')
+        .where('venueId', '==', venueId);
+      
+      // Add filters similar to getLossIncidents
+      if (options.type && options.type !== 'all') {
+        query = query.where('type', '==', options.type);
+      }
+      
+      if (options.severity && options.severity !== 'all') {
+        query = query.where('severity', '==', options.severity);
+      }
+      
+      if (options.status && options.status !== 'all') {
+        query = query.where('status', '==', options.status);
+      }
+      
+      // Add ordering
+      query = query.orderBy('createdAt', 'desc');
+      
+      // Add limit
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      // Add time period filter
+      if (options.timePeriod) {
+        const startDate = this.getTimePeriodStart(options.timePeriod);
+        if (startDate) {
+          query = query.where('createdAt', '>=', startDate);
+        }
+      }
+      
+      const querySnapshot = await query.get();
+      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      console.log('✅ Retrieved venue loss incidents:', incidents.length);
+      return incidents;
+      
+    } catch (error) {
+      console.error('❌ Get venue loss incidents error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update loss incident
+   * @param {string} incidentId - Incident ID
+   * @param {Object} updateData - Updated data
+   * @returns {Promise<Object>} Updated incident
+   */
+  async updateLossIncident(incidentId, updateData) {
+    try {
+      const data = {
+        ...updateData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      await firebaseDb.collection('lossIncidents').doc(incidentId).update(data);
+      
+      const doc = await firebaseDb.collection('lossIncidents').doc(incidentId).get();
+      
+      console.log('✅ Loss incident updated:', incidentId);
+      return { id: doc.id, ...doc.data() };
+      
+    } catch (error) {
+      console.error('❌ Update loss incident error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete loss incident
+   * @param {string} incidentId - Incident ID
+   */
+  async deleteLossIncident(incidentId) {
+    try {
+      await firebaseDb.collection('lossIncidents').doc(incidentId).delete();
+      console.log('✅ Loss incident deleted:', incidentId);
+    } catch (error) {
+      console.error('❌ Delete loss incident error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Listen to real-time loss incident updates for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToLossIncidents(restaurantId, callback) {
+    return firebaseDb.collection('lossIncidents')
+      .where('restaurantId', '==', restaurantId)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(querySnapshot => {
+        const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(incidents);
+      });
+  },
+
+  /**
+   * Listen to real-time loss incident updates for a venue
+   * @param {string} venueId - Venue ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToVenueLossIncidents(venueId, callback) {
+    return firebaseDb.collection('lossIncidents')
+      .where('venueId', '==', venueId)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(querySnapshot => {
+        const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(incidents);
+      });
+  },
+
+  /**
+   * Get loss analytics for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @param {string} timePeriod - Time period (today, week, month, quarter, year)
+   * @returns {Promise<Object>} Analytics data
+   */
+  async getLossAnalytics(restaurantId, timePeriod = 'month') {
+    try {
+      const startDate = this.getTimePeriodStart(timePeriod);
+      
+      let query = firebaseDb.collection('lossIncidents')
+        .where('restaurantId', '==', restaurantId);
+      
+      if (startDate) {
+        query = query.where('createdAt', '>=', startDate);
+      }
+      
+      const querySnapshot = await query.get();
+      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Calculate analytics
+      const analytics = this.calculateLossAnalytics(incidents);
+      
+      console.log('✅ Retrieved loss analytics for restaurant:', analytics);
+      return analytics;
+      
+    } catch (error) {
+      console.error('❌ Get loss analytics error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get loss analytics for a venue
+   * @param {string} venueId - Venue ID
+   * @param {string} timePeriod - Time period
+   * @returns {Promise<Object>} Venue analytics data
+   */
+  async getVenueLossAnalytics(venueId, timePeriod = 'month') {
+    try {
+      const startDate = this.getTimePeriodStart(timePeriod);
+      
+      let query = firebaseDb.collection('lossIncidents')
+        .where('venueId', '==', venueId);
+      
+      if (startDate) {
+        query = query.where('createdAt', '>=', startDate);
+      }
+      
+      const querySnapshot = await query.get();
+      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Calculate venue-wide analytics
+      const analytics = this.calculateLossAnalytics(incidents, true);
+      
+      console.log('✅ Retrieved venue loss analytics:', analytics);
+      return analytics;
+      
+    } catch (error) {
+      console.error('❌ Get venue loss analytics error:', error);
       throw error;
     }
   },
@@ -966,6 +1133,101 @@ const VediAPI = {
     };
     
     return errorMessages[errorCode] || 'An unexpected error occurred. Please try again.';
+  },
+
+  /**
+   * Get start date for time period
+   * @param {string} timePeriod - Time period string
+   * @returns {Date|null} Start date or null
+   */
+  getTimePeriodStart(timePeriod) {
+    const now = new Date();
+    
+    switch (timePeriod) {
+      case 'today':
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      case 'week':
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - 7);
+        return weekStart;
+      case 'month':
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+      case 'quarter':
+        const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+        return new Date(now.getFullYear(), quarterMonth, 1);
+      case 'year':
+        return new Date(now.getFullYear(), 0, 1);
+      default:
+        return null;
+    }
+  },
+
+  /**
+   * Calculate loss analytics from incidents array
+   * @param {Array} incidents - Array of incident objects
+   * @param {boolean} isVenue - Whether this is venue-wide analytics
+   * @returns {Object} Analytics object
+   */
+  calculateLossAnalytics(incidents, isVenue = false) {
+    const analytics = {
+      totalIncidents: incidents.length,
+      totalLoss: 0,
+      byType: {},
+      bySeverity: { low: 0, medium: 0, high: 0 },
+      byStatus: { reported: 0, investigating: 0, resolved: 0, closed: 0 },
+      averageLoss: 0,
+      trends: {
+        daily: {},
+        weekly: {},
+        monthly: {}
+      }
+    };
+    
+    // Calculate totals and breakdowns
+    incidents.forEach(incident => {
+      const amount = incident.amount || 0;
+      analytics.totalLoss += amount;
+      
+      // By type
+      const type = incident.type || 'other';
+      analytics.byType[type] = (analytics.byType[type] || 0) + amount;
+      
+      // By severity
+      const severity = incident.severity || 'medium';
+      analytics.bySeverity[severity] = (analytics.bySeverity[severity] || 0) + 1;
+      
+      // By status
+      const status = incident.status || 'reported';
+      analytics.byStatus[status] = (analytics.byStatus[status] || 0) + 1;
+      
+      // Trends by date
+      if (incident.createdAt) {
+        const date = this.timestampToDate(incident.createdAt);
+        const dayKey = date.toISOString().split('T')[0];
+        const weekKey = this.getWeekKey(date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        analytics.trends.daily[dayKey] = (analytics.trends.daily[dayKey] || 0) + amount;
+        analytics.trends.weekly[weekKey] = (analytics.trends.weekly[weekKey] || 0) + amount;
+        analytics.trends.monthly[monthKey] = (analytics.trends.monthly[monthKey] || 0) + amount;
+      }
+    });
+    
+    // Calculate average
+    analytics.averageLoss = incidents.length > 0 ? analytics.totalLoss / incidents.length : 0;
+    
+    return analytics;
+  },
+
+  /**
+   * Get week key for date
+   * @param {Date} date - Date object
+   * @returns {string} Week key (YYYY-WNN)
+   */
+  getWeekKey(date) {
+    const startOfYear = new Date(date.getFullYear(), 0, 1);
+    const weekNumber = Math.ceil(((date - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+    return `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
   },
 
   // ============================================================================
@@ -1025,56 +1287,18 @@ const VediAPI = {
    * @param {Function} callback - Callback function for updates
    * @returns {Function} Unsubscribe function
    */
-  /**
-   * Listen to venue-wide order updates across all restaurants
-   * @param {string} venueId - Venue ID
-   * @param {Function} callback - Callback function for updates
-   * @returns {Promise<Function>} Unsubscribe function
-   */
-  async listenToVenueOrders(venueId, callback) {
-    try {
-      // Get restaurants for this venue
-      const restaurants = await this.getRestaurantsByVenue(venueId);
-      
-      if (restaurants.length === 0) {
-        callback([]);
-        return () => {}; // Empty unsubscribe function
-      }
-      
-      const unsubscribeFunctions = [];
-      let allVenueOrders = [];
-      
-      restaurants.forEach(restaurant => {
-        const unsubscribe = this.listenToOrders(restaurant.id, (restaurantOrders) => {
-          // Update orders for this restaurant
-          allVenueOrders = allVenueOrders.filter(order => 
-            order.restaurantId !== restaurant.id
-          );
-          
-          const ordersWithRestaurant = restaurantOrders.map(order => ({
-            ...order,
-            restaurantName: restaurant.name,
-            restaurantCurrency: restaurant.currency
-          }));
-          
-          allVenueOrders = allVenueOrders.concat(ordersWithRestaurant);
-          
-          // Call the callback with all venue orders
-          callback(allVenueOrders);
-        });
-        
-        unsubscribeFunctions.push(unsubscribe);
+  listenToOrderByNumber(orderNumber, callback) {
+    return firebaseDb.collection('orders')
+      .where('orderNumber', '==', orderNumber)
+      .limit(1)
+      .onSnapshot(querySnapshot => {
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          callback({ id: doc.id, ...doc.data() });
+        } else {
+          callback(null);
+        }
       });
-      
-      // Return a function that unsubscribes from all listeners
-      return () => {
-        unsubscribeFunctions.forEach(unsub => unsub());
-      };
-      
-    } catch (error) {
-      console.error('❌ Listen to venue orders error:', error);
-      throw error;
-    }
   },
 
   /**
@@ -1137,4 +1361,6 @@ window.VediAPI = VediAPI;
 window.FirebaseAPI = VediAPI;
 
 console.log('🍽️ Vedi Firebase API loaded successfully');
-console.log('📚 Available methods:', Object.keys(VediAPI));
+console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
+console.log('📊 Loss tracking methods: 8 new methods added');
+console.log('🔥 Ready for production use!');
