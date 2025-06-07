@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu - Digital Dining Experience</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Header Styles */
+        .menu-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .restaurant-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .customer-info {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            gap: 12px;
+        }
+
+        .welcome-text {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .allergen-header-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .allergen-header-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .allergen-header-btn.has-allergens {
+            background: rgba(220, 53, 69, 0.8);
+            border-color: rgba(220, 53, 69, 0.9);
+        }
+
+        .allergen-header-btn.has-allergens:hover {
+            background: rgba(220, 53, 69, 0.9);
+        }
+
+        .table-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        /* Loading States */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            max-width: 320px;
+            width: 90%;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #2d3748;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .loading-subtext {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        /* Menu Content */
+        .menu-content {
+            padding: 20px;
+            padding-bottom: 120px;
+        }
+
+        /* Category Tabs */
+        .menu-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+            padding: 4px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+
+        .menu-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tab {
+            background: transparent;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            font-weight: 500;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #718096;
+            min-width: fit-content;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        /* Menu Items */
+        .menu-items {
+            display: none;
+        }
+
+        .menu-items.active {
+            display: block;
+        }
+
+        .menu-item {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .menu-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .menu-item:hover::before {
+            transform: scaleX(1);
+        }
+
+        /* Out of Stock Styles */
+        .menu-item.out-of-stock {
+            opacity: 0.6;
+            background: #f8f9fa;
+            position: relative;
+            border: 2px solid #e2e8f0;
+        }
+
+        .menu-item.out-of-stock::before {
+            background: linear-gradient(90deg, #dc3545, #c82333);
+        }
+
+        .menu-item.out-of-stock::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 8px,
+                rgba(220, 53, 69, 0.1) 8px,
+                rgba(220, 53, 69, 0.1) 16px
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .menu-item.out-of-stock:hover {
+            transform: none;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .out-of-stock-badge {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .out-of-stock-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(220, 53, 69, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-weight: 700;
+            font-size: 1rem;
+            z-index: 10;
+            box-shadow: 0 8px 25px rgba(220, 53, 69, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Enhanced Menu Item with Image */
+        .item-image {
+            width: 100%;
+            height: 160px;
+            border-radius: 16px;
+            object-fit: cover;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #adb5bd;
+            font-size: 0.9rem;
+            border: 2px solid #f0f0f0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .item-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 14px;
+            transition: filter 0.3s ease;
+        }
+
+        .menu-item.out-of-stock .item-image img {
+            filter: grayscale(100%) brightness(0.6);
+        }
+
+        .item-image.no-image {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            color: #adb5bd;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .menu-item.out-of-stock .item-image.no-image {
+            background: linear-gradient(135deg, #e9ecef, #dee2e6);
+            color: #6c757d;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .item-name {
+            font-weight: 700;
+            color: #2d3748;
+            font-size: 1.2rem;
+            line-height: 1.3;
+        }
+
+        .menu-item.out-of-stock .item-name {
+            color: #6c757d;
+            text-decoration: line-through;
+        }
+
+        .item-price {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .menu-item.out-of-stock .item-price {
+            background: linear-gradient(135deg, #adb5bd, #6c757d);
+            box-shadow: 0 4px 12px rgba(173, 181, 189, 0.3);
+        }
+
+        .item-description {
+            color: #718096;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            line-height: 1.5;
+            position: relative;
+            z-index: 2;
+        }
+
+        .menu-item.out-of-stock .item-description {
+            color: #adb5bd;
+        }
+
+        .quantity-price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .qty-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: #f7fafc;
+            padding: 8px 16px;
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .menu-item.out-of-stock .qty-section {
+            background: #e9ecef;
+            pointer-events: none;
+        }
+
+        .qty-btn {
+            width: 36px;
+            height: 36px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .qty-btn:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .qty-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .menu-item.out-of-stock .qty-btn {
+            border-color: #adb5bd;
+            color: #adb5bd;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .qty-display {
+            font-weight: 700;
+            font-size: 1.2rem;
+            min-width: 32px;
+            text-align: center;
+            color: #2d3748;
+        }
+
+        .menu-item.out-of-stock .qty-display {
+            color: #adb5bd;
+        }
+
+        .add-to-cart-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: none;
+            position: relative;
+            z-index: 2;
+        }
+
+        .add-to-cart-btn.show {
+            display: block;
+        }
+
+        .add-to-cart-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
+        }
+
+        .menu-item.out-of-stock .add-to-cart-btn {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .menu-item.out-of-stock .add-to-cart-btn:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Cart Summary */
+        .cart-summary {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 380px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px 24px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(102, 126, 234, 0.4);
+            display: none;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 1000;
+        }
+
+        .cart-summary.show {
+            display: block;
+            animation: bounceInUp 0.6s ease;
+        }
+
+        @keyframes bounceInUp {
+            0% { transform: translateX(-50%) translateY(100px) scale(0.9); opacity: 0; }
+            60% { transform: translateX(-50%) translateY(-10px) scale(1.05); opacity: 1; }
+            100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+        }
+
+        .cart-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cart-info {
+            flex: 1;
+        }
+
+        .cart-items {
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+            opacity: 0.9;
+        }
+
+        .cart-total {
+            font-weight: 700;
+            font-size: 1.3rem;
+        }
+
+        .view-cart-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .view-cart-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Error States */
+        .error-message {
+            background: linear-gradient(135deg, #fed7d7, #feb2b2);
+            color: #c53030;
+            padding: 20px;
+            border-radius: 16px;
+            margin: 16px;
+            border: 1px solid #fc8181;
+            text-align: center;
+        }
+
+        .empty-category {
+            background: #f7fafc;
+            border-radius: 16px;
+            margin: 16px 0;
+            text-align: center;
+            padding: 40px 20px;
+            color: #718096;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* Allergen Modal Styles */
+        .allergen-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(5px);
+        }
+
+        .allergen-modal.show {
+            display: flex;
+        }
+
+        .allergen-modal-content {
+            background: white;
+            border-radius: 25px;
+            padding: 40px 35px;
+            max-width: 450px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+            animation: modalSlideIn 0.4s ease;
+        }
+
+        @keyframes modalSlideIn {
+            0% { transform: translateY(50px) scale(0.95); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        .allergen-modal-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .allergen-modal-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .allergen-modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .allergen-modal-subtitle {
+            color: #718096;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .allergen-initial-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .allergen-btn {
+            padding: 16px 24px;
+            border: none;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .allergen-btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .allergen-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .allergen-btn-secondary {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+        }
+
+        .allergen-btn-secondary:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
+        .allergen-selection {
+            display: none;
+        }
+
+        .allergen-selection.show {
+            display: block;
+        }
+
+        .allergen-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .allergen-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .allergen-item:hover {
+            border-color: #cbd5e0;
+            background: #f7fafc;
+        }
+
+        .allergen-item.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #f0f3ff, #e6edff);
+        }
+
+        .allergen-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .allergen-item.selected .allergen-checkbox {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .allergen-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        .allergen-icon {
+            font-size: 1.2rem;
+        }
+
+        .custom-allergen-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            margin-top: 15px;
+            font-size: 0.95rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .custom-allergen-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .allergen-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .allergen-back-btn {
+            background: #e2e8f0;
+            color: #4a5568;
+            flex: 1;
+        }
+
+        .allergen-save-btn {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            flex: 2;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+        }
+
+        .allergen-save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.4);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .menu-header {
+                padding: 20px 16px;
+            }
+
+            .menu-content {
+                padding: 16px;
+                padding-bottom: 120px;
+            }
+
+            .menu-item {
+                padding: 16px;
+            }
+
+            .restaurant-title {
+                font-size: 1.5rem;
+            }
+
+            .item-image {
+                height: 140px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading menu...</div>
+            <div class="loading-subtext">Preparing your dining experience</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="menu-header">
+            <h1 class="restaurant-title" id="restaurantName">Loading...</h1>
+            <div class="customer-info">
+                <div class="welcome-text">
+                    <span>Welcome, <strong id="displayName">Guest</strong></span>
+                </div>
+                <div class="header-right">
+                    <button class="allergen-header-btn" id="allergenHeaderBtn" onclick="openAllergenModal()">
+                        <span>🛡️</span>
+                        <span id="allergenBtnText">Allergies</span>
+                    </button>
+                    <div class="table-badge" id="tableBadge">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Menu Content -->
+        <div class="menu-content">
+            <div class="error-message" id="errorMessage" style="display: none;">
+                <h3>⚠️ Unable to load menu</h3>
+                <p>Please refresh the page or contact staff for assistance</p>
+                <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                    Try Again
+                </button>
+            </div>
+            
+            <div class="menu-tabs" id="menuTabs" style="display: none;">
+                <!-- Tabs will be populated dynamically -->
+            </div>
+
+            <div id="menuItemsContainer" style="display: none;">
+                <!-- Menu items will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Allergen Modal -->
+    <div class="allergen-modal" id="allergenModal">
+        <div class="allergen-modal-content">
+            <div class="allergen-modal-header">
+                <div class="allergen-modal-icon">🛡️</div>
+                <h2 class="allergen-modal-title">Food Allergies & Dietary Restrictions</h2>
+                <p class="allergen-modal-subtitle">Help us customize your menu to keep you safe and ensure the best dining experience.</p>
+            </div>
+
+            <!-- Initial Selection -->
+            <div class="allergen-initial" id="allergenInitial">
+                <div class="allergen-initial-buttons">
+                    <button class="allergen-btn allergen-btn-secondary" onclick="skipAllergenSetup()">
+                        <span>😊</span>
+                        No allergies or restrictions
+                    </button>
+                    <button class="allergen-btn allergen-btn-primary" onclick="showAllergenSelection()">
+                        <span>⚠️</span>
+                        Yes, I have allergies/restrictions
+                    </button>
+                </div>
+            </div>
+
+            <!-- Allergen Selection -->
+            <div class="allergen-selection" id="allergenSelection">
+                <p style="color: #718096; margin-bottom: 20px; text-align: center;">
+                    Select any allergies or dietary restrictions. We'll hide menu items that contain these ingredients.
+                </p>
+
+                <div class="allergen-grid" id="allergenGrid">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+
+                <input type="text" class="custom-allergen-input" id="customAllergenInput" 
+                       placeholder="Other allergies or restrictions (e.g., sesame, sulfites)">
+
+                <div class="allergen-actions">
+                    <button class="allergen-btn allergen-back-btn" onclick="showAllergenInitial()">
+                        ← Back
+                    </button>
+                    <button class="allergen-btn allergen-save-btn" onclick="saveAllergenSettings()">
+                        Save & Continue →
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Summary -->
+    <div class="cart-summary" id="cartSummary">
+        <div class="cart-content">
+            <div class="cart-info">
+                <div class="cart-items" id="cartItemCount">0 items</div>
+                <div class="cart-total" id="cartTotal">$0.00</div>
+            </div>
+            <button class="view-cart-btn" onclick="viewCart()">
+                View Order →
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentRestaurant = null;
+        let categories = [];
+        let menuItems = [];
+        let cart = {};
+        let customerData = {};
+        let itemQuantities = {};
+        let activeCategory = null;
+        let customerAllergens = [];
+        let filteredMenuItems = [];
+
+        // Common allergens list
+        const commonAllergens = [
+            { id: 'nuts', name: 'Tree Nuts', icon: '🥜' },
+            { id: 'peanuts', name: 'Peanuts', icon: '🥜' },
+            { id: 'dairy', name: 'Dairy/Milk', icon: '🥛' },
+            { id: 'gluten', name: 'Gluten/Wheat', icon: '🌾' },
+            { id: 'eggs', name: 'Eggs', icon: '🥚' },
+            { id: 'soy', name: 'Soy', icon: '🫘' },
+            { id: 'fish', name: 'Fish', icon: '🐟' },
+            { id: 'shellfish', name: 'Shellfish', icon: '🦐' },
+            { id: 'sesame', name: 'Sesame', icon: '🫰' },
+            { id: 'vegetarian', name: 'Not Vegetarian', icon: '🥬' },
+            { id: 'vegan', name: 'Not Vegan', icon: '🌱' },
+            { id: 'spicy', name: 'Spicy Food', icon: '🌶️' }
+        ];
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Menu page initializing...');
+            
+            try {
+                await initializeMenuPage();
+            } catch (error) {
+                console.error('Error initializing menu page:', error);
+                showError('Failed to load menu. Please try refreshing the page.');
+                hideLoading();
+            }
+        });
+
+        // Main initialization function
+        async function initializeMenuPage() {
+            showLoading();
+            
+            try {
+                // Get customer data from URL parameters
+                customerData = getCustomerDataFromURL();
+                console.log('👤 Customer data:', customerData);
+                
+                // Load restaurant and menu data from Firebase
+                await loadRestaurantAndMenuData();
+                
+                // Update customer display
+                updateCustomerDisplay();
+                
+                // Load saved allergen settings
+                loadSavedAllergens();
+                
+                // Load saved cart
+                loadSavedCart();
+                
+                // Filter menu based on allergens
+                filterMenuByAllergens();
+                
+                // Render the menu
+                renderMenu();
+                
+                hideLoading();
+                
+                // Check if allergen modal should be shown
+                checkAllergenPrompt();
+                
+                console.log('✅ Menu page loaded successfully');
+                
+            } catch (error) {
+                console.error('Menu page initialization error:', error);
+                showError('Failed to load menu: ' + error.message);
+                hideLoading();
+            }
+        }
+
+        // Get customer data from URL parameters (from QR code scan)
+        function getCustomerDataFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const restaurantId = urlParams.get('restaurant');
+            const tableNumber = urlParams.get('table');
+            const location = urlParams.get('location');
+            
+            if (!restaurantId) {
+                throw new Error('No restaurant ID provided. Please scan a valid QR code.');
+            }
+            
+            // Determine display text for table/location
+            let tableDisplay;
+            if (location === 'counter') {
+                tableDisplay = 'At Counter';
+            } else if (tableNumber) {
+                tableDisplay = `Table ${tableNumber}`;
+            } else {
+                tableDisplay = 'Unknown Location';
+            }
+            
+            return {
+                restaurantId: restaurantId,
+                tableNumber: tableNumber || 'counter',
+                location: location || (tableNumber ? 'table' : 'counter'),
+                tableDisplay: tableDisplay,
+                name: urlParams.get('name') || null,
+                phone: urlParams.get('phone') || null
+            };
+        }
+
+        // Load restaurant and menu data from Firebase
+        async function loadRestaurantAndMenuData() {
+            try {
+                // Load restaurant data
+                currentRestaurant = await VediAPI.getRestaurant(customerData.restaurantId);
+                console.log('🏪 Loaded restaurant:', currentRestaurant.name);
+                
+                // Load categories and menu items
+                const [categoriesData, menuItemsData] = await Promise.all([
+                    VediAPI.getMenuCategories(customerData.restaurantId),
+                    VediAPI.getMenuItems(customerData.restaurantId)
+                ]);
+
+                categories = categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0));
+                menuItems = menuItemsData;
+
+                console.log('📊 Loaded categories:', categories.length);
+                console.log('📊 Loaded menu items:', menuItems.length);
+
+                if (categories.length === 0 || menuItems.length === 0) {
+                    throw new Error('Menu is not available yet. Please contact restaurant staff.');
+                }
+
+            } catch (error) {
+                console.error('Error loading restaurant/menu data:', error);
+                throw error;
+            }
+        }
+
+        // Currency utility functions
+        function getRestaurantCurrency() {
+            if (currentRestaurant && currentRestaurant.currency) {
+                return currentRestaurant.currency;
+            }
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
+        }
+
+        function formatPrice(amount, showCode = false) {
+            const currency = getRestaurantCurrency();
+            const formattedAmount = Number(amount).toFixed(2);
+            
+            if (showCode) {
+                return `${currency.symbol}${formattedAmount} ${currency.code}`;
+            }
+            
+            return `${currency.symbol}${formattedAmount}`;
+        }
+
+        // Update customer display
+        function updateCustomerDisplay() {
+            document.getElementById('restaurantName').textContent = currentRestaurant.name;
+            document.getElementById('tableBadge').textContent = customerData.tableDisplay;
+            
+            // Set display name if provided, otherwise use "Guest"
+            const displayName = customerData.name ? customerData.name.split(' ')[0] : 'Guest';
+            document.getElementById('displayName').textContent = displayName;
+        }
+
+        // Allergen Management Functions
+        function loadSavedAllergens() {
+            try {
+                const savedAllergens = sessionStorage.getItem('customerAllergens');
+                if (savedAllergens) {
+                    customerAllergens = JSON.parse(savedAllergens);
+                    console.log('🛡️ Loaded saved allergens:', customerAllergens);
+                    updateAllergenStatusBar();
+                } else {
+                    customerAllergens = [];
+                }
+            } catch (error) {
+                console.error('Error loading allergens:', error);
+                customerAllergens = [];
+            }
+        }
+
+        function checkAllergenPrompt() {
+            // Show allergen modal if no previous allergen settings found
+            const hasSeenPrompt = sessionStorage.getItem('allergenPromptShown');
+            if (!hasSeenPrompt && menuItems.length > 0) {
+                setTimeout(() => {
+                    openAllergenModal();
+                }, 1000);
+            }
+        }
+
+        function openAllergenModal() {
+            const modal = document.getElementById('allergenModal');
+            populateAllergenGrid();
+            
+            const hasSeenPrompt = sessionStorage.getItem('allergenPromptShown');
+            if (hasSeenPrompt) {
+                showAllergenSelection();
+            } else {
+                showAllergenInitial();
+            }
+            
+            modal.classList.add('show');
+        }
+
+        function closeAllergenModal() {
+            const modal = document.getElementById('allergenModal');
+            modal.classList.remove('show');
+        }
+
+        function populateAllergenGrid() {
+            const grid = document.getElementById('allergenGrid');
+            grid.innerHTML = commonAllergens.map(allergen => `
+                <div class="allergen-item ${customerAllergens.includes(allergen.id) ? 'selected' : ''}" 
+                     onclick="toggleAllergen('${allergen.id}')">
+                    <div class="allergen-checkbox">
+                        ${customerAllergens.includes(allergen.id) ? '✓' : ''}
+                    </div>
+                    <div class="allergen-label">
+                        <span class="allergen-icon">${allergen.icon}</span>
+                        <span>${allergen.name}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleAllergen(allergenId) {
+            const index = customerAllergens.indexOf(allergenId);
+            if (index > -1) {
+                customerAllergens.splice(index, 1);
+            } else {
+                customerAllergens.push(allergenId);
+            }
+            populateAllergenGrid();
+        }
+
+        function showAllergenInitial() {
+            document.getElementById('allergenInitial').style.display = 'block';
+            document.getElementById('allergenSelection').classList.remove('show');
+        }
+
+        function showAllergenSelection() {
+            document.getElementById('allergenInitial').style.display = 'none';
+            document.getElementById('allergenSelection').classList.add('show');
+        }
+
+        function skipAllergenSetup() {
+            customerAllergens = [];
+            saveAllergenData();
+            closeAllergenModal();
+            refreshMenuDisplay();
+        }
+
+        function saveAllergenSettings() {
+            const customAllergens = document.getElementById('customAllergenInput').value.trim();
+            
+            customerData.allergens = customerAllergens;
+            customerData.customAllergens = customAllergens;
+            
+            saveAllergenData(customAllergens);
+            closeAllergenModal();
+            refreshMenuDisplay();
+            
+            // Save allergen info for checkout page
+            const allergenInfo = {
+                selectedAllergens: customerAllergens,
+                customAllergens: customAllergens,
+                allergenNames: customerAllergens.map(id => {
+                    const allergen = commonAllergens.find(a => a.id === id);
+                    return allergen ? allergen.name : id;
+                })
+            };
+            sessionStorage.setItem('customerAllergenInfo', JSON.stringify(allergenInfo));
+        }
+
+        function saveAllergenData(customAllergens = '') {
+            sessionStorage.setItem('allergenPromptShown', 'true');
+            sessionStorage.setItem('customerAllergens', JSON.stringify(customerAllergens));
+            sessionStorage.setItem('customAllergens', customAllergens);
+        }
+
+        function refreshMenuDisplay() {
+            filterMenuByAllergens();
+            renderMenu();
+            updateAllergenStatusBar();
+            
+            // Restore cart quantities
+            if (Object.keys(cart).length > 0) {
+                itemQuantities = { ...cart };
+                setTimeout(() => {
+                    updateAllQuantityDisplays();
+                    updateCartSummary();
+                }, 100);
+            }
+        }
+
+        function filterMenuByAllergens() {
+            if (customerAllergens.length === 0) {
+                filteredMenuItems = [...menuItems];
+                return;
+            }
+
+            filteredMenuItems = menuItems.filter(item => {
+                if (!item.allergens || !Array.isArray(item.allergens)) {
+                    return true;
+                }
+                
+                const hasAllergen = item.allergens.some(allergen => customerAllergens.includes(allergen));
+                return !hasAllergen;
+            });
+
+            console.log(`🛡️ Filtered ${menuItems.length} items to ${filteredMenuItems.length} based on allergens`);
+        }
+
+        function updateAllergenStatusBar() {
+            const headerBtn = document.getElementById('allergenHeaderBtn');
+            const btnText = document.getElementById('allergenBtnText');
+            
+            if (customerAllergens.length > 0) {
+                headerBtn.classList.add('has-allergens');
+                btnText.textContent = `${customerAllergens.length} Active`;
+            } else {
+                headerBtn.classList.remove('has-allergens');
+                btnText.textContent = 'Allergies';
+            }
+        }
+
+        // Menu Rendering Functions
+        function renderMenu() {
+            if (categories.length === 0) {
+                showError('No menu categories available.');
+                return;
+            }
+
+            if (!filteredMenuItems || filteredMenuItems.length === 0) {
+                filterMenuByAllergens();
+            }
+
+            renderTabs();
+            renderMenuItems();
+            
+            const menuTabs = document.getElementById('menuTabs');
+            const menuContainer = document.getElementById('menuItemsContainer');
+            
+            menuTabs.style.display = 'flex';
+            menuContainer.style.display = 'block';
+            
+            if (categories.length > 0 && !activeCategory) {
+                switchToCategory(categories[0].id);
+            } else if (activeCategory) {
+                switchToCategory(activeCategory);
+            }
+        }
+
+        function renderTabs() {
+            const tabsContainer = document.getElementById('menuTabs');
+            const sortedCategories = categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+            
+            if (sortedCategories.length === 0) {
+                tabsContainer.style.display = 'none';
+                return;
+            }
+            
+            tabsContainer.innerHTML = sortedCategories.map(category => {
+                return `
+                    <button class="tab" data-category="${category.id}" onclick="switchToCategory('${category.id}')">
+                        <span>${category.name}</span>
+                    </button>
+                `;
+            }).join('');
+            
+            tabsContainer.style.display = 'flex';
+        }
+
+        function renderMenuItems() {
+            const container = document.getElementById('menuItemsContainer');
+            
+            if (categories.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-category">
+                        <div class="empty-icon">🍽️</div>
+                        <h3>Menu Coming Soon</h3>
+                        <p>The restaurant is setting up their menu. Please check back shortly.</p>
+                    </div>
+                `;
+                container.style.display = 'block';
+                return;
+            }
+            
+            container.innerHTML = categories.map(category => {
+                const categoryItems = filteredMenuItems.filter(item => item.categoryId === category.id);
+                
+                return `
+                    <div class="menu-items" id="category-${category.id}">
+                        ${categoryItems.length > 0 ? 
+                            categoryItems.map(item => renderMenuItem(item)).join('') :
+                            '<div class="empty-category"><div class="empty-icon">🚫</div><h3>No Available Items</h3><p>All items in this category contain your specified allergens</p></div>'
+                        }
+                    </div>
+                `;
+            }).join('');
+            
+            container.style.display = 'block';
+        }
+
+        function renderMenuItem(item) {
+            const currentQty = cart[item.id] || 0;
+            itemQuantities[item.id] = currentQty;
+            const isOutOfStock = item.inStock === false;
+            
+            const itemClass = isOutOfStock ? 'menu-item out-of-stock' : 'menu-item';
+            const qtyButtonsDisabled = isOutOfStock ? 'disabled' : '';
+            const addButtonText = isOutOfStock ? 'Currently Unavailable' : (currentQty > 0 ? 'In Cart' : 'Add to Cart');
+            
+            return `
+                <div class="${itemClass}" data-item="${item.id}">
+                    ${isOutOfStock ? '<div class="out-of-stock-badge">Out of Stock</div>' : ''}
+                    <div class="item-image ${!item.image ? 'no-image' : ''}">
+                        ${item.image ? 
+                            `<img src="${item.image}" alt="${item.name}" loading="lazy">` : 
+                            '🍽️ No Image Available'
+                        }
+                    </div>
+                    <div class="item-header">
+                        <h3 class="item-name">${item.name}</h3>
+                        <div class="item-price">${formatPrice(item.price)}</div>
+                    </div>
+                    <p class="item-description">${item.description || ''}</p>
+                    <div class="quantity-price-row">
+                        <div class="qty-section">
+                            <button class="qty-btn" onclick="updateQuantity('${item.id}', -1)" ${currentQty <= 0 || isOutOfStock ? 'disabled' : ''} ${qtyButtonsDisabled}>−</button>
+                            <span class="qty-display" id="qty-${item.id}">${currentQty}</span>
+                            <button class="qty-btn" onclick="updateQuantity('${item.id}', 1)" ${isOutOfStock ? 'disabled' : ''} ${qtyButtonsDisabled}>+</button>
+                        </div>
+                    </div>
+                    <button class="add-to-cart-btn ${currentQty > 0 && !isOutOfStock ? 'show' : (isOutOfStock ? 'show' : '')}" id="add-btn-${item.id}" onclick="${isOutOfStock ? '' : `addToCart('${item.id}')`}">
+                        ${addButtonText}
+                    </button>
+                    ${isOutOfStock ? '<div class="out-of-stock-overlay">Currently Unavailable</div>' : ''}
+                </div>
+            `;
+        }
+
+        function switchToCategory(categoryId) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.category === categoryId) {
+                    tab.classList.add('active');
+                }
+            });
+
+            document.querySelectorAll('.menu-items').forEach(items => {
+                items.classList.remove('active');
+            });
+            
+            const categoryElement = document.getElementById(`category-${categoryId}`);
+            if (categoryElement) {
+                categoryElement.classList.add('active');
+            }
+
+            activeCategory = categoryId;
+        }
+
+        // Cart Management Functions
+        function updateQuantity(itemId, change) {
+            const item = menuItems.find(item => item.id === itemId);
+            if (item && item.inStock === false) {
+                return;
+            }
+            
+            const currentInCart = cart[itemId] || 0;
+            if (!(itemId in itemQuantities)) {
+                itemQuantities[itemId] = currentInCart;
+            }
+
+            itemQuantities[itemId] = Math.max(0, itemQuantities[itemId] + change);
+
+            const qtyDisplay = document.getElementById(`qty-${itemId}`);
+            if (qtyDisplay) {
+                qtyDisplay.textContent = itemQuantities[itemId];
+            }
+
+            const minusBtn = document.querySelector(`[data-item="${itemId}"] .qty-btn:first-child`);
+            if (minusBtn) minusBtn.disabled = itemQuantities[itemId] <= 0;
+
+            const addToCartBtn = document.getElementById(`add-btn-${itemId}`);
+            if (addToCartBtn) {
+                if (itemQuantities[itemId] === 0 && currentInCart > 0) {
+                    addToCartBtn.classList.add('show');
+                    addToCartBtn.textContent = 'Update Cart';
+                } else if (itemQuantities[itemId] === 0 && currentInCart === 0) {
+                    addToCartBtn.classList.remove('show');
+                } else {
+                    addToCartBtn.classList.add('show');
+                    addToCartBtn.textContent = (itemQuantities[itemId] === currentInCart) ? 'In Cart' : 'Update Cart';
+                }
+            }
+        }
+
+        function addToCart(itemId) {
+            const item = menuItems.find(item => item.id === itemId);
+            if (item && item.inStock === false) {
+                return;
+            }
+            
+            const quantity = itemQuantities[itemId] || 0;
+            const button = document.getElementById(`add-btn-${itemId}`);
+            
+            if (quantity === 0) {
+                delete cart[itemId];
+                if (button) {
+                    button.textContent = '✅ Removed!';
+                    button.style.background = 'linear-gradient(135deg, #e53e3e, #c53030)';
+                    setTimeout(() => {
+                        button.classList.remove('show');
+                        button.style.background = '';
+                    }, 1500);
+                }
+            } else {
+                cart[itemId] = quantity;
+                if (button) {
+                    button.textContent = '✅ Updated!';
+                    button.style.background = 'linear-gradient(135deg, #48bb78, #38a169)';
+                    setTimeout(() => {
+                        button.textContent = 'In Cart';
+                        button.style.background = '';
+                    }, 1500);
+                }
+            }
+
+            updateCartSummary();
+        }
+
+        function updateCartSummary() {
+            let totalItems = 0;
+            let totalPrice = 0;
+            
+            for (let itemId in cart) {
+                if (cart[itemId] > 0) {
+                    const item = menuItems.find(item => item.id === itemId);
+                    if (item) {
+                        totalItems += cart[itemId];
+                        totalPrice += cart[itemId] * item.price;
+                    }
+                }
+            }
+            
+            const cartSummary = document.getElementById('cartSummary');
+            const cartItemCount = document.getElementById('cartItemCount');
+            const cartTotal = document.getElementById('cartTotal');
+            
+            if (totalItems > 0) {
+                cartItemCount.textContent = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
+                cartTotal.textContent = formatPrice(totalPrice);
+                cartSummary.classList.add('show');
+                
+                // Save cart to sessionStorage
+                sessionStorage.setItem('customerCart', JSON.stringify(cart));
+            } else {
+                cartSummary.classList.remove('show');
+                sessionStorage.removeItem('customerCart');
+            }
+        }
+
+        function loadSavedCart() {
+            try {
+                const savedCart = sessionStorage.getItem('customerCart');
+                if (savedCart) {
+                    cart = JSON.parse(savedCart);
+                    console.log('🛒 Loaded saved cart:', cart);
+                } else {
+                    cart = {};
+                }
+                
+                itemQuantities = { ...cart };
+                updateCartSummary();
+                
+            } catch (error) {
+                console.error('Error loading saved cart:', error);
+                cart = {};
+                itemQuantities = {};
+            }
+        }
+
+        function updateAllQuantityDisplays() {
+            Object.keys(cart).forEach(itemId => {
+                const quantity = cart[itemId] || 0;
+                
+                const item = menuItems.find(item => item.id === itemId);
+                const isOutOfStock = item && item.inStock === false;
+                
+                const qtyDisplay = document.getElementById(`qty-${itemId}`);
+                if (qtyDisplay) {
+                    qtyDisplay.textContent = quantity;
+                }
+
+                const minusBtn = document.querySelector(`[data-item="${itemId}"] .qty-btn:first-child`);
+                if (minusBtn) minusBtn.disabled = quantity <= 0 || isOutOfStock;
+
+                const addToCartBtn = document.getElementById(`add-btn-${itemId}`);
+                if (addToCartBtn) {
+                    if (isOutOfStock) {
+                        addToCartBtn.classList.add('show');
+                        addToCartBtn.textContent = 'Currently Unavailable';
+                        addToCartBtn.onclick = null;
+                    } else if (quantity > 0) {
+                        addToCartBtn.classList.add('show');
+                        addToCartBtn.textContent = 'In Cart';
+                    } else {
+                        addToCartBtn.classList.remove('show');
+                    }
+                }
+            });
+        }
+
+        function viewCart() {
+            // Save current cart and customer data
+            sessionStorage.setItem('customerCart', JSON.stringify(cart));
+            sessionStorage.setItem('customerData', JSON.stringify(customerData));
+            
+            // Include allergen information
+            if (customerAllergens.length > 0 || customerData.customAllergens) {
+                customerData.allergens = customerAllergens;
+            }
+            
+            // Build URL parameters for checkout
+            const params = new URLSearchParams();
+            params.set('restaurant', customerData.restaurantId);
+            params.set('table', customerData.tableNumber);
+            if (customerData.location) params.set('location', customerData.location);
+            if (customerData.name) params.set('name', customerData.name);
+            if (customerData.phone) params.set('phone', customerData.phone);
+            
+            window.location.href = `checkout.html?${params.toString()}`;
+        }
+
+        // Utility functions
+        function showLoading() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showError(message) {
+            hideLoading();
+            document.getElementById('errorMessage').innerHTML = `
+                <h3>⚠️ Unable to load menu</h3>
+                <p>${message}</p>
+                <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                    Try Again
+                </button>
+            `;
+            document.getElementById('errorMessage').style.display = 'block';
+        }
+
+        console.log('Customer menu with Firebase loaded successfully');
+    </script>
+</body>
+</html>
