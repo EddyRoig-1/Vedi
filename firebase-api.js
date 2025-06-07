@@ -1,4 +1,68 @@
-// firebase-api.js - Complete Vedi Firebase API Implementation
+listenToOrderByNumber(orderNumber, callback) {
+    return firebaseDb.collection('orders')
+      .where('orderNumber', '==', orderNumber)
+      .limit(1)
+      .onSnapshot(querySnapshot => {
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          callback({ id: doc.id, ...doc.data() });
+        } else {
+          callback(null);
+        }
+      });
+  },
+
+  /**
+   * Listen to venue-wide order updates across all restaurants
+   * @param {string} venueId - Venue ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Promise<Function>} Unsubscribe function
+   */
+  async listenToVenueOrders(venueId, callback) {
+    try {
+      // Get restaurants for this venue
+      const restaurants = await this.getRestaurantsByVenue(venueId);
+      
+      if (restaurants.length === 0) {
+        callback([]);
+        return () => {}; // Empty unsubscribe function
+      }
+      
+      const unsubscribeFunctions = [];
+      let allVenueOrders = [];
+      
+      restaurants.forEach(restaurant => {
+        const unsubscribe = this.listenToOrders(restaurant.id, (restaurantOrders) => {
+          // Update orders for this restaurant
+          allVenueOrders = allVenueOrders.filter(order => 
+            order.restaurantId !== restaurant.id
+          );
+          
+          const ordersWithRestaurant = restaurantOrders.map(order => ({
+            ...order,
+            restaurantName: restaurant.name,
+            restaurantCurrency: restaurant.currency
+          }));
+          
+          allVenueOrders = allVenueOrders.concat(ordersWithRestaurant);
+          
+          // Call the callback with all venue orders
+          callback(allVenueOrders);
+        });
+        
+        unsubscribeFunctions.push(unsubscribe);
+      });
+      
+      // Return a function that unsubscribes from all listeners
+      return () => {
+        unsubscribeFunctions.forEach(unsub => unsub());
+      };
+      
+    } catch (error) {
+      console.error('❌ Listen to venue orders error:', error);
+      throw error;
+    }
+  }// firebase-api.js - Complete Vedi Firebase API Implementation
 
 const VediAPI = {
   // ============================================================================
@@ -767,6 +831,32 @@ const VediAPI = {
   },
 
   /**
+   * Update existing venue
+   * @param {string} venueId - Venue ID
+   * @param {Object} venueData - Updated data
+   * @returns {Promise<Object>} Updated venue
+   */
+  async updateVenue(venueId, venueData) {
+    try {
+      const updateData = {
+        ...venueData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      await firebaseDb.collection('venues').doc(venueId).update(updateData);
+      
+      const doc = await firebaseDb.collection('venues').doc(venueId).get();
+      
+      console.log('✅ Venue updated:', venueId);
+      return { id: doc.id, ...doc.data() };
+      
+    } catch (error) {
+      console.error('❌ Update venue error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get venue by manager user ID
    * @param {string} managerUserId - Manager's user ID
    * @returns {Promise<Object|null>} Venue or null
@@ -786,6 +876,24 @@ const VediAPI = {
       
     } catch (error) {
       console.error('❌ Get venue by manager error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get venue by ID
+   * @param {string} venueId - Venue ID
+   * @returns {Promise<Object>} Venue data
+   */
+  async getVenue(venueId) {
+    try {
+      const doc = await firebaseDb.collection('venues').doc(venueId).get();
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      throw new Error('Venue not found');
+    } catch (error) {
+      console.error('❌ Get venue error:', error);
       throw error;
     }
   },
@@ -917,18 +1025,56 @@ const VediAPI = {
    * @param {Function} callback - Callback function for updates
    * @returns {Function} Unsubscribe function
    */
-  listenToOrderByNumber(orderNumber, callback) {
-    return firebaseDb.collection('orders')
-      .where('orderNumber', '==', orderNumber)
-      .limit(1)
-      .onSnapshot(querySnapshot => {
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          callback({ id: doc.id, ...doc.data() });
-        } else {
-          callback(null);
-        }
+  /**
+   * Listen to venue-wide order updates across all restaurants
+   * @param {string} venueId - Venue ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Promise<Function>} Unsubscribe function
+   */
+  async listenToVenueOrders(venueId, callback) {
+    try {
+      // Get restaurants for this venue
+      const restaurants = await this.getRestaurantsByVenue(venueId);
+      
+      if (restaurants.length === 0) {
+        callback([]);
+        return () => {}; // Empty unsubscribe function
+      }
+      
+      const unsubscribeFunctions = [];
+      let allVenueOrders = [];
+      
+      restaurants.forEach(restaurant => {
+        const unsubscribe = this.listenToOrders(restaurant.id, (restaurantOrders) => {
+          // Update orders for this restaurant
+          allVenueOrders = allVenueOrders.filter(order => 
+            order.restaurantId !== restaurant.id
+          );
+          
+          const ordersWithRestaurant = restaurantOrders.map(order => ({
+            ...order,
+            restaurantName: restaurant.name,
+            restaurantCurrency: restaurant.currency
+          }));
+          
+          allVenueOrders = allVenueOrders.concat(ordersWithRestaurant);
+          
+          // Call the callback with all venue orders
+          callback(allVenueOrders);
+        });
+        
+        unsubscribeFunctions.push(unsubscribe);
       });
+      
+      // Return a function that unsubscribes from all listeners
+      return () => {
+        unsubscribeFunctions.forEach(unsub => unsub());
+      };
+      
+    } catch (error) {
+      console.error('❌ Listen to venue orders error:', error);
+      throw error;
+    }
   },
 
   /**
