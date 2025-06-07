@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator - Table Management</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .restaurant-info {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .restaurant-info h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .info-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .qr-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .qr-section {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+        }
+
+        .qr-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .qr-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .qr-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+
+        .qr-card.counter-qr {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #f8fff9, #e8f5e8);
+        }
+
+        .table-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .table-subtitle {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .qr-code-container {
+            margin: 20px auto;
+            width: 180px;
+            height: 180px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+        }
+
+        .qr-url {
+            font-size: 0.75rem;
+            color: #666;
+            margin: 15px 0;
+            word-break: break-all;
+            background: white;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .qr-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .bulk-actions {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .bulk-actions h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .bulk-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h4 {
+            color: #0066cc;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            color: #004499;
+            margin-left: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px 20px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px 20px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .table-count-display {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.3s ease;
+            transform: translateX(100%);
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        @media (max-width: 768px) {
+            .section-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+            }
+            
+            .bulk-buttons {
+                flex-direction: column;
+            }
+            
+            .qr-actions {
+                flex-direction: column;
+            }
+            
+            .btn-small {
+                width: 100%;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .table-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .header-actions {
+                flex-direction: column;
+            }
+        }
+
+        @media print {
+            body { background: white; }
+            .header, .restaurant-info, .bulk-actions, .info-box, .section-header { display: none; }
+            .qr-grid { grid-template-columns: repeat(2, 1fr); }
+            .qr-card { page-break-inside: avoid; border: 2px solid #000; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p>Loading QR generator...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>📱 QR Code Generator</h1>
+            <p>Generate QR codes for your restaurant tables</p>
+        </div>
+
+        <div class="info-box">
+            <h4>How it works:</h4>
+            <ul>
+                <li>Your Counter QR code is automatically generated for customer orders at the counter</li>
+                <li>Generate table-specific QR codes for dine-in customers</li>
+                <li>Each QR code links directly to your menu with the correct table/location</li>
+                <li>Print and place QR codes at your counter and on tables</li>
+                <li>Customers scan to access your menu and place orders instantly</li>
+            </ul>
+        </div>
+
+        <div class="restaurant-info">
+            <h3>Restaurant Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Restaurant Name</div>
+                    <div class="info-value" id="restaurantNameDisplay">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Number of Tables</div>
+                    <div class="info-value" id="tableCountDisplay">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Restaurant ID</div>
+                    <div class="info-value" id="restaurantIdDisplay">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Menu URL Base</div>
+                    <div class="info-value" id="menuUrlDisplay">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bulk-actions" id="bulkActions" style="display: none;">
+            <h3>Bulk Actions</h3>
+            <div class="bulk-buttons">
+                <button class="btn btn-success" onclick="downloadAllQRCodes()">📄 Download All QR Codes</button>
+                <button class="btn btn-secondary" onclick="printAllQRCodes()">🖨️ Print All QR Codes</button>
+                <button class="btn btn-secondary" onclick="copyAllURLs()">📋 Copy All URLs</button>
+            </div>
+        </div>
+
+        <div class="qr-sections">
+            <!-- Counter QR Section -->
+            <div class="qr-section">
+                <div class="section-header">
+                    <h3 class="section-title">🏪 Counter QR Code</h3>
+                </div>
+                <div class="qr-grid" id="counterQRGrid">
+                    <div class="loading">Loading counter QR code...</div>
+                </div>
+            </div>
+
+            <!-- Table QR Section -->
+            <div class="qr-section">
+                <div class="section-header">
+                    <h3 class="section-title">🪑 Table QR Codes</h3>
+                    <div class="table-controls">
+                        <div class="table-count-display" id="tableCountInfo">0 tables</div>
+                        <button class="btn" onclick="generateTableQRCodes()" id="generateTablesBtn">Generate Table QR Codes</button>
+                    </div>
+                </div>
+                <div class="qr-grid" id="tableQRGrid">
+                    <div class="empty-state">Click "Generate Table QR Codes" to create QR codes for your tables</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <!-- QRious Library for QR Code Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+    
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentRestaurant = null;
+        let currentQRCodes = [];
+        let baseMenuUrl = '';
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('QR Generator initializing...');
+            
+            try {
+                await initializeQRGenerator();
+            } catch (error) {
+                console.error('Error initializing QR generator:', error);
+                showError('Failed to load QR generator. Please try refreshing the page.');
+                hideLoading();
+            }
+        });
+
+        // Authentication and initialization
+        async function initializeQRGenerator() {
+            showLoading('Loading QR generator...');
+            
+            try {
+                // Check authentication
+                currentUser = await VediAPI.getCurrentUser();
+                if (!currentUser) {
+                    console.log('No authenticated user, redirecting to login');
+                    window.location.href = '../Landing-Signup-Login/login.html';
+                    return;
+                }
+
+                console.log('Authenticated user:', currentUser.email);
+
+                // Load restaurant data
+                currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
+                if (!currentRestaurant) {
+                    console.log('No restaurant found, redirecting to setup');
+                    window.location.href = '../Landing-Signup-Login/restaurant-setup.html';
+                    return;
+                }
+
+                console.log('Loaded restaurant:', currentRestaurant.name);
+
+                // Set up base menu URL - this points to your customer menu page
+                baseMenuUrl = `${window.location.origin}/Customer/menu.html`;
+                
+                // Update restaurant display
+                updateRestaurantDisplay();
+                
+                // Generate counter QR code automatically
+                await generateCounterQR();
+                
+                hideLoading();
+                showSuccess('QR generator loaded successfully!');
+                
+            } catch (error) {
+                console.error('QR generator initialization error:', error);
+                showError('Failed to load QR generator: ' + error.message);
+                hideLoading();
+            }
+        }
+
+        function updateRestaurantDisplay() {
+            document.getElementById('restaurantNameDisplay').textContent = currentRestaurant.name || 'My Restaurant';
+            document.getElementById('tableCountDisplay').textContent = currentRestaurant.tableCount || '0';
+            document.getElementById('restaurantIdDisplay').textContent = currentRestaurant.id || 'N/A';
+            document.getElementById('menuUrlDisplay').textContent = baseMenuUrl;
+            document.getElementById('tableCountInfo').textContent = `${currentRestaurant.tableCount || 0} tables`;
+            
+            // Update generate button state
+            const tableCount = parseInt(currentRestaurant.tableCount) || 0;
+            const generateBtn = document.getElementById('generateTablesBtn');
+            if (tableCount === 0) {
+                generateBtn.disabled = true;
+                generateBtn.textContent = 'No Tables Set';
+                generateBtn.style.opacity = '0.5';
+            } else {
+                generateBtn.disabled = false;
+                generateBtn.textContent = `Generate ${tableCount} Table QR Codes`;
+                generateBtn.style.opacity = '1';
+            }
+        }
+
+        async function generateCounterQR() {
+            const counterGrid = document.getElementById('counterQRGrid');
+            
+            try {
+                // Generate counter URL with restaurant ID and counter location
+                const counterUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&location=counter`;
+                
+                const counterHTML = `
+                    <div class="qr-card counter-qr">
+                        <div class="table-number">🏪 Counter</div>
+                        <div class="table-subtitle">For counter orders & takeout</div>
+                        <div class="qr-code-container" id="qr-container-counter">
+                            <canvas id="qr-counter"></canvas>
+                        </div>
+                        <div class="qr-url">${counterUrl}</div>
+                        <div class="qr-actions">
+                            <button class="btn btn-small btn-success" onclick="downloadQR('counter')">💾 Download</button>
+                            <button class="btn btn-small btn-secondary" onclick="copyURL('${counterUrl}')">📋 Copy URL</button>
+                        </div>
+                    </div>
+                `;
+                
+                counterGrid.innerHTML = counterHTML;
+                
+                // Generate the actual QR code
+                setTimeout(() => {
+                    generateSingleQR('counter', counterUrl);
+                }, 100);
+                
+                // Add to currentQRCodes for bulk operations
+                currentQRCodes = [{
+                    table: 'counter',
+                    url: counterUrl,
+                    restaurantName: currentRestaurant.name,
+                    location: 'Counter'
+                }];
+                
+            } catch (error) {
+                console.error('Error generating counter QR:', error);
+                counterGrid.innerHTML = `
+                    <div class="empty-state" style="color: #dc3545;">
+                        Error generating counter QR code: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function generateTableQRCodes() {
+            const tableGrid = document.getElementById('tableQRGrid');
+            const tableCount = parseInt(currentRestaurant?.tableCount) || 0;
+            
+            if (tableCount === 0) {
+                showError('No tables configured. Please update your restaurant settings first.');
+                return;
+            }
+
+            try {
+                // Show loading
+                tableGrid.innerHTML = '<div class="loading">Generating table QR codes...</div>';
+                
+                // Generate table QR codes
+                setTimeout(() => {
+                    createTableQRCodes(tableCount);
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error generating table QR codes:', error);
+                showError('Failed to generate table QR codes: ' + error.message);
+            }
+        }
+
+        function createTableQRCodes(tableCount) {
+            const tableGrid = document.getElementById('tableQRGrid');
+            
+            try {
+                let gridHTML = '';
+                
+                // Reset currentQRCodes and add counter QR back
+                const counterQR = currentQRCodes.find(qr => qr.table === 'counter');
+                currentQRCodes = counterQR ? [counterQR] : [];
+
+                for (let i = 1; i <= tableCount; i++) {
+                    // Generate table URL with restaurant ID and table number
+                    const tableUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}`;
+                    
+                    currentQRCodes.push({
+                        table: i,
+                        url: tableUrl,
+                        restaurantName: currentRestaurant.name,
+                        location: `Table ${i}`
+                    });
+
+                    gridHTML += `
+                        <div class="qr-card">
+                            <div class="table-number">Table ${i}</div>
+                            <div class="table-subtitle">Dine-in orders</div>
+                            <div class="qr-code-container" id="qr-container-${i}">
+                                <canvas id="qr-${i}"></canvas>
+                            </div>
+                            <div class="qr-url">${tableUrl}</div>
+                            <div class="qr-actions">
+                                <button class="btn btn-small" onclick="downloadQR(${i})">💾 Download</button>
+                                <button class="btn btn-small btn-secondary" onclick="copyURL('${tableUrl}')">📋 Copy URL</button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                tableGrid.innerHTML = gridHTML;
+                document.getElementById('bulkActions').style.display = 'block';
+
+                // Generate actual QR codes
+                setTimeout(() => {
+                    for (let i = 1; i <= tableCount; i++) {
+                        const qrData = currentQRCodes.find(qr => qr.table === i);
+                        if (qrData) {
+                            generateSingleQR(i, qrData.url);
+                        }
+                    }
+                }, 100);
+                
+                showSuccess(`Generated QR codes for ${tableCount} tables!`);
+                
+            } catch (error) {
+                console.error('Error creating table QR codes:', error);
+                tableGrid.innerHTML = `
+                    <div class="empty-state" style="color: #dc3545;">
+                        Error creating table QR codes: ${error.message}
+                    </div>
+                `;
+                showError('Failed to create table QR codes');
+            }
+        }
+
+        function generateSingleQR(tableNumber, url) {
+            try {
+                const canvas = document.getElementById(`qr-${tableNumber}`);
+                if (!canvas) {
+                    console.error(`Canvas not found for table ${tableNumber}`);
+                    return;
+                }
+                
+                const qr = new QRious({
+                    element: canvas,
+                    value: url,
+                    size: 160,
+                    background: 'white',
+                    foreground: '#333333',
+                    backgroundAlpha: 1,
+                    foregroundAlpha: 1,
+                    level: 'M'
+                });
+                
+                console.log(`QR code generated for ${tableNumber}: ${url}`);
+                
+            } catch (error) {
+                console.error(`Error generating QR code for ${tableNumber}:`, error);
+                const container = document.getElementById(`qr-container-${tableNumber}`);
+                if (container) {
+                    container.innerHTML = `
+                        <div style="color: #dc3545; font-size: 0.9rem;">
+                            Error generating QR code
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function downloadQR(tableNumber) {
+            try {
+                const canvas = document.getElementById(`qr-${tableNumber}`);
+                if (!canvas) {
+                    showError('QR code not found. Please regenerate QR codes.');
+                    return;
+                }
+                
+                const link = document.createElement('a');
+                const fileName = tableNumber === 'counter' 
+                    ? `${currentRestaurant.name}-counter-qr.png` 
+                    : `${currentRestaurant.name}-table-${tableNumber}-qr.png`;
+                
+                link.download = fileName.replace(/[^a-zA-Z0-9.-]/g, '_'); // Clean filename
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                showSuccess(`Downloaded QR code for ${tableNumber === 'counter' ? 'counter' : `table ${tableNumber}`}`);
+                
+            } catch (error) {
+                console.error('Error downloading QR code:', error);
+                showError('Failed to download QR code');
+            }
+        }
+
+        function copyURL(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                // Show temporary feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.style.background = '#28a745';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '';
+                }, 1500);
+                
+                showSuccess('URL copied to clipboard!');
+            }).catch((error) => {
+                console.error('Error copying URL:', error);
+                // Fallback: show URL in alert
+                alert(`URL: ${url}`);
+            });
+        }
+
+        function downloadAllQRCodes() {
+            if (currentQRCodes.length === 0) {
+                showError('Please generate QR codes first.');
+                return;
+            }
+
+            try {
+                currentQRCodes.forEach((qr, index) => {
+                    setTimeout(() => {
+                        downloadQR(qr.table);
+                    }, index * 300);
+                });
+
+                showSuccess(`Downloading ${currentQRCodes.length} QR codes...`);
+                
+            } catch (error) {
+                console.error('Error downloading all QR codes:', error);
+                showError('Failed to download QR codes');
+            }
+        }
+
+        function printAllQRCodes() {
+            if (currentQRCodes.length === 0) {
+                showError('Please generate QR codes first.');
+                return;
+            }
+
+            try {
+                window.print();
+                showSuccess('Print dialog opened');
+            } catch (error) {
+                console.error('Error printing QR codes:', error);
+                showError('Failed to open print dialog');
+            }
+        }
+
+        function copyAllURLs() {
+            if (currentQRCodes.length === 0) {
+                showError('Please generate QR codes first.');
+                return;
+            }
+
+            try {
+                const urls = currentQRCodes.map(qr => {
+                    return `${qr.location}: ${qr.url}`;
+                }).join('\n');
+                
+                navigator.clipboard.writeText(urls).then(() => {
+                    showSuccess('All URLs copied to clipboard!');
+                }).catch(() => {
+                    // Fallback: show URLs in alert
+                    alert('URLs:\n\n' + urls);
+                });
+                
+            } catch (error) {
+                console.error('Error copying all URLs:', error);
+                showError('Failed to copy URLs');
+            }
+        }
+
+        // Utility functions
+        function showLoading(message = 'Loading...') {
+            const overlay = document.getElementById('loadingOverlay');
+            const text = overlay.querySelector('p');
+            text.textContent = message;
+            overlay.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'none';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.style.display = 'none';
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        // Listen for restaurant data updates from parent window (if embedded in iframe)
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'restaurantDataUpdated') {
+                console.log('Restaurant data updated - refreshing QR codes');
+                location.reload(); // Refresh the entire page to reload restaurant data
+            }
+        });
+
+        console.log('QR Code Generator with Firebase loaded successfully');
+    </script>
+</body>
+</html>
