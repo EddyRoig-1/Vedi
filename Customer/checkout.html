@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Complete Your Order</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Loading States */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            max-width: 320px;
+            width: 90%;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #2d3748;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .loading-subtext {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        /* Header Styles */
+        .checkout-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.3rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-2px);
+        }
+
+        .header-info {
+            flex: 1;
+        }
+
+        .restaurant-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .customer-info {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: inline-block;
+        }
+
+        /* Content Styles */
+        .checkout-content {
+            padding: 24px 20px;
+            padding-bottom: 120px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Cart Items */
+        .cart-items {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .cart-item {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cart-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .cart-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        .cart-item:hover::before {
+            transform: scaleX(1);
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .item-name {
+            font-weight: 700;
+            color: #2d3748;
+            font-size: 1.1rem;
+            line-height: 1.3;
+        }
+
+        .item-unit-price {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
+        }
+
+        .item-description {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+
+        .item-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: #f7fafc;
+            padding: 8px 16px;
+            border-radius: 16px;
+        }
+
+        .qty-btn {
+            width: 36px;
+            height: 36px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .qty-btn:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .qty-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .qty-display {
+            font-weight: 700;
+            font-size: 1.2rem;
+            min-width: 32px;
+            text-align: center;
+            color: #2d3748;
+        }
+
+        .item-total {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .item-total-price {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #2d3748;
+        }
+
+        .remove-btn {
+            background: #fed7d7;
+            color: #c53030;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .remove-btn:hover {
+            background: #feb2b2;
+            transform: translateY(-1px);
+        }
+
+        /* Order Summary */
+        .order-summary {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            font-size: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+
+        .summary-row.total {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            margin: 16px -24px -24px -24px;
+            padding: 20px 24px;
+            border-radius: 0 0 20px 20px;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        /* Special Instructions */
+        .form-textarea {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.3s ease;
+            font-family: inherit;
+            background: white;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .allergen-notice {
+            background: linear-gradient(135deg, #fed7e2, #fbb6ce);
+            color: #97266d;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            border: 1px solid #f687b3;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .allergen-notice-icon {
+            font-size: 1.1rem;
+        }
+
+        /* Place Order Button */
+        .place-order-section {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 380px;
+            z-index: 1000;
+        }
+
+        .place-order-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            border: none;
+            padding: 20px 24px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 20px 50px rgba(72, 187, 120, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .place-order-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 25px 60px rgba(72, 187, 120, 0.5);
+        }
+
+        .place-order-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Empty Cart */
+        .empty-cart {
+            text-align: center;
+            padding: 80px 20px;
+            color: #718096;
+        }
+
+        .empty-cart-icon {
+            font-size: 4rem;
+            margin-bottom: 24px;
+            opacity: 0.5;
+        }
+
+        .empty-cart h3 {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        .empty-cart p {
+            margin-bottom: 32px;
+            font-size: 1.1rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 16px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Error States */
+        .error-message {
+            background: linear-gradient(135deg, #fed7d7, #feb2b2);
+            color: #c53030;
+            padding: 20px;
+            border-radius: 16px;
+            margin: 16px;
+            border: 1px solid #fc8181;
+            text-align: center;
+        }
+
+        .button-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.3s ease;
+            transform: translateX(100%);
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .checkout-header {
+                padding: 20px 16px;
+            }
+
+            .checkout-content {
+                padding: 20px 16px;
+                padding-bottom: 120px;
+            }
+
+            .cart-item {
+                padding: 20px;
+            }
+
+            .restaurant-title {
+                font-size: 1.5rem;
+            }
+
+            .place-order-section {
+                width: calc(100% - 20px);
+                bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading checkout...</div>
+            <div class="loading-subtext">Preparing your order</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="checkout-header">
+            <div class="header-content">
+                <button class="back-btn" onclick="goBackToMenu()">←</button>
+                <div class="header-info">
+                    <h1 class="restaurant-title" id="restaurantName">Loading...</h1>
+                    <div class="customer-info" id="customerInfoDisplay">
+                        Loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="checkout-content" id="checkoutContent" style="display: none;">
+            <!-- Cart Items Section -->
+            <div class="section">
+                <h2 class="section-title" id="orderSectionTitle">🛒 Your Order</h2>
+                <div class="cart-items" id="cartItemsList">
+                    <!-- Cart items will be populated here -->
+                </div>
+            </div>
+
+            <!-- Order Summary -->
+            <div class="section">
+                <h2 class="section-title">📊 Order Summary</h2>
+                <div class="order-summary">
+                    <div class="summary-row">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Tax (8.5%):</span>
+                        <span id="tax">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Service Fee:</span>
+                        <span id="serviceFee">$2.00</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total:</span>
+                        <span id="total">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Special Instructions -->
+            <div class="section">
+                <h2 class="section-title">💬 Special Instructions</h2>
+                <div id="allergenNotice" class="allergen-notice" style="display: none;">
+                    <span class="allergen-notice-icon">🛡️</span>
+                    <span>Your allergen preferences have been automatically added below.</span>
+                </div>
+                <textarea class="form-textarea" id="specialInstructions" placeholder="Any special requests or dietary restrictions? (Optional)"></textarea>
+            </div>
+        </div>
+
+        <!-- Empty Cart State -->
+        <div class="empty-cart" id="emptyCart" style="display: none;">
+            <div class="empty-cart-icon">🛒</div>
+            <h3>Your cart is empty</h3>
+            <p>Add some delicious items from our menu to get started!</p>
+            <button class="btn-primary" onclick="goBackToMenu()">
+                Browse Menu
+            </button>
+        </div>
+
+        <!-- Error State -->
+        <div class="error-message" id="errorMessage" style="display: none;">
+            <h3>⚠️ Unable to load checkout</h3>
+            <p>Please try refreshing the page or go back to the menu.</p>
+            <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                Try Again
+            </button>
+        </div>
+
+        <!-- Place Order Button -->
+        <div class="place-order-section" id="placeOrderSection" style="display: none;">
+            <button class="place-order-btn" id="placeOrderBtn" onclick="placeOrder()">
+                <span id="orderBtnText">Place Order</span>
+                <div class="button-spinner" id="orderBtnSpinner" style="display: none;"></div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Global variables
+        let currentRestaurant = null;
+        let cart = {};
+        let menuItems = {};
+        let customerData = {};
+        let customerAllergenInfo = null;
+        
+        // Tax and fees
+        const TAX_RATE = 0.085; // 8.5%
+        const SERVICE_FEE = 2.00;
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Checkout page initializing...');
+            
+            try {
+                await initializeCheckoutPage();
+            } catch (error) {
+                console.error('Error initializing checkout page:', error);
+                showError('Failed to load checkout. Please try refreshing the page.');
+                hideLoading();
+            }
+        });
+
+        // Main initialization function
+        async function initializeCheckoutPage() {
+            showLoading();
+            
+            try {
+                // Get customer data from URL and session
+                getCustomerDataFromURL();
+                
+                // Load restaurant and menu data from Firebase
+                await loadRestaurantAndMenuData();
+                
+                // Load cart and allergen data
+                loadCartData();
+                loadAllergenInfo();
+                
+                // Update customer display
+                updateCustomerDisplay();
+                
+                // Render the checkout
+                renderCheckout();
+                
+                hideLoading();
+                
+                console.log('✅ Checkout page loaded successfully');
+                
+            } catch (error) {
+                console.error('Checkout page initialization error:', error);
+                showError('Failed to load checkout: ' + error.message);
+                hideLoading();
+            }
+        }
+
+        // Get customer data from URL parameters and session
+        function getCustomerDataFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Try to get data from URL first
+            customerData = {
+                restaurantId: urlParams.get('restaurant'),
+                tableNumber: urlParams.get('table'),
+                location: urlParams.get('location'),
+                name: urlParams.get('name'),
+                phone: urlParams.get('phone')
+            };
+            
+            // If restaurant ID is missing, try to get from session
+            if (!customerData.restaurantId) {
+                const sessionData = sessionStorage.getItem('customerData');
+                if (sessionData) {
+                    const sessionCustomer = JSON.parse(sessionData);
+                    customerData = { ...sessionCustomer, ...customerData };
+                }
+            }
+            
+            if (!customerData.restaurantId) {
+                throw new Error('No restaurant ID found. Please start from the menu page.');
+            }
+            
+            // Determine table display
+            if (customerData.location === 'counter') {
+                customerData.tableDisplay = 'At Counter';
+            } else if (customerData.tableNumber) {
+                customerData.tableDisplay = `Table ${customerData.tableNumber}`;
+            } else {
+                customerData.tableDisplay = 'Unknown Location';
+            }
+            
+            console.log('👤 Customer data:', customerData);
+        }
+
+        // Load restaurant and menu data from Firebase
+        async function loadRestaurantAndMenuData() {
+            try {
+                // Load restaurant data
+                currentRestaurant = await VediAPI.getRestaurant(customerData.restaurantId);
+                console.log('🏪 Loaded restaurant:', currentRestaurant.name);
+                
+                // Load menu items for cart validation
+                const menuItemsData = await VediAPI.getMenuItems(customerData.restaurantId);
+                menuItems = {};
+                menuItemsData.forEach(item => {
+                    menuItems[item.id] = item;
+                });
+
+                console.log('📊 Loaded menu items:', Object.keys(menuItems).length);
+
+            } catch (error) {
+                console.error('Error loading restaurant/menu data:', error);
+                throw error;
+            }
+        }
+
+        // Currency utility functions
+        function getRestaurantCurrency() {
+            if (currentRestaurant && currentRestaurant.currency) {
+                return currentRestaurant.currency;
+            }
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
+        }
+
+        function formatPrice(amount, showCode = false) {
+            const currency = getRestaurantCurrency();
+            const formattedAmount = Number(amount).toFixed(2);
+            
+            if (showCode) {
+                return `${currency.symbol}${formattedAmount} ${currency.code}`;
+            }
+            
+            return `${currency.symbol}${formattedAmount}`;
+        }
+
+        // Update customer display
+        function updateCustomerDisplay() {
+            document.getElementById('restaurantName').textContent = currentRestaurant.name;
+            
+            let displayText = customerData.tableDisplay;
+            if (customerData.name) {
+                displayText = `${customerData.name.split(' ')[0]} • ${customerData.tableDisplay}`;
+            }
+            
+            document.getElementById('customerInfoDisplay').textContent = displayText;
+        }
+
+        // Load cart data from session storage
+        function loadCartData() {
+            try {
+                const savedCart = sessionStorage.getItem('customerCart');
+                if (savedCart) {
+                    cart = JSON.parse(savedCart);
+                    console.log('🛒 Cart loaded:', cart);
+                } else {
+                    console.log('🛒 No cart found');
+                    cart = {};
+                }
+            } catch (error) {
+                console.error('Error loading cart:', error);
+                cart = {};
+            }
+        }
+
+        // Load allergen information from session storage
+        function loadAllergenInfo() {
+            try {
+                const savedAllergenInfo = sessionStorage.getItem('customerAllergenInfo');
+                if (savedAllergenInfo) {
+                    customerAllergenInfo = JSON.parse(savedAllergenInfo);
+                    console.log('🛡️ Customer allergen info loaded:', customerAllergenInfo);
+                    populateAllergenInstructions();
+                } else {
+                    console.log('🛡️ No allergen info found');
+                    customerAllergenInfo = null;
+                }
+            } catch (error) {
+                console.error('Error loading allergen info:', error);
+                customerAllergenInfo = null;
+            }
+        }
+
+        // Populate special instructions with allergen information
+        function populateAllergenInstructions() {
+            if (!customerAllergenInfo) return;
+
+            const specialInstructionsTextarea = document.getElementById('specialInstructions');
+            const allergenNotice = document.getElementById('allergenNotice');
+            
+            const { allergenNames, customAllergens } = customerAllergenInfo;
+            
+            if (allergenNames.length > 0 || customAllergens) {
+                let allergenText = '';
+                
+                if (allergenNames.length > 0) {
+                    allergenText += `🛡️ ALLERGIES: Please avoid ${allergenNames.join(', ')}`;
+                }
+                
+                if (customAllergens) {
+                    if (allergenText) allergenText += '. ';
+                    allergenText += `Additional restrictions: ${customAllergens}`;
+                }
+                
+                if (allergenText) {
+                    allergenText += '.';
+                    specialInstructionsTextarea.value = allergenText;
+                    allergenNotice.style.display = 'flex';
+                    console.log('🛡️ Auto-populated allergen instructions:', allergenText);
+                }
+            }
+        }
+
+        // Main render function
+        function renderCheckout() {
+            const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
+            
+            console.log('🎨 Rendering checkout with', cartItemsCount, 'items');
+            
+            if (cartItemsCount === 0) {
+                showEmptyCart();
+                return;
+            }
+
+            renderCartItems();
+            updateOrderSummary();
+            
+            // Show checkout content and place order button
+            document.getElementById('checkoutContent').style.display = 'block';
+            document.getElementById('placeOrderSection').style.display = 'block';
+        }
+
+        // Show empty cart state
+        function showEmptyCart() {
+            document.getElementById('checkoutContent').style.display = 'none';
+            document.getElementById('placeOrderSection').style.display = 'none';
+            document.getElementById('emptyCart').style.display = 'block';
+        }
+
+        // Render cart items
+        function renderCartItems() {
+            const cartItemsList = document.getElementById('cartItemsList');
+            let html = '';
+
+            for (let itemId in cart) {
+                if (cart[itemId] > 0 && menuItems[itemId]) {
+                    const item = menuItems[itemId];
+                    const quantity = cart[itemId];
+                    const itemTotal = item.price * quantity;
+
+                    html += `
+                        <div class="cart-item" data-item-id="${itemId}">
+                            <div class="item-header">
+                                <div class="item-name">${item.name}</div>
+                                <div class="item-unit-price">${formatPrice(item.price)}</div>
+                            </div>
+                            <div class="item-description">${item.description || ''}</div>
+                            <div class="item-controls">
+                                <div class="quantity-controls">
+                                    <button class="qty-btn" onclick="updateQuantity('${itemId}', -1)" ${quantity <= 1 ? 'disabled' : ''}>−</button>
+                                    <span class="qty-display">${quantity}</span>
+                                    <button class="qty-btn" onclick="updateQuantity('${itemId}', 1)">+</button>
+                                </div>
+                                <div class="item-total">
+                                    <div class="item-total-price">${formatPrice(itemTotal)}</div>
+                                    <button class="remove-btn" onclick="removeItem('${itemId}')">Remove</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            cartItemsList.innerHTML = html;
+        }
+
+        // Update quantity of item in cart
+        function updateQuantity(itemId, change) {
+            console.log(`🔢 Updating quantity for item ${itemId} by ${change}`);
+            
+            if (!cart[itemId]) cart[itemId] = 0;
+            
+            cart[itemId] += change;
+            
+            if (cart[itemId] <= 0) {
+                delete cart[itemId];
+            }
+
+            saveCart();
+            renderCheckout();
+        }
+
+        // Remove item from cart
+        function removeItem(itemId) {
+            if (confirm('Remove this item from your cart?')) {
+                console.log(`🗑️ Removing item ${itemId}`);
+                delete cart[itemId];
+                saveCart();
+                renderCheckout();
+            }
+        }
+
+        // Update order summary totals
+        function updateOrderSummary() {
+            let subtotal = 0;
+            
+            for (let itemId in cart) {
+                if (cart[itemId] > 0 && menuItems[itemId]) {
+                    subtotal += menuItems[itemId].price * cart[itemId];
+                }
+            }
+
+            const tax = subtotal * TAX_RATE;
+            const total = subtotal + tax + SERVICE_FEE;
+
+            document.getElementById('subtotal').textContent = formatPrice(subtotal);
+            document.getElementById('tax').textContent = formatPrice(tax);
+            document.getElementById('serviceFee').textContent = formatPrice(SERVICE_FEE);
+            document.getElementById('total').textContent = formatPrice(total);
+
+            console.log('💰 Order summary updated - Total:', formatPrice(total));
+        }
+
+        // Save cart to session storage
+        function saveCart() {
+            sessionStorage.setItem('customerCart', JSON.stringify(cart));
+        }
+
+        // Place order function
+        async function placeOrder() {
+            console.log('📝 Placing order...');
+            
+            const placeOrderBtn = document.getElementById('placeOrderBtn');
+            const orderBtnText = document.getElementById('orderBtnText');
+            const orderBtnSpinner = document.getElementById('orderBtnSpinner');
+            const specialInstructions = document.getElementById('specialInstructions').value.trim();
+            
+            // Disable button and show loading
+            placeOrderBtn.disabled = true;
+            orderBtnText.style.display = 'none';
+            orderBtnSpinner.style.display = 'block';
+
+            try {
+                // Calculate order details
+                let subtotal = 0;
+                const orderItems = [];
+
+                for (let itemId in cart) {
+                    if (cart[itemId] > 0 && menuItems[itemId]) {
+                        const item = menuItems[itemId];
+                        const quantity = cart[itemId];
+                        subtotal += item.price * quantity;
+                        
+                        orderItems.push({
+                            id: itemId,
+                            name: item.name,
+                            description: item.description || '',
+                            price: item.price,
+                            quantity: quantity
+                        });
+                    }
+                }
+
+                const tax = subtotal * TAX_RATE;
+                const total = subtotal + tax + SERVICE_FEE;
+
+                // Generate order number
+                const orderNumber = VediAPI.generateOrderNumber();
+
+                // Create order object
+                const orderData = {
+                    orderNumber: orderNumber,
+                    restaurantId: customerData.restaurantId,
+                    customerName: customerData.name || 'Walk-in Customer',
+                    customerPhone: customerData.phone || '',
+                    tableNumber: customerData.tableNumber || 'counter',
+                    location: customerData.location || 'table',
+                    items: orderItems,
+                    specialInstructions: specialInstructions,
+                    subtotal: subtotal,
+                    tax: tax,
+                    serviceFee: SERVICE_FEE,
+                    total: total,
+                    status: 'pending',
+                    estimatedTime: '15-20 minutes'
+                };
+
+                console.log('📋 Order prepared:', orderData);
+
+                // Create order in Firebase
+                const createdOrder = await VediAPI.createOrder(orderData);
+                console.log('✅ Order created successfully:', createdOrder);
+
+                // Clear cart
+                cart = {};
+                sessionStorage.removeItem('customerCart');
+
+                // Save order for tracking
+                sessionStorage.setItem('lastOrderConfirmed', JSON.stringify(createdOrder));
+
+                // Show success and redirect
+                showSuccess('Order placed successfully!');
+                
+                setTimeout(() => {
+                    // Redirect to order confirmation or menu
+                    const params = new URLSearchParams();
+                    params.set('restaurant', customerData.restaurantId);
+                    params.set('table', customerData.tableNumber);
+                    if (customerData.location) params.set('location', customerData.location);
+                    if (customerData.name) params.set('name', customerData.name);
+                    if (customerData.phone) params.set('phone', customerData.phone);
+                    params.set('orderNumber', createdOrder.orderNumber);
+                    
+                    // You can create an order confirmation page or redirect back to menu
+                    window.location.href = `menu.html?${params.toString()}`;
+                }, 2000);
+
+            } catch (error) {
+                console.error('Error placing order:', error);
+                showError('Failed to place order: ' + error.message);
+                
+                // Re-enable button
+                placeOrderBtn.disabled = false;
+                orderBtnText.style.display = 'block';
+                orderBtnSpinner.style.display = 'none';
+            }
+        }
+
+        // Navigation function
+        function goBackToMenu() {
+            console.log('🔙 Going back to menu...');
+            const params = new URLSearchParams();
+            params.set('restaurant', customerData.restaurantId);
+            params.set('table', customerData.tableNumber);
+            if (customerData.location) params.set('location', customerData.location);
+            if (customerData.name) params.set('name', customerData.name);
+            if (customerData.phone) params.set('phone', customerData.phone);
+            
+            window.location.href = `menu.html?${params.toString()}`;
+        }
+
+        // Utility functions
+        function showLoading() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showError(message) {
+            hideLoading();
+            document.getElementById('errorMessage').innerHTML = `
+                <h3>⚠️ Unable to load checkout</h3>
+                <p>${message}</p>
+                <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                    Try Again
+                </button>
+            `;
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('checkoutContent').style.display = 'none';
+            document.getElementById('emptyCart').style.display = 'none';
+            document.getElementById('placeOrderSection').style.display = 'none';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        console.log('Customer checkout with Firebase loaded successfully');
+    </script>
+</body>
+</html>
