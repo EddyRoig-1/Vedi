@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Vedi</title>
+    
+    <!-- Firebase CDN Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    
+    <!-- Vedi Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            max-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .signup-container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            max-width: 1200px;
+            width: 100%;
+            height: 95vh;
+            max-height: 95vh;
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            position: relative;
+            z-index: 1;
+            animation: slideIn 0.6s ease-out;
+        }
+
+        @keyframes slideIn {
+            0% {
+                opacity: 0;
+                transform: translateY(30px) scale(0.95);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .signup-visual {
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+            padding: 40px 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .signup-visual::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: shine 4s ease-in-out infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(30deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(30deg); }
+        }
+
+        .visual-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .visual-content h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .visual-content .highlight {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .visual-content p {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .visual-icons {
+            display: flex;
+            gap: 25px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .visual-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            animation: bounce 3s ease-in-out infinite;
+        }
+
+        .visual-icon:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+
+        .visual-icon:nth-child(3) {
+            animation-delay: 1s;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .connection-line {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+            flex: 1;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .signup-form {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow-y: auto;
+            max-height: 95vh;
+        }
+
+        .form-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .form-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 6px;
+        }
+
+        .form-header p {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .account-type-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .account-type {
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .account-type:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+        }
+
+        .account-type.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        }
+
+        .account-type-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .account-type h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .account-type p {
+            font-size: 0.85rem;
+            color: #718096;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            color: #374151;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            outline: none;
+            background: white;
+            font-family: inherit;
+        }
+
+        .form-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .form-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .password-requirements {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #718096;
+        }
+
+        .requirement {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .requirement.valid {
+            color: #38a169;
+        }
+
+        .requirement.invalid {
+            color: #e53e3e;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .checkbox.checked {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: #667eea;
+        }
+
+        .checkbox.checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .checkbox-label {
+            font-size: 0.9rem;
+            color: #4a5568;
+            line-height: 1.5;
+            cursor: pointer;
+        }
+
+        .checkbox-label a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .checkbox-label a:hover {
+            text-decoration: underline;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        .divider span {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .social-login {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .social-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .social-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-link {
+            text-align: center;
+            color: #718096;
+            font-size: 0.95rem;
+        }
+
+        .login-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+
+        .back-home {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: white;
+            text-decoration: none;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            font-size: 0.9rem;
+        }
+
+        .back-home:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            border-left: 4px solid #e53e3e;
+        }
+
+        /* Desktop Optimizations */
+        @media (min-width: 1200px) {
+            .signup-container {
+                max-width: 1200px;
+                grid-template-columns: 1fr 1.2fr;
+            }
+
+            .signup-visual {
+                padding: 80px 60px;
+            }
+
+            .visual-content h2 {
+                font-size: 3rem;
+            }
+
+            .visual-content p {
+                font-size: 1.2rem;
+            }
+
+            .signup-form {
+                padding: 80px 60px;
+            }
+
+            .form-header h1 {
+                font-size: 2rem;
+            }
+
+            .form-header p {
+                font-size: 1.1rem;
+            }
+
+            .account-type {
+                padding: 25px;
+            }
+
+            .account-type h3 {
+                font-size: 1.1rem;
+            }
+
+            .form-input {
+                padding: 18px 24px;
+                font-size: 1.05rem;
+            }
+
+            .btn {
+                padding: 18px 28px;
+                font-size: 1.05rem;
+            }
+        }
+
+        /* iPad Optimizations */
+        @media (min-width: 768px) and (max-width: 1199px) {
+            .signup-container {
+                max-width: 1000px;
+                grid-template-columns: 1fr 1.1fr;
+            }
+
+            .signup-visual {
+                padding: 60px 40px;
+            }
+
+            .visual-content h2 {
+                font-size: 2.7rem;
+            }
+
+            .visual-content p {
+                font-size: 1.15rem;
+            }
+
+            .signup-form {
+                padding: 60px 40px;
+            }
+
+            .form-header h1 {
+                font-size: 1.9rem;
+            }
+
+            .account-type {
+                padding: 22px;
+            }
+
+            .form-input {
+                padding: 17px 22px;
+                font-size: 1.02rem;
+            }
+
+            .btn {
+                padding: 17px 26px;
+                font-size: 1.02rem;
+            }
+
+            .visual-icons {
+                gap: 35px;
+            }
+
+            .visual-icon {
+                width: 70px;
+                height: 70px;
+                font-size: 2rem;
+            }
+        }
+
+        /* Tablet Portrait */
+        @media (min-width: 600px) and (max-width: 767px) {
+            .signup-container {
+                grid-template-columns: 1fr;
+                max-width: 600px;
+            }
+
+            .signup-visual {
+                padding: 50px 40px;
+            }
+
+            .visual-content h2 {
+                font-size: 2.3rem;
+            }
+
+            .signup-form {
+                padding: 50px 40px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .account-type-selector {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .social-login {
+                flex-direction: row;
+            }
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 599px) {
+            .signup-container {
+                grid-template-columns: 1fr;
+                max-width: 500px;
+                margin: 10px;
+                border-radius: 16px;
+            }
+
+            .signup-visual {
+                padding: 40px 30px;
+            }
+
+            .signup-form {
+                padding: 40px 30px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .visual-content h2 {
+                font-size: 2rem;
+            }
+
+            .visual-icons {
+                gap: 20px;
+            }
+
+            .visual-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 1.5rem;
+            }
+
+            .account-type-selector {
+                grid-template-columns: 1fr;
+            }
+
+            .social-login {
+                flex-direction: column;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 480px) {
+            .signup-form {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-home">← Back</a>
+
+    <div class="signup-container">
+        <!-- Visual Side -->
+        <div class="signup-visual">
+            <div class="visual-content">
+                <h2>Join the <span class="highlight">Vedi</span> Community</h2>
+                <p>Connect with food halls and restaurants to build successful partnerships and grow your business.</p>
+                
+                <div class="visual-icons">
+                    <div class="visual-icon">🏢</div>
+                    <div class="connection-line"></div>
+                    <div class="visual-icon">🏪</div>
+                    <div class="connection-line"></div>
+                    <div class="visual-icon">👥</div>
+                </div>
+                
+                <p style="font-size: 0.95rem; margin-bottom: 0;">
+                    <strong>Trusted by 1000+ businesses</strong><br>
+                    Start your journey today
+                </p>
+            </div>
+        </div>
+
+        <!-- Form Side -->
+        <div class="signup-form">
+            <div class="form-header">
+                <div class="logo">Vedi</div>
+                <h1>Create Your Account</h1>
+                <p>Choose your account type to get started</p>
+            </div>
+
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+            <form id="signupForm">
+                <!-- Account Type Selection -->
+                <div class="account-type-selector">
+                    <div class="account-type" data-type="venue">
+                        <div class="account-type-icon">🏢</div>
+                        <h3>Venue Manager</h3>
+                        <p>Manage food halls & invite restaurants</p>
+                    </div>
+                    <div class="account-type" data-type="restaurant">
+                        <div class="account-type-icon">🏪</div>
+                        <h3>Restaurant Manager</h3>
+                        <p>Join food halls & manage your restaurant</p>
+                    </div>
+                </div>
+
+                <!-- Personal Information -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">First Name</label>
+                        <input type="text" class="form-input" id="firstName" placeholder="John" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" class="form-input" id="lastName" placeholder="Doe" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" id="email" placeholder="john@example.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Business Name</label>
+                    <input type="text" class="form-input" id="businessName" placeholder="Your Business Name" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <input type="tel" class="form-input" id="phone" placeholder="(555) 123-4567" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="password" placeholder="Create a strong password" required>
+                    <div class="password-requirements">
+                        <div class="requirement" id="lengthReq">
+                            <span>•</span> At least 8 characters
+                        </div>
+                        <div class="requirement" id="letterReq">
+                            <span>•</span> One uppercase letter
+                        </div>
+                        <div class="requirement" id="numberReq">
+                            <span>•</span> One number
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Confirm Password</label>
+                    <input type="password" class="form-input" id="confirmPassword" placeholder="Confirm your password" required>
+                </div>
+
+                <!-- Terms and Conditions -->
+                <div class="checkbox-group">
+                    <div class="checkbox" id="termsCheckbox"></div>
+                    <label class="checkbox-label" for="termsCheckbox">
+                        I agree to the <a href="#terms">Terms of Service</a> and <a href="#privacy">Privacy Policy</a>
+                    </label>
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="checkbox" id="newsletterCheckbox"></div>
+                    <label class="checkbox-label" for="newsletterCheckbox">
+                        Send me product updates and marketing communications
+                    </label>
+                </div>
+
+                <button type="submit" class="btn" id="signupBtn" disabled>
+                    Create Account
+                </button>
+            </form>
+
+            <div class="divider">
+                <span>Or sign up with</span>
+            </div>
+
+            <div class="social-login">
+                <button class="social-btn" onclick="signupWithGoogle()">
+                    <span style="color: #4285f4;">G</span>
+                    Google
+                </button>
+                <button class="social-btn" onclick="signupWithMicrosoft()">
+                    <span style="color: #00a1f1;">M</span>
+                    Microsoft
+                </button>
+            </div>
+
+            <div class="login-link">
+                Already have an account? <a href="login.html">Sign In</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedAccountType = '';
+        let termsAccepted = false;
+        let newsletterOptIn = false;
+        let isSubmitting = false;
+
+        // Wait for Firebase to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔥 Vedi Signup Page loaded');
+            console.log('🔥 Firebase ready:', window.isFirebaseReady ? window.isFirebaseReady() : 'Loading...');
+            
+            // Track page view
+            if (window.firebaseAnalytics) {
+                firebaseAnalytics.logEvent('page_view', {
+                    page_title: 'Vedi Signup Page',
+                    page_location: window.location.href
+                });
+            }
+        });
+
+        // Account type selection
+        document.querySelectorAll('.account-type').forEach(type => {
+            type.addEventListener('click', () => {
+                document.querySelectorAll('.account-type').forEach(t => t.classList.remove('selected'));
+                type.classList.add('selected');
+                selectedAccountType = type.getAttribute('data-type');
+                validateForm();
+            });
+        });
+
+        // Checkbox functionality
+        document.getElementById('termsCheckbox').addEventListener('click', function() {
+            termsAccepted = !termsAccepted;
+            this.classList.toggle('checked', termsAccepted);
+            validateForm();
+        });
+
+        document.getElementById('newsletterCheckbox').addEventListener('click', function() {
+            newsletterOptIn = !newsletterOptIn;
+            this.classList.toggle('checked', newsletterOptIn);
+        });
+
+        // Password validation
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+
+        passwordInput.addEventListener('input', validatePassword);
+        confirmPasswordInput.addEventListener('input', validatePassword);
+
+        function validatePassword() {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+
+            // Length requirement
+            const lengthReq = document.getElementById('lengthReq');
+            if (password.length >= 8) {
+                lengthReq.classList.add('valid');
+                lengthReq.classList.remove('invalid');
+            } else {
+                lengthReq.classList.add('invalid');
+                lengthReq.classList.remove('valid');
+            }
+
+            // Letter requirement
+            const letterReq = document.getElementById('letterReq');
+            if (/[A-Z]/.test(password)) {
+                letterReq.classList.add('valid');
+                letterReq.classList.remove('invalid');
+            } else {
+                letterReq.classList.add('invalid');
+                letterReq.classList.remove('valid');
+            }
+
+            // Number requirement
+            const numberReq = document.getElementById('numberReq');
+            if (/\d/.test(password)) {
+                numberReq.classList.add('valid');
+                numberReq.classList.remove('invalid');
+            } else {
+                numberReq.classList.add('invalid');
+                numberReq.classList.remove('valid');
+            }
+
+            // Password match
+            if (confirmPassword && password !== confirmPassword) {
+                confirmPasswordInput.style.borderColor = '#e53e3e';
+            } else if (confirmPassword) {
+                confirmPasswordInput.style.borderColor = '#38a169';
+            } else {
+                confirmPasswordInput.style.borderColor = '#e5e7eb';
+            }
+
+            validateForm();
+        }
+
+        function validateForm() {
+            const form = document.getElementById('signupForm');
+            const signupBtn = document.getElementById('signupBtn');
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+
+            const isPasswordValid = password.length >= 8 && 
+                                  /[A-Z]/.test(password) && 
+                                  /\d/.test(password) &&
+                                  password === confirmPassword;
+
+            const allFieldsFilled = form.checkValidity() && selectedAccountType && isPasswordValid;
+
+            signupBtn.disabled = !(allFieldsFilled && termsAccepted) || isSubmitting;
+        }
+
+        // Form validation on input
+        document.querySelectorAll('.form-input').forEach(input => {
+            input.addEventListener('input', validateForm);
+        });
+
+        // Form submission with Firebase
+        document.getElementById('signupForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (isSubmitting) return;
+            
+            if (this.checkValidity() && selectedAccountType && termsAccepted) {
+                isSubmitting = true;
+                
+                const signupBtn = document.getElementById('signupBtn');
+                const originalText = signupBtn.innerHTML;
+                
+                // Show loading state
+                signupBtn.innerHTML = '<span class="spinner"></span> Creating Account...';
+                signupBtn.disabled = true;
+                
+                try {
+                    // Check if email already exists
+                    const email = document.getElementById('email').value.trim();
+                    const emailExists = await VediAPI.checkEmailExists(email);
+                    
+                    if (emailExists) {
+                        throw new Error('This email is already registered. Please use a different email or try signing in.');
+                    }
+                    
+                    // Prepare user data
+                    const userData = {
+                        name: `${document.getElementById('firstName').value.trim()} ${document.getElementById('lastName').value.trim()}`,
+                        accountType: selectedAccountType,
+                        firstName: document.getElementById('firstName').value.trim(),
+                        lastName: document.getElementById('lastName').value.trim(),
+                        businessName: document.getElementById('businessName').value.trim(),
+                        phone: document.getElementById('phone').value.trim(),
+                        newsletterOptIn: newsletterOptIn
+                    };
+                    
+                    const password = document.getElementById('password').value;
+                    
+                    // Create user with Firebase
+                    const user = await VediAPI.signUp(email, password, userData);
+                    
+                    console.log('✅ User created successfully:', user);
+                    
+                    // Track signup event
+                    if (window.firebaseAnalytics) {
+                        firebaseAnalytics.logEvent('sign_up', {
+                            method: 'email',
+                            account_type: selectedAccountType
+                        });
+                    }
+                    
+                    // Show success message
+                    signupBtn.innerHTML = '✅ Account Created Successfully!';
+                    signupBtn.style.background = 'linear-gradient(135deg, #38a169, #2f855a)';
+                    
+                    hideErrorMessage();
+                    showSuccessNotification('Welcome to Vedi! Your account has been created successfully.');
+                    
+                    // Redirect based on account type to setup pages
+                    setTimeout(() => {
+                        if (selectedAccountType === 'venue') {
+                            window.location.href = 'venue-setup.html';
+                        } else if (selectedAccountType === 'restaurant') {
+                            window.location.href = 'restaurant-setup.html';
+                        }
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('❌ Signup error:', error);
+                    
+                    // Reset button
+                    signupBtn.innerHTML = originalText;
+                    signupBtn.disabled = false;
+                    signupBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                    
+                    // Show error message
+                    showErrorMessage(error.message);
+                    
+                    isSubmitting = false;
+                    validateForm();
+                }
+            }
+        });
+
+        function showErrorMessage(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function hideErrorMessage() {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.style.display = 'none';
+        }
+
+        function showSuccessNotification(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 10000;
+                background: linear-gradient(135deg, #48bb78, #38a169);
+                color: white; padding: 15px 25px; border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                font-weight: 600; opacity: 0; transition: all 0.3s ease;
+                max-width: 300px;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.style.opacity = '1', 100);
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // Social login functions (placeholder for future implementation)
+        function signupWithGoogle() {
+            showNotification('Google signup will be available soon. Please use email signup for now.');
+        }
+
+        function signupWithMicrosoft() {
+            showNotification('Microsoft signup will be available soon. Please use email signup for now.');
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 10000;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white; padding: 15px 25px; border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                font-weight: 600; opacity: 0; transition: all 0.3s ease;
+                max-width: 300px;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.style.opacity = '1', 100);
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        console.log('🍽️ Vedi Signup Page with Firebase backend loaded successfully');
+    </script>
+</body>
+</html>
