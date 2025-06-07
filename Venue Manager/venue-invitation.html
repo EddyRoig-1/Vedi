@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venue Invitation System</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+            color: #1a202c;
+        }
+
+        /* Join Venue Page Styles */
+        .join-venue-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            display: none;
+        }
+
+        .join-venue-container.show {
+            display: block;
+        }
+
+        .join-venue-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+        }
+
+        .join-venue-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .join-venue-header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .venue-details-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+
+        .venue-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .venue-info-item {
+            text-align: center;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .venue-info-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+
+        .venue-info-label {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        .venue-info-value {
+            font-size: 1.1rem;
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .restaurant-setup-section {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border: 2px solid #0ea5e9;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .setup-section-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #0c4a6e;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .setup-step {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid #cbd5e0;
+        }
+
+        .setup-step-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-right: 15px;
+        }
+
+        .setup-step-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .setup-step-description {
+            color: #718096;
+            line-height: 1.5;
+        }
+
+        .success-message {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border: 2px solid #10b981;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            color: #064e3b;
+            margin-bottom: 30px;
+        }
+
+        .success-message h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            border: 2px solid #ef4444;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            color: #7f1d1d;
+            margin-bottom: 30px;
+        }
+
+        .error-message h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.5);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .auth-section {
+            background: linear-gradient(135deg, #fef3c7, #fed7aa);
+            border: 2px solid #f59e0b;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .auth-section h3 {
+            color: #92400e;
+            margin-bottom: 15px;
+        }
+
+        .auth-section p {
+            color: #b45309;
+            margin-bottom: 20px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .join-venue-container {
+                padding: 20px 15px;
+            }
+
+            .join-venue-header {
+                padding: 30px 20px;
+            }
+
+            .join-venue-header h1 {
+                font-size: 2rem;
+            }
+
+            .venue-details-card {
+                padding: 25px 20px;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p id="loadingText">Loading invitation details...</p>
+        </div>
+    </div>
+
+    <!-- Join Venue Page -->
+    <div class="join-venue-container" id="joinVenueContainer">
+        <div class="join-venue-header">
+            <h1>🏢 Join Our Food Hall</h1>
+            <p>You've been invited to become part of our vibrant food hall community</p>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingInvitation" style="text-align: center; padding: 60px;">
+            <div style="font-size: 3rem; margin-bottom: 20px;">⏳</div>
+            <h3>Loading invitation details...</h3>
+            <p style="color: #718096; margin-top: 10px;">Please wait while we verify your invitation</p>
+        </div>
+
+        <!-- Invalid Invitation -->
+        <div id="invalidInvitation" class="error-message" style="display: none;">
+            <h3>❌ Invalid Invitation</h3>
+            <p>This invitation link is invalid or has expired. Please contact the venue manager for a new invitation.</p>
+        </div>
+
+        <!-- Authentication Required -->
+        <div id="authenticationRequired" class="auth-section" style="display: none;">
+            <h3>🔐 Authentication Required</h3>
+            <p>You need to sign in or create an account to accept this venue invitation.</p>
+            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="goToLogin()">
+                    <span>🔑</span>
+                    Sign In
+                </button>
+                <button class="btn btn-secondary" onclick="goToSignup()">
+                    <span>📝</span>
+                    Create Account
+                </button>
+            </div>
+        </div>
+
+        <!-- Valid Invitation Content -->
+        <div id="validInvitation" style="display: none;">
+            <div class="venue-details-card">
+                <h3 style="font-size: 1.5rem; margin-bottom: 20px; color: #2d3748;">Venue Details</h3>
+                
+                <div class="venue-info-grid">
+                    <div class="venue-info-item">
+                        <div class="venue-info-icon">🏢</div>
+                        <div class="venue-info-label">Venue Name</div>
+                        <div class="venue-info-value" id="displayVenueName">Loading...</div>
+                    </div>
+                    
+                    <div class="venue-info-item">
+                        <div class="venue-info-icon">📍</div>
+                        <div class="venue-info-label">Location</div>
+                        <div class="venue-info-value" id="displayVenueAddress">Loading...</div>
+                    </div>
+                    
+                    <div class="venue-info-item">
+                        <div class="venue-info-icon">🏪</div>
+                        <div class="venue-info-label">Your Restaurant</div>
+                        <div class="venue-info-value" id="displayRestaurantName">Loading...</div>
+                    </div>
+                </div>
+
+                <div id="venueDescriptionDisplay" style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-top: 20px;">
+                    <h4 style="margin-bottom: 10px; color: #4a5568;">About This Venue</h4>
+                    <p id="displayVenueDescription" style="color: #718096; line-height: 1.6;">Loading venue description...</p>
+                </div>
+
+                <div id="personalMessageDisplay" style="background: #f0f9ff; border: 2px solid #0ea5e9; padding: 20px; border-radius: 12px; margin-top: 20px; display: none;">
+                    <h4 style="margin-bottom: 10px; color: #0c4a6e;">Personal Message</h4>
+                    <p id="displayPersonalMessage" style="color: #0369a1; line-height: 1.6; font-style: italic;"></p>
+                </div>
+            </div>
+
+            <div class="restaurant-setup-section">
+                <div class="setup-section-title">
+                    <span>🚀</span>
+                    Next Steps to Join
+                </div>
+                
+                <div class="setup-step">
+                    <span class="setup-step-number">1</span>
+                    <div style="display: inline-block;">
+                        <div class="setup-step-title">Complete Restaurant Setup</div>
+                        <div class="setup-step-description">If you haven't already, complete your restaurant profile with menu categories, items, and business information.</div>
+                    </div>
+                </div>
+                
+                <div class="setup-step">
+                    <span class="setup-step-number">2</span>
+                    <div style="display: inline-block;">
+                        <div class="setup-step-title">Accept Venue Invitation</div>
+                        <div class="setup-step-description">Click the "Accept Invitation" button below to join this food hall venue.</div>
+                    </div>
+                </div>
+                
+                <div class="setup-step">
+                    <span class="setup-step-number">3</span>
+                    <div style="display: inline-block;">
+                        <div class="setup-step-title">Start Receiving Orders</div>
+                        <div class="setup-step-description">Once accepted, customers will see your restaurant in the venue directory and can place orders.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-success" onclick="acceptInvitation()" style="font-size: 1.2rem; padding: 20px 40px;">
+                    <span>✅</span>
+                    Accept Invitation & Join Venue
+                </button>
+                
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-secondary" onclick="declineInvitation()">
+                        <span>❌</span>
+                        Decline Invitation
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success State -->
+        <div id="acceptanceSuccess" class="success-message" style="display: none;">
+            <h3>🎉 Welcome to the Venue!</h3>
+            <p>You have successfully joined the food hall. Your restaurant will now appear in the venue directory.</p>
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="goToRestaurantDashboard()">
+                    <span>🏪</span>
+                    Go to Restaurant Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentInvitation = null;
+        let currentVenue = null;
+
+        // Initialize based on URL parameters
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Venue Invitation System initializing...');
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const inviteCode = urlParams.get('invite');
+            
+            if (inviteCode) {
+                document.getElementById('joinVenueContainer').classList.add('show');
+                await loadInvitationDetails(inviteCode);
+            } else {
+                // No invite code provided
+                showInvalidInvitation('No invitation code provided in the URL.');
+            }
+        });
+
+        // Main invitation loading function
+        async function loadInvitationDetails(inviteCode) {
+            console.log('📨 Loading invitation details for code:', inviteCode);
+            
+            try {
+                showLoading('Verifying invitation...');
+
+                // Query Firebase for the invitation
+                const querySnapshot = await firebaseDb.collection('venueInvitations')
+                    .where('inviteCode', '==', inviteCode)
+                    .limit(1)
+                    .get();
+
+                if (querySnapshot.empty) {
+                    hideLoading();
+                    showInvalidInvitation('Invitation not found. Please check the invitation link.');
+                    return;
+                }
+
+                const invitationDoc = querySnapshot.docs[0];
+                const invitation = { id: invitationDoc.id, ...invitationDoc.data() };
+
+                console.log('✅ Found invitation:', invitation);
+
+                // Check if invitation has expired
+                if (invitation.expiresAt && new Date() > invitation.expiresAt.toDate()) {
+                    hideLoading();
+                    showInvalidInvitation('This invitation has expired.');
+                    return;
+                }
+
+                // Check if already accepted or declined
+                if (invitation.status === 'accepted') {
+                    hideLoading();
+                    showInvalidInvitation('This invitation has already been accepted.');
+                    return;
+                }
+
+                if (invitation.status === 'declined') {
+                    hideLoading();
+                    showInvalidInvitation('This invitation was previously declined.');
+                    return;
+                }
+
+                if (invitation.status === 'cancelled') {
+                    hideLoading();
+                    showInvalidInvitation('This invitation has been cancelled by the venue manager.');
+                    return;
+                }
+
+                currentInvitation = invitation;
+
+                // Load venue details
+                await loadVenueDetails(invitation.venueId);
+
+                // Check authentication
+                await checkAuthentication();
+
+            } catch (error) {
+                console.error('❌ Error loading invitation details:', error);
+                hideLoading();
+                showInvalidInvitation('Error loading invitation details. Please try again.');
+            }
+        }
+
+        async function loadVenueDetails(venueId) {
+            try {
+                currentVenue = await VediAPI.getVenue(venueId);
+                console.log('✅ Loaded venue details:', currentVenue);
+            } catch (error) {
+                console.error('❌ Error loading venue details:', error);
+                // Use invitation data as fallback
+                currentVenue = {
+                    id: venueId,
+                    name: currentInvitation.venueName,
+                    address: currentInvitation.venueAddress,
+                    description: currentInvitation.venueDescription
+                };
+            }
+        }
+
+        async function checkAuthentication() {
+            try {
+                showLoading('Checking authentication...');
+                
+                currentUser = await VediAPI.getCurrentUser();
+                
+                if (!currentUser) {
+                    hideLoading();
+                    showAuthenticationRequired();
+                    return;
+                }
+
+                console.log('✅ User authenticated:', currentUser.email);
+
+                // Check if user is restaurant owner
+                if (currentUser.accountType !== 'restaurant') {
+                    hideLoading();
+                    showInvalidInvitation('This invitation is for restaurant owners only.');
+                    return;
+                }
+
+                hideLoading();
+                showValidInvitation();
+
+            } catch (error) {
+                console.error('❌ Authentication check failed:', error);
+                hideLoading();
+                showAuthenticationRequired();
+            }
+        }
+
+        function showAuthenticationRequired() {
+            document.getElementById('loadingInvitation').style.display = 'none';
+            document.getElementById('invalidInvitation').style.display = 'none';
+            document.getElementById('validInvitation').style.display = 'none';
+            document.getElementById('authenticationRequired').style.display = 'block';
+        }
+
+        function showInvalidInvitation(message = 'This invitation link is invalid or has expired.') {
+            document.getElementById('loadingInvitation').style.display = 'none';
+            document.getElementById('authenticationRequired').style.display = 'none';
+            document.getElementById('validInvitation').style.display = 'none';
+            document.getElementById('invalidInvitation').style.display = 'block';
+            
+            document.querySelector('#invalidInvitation p').textContent = message;
+        }
+
+        function showValidInvitation() {
+            document.getElementById('loadingInvitation').style.display = 'none';
+            document.getElementById('invalidInvitation').style.display = 'none';
+            document.getElementById('authenticationRequired').style.display = 'none';
+            document.getElementById('validInvitation').style.display = 'block';
+            
+            // Populate venue details
+            document.getElementById('displayVenueName').textContent = currentVenue.name;
+            document.getElementById('displayVenueAddress').textContent = currentVenue.address;
+            document.getElementById('displayRestaurantName').textContent = currentInvitation.restaurantName;
+            document.getElementById('displayVenueDescription').textContent = 
+                currentVenue.description || currentInvitation.venueDescription || 'No description provided.';
+            
+            // Show personal message if provided
+            if (currentInvitation.personalMessage) {
+                document.getElementById('displayPersonalMessage').textContent = currentInvitation.personalMessage;
+                document.getElementById('personalMessageDisplay').style.display = 'block';
+            }
+        }
+
+        async function acceptInvitation() {
+            if (!currentInvitation || !currentUser || !currentVenue) {
+                showError('Missing required information to accept invitation.');
+                return;
+            }
+
+            try {
+                showLoading('Accepting invitation and joining venue...');
+
+                // Get user's restaurant
+                const userRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
+                
+                if (!userRestaurant) {
+                    hideLoading();
+                    showError('You need to set up your restaurant first before joining a venue.');
+                    setTimeout(() => {
+                        window.location.href = 'Landing-Signup-Login/restaurant-setup.html';
+                    }, 2000);
+                    return;
+                }
+
+                // Update restaurant to associate with venue
+                await VediAPI.updateRestaurant(userRestaurant.id, {
+                    venueId: currentVenue.id,
+                    venueName: currentVenue.name,
+                    venueAddress: currentVenue.address,
+                    joinedVenueAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Update invitation status to accepted
+                await firebaseDb.collection('venueInvitations').doc(currentInvitation.id).update({
+                    status: 'accepted',
+                    acceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    acceptedByUserId: currentUser.id,
+                    restaurantId: userRestaurant.id
+                });
+
+                // Add activity log to venue
+                await firebaseDb.collection('venueActivity').add({
+                    venueId: currentVenue.id,
+                    type: 'restaurant',
+                    title: 'New Restaurant Joined',
+                    description: `${userRestaurant.name} has joined the venue via invitation`,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    restaurantId: userRestaurant.id,
+                    restaurantName: userRestaurant.name
+                });
+
+                hideLoading();
+
+                // Show success state
+                document.getElementById('validInvitation').style.display = 'none';
+                document.getElementById('acceptanceSuccess').style.display = 'block';
+                
+                showSuccess('Successfully joined the venue!');
+
+            } catch (error) {
+                console.error('❌ Error accepting invitation:', error);
+                hideLoading();
+                showError('Failed to accept invitation: ' + error.message);
+            }
+        }
+
+        async function declineInvitation() {
+            if (!confirm('Are you sure you want to decline this invitation?')) {
+                return;
+            }
+
+            try {
+                showLoading('Declining invitation...');
+
+                // Update invitation status to declined
+                await firebaseDb.collection('venueInvitations').doc(currentInvitation.id).update({
+                    status: 'declined',
+                    declinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    declinedByUserId: currentUser ? currentUser.id : null
+                });
+
+                // Add activity log to venue
+                await firebaseDb.collection('venueActivity').add({
+                    venueId: currentVenue.id,
+                    type: 'invitation',
+                    title: 'Invitation Declined',
+                    description: `Invitation for ${currentInvitation.restaurantName} was declined`,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                hideLoading();
+                showSuccess('Invitation declined. You can contact the venue manager if you change your mind.');
+                
+                setTimeout(() => {
+                    window.close();
+                }, 2000);
+
+            } catch (error) {
+                console.error('❌ Error declining invitation:', error);
+                hideLoading();
+                showError('Failed to decline invitation: ' + error.message);
+            }
+        }
+
+        // Navigation functions
+        function goToLogin() {
+            // Store invitation code for after login
+            sessionStorage.setItem('pendingInvitationCode', currentInvitation.inviteCode);
+            window.location.href = 'Landing-Signup-Login/login.html';
+        }
+
+        function goToSignup() {
+            // Store invitation code for after signup
+            sessionStorage.setItem('pendingInvitationCode', currentInvitation.inviteCode);
+            window.location.href = 'Landing-Signup-Login/signup.html';
+        }
+
+        function goToRestaurantDashboard() {
+            window.location.href = 'Owner/dashboard.html';
+        }
+
+        // Utility functions
+        function showLoading(message = 'Loading...') {
+            const overlay = document.getElementById('loadingOverlay');
+            const text = document.getElementById('loadingText');
+            text.textContent = message;
+            overlay.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'none';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 10000;
+                background: ${type === 'success' ? 'linear-gradient(135deg, #48bb78, #38a169)' : 'linear-gradient(135deg, #ef4444, #dc2626)'};
+                color: white; padding: 15px 25px; border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                font-weight: 600; opacity: 0; transition: all 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.style.opacity = '1', 100);
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 4000);
+        }
+
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        console.log('🚀 Venue Invitation System with Firebase loaded successfully');
+    </script>
+</body>
+</html>
