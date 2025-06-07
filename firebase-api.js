@@ -436,6 +436,61 @@ const VediAPI = {
     }
   },
 
+  /**
+   * Get menu with categories and items
+   * @param {string} restaurantId - Restaurant ID
+   * @returns {Promise<Object>} Menu data with categories and items
+   */
+  async getFullMenu(restaurantId) {
+    try {
+      const [categories, items] = await Promise.all([
+        this.getMenuCategories(restaurantId),
+        this.getMenuItems(restaurantId)
+      ]);
+      
+      // Group items by category
+      const categoriesWithItems = categories.map(category => ({
+        ...category,
+        items: items.filter(item => item.categoryId === category.id)
+      }));
+      
+      console.log('✅ Full menu loaded:', categoriesWithItems.length, 'categories');
+      return {
+        categories: categoriesWithItems,
+        allItems: items
+      };
+      
+    } catch (error) {
+      console.error('❌ Get full menu error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Search menu items by name or description
+   * @param {string} restaurantId - Restaurant ID
+   * @param {string} searchTerm - Search term
+   * @returns {Promise<Array>} Array of matching menu items
+   */
+  async searchMenuItems(restaurantId, searchTerm) {
+    try {
+      const allItems = await this.getMenuItems(restaurantId);
+      const searchLower = searchTerm.toLowerCase();
+      
+      const matchingItems = allItems.filter(item => 
+        item.name.toLowerCase().includes(searchLower) ||
+        (item.description && item.description.toLowerCase().includes(searchLower))
+      );
+      
+      console.log('🔍 Menu search results:', matchingItems.length, 'items for term:', searchTerm);
+      return matchingItems;
+      
+    } catch (error) {
+      console.error('❌ Search menu items error:', error);
+      throw error;
+    }
+  },
+
   // ============================================================================
   // ORDER MANAGEMENT
   // ============================================================================
@@ -732,6 +787,42 @@ const VediAPI = {
       .onSnapshot(doc => {
         if (doc.exists) {
           callback({ id: doc.id, ...doc.data() });
+        }
+      });
+  },
+
+  /**
+   * Listen to real-time updates for customer's orders
+   * @param {string} customerPhone - Customer phone number
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToCustomerOrders(customerPhone, callback) {
+    return firebaseDb.collection('orders')
+      .where('customerPhone', '==', customerPhone)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(querySnapshot => {
+        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(orders);
+      });
+  },
+
+  /**
+   * Listen to order updates by order number
+   * @param {string} orderNumber - Order number
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToOrderByNumber(orderNumber, callback) {
+    return firebaseDb.collection('orders')
+      .where('orderNumber', '==', orderNumber)
+      .limit(1)
+      .onSnapshot(querySnapshot => {
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          callback({ id: doc.id, ...doc.data() });
+        } else {
+          callback(null);
         }
       });
   }
