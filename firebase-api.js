@@ -226,6 +226,29 @@ const VediAPI = {
     }
   },
 
+  /**
+   * Get restaurants by venue ID (uses existing venueId field)
+   * @param {string} venueId - Venue ID
+   * @returns {Promise<Array>} Array of restaurants in venue
+   */
+  async getRestaurantsByVenue(venueId) {
+    try {
+      const querySnapshot = await firebaseDb.collection('restaurants')
+        .where('venueId', '==', venueId)
+        .orderBy('createdAt', 'desc')
+        .get();
+      
+      const restaurants = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      console.log('✅ Retrieved restaurants for venue:', restaurants.length);
+      return restaurants;
+      
+    } catch (error) {
+      console.error('❌ Get restaurants by venue error:', error);
+      throw error;
+    }
+  },
+
   // ============================================================================
   // MENU CATEGORIES MANAGEMENT
   // ============================================================================
@@ -689,7 +712,7 @@ const VediAPI = {
   },
 
   // ============================================================================
-  // VENUE MANAGEMENT (Future Features)
+  // VENUE MANAGEMENT
   // ============================================================================
 
   /**
@@ -718,6 +741,32 @@ const VediAPI = {
   },
 
   /**
+   * Update existing venue
+   * @param {string} venueId - Venue ID
+   * @param {Object} venueData - Updated data
+   * @returns {Promise<Object>} Updated venue
+   */
+  async updateVenue(venueId, venueData) {
+    try {
+      const updateData = {
+        ...venueData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      await firebaseDb.collection('venues').doc(venueId).update(updateData);
+      
+      const doc = await firebaseDb.collection('venues').doc(venueId).get();
+      
+      console.log('✅ Venue updated:', venueId);
+      return { id: doc.id, ...doc.data() };
+      
+    } catch (error) {
+      console.error('❌ Update venue error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get venue by manager user ID
    * @param {string} managerUserId - Manager's user ID
    * @returns {Promise<Object|null>} Venue or null
@@ -737,6 +786,24 @@ const VediAPI = {
       
     } catch (error) {
       console.error('❌ Get venue by manager error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get venue by ID
+   * @param {string} venueId - Venue ID
+   * @returns {Promise<Object>} Venue data
+   */
+  async getVenue(venueId) {
+    try {
+      const doc = await firebaseDb.collection('venues').doc(venueId).get();
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      throw new Error('Venue not found');
+    } catch (error) {
+      console.error('❌ Get venue error:', error);
       throw error;
     }
   },
@@ -792,6 +859,10 @@ const VediAPI = {
     
     return errorMessages[errorCode] || 'An unexpected error occurred. Please try again.';
   },
+
+  // ============================================================================
+  // REAL-TIME LISTENERS
+  // ============================================================================
 
   /**
    * Listen to real-time order updates
@@ -858,6 +929,58 @@ const VediAPI = {
           callback(null);
         }
       });
+  },
+
+  /**
+   * Listen to venue-wide order updates across all restaurants
+   * @param {string} venueId - Venue ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Promise<Function>} Unsubscribe function
+   */
+  async listenToVenueOrders(venueId, callback) {
+    try {
+      // Get restaurants for this venue
+      const restaurants = await this.getRestaurantsByVenue(venueId);
+      
+      if (restaurants.length === 0) {
+        callback([]);
+        return () => {}; // Empty unsubscribe function
+      }
+      
+      const unsubscribeFunctions = [];
+      let allVenueOrders = [];
+      
+      restaurants.forEach(restaurant => {
+        const unsubscribe = this.listenToOrders(restaurant.id, (restaurantOrders) => {
+          // Update orders for this restaurant
+          allVenueOrders = allVenueOrders.filter(order => 
+            order.restaurantId !== restaurant.id
+          );
+          
+          const ordersWithRestaurant = restaurantOrders.map(order => ({
+            ...order,
+            restaurantName: restaurant.name,
+            restaurantCurrency: restaurant.currency
+          }));
+          
+          allVenueOrders = allVenueOrders.concat(ordersWithRestaurant);
+          
+          // Call the callback with all venue orders
+          callback(allVenueOrders);
+        });
+        
+        unsubscribeFunctions.push(unsubscribe);
+      });
+      
+      // Return a function that unsubscribes from all listeners
+      return () => {
+        unsubscribeFunctions.forEach(unsub => unsub());
+      };
+      
+    } catch (error) {
+      console.error('❌ Listen to venue orders error:', error);
+      throw error;
+    }
   }
 };
 
