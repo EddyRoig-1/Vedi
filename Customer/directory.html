@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Hall Directory - Digital Dining</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Header Styles */
+        .directory-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px 20px 28px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .directory-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: headerGlow 8s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes headerGlow {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+            50% { transform: translate(-45%, -45%) scale(1.1); opacity: 0.1; }
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hall-title-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .hall-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+        }
+
+        .hall-title::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+            border-radius: 2px;
+        }
+
+        .hall-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.95;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .location-info {
+            background: rgba(255, 255, 255, 0.18);
+            padding: 16px 20px;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .location-info::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: locationShimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes locationShimmer {
+            0% { left: -100%; }
+            50% { left: 100%; }
+            100% { left: 100%; }
+        }
+
+        .location-text {
+            font-weight: 600;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Directory Content */
+        .directory-content {
+            padding: 20px;
+        }
+
+        .search-section {
+            margin-bottom: 24px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            font-size: 1rem;
+            background: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+        }
+
+        .search-box::placeholder {
+            color: #a0aec0;
+        }
+
+        /* Filter Tags */
+        .filter-section {
+            margin-bottom: 24px;
+        }
+
+        .filter-tags {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px;
+        }
+
+        .filter-tags::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-tag {
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            font-weight: 500;
+            font-size: 0.85rem;
+            color: #4a5568;
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-tag.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .filter-tag:hover:not(.active) {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+        }
+
+        /* Restaurant Grid */
+        .restaurants-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .restaurant-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .restaurant-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .restaurant-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .restaurant-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .restaurant-image {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #adb5bd;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .restaurant-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .restaurant-content {
+            padding: 20px;
+        }
+
+        .restaurant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .restaurant-name {
+            font-weight: 700;
+            color: #2d3748;
+            font-size: 1.2rem;
+            line-height: 1.3;
+            flex: 1;
+        }
+
+        .restaurant-status {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .restaurant-status.closed {
+            background: linear-gradient(135deg, #e53e3e, #c53030);
+        }
+
+        .restaurant-cuisine {
+            color: #667eea;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .restaurant-description {
+            color: #718096;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .restaurant-meta {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #718096;
+            font-size: 0.85rem;
+        }
+
+        .meta-icon {
+            font-size: 1rem;
+        }
+
+        /* Dropdown Content */
+        .restaurant-dropdown {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.4s ease;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .restaurant-card.expanded .restaurant-dropdown {
+            max-height: 200px;
+            padding: 20px;
+        }
+
+        .dropdown-content {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease 0.1s;
+        }
+
+        .restaurant-card.expanded .dropdown-content {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .restaurant-hours {
+            margin-bottom: 16px;
+        }
+
+        .hours-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .hours-today {
+            color: #667eea;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .order-button {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .order-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .order-button:disabled {
+            background: linear-gradient(135deg, #a0aec0, #718096);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Loading and Empty States */
+        .loading, .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .directory-header {
+                padding: 20px 16px;
+            }
+
+            .directory-content {
+                padding: 16px;
+            }
+
+            .restaurant-content {
+                padding: 16px;
+            }
+
+            .hall-title {
+                font-size: 1.5rem;
+            }
+
+            .restaurant-image {
+                height: 140px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="directory-header">
+            <div class="header-content">
+                <div class="hall-title-section">
+                    <h1 class="hall-title" id="hallName">Loading Food Hall...</h1>
+                    <p class="hall-subtitle">Choose from our selection of restaurants</p>
+                </div>
+                <div class="location-info">
+                    <div class="location-text" id="hallLocation">Loading location...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Directory Content -->
+        <div class="directory-content">
+            <!-- Search Section -->
+            <div class="search-section">
+                <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search restaurants or cuisine...">
+            </div>
+
+            <!-- Filter Section -->
+            <div class="filter-section">
+                <div class="filter-tags" id="filterTags">
+                    <div class="filter-tag active" data-filter="all">All</div>
+                    <div class="filter-tag" data-filter="italian">🍝 Italian</div>
+                    <div class="filter-tag" data-filter="asian">🥢 Asian</div>
+                    <div class="filter-tag" data-filter="mexican">🌮 Mexican</div>
+                    <div class="filter-tag" data-filter="american">🍔 American</div>
+                    <div class="filter-tag" data-filter="healthy">🥗 Healthy</div>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- Loading State -->
+            <div class="loading" id="loadingMessage">
+                <div class="loading-spinner"></div>
+                <h3>Loading restaurants...</h3>
+                <p>Please wait while we gather the dining options</p>
+            </div>
+
+            <!-- Restaurants Grid -->
+            <div class="restaurants-grid" id="restaurantsGrid" style="display: none;">
+                <!-- Restaurants will be populated dynamically -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <div class="empty-icon">🏪</div>
+                <h3>No restaurants found</h3>
+                <p>Try adjusting your search or filter criteria</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let restaurants = [];
+        let filteredRestaurants = [];
+        let customerSession = {};
+        let venueData = null;
+        let currentFilter = 'all';
+        let expandedCard = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Food Hall Directory loaded');
+            
+            try {
+                await loadCustomerSession();
+                await loadVenueData();
+                await loadRestaurants();
+                setupEventListeners();
+            } catch (error) {
+                console.error('❌ Page initialization error:', error);
+                showError('Failed to load food hall directory. Please try again.');
+            }
+        });
+
+        // Load customer session data
+        async function loadCustomerSession() {
+            // Try to get from sessionStorage first (from login)
+            const sessionData = sessionStorage.getItem('customerSession');
+            if (sessionData) {
+                customerSession = JSON.parse(sessionData);
+                console.log('👤 Customer session loaded:', customerSession);
+            } else {
+                // Fallback to URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                customerSession = {
+                    name: urlParams.get('name') || 'Guest',
+                    phone: urlParams.get('phone') || '',
+                    restaurantId: urlParams.get('r') || urlParams.get('restaurant'),
+                    venueId: urlParams.get('venue') || urlParams.get('v'),
+                    tableNumber: urlParams.get('table')
+                };
+            }
+
+            if (!customerSession.venueId && !customerSession.restaurantId) {
+                throw new Error('Venue or restaurant ID not found');
+            }
+        }
+
+        // Load venue data from Firebase
+        async function loadVenueData() {
+            if (!customerSession.venueId) {
+                console.log('ℹ️ No venue ID, this might be a direct restaurant access');
+                return;
+            }
+
+            try {
+                // For now, we'll use getRestaurant as a fallback since venue system might not be fully implemented
+                if (customerSession.restaurantId) {
+                    venueData = await VediAPI.getRestaurant(customerSession.restaurantId);
+                    console.log('🏪 Venue data loaded from restaurant:', venueData.name);
+                } else {
+                    // Try to load as venue if that method exists
+                    if (typeof VediAPI.getVenue === 'function') {
+                        venueData = await VediAPI.getVenue(customerSession.venueId);
+                    } else {
+                        console.log('⚠️ Venue system not implemented, using fallback');
+                        venueData = {
+                            name: 'Food Hall',
+                            location: 'Multiple Locations',
+                            description: 'A collection of great restaurants'
+                        };
+                    }
+                }
+
+                // Update venue display
+                updateVenueDisplay();
+
+            } catch (error) {
+                console.error('❌ Failed to load venue data:', error);
+                // Use fallback venue data
+                venueData = {
+                    name: 'Food Hall',
+                    location: 'Restaurant Directory',
+                    description: 'Choose from available restaurants'
+                };
+                updateVenueDisplay();
+            }
+        }
+
+        // Update venue display
+        function updateVenueDisplay() {
+            if (venueData) {
+                document.getElementById('hallName').textContent = venueData.name || 'Food Hall';
+                document.getElementById('hallLocation').textContent = 
+                    venueData.location || venueData.address || 'Multiple Locations';
+            }
+        }
+
+        // Load restaurants from Firebase
+        async function loadRestaurants() {
+            console.log('📖 Loading restaurants from Firebase...');
+            
+            try {
+                let restaurantsList = [];
+
+                if (customerSession.venueId) {
+                    // Load all restaurants for this venue
+                    // For now, we'll simulate this by checking restaurant venues
+                    const allRestaurants = await getAllRestaurantsForVenue(customerSession.venueId);
+                    restaurantsList = allRestaurants;
+                } else if (customerSession.restaurantId) {
+                    // Load single restaurant
+                    const restaurant = await VediAPI.getRestaurant(customerSession.restaurantId);
+                    restaurantsList = [restaurant];
+                } else {
+                    throw new Error('No venue or restaurant specified');
+                }
+
+                // Process restaurants for directory display
+                restaurants = restaurantsList.map((restaurant, index) => ({
+                    id: restaurant.id || index,
+                    firebaseId: restaurant.id,
+                    name: restaurant.name || 'Restaurant',
+                    venueId: customerSession.venueId,
+                    cuisine: mapCuisineType(restaurant.cuisineType || restaurant.cuisine),
+                    description: restaurant.description || 'Delicious cuisine made with fresh ingredients',
+                    image: restaurant.imageUrl || null,
+                    isOpen: isRestaurantOpen(restaurant),
+                    rating: restaurant.rating || 4.5,
+                    estimatedTime: restaurant.estimatedTime || '15-20 min',
+                    priceRange: restaurant.priceRange || '$',
+                    hours: formatOperatingHours(restaurant),
+                    specialties: generateSpecialties(restaurant.cuisineType || restaurant.cuisine),
+                    phone: restaurant.phone,
+                    address: restaurant.address,
+                    restaurantData: restaurant // Keep original data for ordering
+                }));
+
+                filteredRestaurants = [...restaurants];
+                hideLoading();
+                renderRestaurants();
+
+                console.log('✅ Loaded', restaurants.length, 'restaurants');
+
+            } catch (error) {
+                console.error('❌ Error loading restaurants:', error);
+                showError('Failed to load restaurants. Please try again.');
+                hideLoading();
+            }
+        }
+
+        // Get all restaurants for a venue (simulated for now)
+        async function getAllRestaurantsForVenue(venueId) {
+            // TODO: Implement proper venue-restaurant relationship in Firebase
+            // For now, we'll return the single restaurant if it exists
+            
+            if (customerSession.restaurantId) {
+                try {
+                    const restaurant = await VediAPI.getRestaurant(customerSession.restaurantId);
+                    return [restaurant];
+                } catch (error) {
+                    console.error('❌ Failed to load restaurant:', error);
+                    return [];
+                }
+            }
+
+            // In the future, this would query restaurants by venue ID
+            // return await VediAPI.getRestaurantsByVenue(venueId);
+            return [];
+        }
+
+        // Helper functions
+        function mapCuisineType(cuisineType) {
+            if (!cuisineType) return 'american';
+            
+            const cuisineMap = {
+                'american': 'american',
+                'italian': 'italian', 
+                'mexican': 'mexican',
+                'chinese': 'asian',
+                'indian': 'asian',
+                'japanese': 'asian',
+                'thai': 'asian',
+                'vietnamese': 'asian',
+                'korean': 'asian',
+                'mediterranean': 'healthy',
+                'french': 'italian',
+                'fusion': 'american'
+            };
+            return cuisineMap[cuisineType.toLowerCase()] || 'american';
+        }
+
+        function isRestaurantOpen(restaurant) {
+            // TODO: Implement proper hours checking based on restaurant.operatingHours
+            // For now, assume open if restaurant exists
+            return !!restaurant.name;
+        }
+
+        function formatOperatingHours(restaurant) {
+            if (restaurant.operatingHoursString) {
+                return restaurant.operatingHoursString;
+            }
+            
+            if (restaurant.operatingHours) {
+                // Format operating hours object into readable string
+                const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+                const todayHours = restaurant.operatingHours[today];
+                
+                if (todayHours && !todayHours.closed) {
+                    return `${todayHours.open} - ${todayHours.close}`;
+                } else {
+                    return 'Closed today';
+                }
+            }
+            
+            return 'Check with restaurant';
+        }
+
+        function generateSpecialties(cuisineType) {
+            const specialtyMap = {
+                'italian': ['Fresh pasta', 'Wood-fired pizza', 'Authentic sauces'],
+                'mexican': ['Street tacos', 'Fresh guacamole', 'Handmade tortillas'],
+                'american': ['Gourmet burgers', 'Craft cocktails', 'Local ingredients'],
+                'chinese': ['Dim sum', 'Wok-fried dishes', 'Traditional recipes'],
+                'indian': ['Curry specialties', 'Tandoor cooking', 'Spice blends'],
+                'japanese': ['Fresh sushi', 'Ramen bowls', 'Traditional techniques'],
+                'thai': ['Pad Thai', 'Curry dishes', 'Fresh herbs'],
+                'mediterranean': ['Fresh seafood', 'Olive oil dishes', 'Herb-crusted specialties'],
+                'french': ['Classic techniques', 'Wine pairings', 'Artisan breads']
+            };
+            return specialtyMap[cuisineType] || ['House specialties', 'Fresh ingredients', 'Made to order'];
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Search functionality
+            const searchBox = document.getElementById('searchBox');
+            searchBox.addEventListener('input', handleSearch);
+
+            // Filter functionality
+            const filterTags = document.querySelectorAll('.filter-tag');
+            filterTags.forEach(tag => {
+                tag.addEventListener('click', () => handleFilter(tag.dataset.filter, tag));
+            });
+        }
+
+        // Handle search
+        function handleSearch(event) {
+            const searchTerm = event.target.value.toLowerCase();
+            
+            filteredRestaurants = restaurants.filter(restaurant => {
+                const matchesSearch = 
+                    restaurant.name.toLowerCase().includes(searchTerm) ||
+                    restaurant.cuisine.toLowerCase().includes(searchTerm) ||
+                    restaurant.description.toLowerCase().includes(searchTerm) ||
+                    restaurant.specialties.some(specialty => specialty.toLowerCase().includes(searchTerm));
+                
+                const matchesFilter = currentFilter === 'all' || restaurant.cuisine === currentFilter;
+                
+                return matchesSearch && matchesFilter;
+            });
+
+            renderRestaurants();
+        }
+
+        // Handle filter
+        function handleFilter(filter, tagElement) {
+            // Update active filter tag
+            document.querySelectorAll('.filter-tag').forEach(tag => tag.classList.remove('active'));
+            tagElement.classList.add('active');
+            
+            currentFilter = filter;
+            
+            // Apply filter
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            
+            filteredRestaurants = restaurants.filter(restaurant => {
+                const matchesFilter = filter === 'all' || restaurant.cuisine === filter;
+                const matchesSearch = searchTerm === '' || 
+                    restaurant.name.toLowerCase().includes(searchTerm) ||
+                    restaurant.cuisine.toLowerCase().includes(searchTerm) ||
+                    restaurant.description.toLowerCase().includes(searchTerm);
+                
+                return matchesFilter && matchesSearch;
+            });
+
+            renderRestaurants();
+        }
+
+        // Render restaurants
+        function renderRestaurants() {
+            const grid = document.getElementById('restaurantsGrid');
+            const emptyState = document.getElementById('emptyState');
+
+            if (filteredRestaurants.length === 0) {
+                grid.style.display = 'none';
+                emptyState.style.display = 'block';
+                
+                if (restaurants.length === 0) {
+                    emptyState.innerHTML = `
+                        <div class="empty-icon">🏪</div>
+                        <h3>No Restaurants Available</h3>
+                        <p>No restaurants have joined this venue yet.</p>
+                        <div style="margin-top: 20px; font-size: 0.9rem; color: #6b7280;">
+                            <p><strong>Venue managers:</strong> Send invitations to restaurant owners to join your food hall.</p>
+                            <p><strong>Restaurant owners:</strong> Contact the venue manager for an invitation to join.</p>
+                        </div>
+                    `;
+                } else {
+                    emptyState.innerHTML = `
+                        <div class="empty-icon">🔍</div>
+                        <h3>No restaurants found</h3>
+                        <p>Try adjusting your search or filter criteria</p>
+                    `;
+                }
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            grid.style.display = 'flex';
+
+            grid.innerHTML = filteredRestaurants.map(restaurant => `
+                <div class="restaurant-card" data-restaurant-id="${restaurant.id}" onclick="toggleRestaurantCard('${restaurant.id}')">
+                    <div class="restaurant-image">
+                        ${restaurant.image ? 
+                            `<img src="${restaurant.image}" alt="${restaurant.name}" loading="lazy">` : 
+                            '🏪 No Image Available'
+                        }
+                    </div>
+                    <div class="restaurant-content">
+                        <div class="restaurant-header">
+                            <h3 class="restaurant-name">${restaurant.name}</h3>
+                            <div class="restaurant-status ${restaurant.isOpen ? 'open' : 'closed'}">
+                                ${restaurant.isOpen ? 'Open' : 'Closed'}
+                            </div>
+                        </div>
+                        <div class="restaurant-cuisine">${getCuisineDisplay(restaurant.cuisine)}</div>
+                        <p class="restaurant-description">${restaurant.description}</p>
+                        <div class="restaurant-meta">
+                            <div class="meta-item">
+                                <span class="meta-icon">⭐</span>
+                                <span>${restaurant.rating}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-icon">⏱️</span>
+                                <span>${restaurant.estimatedTime}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-icon">💰</span>
+                                <span>${restaurant.priceRange}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="restaurant-dropdown">
+                        <div class="dropdown-content">
+                            <div class="restaurant-hours">
+                                <div class="hours-title">Hours Today</div>
+                                <div class="hours-today">${restaurant.hours}</div>
+                            </div>
+                            <button class="order-button" ${!restaurant.isOpen ? 'disabled' : ''} onclick="orderFromRestaurant(event, '${restaurant.id}')">
+                                ${restaurant.isOpen ? '🍽️ Order Here' : '⏰ Currently Closed'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Toggle restaurant card expansion
+        function toggleRestaurantCard(restaurantId) {
+            const card = document.querySelector(`[data-restaurant-id="${restaurantId}"]`);
+            
+            // Close previously expanded card
+            if (expandedCard && expandedCard !== card) {
+                expandedCard.classList.remove('expanded');
+            }
+            
+            // Toggle current card
+            card.classList.toggle('expanded');
+            expandedCard = card.classList.contains('expanded') ? card : null;
+        }
+
+        // Order from restaurant
+        function orderFromRestaurant(event, restaurantId) {
+            event.stopPropagation(); // Prevent card toggle
+            
+            const restaurant = restaurants.find(r => r.id == restaurantId);
+            if (!restaurant || !restaurant.isOpen) {
+                return;
+            }
+
+            console.log(`🍽️ Ordering from ${restaurant.name}`);
+            
+            // Use same URL pattern as QR counter - go to customer login first for consistency
+            // This ensures the same flow as scanning a counter QR code
+            const params = new URLSearchParams();
+            
+            // Use Firebase restaurant ID
+            if (restaurant.firebaseId) {
+                params.set('restaurant', restaurant.firebaseId);
+            } else if (customerSession.restaurantId) {
+                params.set('restaurant', customerSession.restaurantId);
+            }
+            
+            // Set location as counter since they're ordering through directory
+            params.set('location', 'counter');
+            
+            // Add table number if available (from venue context)
+            if (customerSession.tableNumber) {
+                params.set('table', customerSession.tableNumber);
+            }
+            
+            // Add venue context if available
+            if (customerSession.venueId) {
+                params.set('venue', customerSession.venueId);
+            }
+            
+            // Pre-populate customer data if available
+            if (customerSession.name) {
+                params.set('customerName', customerSession.name);
+            }
+            if (customerSession.phone) {
+                params.set('customerPhone', customerSession.phone);
+            }
+            
+            console.log('🎯 Redirecting to customer login (same as counter QR):', restaurant.name);
+            
+            // Go to customer login page with restaurant context - same as QR counter flow
+            window.location.href = `login.html?${params.toString()}`;
+        }
+
+        // Get cuisine display name
+        function getCuisineDisplay(cuisine) {
+            const cuisineMap = {
+                'italian': '🍝 Italian',
+                'asian': '🥢 Asian',
+                'mexican': '🌮 Mexican',
+                'american': '🍔 American',
+                'healthy': '🥗 Healthy'
+            };
+            return cuisineMap[cuisine] || cuisine;
+        }
+
+        // Utility functions
+        function hideLoading() {
+            document.getElementById('loadingMessage').style.display = 'none';
+            document.getElementById('restaurantsGrid').style.display = 'flex';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            document.getElementById('loadingMessage').style.display = 'none';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 10000);
+        }
+    </script>
+</body>
+</html>
