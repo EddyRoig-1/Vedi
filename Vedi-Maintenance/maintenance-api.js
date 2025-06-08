@@ -133,7 +133,7 @@ const VediMaintenanceAPI = {
     } catch (error) {
       console.error('❌ Get API analytics error:', error);
       // Return mock data if collection doesn't exist yet
-      return this.getMockAPIAnalytics(timePeriod);
+              return this.getEmptyAPIAnalytics(timePeriod);
     }
   },
 
@@ -315,7 +315,7 @@ const VediMaintenanceAPI = {
         
     } catch (error) {
       console.error('❌ Get realtime activity error:', error);
-      return this.getMockActivity();
+              return this.getEmptyActivity();
     }
   },
 
@@ -515,30 +515,16 @@ const VediMaintenanceAPI = {
   },
 
   /**
-   * Get mock API analytics when data not available
+   * Get empty API analytics when no data available
    * @param {string} timePeriod - Time period
-   * @returns {Object} Mock API analytics
+   * @returns {Object} Empty API analytics structure
    */
-  getMockAPIAnalytics(timePeriod) {
-    const methods = {
-      'signUp': { calls: 145, errors: 2, avgTime: 89 },
-      'signIn': { calls: 238, errors: 1, avgTime: 45 },
-      'createOrder': { calls: 412, errors: 3, avgTime: 156 },
-      'getOrders': { calls: 678, errors: 0, avgTime: 78 },
-      'getMenuItems': { calls: 892, errors: 1, avgTime: 134 },
-      'updateOrderStatus': { calls: 234, errors: 2, avgTime: 67 },
-      'createRestaurant': { calls: 67, errors: 0, avgTime: 234 },
-      'createLossIncident': { calls: 23, errors: 0, avgTime: 145 }
-    };
-    
-    const totalCalls = Object.values(methods).reduce((sum, method) => sum + method.calls, 0);
-    const totalErrors = Object.values(methods).reduce((sum, method) => sum + method.errors, 0);
-    
+  getEmptyAPIAnalytics(timePeriod) {
     return {
-      totalCalls,
-      callsByMethod: methods,
-      errorRate: (totalErrors / totalCalls * 100).toFixed(2),
-      averageResponseTime: 98,
+      totalCalls: 0,
+      callsByMethod: {},
+      errorRate: '0.0',
+      averageResponseTime: 0,
       methodDetails: this.getMethodDetails()
     };
   },
@@ -606,17 +592,11 @@ const VediMaintenanceAPI = {
   },
 
   /**
-   * Get mock activity data
-   * @returns {Array} Mock activities
+   * Get empty activity data
+   * @returns {Array} Empty activities array
    */
-  getMockActivity() {
-    return [
-      { icon: '👤', text: 'New restaurant owner registered', time: '2 minutes ago', color: '#10b981' },
-      { icon: '📋', text: 'Order #12345 completed at Pizza Palace', time: '5 minutes ago', color: '#f59e0b' },
-      { icon: '🏪', text: 'New restaurant "Sushi World" added', time: '12 minutes ago', color: '#667eea' },
-      { icon: '⚠️', text: 'Loss incident reported at Burger House', time: '18 minutes ago', color: '#ef4444' },
-      { icon: '💰', text: 'Daily revenue updated for 5 restaurants', time: '25 minutes ago', color: '#8b5cf6' }
-    ];
+  getEmptyActivity() {
+    return [];
   },
 
   // Additional helper methods for calculations
@@ -655,13 +635,13 @@ const VediMaintenanceAPI = {
   },
 
   async calculateGrowthMetrics(timePeriod) {
-    // This would calculate actual growth metrics by comparing periods
-    // For now, return mock data
+    // Calculate actual growth metrics by comparing periods
+    // For now, return basic structure - will be populated with real data
     return {
-      userGrowth: Math.floor(Math.random() * 15) + 5,
-      restaurantGrowth: Math.floor(Math.random() * 10) + 2,
-      orderGrowth: Math.floor(Math.random() * 25) + 10,
-      revenueGrowth: Math.floor(Math.random() * 20) + 5
+      userGrowth: 0,
+      restaurantGrowth: 0,
+      orderGrowth: 0,
+      revenueGrowth: 0
     };
   }
 };
