@@ -1358,33 +1358,55 @@
             }
         }
 
-        // Data loading functions with better error handling
+        // Data loading functions with extensive debugging
         async function loadMenuData() {
             try {
-                console.log('Loading menu data for restaurant:', currentRestaurant.id);
+                console.log('📋 Loading menu data for restaurant:', currentRestaurant.id);
+                console.log('🔍 Restaurant object:', currentRestaurant);
                 
                 // Load categories and menu items using VediAPI
-                console.log('Fetching categories...');
-                const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
-                console.log('Categories loaded:', categoriesData);
+                console.log('🗂️ Fetching categories...');
+                console.log('🔗 Calling VediAPI.getMenuCategories with restaurantId:', currentRestaurant.id);
                 
-                console.log('Fetching menu items...');
+                const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
+                console.log('📊 Raw categories data from Firebase:', categoriesData);
+                console.log('📊 Categories count:', categoriesData ? categoriesData.length : 'null/undefined');
+                
+                console.log('🍽️ Fetching menu items...');
                 const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
-                console.log('Menu items loaded:', menuItemsData);
+                console.log('📊 Raw menu items data from Firebase:', menuItemsData);
+                console.log('📊 Menu items count:', menuItemsData ? menuItemsData.length : 'null/undefined');
 
-                categories = categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0));
-                menuItems = menuItemsData;
+                // Sort categories by order
+                categories = categoriesData ? categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
+                menuItems = menuItemsData || [];
 
-                console.log('✅ Final data - Categories:', categories.length, 'Items:', menuItems.length);
+                console.log('✅ Final processed data:');
+                console.log('  - Categories:', categories.length, categories);
+                console.log('  - Menu Items:', menuItems.length, menuItems);
 
                 // Render UI
+                console.log('🎨 Rendering categories...');
                 renderCategories();
+                
+                console.log('🎨 Rendering menu items...');
                 renderMenuItems();
+                
+                console.log('📊 Updating stats...');
                 updateStats();
+                
+                console.log('🔄 Populating category filter...');
                 populateCategoryFilter();
+
+                console.log('✅ Menu data loading complete!');
 
             } catch (error) {
                 console.error('❌ Error loading menu data:', error);
+                console.error('❌ Error details:', {
+                    message: error.message,
+                    code: error.code,
+                    stack: error.stack
+                });
                 
                 // If it's an index error, show specific message
                 if (error.message && error.message.includes('index')) {
@@ -1584,14 +1606,24 @@
         }
 
         function renderCategories() {
+            console.log('🎨 renderCategories called with:', categories.length, 'categories');
+            console.log('🎨 Categories data:', categories);
+            
             const grid = document.getElementById('categoriesGrid');
+            if (!grid) {
+                console.error('❌ categoriesGrid element not found!');
+                return;
+            }
             
             if (categories.length === 0) {
+                console.log('📋 No categories to display, showing empty state');
                 grid.innerHTML = '<div class="empty-state">No categories yet. Click "Add Category" to get started!</div>';
                 return;
             }
 
-            grid.innerHTML = categories.map(category => {
+            console.log('🔄 Rendering categories...');
+            const categoryHTML = categories.map(category => {
+                console.log('🏷️ Rendering category:', category.name, 'ID:', category.id);
                 const itemCount = menuItems.filter(item => item.categoryId === category.id).length;
                 const inStockCount = menuItems.filter(item => item.categoryId === category.id && item.inStock !== false).length;
                 const outOfStockCount = itemCount - inStockCount;
@@ -1612,6 +1644,10 @@
                     </div>
                 `;
             }).join('');
+            
+            console.log('✅ Setting grid innerHTML with', categories.length, 'categories');
+            grid.innerHTML = categoryHTML;
+            console.log('✅ Categories rendered successfully');
         }
 
         // Menu item functions
