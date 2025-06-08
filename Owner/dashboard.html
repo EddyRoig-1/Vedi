@@ -1358,47 +1358,47 @@
             }
         }
 
-        // Data loading functions with extensive debugging
+        // Data loading functions with FORCE LOADING to bypass cache issues
         async function loadMenuData() {
             try {
-                console.log('📋 Loading menu data for restaurant:', currentRestaurant.id);
+                console.log('📋 FORCE LOADING menu data for restaurant:', currentRestaurant.id);
                 console.log('🔍 Restaurant object:', currentRestaurant);
                 
-                // Load categories and menu items using VediAPI
-                console.log('🗂️ Fetching categories...');
+                // FORCE load categories and menu items using VediAPI
+                console.log('🗂️ FORCE Fetching categories...');
                 console.log('🔗 Calling VediAPI.getMenuCategories with restaurantId:', currentRestaurant.id);
                 
                 const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
                 console.log('📊 Raw categories data from Firebase:', categoriesData);
                 console.log('📊 Categories count:', categoriesData ? categoriesData.length : 'null/undefined');
                 
-                console.log('🍽️ Fetching menu items...');
+                console.log('🍽️ FORCE Fetching menu items...');
                 const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
                 console.log('📊 Raw menu items data from Firebase:', menuItemsData);
                 console.log('📊 Menu items count:', menuItemsData ? menuItemsData.length : 'null/undefined');
 
-                // Sort categories by order
+                // FORCE Set categories by order
                 categories = categoriesData ? categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
                 menuItems = menuItemsData || [];
 
-                console.log('✅ Final processed data:');
+                console.log('✅ FORCE Final processed data:');
                 console.log('  - Categories:', categories.length, categories);
                 console.log('  - Menu Items:', menuItems.length, menuItems);
 
-                // Render UI
-                console.log('🎨 Rendering categories...');
-                renderCategories();
+                // FORCE Render UI immediately
+                console.log('🎨 FORCE Rendering categories...');
+                forceRenderCategories();
                 
-                console.log('🎨 Rendering menu items...');
-                renderMenuItems();
+                console.log('🎨 FORCE Rendering menu items...');
+                forceRenderMenuItems();
                 
-                console.log('📊 Updating stats...');
+                console.log('📊 FORCE Updating stats...');
                 updateStats();
                 
-                console.log('🔄 Populating category filter...');
+                console.log('🔄 FORCE Populating category filter...');
                 populateCategoryFilter();
 
-                console.log('✅ Menu data loading complete!');
+                console.log('✅ FORCE Menu data loading complete!');
 
             } catch (error) {
                 console.error('❌ Error loading menu data:', error);
@@ -1416,6 +1416,101 @@
                 }
                 throw error;
             }
+        }
+
+        // FORCE render categories function to bypass any caching issues
+        function forceRenderCategories() {
+            console.log('🎨 FORCE renderCategories called with:', categories.length, 'categories');
+            console.log('🎨 Categories data:', categories);
+            
+            const grid = document.getElementById('categoriesGrid');
+            if (!grid) {
+                console.error('❌ categoriesGrid element not found!');
+                return;
+            }
+            
+            if (!categories || categories.length === 0) {
+                console.log('📋 No categories to display, showing empty state');
+                grid.innerHTML = '<div class="empty-state">No categories yet. Click "Add Category" to get started!</div>';
+                return;
+            }
+
+            console.log('🔄 FORCE Rendering categories...');
+            const categoryHTML = categories.map(category => {
+                console.log('🏷️ FORCE Rendering category:', category.name, 'ID:', category.id);
+                const itemCount = menuItems.filter(item => item.categoryId === category.id).length;
+                const inStockCount = menuItems.filter(item => item.categoryId === category.id && item.inStock !== false).length;
+                const outOfStockCount = itemCount - inStockCount;
+                
+                return `
+                    <div class="category-card" data-category-id="${category.id}">
+                        <div class="category-left">
+                            <div class="drag-handle">⋮⋮</div>
+                            <div class="category-info">
+                                <div class="category-name" onclick="editCategoryName('${category.id}')">${category.name}</div>
+                                <div class="category-count">${itemCount} items${outOfStockCount > 0 ? ` (${outOfStockCount} out of stock)` : ''}</div>
+                            </div>
+                        </div>
+                        <div class="category-actions">
+                            <button class="btn btn-small" onclick="editCategoryName('${category.id}')">Edit</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteCategory('${category.id}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            console.log('✅ FORCE Setting grid innerHTML with', categories.length, 'categories');
+            grid.innerHTML = categoryHTML;
+            console.log('✅ FORCE Categories rendered successfully');
+        }
+
+        // FORCE render menu items function
+        function forceRenderMenuItems() {
+            console.log('🎨 FORCE renderMenuItems called');
+            const grid = document.getElementById('menuItemsGrid');
+            if (!grid) {
+                console.error('❌ menuItemsGrid element not found!');
+                return;
+            }
+            
+            const filteredItems = getFilteredMenuItems();
+            
+            if (filteredItems.length === 0) {
+                grid.innerHTML = '<div class="empty-state">No menu items match your filter.</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredItems.map(item => {
+                const category = categories.find(cat => cat.id === item.categoryId);
+                const isOutOfStock = item.inStock === false;
+                
+                return `
+                    <div class="menu-item-card ${isOutOfStock ? 'out-of-stock' : ''}">
+                        ${isOutOfStock ? '<div class="out-of-stock-badge">Out of Stock</div>' : ''}
+                        <div class="item-card-image">
+                            ${item.image ? 
+                                `<img src="${item.image}" alt="${item.name}">` : 
+                                'No Image'
+                            }
+                        </div>
+                        <div class="item-card-header">
+                            <div class="item-card-name">${item.name}</div>
+                            <div class="item-card-price">${formatPrice(item.price)}</div>
+                        </div>
+                        <div class="item-card-category">${category ? category.name : 'No Category'}</div>
+                        <div class="item-card-description">${item.description || ''}</div>
+                        <div class="item-card-actions">
+                            <button class="btn btn-small" onclick="editMenuItem('${item.id}')">Edit</button>
+                            <button class="btn btn-small ${isOutOfStock ? 'btn-success' : 'btn-warning'}" onclick="toggleItemStock('${item.id}')">
+                                ${isOutOfStock ? 'Mark In Stock' : 'Mark Out of Stock'}
+                            </button>
+                            <button class="btn btn-small btn-danger" onclick="deleteMenuItem('${item.id}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            console.log('✅ FORCE Menu items rendered successfully');
         }
 
         // Currency utility functions
@@ -1606,48 +1701,13 @@
         }
 
         function renderCategories() {
-            console.log('🎨 renderCategories called with:', categories.length, 'categories');
-            console.log('🎨 Categories data:', categories);
-            
-            const grid = document.getElementById('categoriesGrid');
-            if (!grid) {
-                console.error('❌ categoriesGrid element not found!');
-                return;
-            }
-            
-            if (categories.length === 0) {
-                console.log('📋 No categories to display, showing empty state');
-                grid.innerHTML = '<div class="empty-state">No categories yet. Click "Add Category" to get started!</div>';
-                return;
-            }
+            // Delegate to force render function
+            forceRenderCategories();
+        }
 
-            console.log('🔄 Rendering categories...');
-            const categoryHTML = categories.map(category => {
-                console.log('🏷️ Rendering category:', category.name, 'ID:', category.id);
-                const itemCount = menuItems.filter(item => item.categoryId === category.id).length;
-                const inStockCount = menuItems.filter(item => item.categoryId === category.id && item.inStock !== false).length;
-                const outOfStockCount = itemCount - inStockCount;
-                
-                return `
-                    <div class="category-card" data-category-id="${category.id}">
-                        <div class="category-left">
-                            <div class="drag-handle">⋮⋮</div>
-                            <div class="category-info">
-                                <div class="category-name" onclick="editCategoryName('${category.id}')">${category.name}</div>
-                                <div class="category-count">${itemCount} items${outOfStockCount > 0 ? ` (${outOfStockCount} out of stock)` : ''}</div>
-                            </div>
-                        </div>
-                        <div class="category-actions">
-                            <button class="btn btn-small" onclick="editCategoryName('${category.id}')">Edit</button>
-                            <button class="btn btn-small btn-danger" onclick="deleteCategory('${category.id}')">Delete</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            console.log('✅ Setting grid innerHTML with', categories.length, 'categories');
-            grid.innerHTML = categoryHTML;
-            console.log('✅ Categories rendered successfully');
+        function renderMenuItems() {
+            // Delegate to force render function  
+            forceRenderMenuItems();
         }
 
         // Menu item functions
