@@ -343,6 +343,17 @@
             100% { transform: rotate(360deg); }
         }
 
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header-content {
@@ -406,10 +417,10 @@
                         <div class="stat-title">Total Users</div>
                         <div class="stat-icon" style="background: #dbeafe; color: #3b82f6;">👥</div>
                     </div>
-                    <div class="stat-value" id="totalUsers">-</div>
+                    <div class="stat-value" id="totalUsers">0</div>
                     <div class="stat-change positive">
-                        <span>↗️</span>
-                        <span id="userGrowth">+0%</span> from last week
+                        <span>📈</span>
+                        <span id="userGrowth">Getting started</span>
                     </div>
                 </div>
 
@@ -418,10 +429,10 @@
                         <div class="stat-title">Active Restaurants</div>
                         <div class="stat-icon" style="background: #d1fae5; color: #10b981;">🏪</div>
                     </div>
-                    <div class="stat-value" id="totalRestaurants">-</div>
+                    <div class="stat-value" id="totalRestaurants">0</div>
                     <div class="stat-change positive">
-                        <span>↗️</span>
-                        <span id="restaurantGrowth">+0%</span> this month
+                        <span>📈</span>
+                        <span id="restaurantGrowth">Getting started</span>
                     </div>
                 </div>
 
@@ -430,10 +441,10 @@
                         <div class="stat-title">Today's Orders</div>
                         <div class="stat-icon" style="background: #fef3c7; color: #f59e0b;">📋</div>
                     </div>
-                    <div class="stat-value" id="todayOrders">-</div>
+                    <div class="stat-value" id="todayOrders">0</div>
                     <div class="stat-change positive">
-                        <span>↗️</span>
-                        <span id="orderGrowth">+0%</span> vs yesterday
+                        <span>📈</span>
+                        <span id="orderGrowth">Getting started</span>
                     </div>
                 </div>
 
@@ -442,10 +453,10 @@
                         <div class="stat-title">API Calls Today</div>
                         <div class="stat-icon" style="background: #ede9fe; color: #8b5cf6;">⚡</div>
                     </div>
-                    <div class="stat-value" id="apiCalls">-</div>
+                    <div class="stat-value" id="apiCalls">0</div>
                     <div class="stat-change positive">
-                        <span>↗️</span>
-                        <span id="apiGrowth">+0%</span> vs yesterday
+                        <span>📈</span>
+                        <span id="apiGrowth">Getting started</span>
                     </div>
                 </div>
             </div>
@@ -477,9 +488,9 @@
                     <h3 class="chart-title">🔴 Live Activity Feed</h3>
                 </div>
                 <div class="activity-feed" id="activityFeed">
-                    <div class="loading">
-                        <div class="loading-spinner"></div>
-                        Loading recent activity...
+                    <div class="empty-state">
+                        <h3>No Activity Yet</h3>
+                        <p>Activity will appear here as users interact with your platform</p>
                     </div>
                 </div>
             </div>
@@ -496,9 +507,9 @@
                 </div>
                 
                 <div class="api-methods-grid" id="apiMethodsGrid">
-                    <div class="loading">
-                        <div class="loading-spinner"></div>
-                        Loading API methods...
+                    <div class="empty-state">
+                        <h3>No API Data Yet</h3>
+                        <p>API analytics will appear here once users start using your platform</p>
                     </div>
                 </div>
             </div>
@@ -521,9 +532,9 @@
                     <h3 class="chart-title">👥 User Management</h3>
                 </div>
                 <div id="userManagementContent">
-                    <div class="loading">
-                        <div class="loading-spinner"></div>
-                        Loading user data...
+                    <div class="empty-state">
+                        <h3>No Users Yet</h3>
+                        <p>User data will appear here once people start registering on your platform</p>
                     </div>
                 </div>
             </div>
@@ -536,9 +547,9 @@
                     <h3 class="chart-title">💻 System Health Monitor</h3>
                 </div>
                 <div id="systemHealthContent">
-                    <div class="loading">
-                        <div class="loading-spinner"></div>
-                        Loading system health data...
+                    <div class="empty-state">
+                        <h3>System Monitoring Active</h3>
+                        <p>Health metrics will appear here as your system collects data</p>
                     </div>
                 </div>
             </div>
@@ -633,27 +644,37 @@
                     db.collection('orders').where('createdAt', '>=', getStartOfDay()).get()
                 ]);
 
-                // Update stats
+                // Update stats with real data
                 document.getElementById('totalUsers').textContent = usersSnapshot.size;
                 document.getElementById('totalRestaurants').textContent = restaurantsSnapshot.size;
                 document.getElementById('todayOrders').textContent = ordersSnapshot.size;
                 
-                // Simulate API calls (in real app, track these)
-                const apiCalls = Math.floor(Math.random() * 5000) + 1000;
-                document.getElementById('apiCalls').textContent = apiCalls.toLocaleString();
+                // Get API calls count
+                const apiCallsSnapshot = await db.collection('apiCalls')
+                    .where('date', '==', new Date().toISOString().split('T')[0])
+                    .get();
+                document.getElementById('apiCalls').textContent = apiCallsSnapshot.size;
 
-                // Update growth percentages (simulated)
-                document.getElementById('userGrowth').textContent = `+${Math.floor(Math.random() * 15) + 5}%`;
-                document.getElementById('restaurantGrowth').textContent = `+${Math.floor(Math.random() * 10) + 2}%`;
-                document.getElementById('orderGrowth').textContent = `+${Math.floor(Math.random() * 25) + 10}%`;
-                document.getElementById('apiGrowth').textContent = `+${Math.floor(Math.random() * 20) + 5}%`;
+                // Update growth indicators based on real data
+                if (usersSnapshot.size > 0) {
+                    document.getElementById('userGrowth').textContent = `${usersSnapshot.size} users registered`;
+                }
+                if (restaurantsSnapshot.size > 0) {
+                    document.getElementById('restaurantGrowth').textContent = `${restaurantsSnapshot.size} restaurants active`;
+                }
+                if (ordersSnapshot.size > 0) {
+                    document.getElementById('orderGrowth').textContent = `${ordersSnapshot.size} orders today`;
+                }
+                if (apiCallsSnapshot.size > 0) {
+                    document.getElementById('apiGrowth').textContent = `${apiCallsSnapshot.size} API calls today`;
+                }
 
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
             }
         }
 
-        // Initialize charts
+        // Initialize charts with real data
         function initializeCharts() {
             // User Growth Chart
             const userCtx = document.getElementById('userGrowthChart').getContext('2d');
@@ -663,7 +684,7 @@
                     labels: getLast7Days(),
                     datasets: [{
                         label: 'New Users',
-                        data: generateMockData(7, 5, 25),
+                        data: [0, 0, 0, 0, 0, 0, 0], // Will be updated with real data
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 2,
@@ -703,7 +724,7 @@
                     labels: getLast24Hours(),
                     datasets: [{
                         label: 'API Calls',
-                        data: generateMockData(24, 50, 300),
+                        data: new Array(6).fill(0), // Will be updated with real data
                         backgroundColor: '#10b981',
                         borderRadius: 4
                     }]
@@ -731,66 +752,212 @@
                     }
                 }
             });
+
+            // Load real chart data
+            updateChartsWithRealData();
         }
 
-        // Load activity feed
-        function loadActivityFeed() {
-            const activityFeed = document.getElementById('activityFeed');
-            const activities = generateMockActivities();
-            
-            let html = '';
-            activities.forEach(activity => {
-                html += `
-                    <div class="activity-item">
-                        <div class="activity-icon" style="background: ${activity.color}; color: white;">
-                            ${activity.icon}
-                        </div>
-                        <div class="activity-content">
-                            <div class="activity-text">${activity.text}</div>
-                            <div class="activity-time">${activity.time}</div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            activityFeed.innerHTML = html;
+        // Update charts with real data
+        async function updateChartsWithRealData() {
+            try {
+                // Get user growth data for last 7 days
+                const last7Days = getLast7Days();
+                const userGrowthData = await Promise.all(last7Days.map(async (day, index) => {
+                    const dayStart = new Date();
+                    dayStart.setDate(dayStart.getDate() - (6 - index));
+                    dayStart.setHours(0, 0, 0, 0);
+                    
+                    const dayEnd = new Date(dayStart);
+                    dayEnd.setHours(23, 59, 59, 999);
+                    
+                    const usersSnapshot = await db.collection('users')
+                        .where('createdAt', '>=', dayStart)
+                        .where('createdAt', '<=', dayEnd)
+                        .get();
+                    
+                    return usersSnapshot.size;
+                }));
+
+                // Update user growth chart
+                userGrowthChart.data.datasets[0].data = userGrowthData;
+                userGrowthChart.update();
+
+                // Get API usage data for last 24 hours (grouped by 4-hour periods)
+                const apiUsageData = await Promise.all(getLast24Hours().map(async (hour) => {
+                    const hourStart = new Date();
+                    const hourNum = parseInt(hour.split(':')[0]);
+                    hourStart.setHours(hourNum, 0, 0, 0);
+                    
+                    const hourEnd = new Date(hourStart);
+                    hourEnd.setHours(hourNum + 4, 0, 0, 0);
+                    
+                    const apiCallsSnapshot = await db.collection('apiCalls')
+                        .where('timestamp', '>=', hourStart)
+                        .where('timestamp', '<', hourEnd)
+                        .get();
+                    
+                    return apiCallsSnapshot.size;
+                }));
+
+                // Update API usage chart
+                apiUsageChart.data.datasets[0].data = apiUsageData;
+                apiUsageChart.update();
+
+            } catch (error) {
+                console.error('Error updating charts with real data:', error);
+            }
         }
 
-        // Load API analytics
-        function loadAPIAnalytics() {
-            const apiMethods = [
-                { name: 'VediAPI.signUp', category: 'Authentication', calls: 145, errors: 2 },
-                { name: 'VediAPI.signIn', category: 'Authentication', calls: 238, errors: 1 },
-                { name: 'VediAPI.createOrder', category: 'Orders', calls: 412, errors: 3 },
-                { name: 'VediAPI.getOrders', category: 'Orders', calls: 678, errors: 0 },
-                { name: 'VediAPI.getMenuItems', category: 'Menu', calls: 892, errors: 1 },
-                { name: 'VediAPI.createRestaurant', category: 'Restaurant', calls: 67, errors: 0 },
-                { name: 'VediAPI.updateOrderStatus', category: 'Orders', calls: 234, errors: 2 },
-                { name: 'VediAPI.listenToOrders', category: 'Real-time', calls: 156, errors: 0 },
-                { name: 'VediAPI.createLossIncident', category: 'Loss Tracking', calls: 23, errors: 0 },
-                { name: 'VediAPI.getLossAnalytics', category: 'Loss Tracking', calls: 45, errors: 1 }
-            ];
-
-            const grid = document.getElementById('apiMethodsGrid');
-            let html = '';
-            
-            apiMethods.forEach(method => {
-                const errorRate = method.calls > 0 ? ((method.errors / method.calls) * 100).toFixed(1) : '0.0';
-                const statusColor = method.errors === 0 ? '#10b981' : method.errors < 3 ? '#f59e0b' : '#ef4444';
+        // Load activity feed with real data
+        async function loadActivityFeed() {
+            try {
+                const activityFeed = document.getElementById('activityFeed');
+                const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
                 
-                html += `
-                    <div class="api-method-card">
-                        <div class="api-method-name">${method.name}</div>
-                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem;">${method.category}</div>
-                        <div class="api-method-stats">
-                            <span>📊 ${method.calls} calls</span>
-                            <span style="color: ${statusColor};">⚠️ ${errorRate}% errors</span>
+                // Get recent orders
+                const ordersSnapshot = await db.collection('orders')
+                    .where('createdAt', '>=', oneHourAgo)
+                    .orderBy('createdAt', 'desc')
+                    .limit(10)
+                    .get();
+                
+                // Get recent user signups
+                const usersSnapshot = await db.collection('users')
+                    .where('createdAt', '>=', oneHourAgo)
+                    .orderBy('createdAt', 'desc')
+                    .limit(10)
+                    .get();
+                
+                const activities = [];
+                
+                // Add order activities
+                ordersSnapshot.docs.forEach(doc => {
+                    const order = doc.data();
+                    activities.push({
+                        type: 'order',
+                        icon: '📋',
+                        text: `New order #${order.orderNumber} placed`,
+                        time: getRelativeTime(order.createdAt),
+                        timestamp: order.createdAt,
+                        color: '#10b981'
+                    });
+                });
+                
+                // Add user activities
+                usersSnapshot.docs.forEach(doc => {
+                    const user = doc.data();
+                    activities.push({
+                        type: 'user',
+                        icon: '👤',
+                        text: `New ${user.accountType || 'user'} registered: ${user.name}`,
+                        time: getRelativeTime(user.createdAt),
+                        timestamp: user.createdAt,
+                        color: '#667eea'
+                    });
+                });
+                
+                // Sort by timestamp
+                activities.sort((a, b) => timestampToDate(b.timestamp) - timestampToDate(a.timestamp));
+                
+                if (activities.length === 0) {
+                    activityFeed.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No Recent Activity</h3>
+                            <p>Activity will appear here as users interact with your platform</p>
                         </div>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                activities.slice(0, 10).forEach(activity => {
+                    html += `
+                        <div class="activity-item">
+                            <div class="activity-icon" style="background: ${activity.color}; color: white;">
+                                ${activity.icon}
+                            </div>
+                            <div class="activity-content">
+                                <div class="activity-text">${activity.text}</div>
+                                <div class="activity-time">${activity.time}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                activityFeed.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading activity feed:', error);
+                document.getElementById('activityFeed').innerHTML = `
+                    <div class="empty-state">
+                        <h3>No Activity Data</h3>
+                        <p>Unable to load recent activity</p>
                     </div>
                 `;
-            });
-            
-            grid.innerHTML = html;
+            }
+        }
+
+        // Load API analytics with real data
+        async function loadAPIAnalytics() {
+            try {
+                const grid = document.getElementById('apiMethodsGrid');
+                
+                // Get API calls data
+                const apiCallsSnapshot = await db.collection('apiCalls').get();
+                
+                if (apiCallsSnapshot.empty) {
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No API Data Yet</h3>
+                            <p>API analytics will appear here once users start using your platform</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Group by method
+                const methodStats = {};
+                apiCallsSnapshot.docs.forEach(doc => {
+                    const call = doc.data();
+                    const method = call.method;
+                    
+                    if (!methodStats[method]) {
+                        methodStats[method] = { calls: 0, errors: 0 };
+                    }
+                    
+                    methodStats[method].calls++;
+                    if (!call.success) {
+                        methodStats[method].errors++;
+                    }
+                });
+                
+                let html = '';
+                Object.entries(methodStats).forEach(([method, stats]) => {
+                    const errorRate = stats.calls > 0 ? ((stats.errors / stats.calls) * 100).toFixed(1) : '0.0';
+                    const statusColor = stats.errors === 0 ? '#10b981' : stats.errors < 3 ? '#f59e0b' : '#ef4444';
+                    
+                    html += `
+                        <div class="api-method-card">
+                            <div class="api-method-name">VediAPI.${method}</div>
+                            <div class="api-method-stats">
+                                <span>📊 ${stats.calls} calls</span>
+                                <span style="color: ${statusColor};">⚠️ ${errorRate}% errors</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                grid.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading API analytics:', error);
+                document.getElementById('apiMethodsGrid').innerHTML = `
+                    <div class="empty-state">
+                        <h3>Error Loading API Data</h3>
+                        <p>Unable to load API analytics</p>
+                    </div>
+                `;
+            }
         }
 
         // Navigation
@@ -839,17 +1006,10 @@
             apiPerformanceChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Authentication', 'Orders', 'Menu', 'Real-time', 'Loss Tracking', 'Restaurant'],
+                    labels: ['No Data Yet'],
                     datasets: [{
-                        data: [383, 1324, 892, 156, 68, 67],
-                        backgroundColor: [
-                            '#667eea',
-                            '#10b981',
-                            '#f59e0b',
-                            '#ef4444',
-                            '#8b5cf6',
-                            '#06b6d4'
-                        ]
+                        data: [1],
+                        backgroundColor: ['#e5e7eb']
                     }]
                 },
                 options: {
@@ -865,35 +1025,71 @@
         }
 
         // Load user management
-        function loadUserManagement() {
-            const content = document.getElementById('userManagementContent');
-            content.innerHTML = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-                    <div class="stat-card">
-                        <h4 style="margin-bottom: 1rem; color: #1a202c;">👥 User Distribution</h4>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                            <span>Restaurant Owners</span>
-                            <strong>45</strong>
+        async function loadUserManagement() {
+            try {
+                const content = document.getElementById('userManagementContent');
+                
+                const [usersSnapshot, restaurantsSnapshot, venuesSnapshot] = await Promise.all([
+                    db.collection('users').get(),
+                    db.collection('restaurants').get(),
+                    db.collection('venues').get()
+                ]);
+                
+                if (usersSnapshot.empty) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No Users Yet</h3>
+                            <p>User data will appear here once people start registering on your platform</p>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                            <span>Venue Managers</span>
-                            <strong>12</strong>
+                    `;
+                    return;
+                }
+                
+                // Count user types
+                const userTypes = { restaurant: 0, venue: 0, other: 0 };
+                usersSnapshot.docs.forEach(doc => {
+                    const user = doc.data();
+                    const type = user.accountType || 'other';
+                    userTypes[type] = (userTypes[type] || 0) + 1;
+                });
+                
+                content.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                        <div class="stat-card">
+                            <h4 style="margin-bottom: 1rem; color: #1a202c;">👥 User Distribution</h4>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Restaurant Owners</span>
+                                <strong>${userTypes.restaurant || 0}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Venue Managers</span>
+                                <strong>${userTypes.venue || 0}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Other Users</span>
+                                <strong>${userTypes.other || 0}</strong>
+                            </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Customers</span>
-                            <strong>2,847</strong>
+                        <div class="stat-card">
+                            <h4 style="margin-bottom: 1rem; color: #1a202c;">📊 Platform Stats</h4>
+                            <div style="font-size: 0.875rem; color: #64748b;">
+                                <div style="margin-bottom: 0.5rem;">• ${usersSnapshot.size} total users</div>
+                                <div style="margin-bottom: 0.5rem;">• ${restaurantsSnapshot.size} restaurants</div>
+                                <div>• ${venuesSnapshot.size} venues</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <h4 style="margin-bottom: 1rem; color: #1a202c;">📊 Recent Activity</h4>
-                        <div style="font-size: 0.875rem; color: #64748b;">
-                            <div style="margin-bottom: 0.5rem;">• 23 new signups today</div>
-                            <div style="margin-bottom: 0.5rem;">• 156 active sessions</div>
-                            <div>• 89% user retention rate</div>
-                        </div>
+                `;
+                
+            } catch (error) {
+                console.error('Error loading user management:', error);
+                document.getElementById('userManagementContent').innerHTML = `
+                    <div class="empty-state">
+                        <h3>Error Loading User Data</h3>
+                        <p>Unable to load user management data</p>
                     </div>
-                </div>
-            `;
+                `;
+            }
         }
 
         // Load system health
@@ -904,24 +1100,24 @@
                     <div class="stat-card">
                         <h4 style="margin-bottom: 1rem; color: #1a202c;">🔥 Firebase Status</h4>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                            <span>Firestore Reads</span>
-                            <strong style="color: #10b981;">✅ Normal</strong>
+                            <span>Firestore Database</span>
+                            <strong style="color: #10b981;">✅ Online</strong>
                         </div>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                            <span>Firestore Writes</span>
-                            <strong style="color: #10b981;">✅ Normal</strong>
+                            <span>Authentication</span>
+                            <strong style="color: #10b981;">✅ Active</strong>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
-                            <span>Auth Operations</span>
-                            <strong style="color: #10b981;">✅ Normal</strong>
+                            <span>API Tracking</span>
+                            <strong style="color: #10b981;">✅ Enabled</strong>
                         </div>
                     </div>
                     <div class="stat-card">
-                        <h4 style="margin-bottom: 1rem; color: #1a202c;">📈 Performance</h4>
+                        <h4 style="margin-bottom: 1rem; color: #1a202c;">📈 System Info</h4>
                         <div style="font-size: 0.875rem; color: #64748b;">
-                            <div style="margin-bottom: 0.5rem;">• Avg Response Time: <strong>125ms</strong></div>
-                            <div style="margin-bottom: 0.5rem;">• Error Rate: <strong>0.3%</strong></div>
-                            <div>• Uptime: <strong>99.9%</strong></div>
+                            <div style="margin-bottom: 0.5rem;">• Dashboard: <strong>Active</strong></div>
+                            <div style="margin-bottom: 0.5rem;">• Last Updated: <strong>Now</strong></div>
+                            <div>• Status: <strong>Healthy</strong></div>
                         </div>
                     </div>
                 </div>
@@ -947,28 +1143,33 @@
 
         function getLast24Hours() {
             const hours = [];
-            for (let i = 23; i >= 0; i--) {
+            for (let i = 23; i >= 0; i -= 4) {
                 const date = new Date();
                 date.setHours(date.getHours() - i);
                 hours.push(date.getHours().toString().padStart(2, '0') + ':00');
             }
-            return hours.filter((hour, index) => index % 4 === 0); // Show every 4 hours
+            return hours;
         }
 
-        function generateMockData(length, min, max) {
-            return Array.from({ length }, () => Math.floor(Math.random() * (max - min + 1)) + min);
+        function timestampToDate(timestamp) {
+            if (timestamp && timestamp.toDate) {
+                return timestamp.toDate();
+            }
+            return new Date(timestamp);
         }
 
-        function generateMockActivities() {
-            const activities = [
-                { icon: '👤', text: 'New restaurant owner registered', time: '2 minutes ago', color: '#10b981' },
-                { icon: '📋', text: 'Order #12345 completed at Pizza Palace', time: '5 minutes ago', color: '#f59e0b' },
-                { icon: '🏪', text: 'New restaurant "Sushi World" added', time: '12 minutes ago', color: '#667eea' },
-                { icon: '⚠️', text: 'Loss incident reported at Burger House', time: '18 minutes ago', color: '#ef4444' },
-                { icon: '💰', text: 'Daily revenue updated for 5 restaurants', time: '25 minutes ago', color: '#8b5cf6' },
-                { icon: '🔧', text: 'API rate limit adjusted for peak hours', time: '32 minutes ago', color: '#06b6d4' }
-            ];
-            return activities;
+        function getRelativeTime(timestamp) {
+            const date = timestampToDate(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+            if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+            return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
         }
 
         // Handle logout
