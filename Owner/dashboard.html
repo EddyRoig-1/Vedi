@@ -1274,85 +1274,109 @@
             { id: 'spicy', name: 'Spicy Food', icon: '🌶️' }
         ];
 
-        // Initialize app
+        // Initialize app with better debugging
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('Dashboard initializing...');
+            console.log('🚀 Dashboard initializing...');
+            
+            // Add click debugging
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('nav-tab')) {
+                    console.log('🖱️ Nav tab clicked:', e.target.textContent, e.target.dataset.section);
+                }
+            });
             
             try {
                 await initializeDashboard();
             } catch (error) {
-                console.error('Error initializing dashboard:', error);
-                showError('Failed to load dashboard. Please try refreshing the page.');
+                console.error('❌ Error initializing dashboard:', error);
+                showError('Failed to load dashboard. Please check the console for details and refresh the page.');
                 hideLoading();
             }
         });
 
-        // Authentication and initialization
+        // Authentication and initialization with better debugging
         async function initializeDashboard() {
+            console.log('🔄 Starting dashboard initialization...');
             showLoading('Loading dashboard...');
             
             try {
                 // Check if VediAPI is available
                 if (typeof VediAPI === 'undefined') {
-                    throw new Error('VediAPI not loaded. Please check your Firebase configuration.');
+                    throw new Error('VediAPI not loaded. Please check your Firebase configuration files.');
                 }
+                console.log('✅ VediAPI is available');
 
                 // Check authentication
+                console.log('🔐 Checking authentication...');
                 currentUser = await VediAPI.getCurrentUser();
                 if (!currentUser) {
-                    console.log('No authenticated user, redirecting to login');
+                    console.log('❌ No authenticated user, redirecting to login');
                     window.location.href = '../Landing-Signup-Login/login.html';
                     return;
                 }
-
-                console.log('Authenticated user:', currentUser.email);
+                console.log('✅ Authenticated user:', currentUser.email);
 
                 // Load restaurant data
+                console.log('🏪 Loading restaurant data...');
                 currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
                 if (!currentRestaurant) {
-                    console.log('No restaurant found, redirecting to setup');
+                    console.log('❌ No restaurant found, redirecting to setup');
                     window.location.href = '../Landing-Signup-Login/restaurant-setup.html';
                     return;
                 }
-
-                console.log('Loaded restaurant:', currentRestaurant.name);
+                console.log('✅ Loaded restaurant:', currentRestaurant.name);
 
                 // Update header
                 document.getElementById('headerRestaurantName').textContent = currentRestaurant.name;
 
                 // Load menu data
+                console.log('📋 Loading menu data...');
                 await loadMenuData();
+                console.log('✅ Menu data loaded successfully');
                 
                 // Setup UI
+                console.log('🎨 Setting up UI...');
                 setupNavigation();
                 setupModals();
+                console.log('✅ UI setup complete');
                 
                 hideLoading();
                 showSuccess('Dashboard loaded successfully!');
+                console.log('🎉 Dashboard initialization complete!');
                 
             } catch (error) {
-                console.error('Dashboard initialization error:', error);
-                showError('Failed to load dashboard: ' + error.message);
+                console.error('❌ Dashboard initialization error:', error);
+                
+                // Better error handling for common issues
+                if (error.message.includes('index')) {
+                    showError('Database index missing. Please create the required Firestore index using the link in the console error, then refresh the page.');
+                } else if (error.message.includes('VediAPI')) {
+                    showError('Firebase API not loaded. Please check that firebase-config.js and firebase-api.js are in the correct location.');
+                } else {
+                    showError('Failed to load dashboard: ' + error.message);
+                }
                 hideLoading();
             }
         }
 
-        // Data loading functions
+        // Data loading functions with better error handling
         async function loadMenuData() {
             try {
-                showLoading('Loading menu data...');
+                console.log('Loading menu data for restaurant:', currentRestaurant.id);
                 
                 // Load categories and menu items using VediAPI
-                const [categoriesData, menuItemsData] = await Promise.all([
-                    VediAPI.getMenuCategories(currentRestaurant.id),
-                    VediAPI.getMenuItems(currentRestaurant.id)
-                ]);
+                console.log('Fetching categories...');
+                const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
+                console.log('Categories loaded:', categoriesData);
+                
+                console.log('Fetching menu items...');
+                const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
+                console.log('Menu items loaded:', menuItemsData);
 
                 categories = categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0));
                 menuItems = menuItemsData;
 
-                console.log('Loaded categories:', categories.length);
-                console.log('Loaded menu items:', menuItems.length);
+                console.log('✅ Final data - Categories:', categories.length, 'Items:', menuItems.length);
 
                 // Render UI
                 renderCategories();
@@ -1361,7 +1385,14 @@
                 populateCategoryFilter();
 
             } catch (error) {
-                console.error('Error loading menu data:', error);
+                console.error('❌ Error loading menu data:', error);
+                
+                // If it's an index error, show specific message
+                if (error.message && error.message.includes('index')) {
+                    showError('Database index missing. Please create the required Firestore index by clicking the link in the console, then refresh the page.');
+                } else {
+                    showError('Failed to load menu data: ' + error.message);
+                }
                 throw error;
             }
         }
