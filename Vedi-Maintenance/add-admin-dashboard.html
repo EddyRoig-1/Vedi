@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vedi App Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase Scripts for Admin -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #334155;
+            padding: 20px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .header-title {
+            color: #f1f5f9;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .header-subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .nav-item {
+            color: #cbd5e1;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+            color: #a5b4fc;
+        }
+
+        .nav-item.active {
+            background: rgba(99, 102, 241, 0.2);
+            color: #c7d2fe;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(34, 197, 94, 0.1);
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid #475569;
+            border-radius: 16px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2);
+            border-color: #6366f1;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .stat-title {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .stat-icon.users { background: linear-gradient(135deg, #3b82f6, #1e40af); }
+        .stat-icon.restaurants { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .stat-icon.api { background: linear-gradient(135deg, #10b981, #059669); }
+        .stat-icon.errors { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 5px;
+        }
+
+        .stat-change {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.85rem;
+        }
+
+        .stat-change.positive {
+            color: #22c55e;
+        }
+
+        .stat-change.negative {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid #475569;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            color: #f1f5f9;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .time-filter {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-btn {
+            background: rgba(71, 85, 105, 0.5);
+            border: 1px solid #64748b;
+            color: #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: #6366f1;
+            color: #c7d2fe;
+        }
+
+        .activity-feed {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid #475569;
+            border-radius: 16px;
+            padding: 25px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.user { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .activity-icon.order { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .activity-icon.error { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .activity-icon.system { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-title {
+            color: #e2e8f0;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .activity-details {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .activity-time {
+            color: #64748b;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #475569;
+            border-top: 2px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .api-health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .api-category {
+            background: rgba(71, 85, 105, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid #64748b;
+        }
+
+        .api-category-title {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .api-method {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            font-size: 0.8rem;
+        }
+
+        .method-name {
+            color: #94a3b8;
+        }
+
+        .method-count {
+            color: #6366f1;
+            font-weight: 500;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .system-alerts {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .system-alerts.show {
+            display: block;
+        }
+
+        .alert-title {
+            color: #fca5a5;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert-item {
+            color: #fecaca;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .nav-menu {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-2x2 {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-number {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo">V</div>
+                <div>
+                    <div class="header-title">Vedi App Admin</div>
+                    <div class="header-subtitle">System Dashboard & Analytics</div>
+                </div>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active">
+                    <i class="fas fa-chart-line"></i>
+                    Dashboard
+                </a>
+                <a href="api-analytics.html" class="nav-item">
+                    <i class="fas fa-code"></i>
+                    API Analytics
+                </a>
+                <a href="user-management.html" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    Users
+                </a>
+                <a href="system-health.html" class="nav-item">
+                    <i class="fas fa-heartbeat"></i>
+                    Health
+                </a>
+            </nav>
+
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>System Online</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- System Alerts -->
+        <div class="system-alerts" id="systemAlerts">
+            <div class="alert-title">
+                <i class="fas fa-exclamation-triangle"></i>
+                System Alerts
+            </div>
+            <div id="alertsList">
+                <!-- Alerts will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="dashboard-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">Total Users</div>
+                    <div class="stat-icon users">
+                        <i class="fas fa-users"></i>
+                    </div>
+                </div>
+                <div class="stat-number" id="totalUsers">
+                    <span class="loading-spinner"></span>
+                </div>
+                <div class="stat-change positive" id="usersChange">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>+12% this week</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">Active Restaurants</div>
+                    <div class="stat-icon restaurants">
+                        <i class="fas fa-store"></i>
+                    </div>
+                </div>
+                <div class="stat-number" id="activeRestaurants">
+                    <span class="loading-spinner"></span>
+                </div>
+                <div class="stat-change positive" id="restaurantsChange">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>+8% this week</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">API Calls Today</div>
+                    <div class="stat-icon api">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                </div>
+                <div class="stat-number" id="apiCallsToday">
+                    <span class="loading-spinner"></span>
+                </div>
+                <div class="stat-change positive" id="apiChange">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>+24% vs yesterday</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">Error Rate</div>
+                    <div class="stat-icon errors">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                </div>
+                <div class="stat-number" id="errorRate">
+                    <span class="loading-spinner"></span>
+                </div>
+                <div class="stat-change negative" id="errorChange">
+                    <i class="fas fa-arrow-down"></i>
+                    <span>-2.1% vs yesterday</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts and Activity -->
+        <div class="grid-2x2">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">User Growth & API Usage</div>
+                    <div class="time-filter">
+                        <button class="filter-btn" onclick="changeTimeframe('24h')">24H</button>
+                        <button class="filter-btn active" onclick="changeTimeframe('7d')">7D</button>
+                        <button class="filter-btn" onclick="changeTimeframe('30d')">30D</button>
+                        <button class="refresh-btn" onclick="refreshData()">
+                            <i class="fas fa-sync-alt"></i>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                <canvas id="mainChart" width="400" height="200"></canvas>
+            </div>
+
+            <div class="activity-feed">
+                <div class="chart-header">
+                    <div class="chart-title">Live Activity Feed</div>
+                    <span style="color: #22c55e; font-size: 0.9rem;">
+                        <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
+                        Live
+                    </span>
+                </div>
+                <div id="activityFeed">
+                    <!-- Activity items will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- API Health Overview -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">API Methods Health & Usage</div>
+                <div style="color: #94a3b8; font-size: 0.9rem;">
+                    Monitoring all 41 VediAPI methods
+                </div>
+            </div>
+            <div class="api-health-grid" id="apiHealthGrid">
+                <!-- API categories will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let mainChart = null;
+        let activityUpdateInterval = null;
+        let metricsUpdateInterval = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('Vedi App Admin Dashboard initializing...');
+            
+            try {
+                await initializeAdminDashboard();
+            } catch (error) {
+                console.error('Error initializing admin dashboard:', error);
+                showSystemAlert('Failed to initialize dashboard: ' + error.message);
+            }
+        });
+
+        // Initialize admin dashboard
+        async function initializeAdminDashboard() {
+            // Check admin authentication (you might want to implement admin-specific auth)
+            currentUser = await VediAPI.getCurrentUser().catch(() => null);
+            if (!currentUser) {
+                // Redirect to admin login or handle admin authentication
+                console.log('No authenticated user detected');
+                // For now, we'll continue without authentication for demo purposes
+            }
+
+            // Load initial metrics
+            await loadSystemMetrics();
+            
+            // Initialize charts
+            initializeCharts();
+            
+            // Start real-time updates
+            startRealTimeUpdates();
+            
+            // Load API health data
+            await loadAPIHealth();
+            
+            console.log('Admin dashboard initialized successfully');
+        }
+
+        // Load system metrics
+        async function loadSystemMetrics() {
+            try {
+                // Get total users count
+                const users = await getAllUsers();
+                document.getElementById('totalUsers').textContent = users.length || '247';
+                
+                // Get active restaurants count
+                const restaurants = await getAllRestaurants();
+                document.getElementById('activeRestaurants').textContent = restaurants.length || '89';
+                
+                // Calculate API calls today (mock data for now)
+                const apiCallsToday = await getTodaysAPICallCount();
+                document.getElementById('apiCallsToday').textContent = formatNumber(apiCallsToday);
+                
+                // Calculate error rate
+                const errorRate = await calculateErrorRate();
+                document.getElementById('errorRate').textContent = errorRate + '%';
+                
+            } catch (error) {
+                console.error('Error loading system metrics:', error);
+                // Fallback to mock data
+                loadMockMetrics();
+            }
+        }
+
+        // Get all users (admin function)
+        async function getAllUsers() {
+            try {
+                // This would require admin SDK or special collection
+                // For now, return mock data
+                return Array.from({length: 247}, (_, i) => ({id: i, type: 'user'}));
+            } catch (error) {
+                console.error('Error fetching users:', error);
+                return [];
+            }
+        }
+
+        // Get all restaurants (admin function)
+        async function getAllRestaurants() {
+            try {
+                // Query all restaurants (requires admin permissions)
+                // For now, return mock data
+                return Array.from({length: 89}, (_, i) => ({id: i, name: `Restaurant ${i}`}));
+            } catch (error) {
+                console.error('Error fetching restaurants:', error);
+                return [];
+            }
+        }
+
+        // Get today's API call count
+        async function getTodaysAPICallCount() {
+            // Mock API call tracking
+            // In real implementation, you'd track this in analytics collection
+            return Math.floor(Math.random() * 50000) + 25000;
+        }
+
+        // Calculate system error rate
+        async function calculateErrorRate() {
+            // Mock error rate calculation
+            return (Math.random() * 2 + 0.5).toFixed(1);
+        }
+
+        // Load mock metrics (fallback)
+        function loadMockMetrics() {
+            document.getElementById('totalUsers').textContent = '247';
+            document.getElementById('activeRestaurants').textContent = '89';
+            document.getElementById('apiCallsToday').textContent = '32,471';
+            document.getElementById('errorRate').textContent = '1.2%';
+        }
+
+        // Initialize charts
+        function initializeCharts() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+            gradient.addColorStop(1, 'rgba(99, 102, 241, 0.05)');
+
+            const gradient2 = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient2.addColorStop(0, 'rgba(34, 197, 94, 0.3)');
+            gradient2.addColorStop(1, 'rgba(34, 197, 94, 0.05)');
+
+            mainChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [
+                        {
+                            label: 'New Users',
+                            data: [12, 19, 15, 25, 22, 30, 28],
+                            borderColor: '#6366f1',
+                            backgroundColor: gradient,
+                            tension: 0.4,
+                            fill: true,
+                            pointBackgroundColor: '#6366f1',
+                            pointBorderColor: '#1e293b',
+                            pointBorderWidth: 2
+                        },
+                        {
+                            label: 'API Calls (1000s)',
+                            data: [25, 32, 28, 41, 38, 45, 42],
+                            borderColor: '#22c55e',
+                            backgroundColor: gradient2,
+                            tension: 0.4,
+                            fill: true,
+                            pointBackgroundColor: '#22c55e',
+                            pointBorderColor: '#1e293b',
+                            pointBorderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#cbd5e1'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#94a3b8'
+                            },
+                            grid: {
+                                color: 'rgba(71, 85, 105, 0.3)'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#94a3b8'
+                            },
+                            grid: {
+                                color: 'rgba(71, 85, 105, 0.3)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Start real-time updates
+        function startRealTimeUpdates() {
+            // Update activity feed every 5 seconds
+            activityUpdateInterval = setInterval(updateActivityFeed, 5000);
+            
+            // Update metrics every 30 seconds
+            metricsUpdateInterval = setInterval(loadSystemMetrics, 30000);
+            
+            // Initial activity feed load
+            updateActivityFeed();
+        }
+
+        // Update activity feed
+        function updateActivityFeed() {
+            const feed = document.getElementById('activityFeed');
+            const activities = generateMockActivities();
+            
+            feed.innerHTML = activities.map(activity => `
+                <div class="activity-item">
+                    <div class="activity-icon ${activity.type}">
+                        <i class="${activity.icon}"></i>
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-title">${activity.title}</div>
+                        <div class="activity-details">${activity.details}</div>
+                    </div>
+                    <div class="activity-time">${activity.time}</div>
+                </div>
+            `).join('');
+        }
+
+        // Generate mock activities
+        function generateMockActivities() {
+            const activities = [
+                {
+                    type: 'user',
+                    icon: 'fas fa-user-plus',
+                    title: 'New user registered',
+                    details: 'Pizza Palace owner signed up',
+                    time: '2 min ago'
+                },
+                {
+                    type: 'order',
+                    icon: 'fas fa-shopping-cart',
+                    title: 'Order completed',
+                    details: 'Order #4821 - $47.50',
+                    time: '4 min ago'
+                },
+                {
+                    type: 'system',
+                    icon: 'fas fa-sync',
+                    title: 'API health check',
+                    details: 'All endpoints responding normally',
+                    time: '5 min ago'
+                },
+                {
+                    type: 'user',
+                    icon: 'fas fa-store',
+                    title: 'Restaurant updated menu',
+                    details: 'Sushi Express added 3 new items',
+                    time: '8 min ago'
+                },
+                {
+                    type: 'error',
+                    icon: 'fas fa-exclamation-triangle',
+                    title: 'API error detected',
+                    details: 'getMenuItems timeout (resolved)',
+                    time: '12 min ago'
+                }
+            ];
+            
+            return activities;
+        }
+
+        // Load API health data
+        async function loadAPIHealth() {
+            const apiCategories = {
+                'Authentication': {
+                    methods: ['signUp', 'signIn', 'signOut', 'getCurrentUser', 'getUserData', 'checkEmailExists'],
+                    calls: Math.floor(Math.random() * 1000) + 500
+                },
+                'Restaurant Management': {
+                    methods: ['createRestaurant', 'updateRestaurant', 'getRestaurantByOwner', 'getRestaurant', 'getRestaurantsByVenue'],
+                    calls: Math.floor(Math.random() * 800) + 300
+                },
+                'Menu Items': {
+                    methods: ['getMenuItems', 'createMenuItem', 'updateMenuItem', 'deleteMenuItem', 'updateItemStock', 'getFullMenu', 'searchMenuItems', 'getMenuItemsByCategory'],
+                    calls: Math.floor(Math.random() * 1200) + 800
+                },
+                'Orders': {
+                    methods: ['createOrder', 'getOrderByNumber', 'getOrders', 'getOrdersByCustomer', 'getMostRecentActiveOrder', 'updateOrderStatus', 'getTodaysOrders'],
+                    calls: Math.floor(Math.random() * 2000) + 1200
+                },
+                'Loss Tracking': {
+                    methods: ['createLossIncident', 'getLossIncidents', 'updateLossIncident', 'deleteLossIncident', 'getLossAnalytics'],
+                    calls: Math.floor(Math.random() * 200) + 50
+                }
+            };
+
+            const grid = document.getElementById('apiHealthGrid');
+            grid.innerHTML = Object.entries(apiCategories).map(([category, data]) => `
+                <div class="api-category">
+                    <div class="api-category-title">${category}</div>
+                    <div class="api-method">
+                        <span class="method-name">${data.methods.length} methods</span>
+                        <span class="method-count">${formatNumber(data.calls)} calls</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Utility functions
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+
+        function changeTimeframe(period) {
+            // Update active filter button
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update chart data based on timeframe
+            updateChartData(period);
+        }
+
+        function updateChartData(period) {
+            // Mock data update based on timeframe
+            let newData, newLabels;
+            
+            switch(period) {
+                case '24h':
+                    newLabels = ['12am', '4am', '8am', '12pm', '4pm', '8pm', '11pm'];
+                    newData = [
+                        [2, 4, 3, 8, 6, 9, 7],
+                        [5, 8, 6, 12, 10, 15, 13]
+                    ];
+                    break;
+                case '30d':
+                    newLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                    newData = [
+                        [45, 52, 48, 61],
+                        [120, 145, 135, 168]
+                    ];
+                    break;
+                default: // 7d
+                    newLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    newData = [
+                        [12, 19, 15, 25, 22, 30, 28],
+                        [25, 32, 28, 41, 38, 45, 42]
+                    ];
+            }
+            
+            mainChart.data.labels = newLabels;
+            mainChart.data.datasets[0].data = newData[0];
+            mainChart.data.datasets[1].data = newData[1];
+            mainChart.update();
+        }
+
+        function refreshData() {
+            const btn = event.target.closest('.refresh-btn');
+            const icon = btn.querySelector('i');
+            
+            // Animate refresh icon
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            // Reload all data
+            loadSystemMetrics();
+            updateActivityFeed();
+            loadAPIHealth();
+            
+            // Stop animation after 1 second
+            setTimeout(() => {
+                icon.style.animation = '';
+            }, 1000);
+        }
+
+        function showSystemAlert(message) {
+            const alerts = document.getElementById('systemAlerts');
+            const alertsList = document.getElementById('alertsList');
+            
+            alertsList.innerHTML = `<div class="alert-item">${message}</div>`;
+            alerts.classList.add('show');
+            
+            // Hide alert after 10 seconds
+            setTimeout(() => {
+                alerts.classList.remove('show');
+            }, 10000);
+        }
+
+        // Cleanup intervals on page unload
+        window.addEventListener('beforeunload', function() {
+            if (activityUpdateInterval) clearInterval(activityUpdateInterval);
+            if (metricsUpdateInterval) clearInterval(metricsUpdateInterval);
+        });
+
+        console.log('Vedi App Admin Dashboard loaded successfully');
+    </script>
+</body>
+</html>
