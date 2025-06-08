@@ -815,12 +815,10 @@
                 const user = await VediAPI.getCurrentUser();
                 if (user) {
                     console.log('User already authenticated:', user.email);
-                    showNotification('You are already logged in. Redirecting...');
-                    
-                    // Redirect based on account type
-                    setTimeout(() => {
-                        redirectUserToDashboard(user.accountType);
-                    }, 1500);
+                    // REMOVED: Auto-redirect on login page
+                    // Users should be able to stay on login page even if they have a session
+                    // They can manually navigate to dashboard if they want
+                    console.log('Existing session found but staying on login page');
                 }
             } catch (error) {
                 console.log('No existing authentication found');
@@ -957,31 +955,46 @@
             }, 1500);
         }
 
-        // FIXED: Dashboard redirect function with correct folder name
+        // FIXED: Dashboard redirect function (same approach as venue setup)
         function redirectUserToDashboard(accountType) {
             console.log('🚀 Redirecting user to dashboard, account type:', accountType);
             
             try {
                 if (accountType === 'venue') {
-                    // Fixed: Use correct folder name with space and URL encoding
-                    window.location.href = '/Venue%20Manager/venue-admin-dashboard.html';
+                    // Use multiple redirect methods like in venue setup
+                    setTimeout(() => {
+                        window.location.href = '/Venue%20Manager/venue-admin-dashboard.html';
+                    }, 100);
+                    
+                    setTimeout(() => {
+                        window.location.replace('/Venue%20Manager/venue-admin-dashboard.html');
+                    }, 500);
+                    
+                    setTimeout(() => {
+                        window.location = '/Venue%20Manager/venue-admin-dashboard.html';
+                    }, 1000);
+                    
                 } else if (accountType === 'restaurant') {
-                    window.location.href = '/Owner/dashboard.html';
+                    setTimeout(() => {
+                        window.location.href = '/Owner/dashboard.html';
+                    }, 100);
+                    
+                    setTimeout(() => {
+                        window.location.replace('/Owner/dashboard.html');
+                    }, 500);
+                    
+                    setTimeout(() => {
+                        window.location = '/Owner/dashboard.html';
+                    }, 1000);
+                    
                 } else {
                     console.error('Unknown account type:', accountType);
                     showError('Account type not recognized. Please contact support.');
                     return;
                 }
             } catch (error) {
-                console.error('Redirect error:', error);
-                // Fallback methods
-                setTimeout(() => {
-                    if (accountType === 'venue') {
-                        window.location.replace('/Venue%20Manager/venue-admin-dashboard.html');
-                    } else if (accountType === 'restaurant') {
-                        window.location.replace('/Owner/dashboard.html');
-                    }
-                }, 100);
+                console.error('All redirect methods failed:', error);
+                showError('Redirect failed. Please manually navigate to your dashboard.');
             }
         }
 
