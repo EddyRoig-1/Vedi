@@ -972,19 +972,11 @@
             if (textEl) textEl.textContent = text;
             if (subtextEl) subtextEl.textContent = subtext;
             if (overlay) overlay.classList.add('show');
-            
-            // Disable buttons during loading
-            const buttons = document.querySelectorAll('.btn');
-            buttons.forEach(btn => btn.disabled = true);
         }
 
         function hideLoading() {
             const overlay = document.getElementById('loadingOverlay');
             if (overlay) overlay.classList.remove('show');
-            
-            // Re-enable buttons
-            const buttons = document.querySelectorAll('.btn');
-            buttons.forEach(btn => btn.disabled = false);
         }
 
         function showError(message) {
@@ -1315,21 +1307,29 @@
             }
         }
 
-        async function goToDashboard() {
+        // FIXED: Dashboard redirect function
+        function goToDashboard() {
             console.log('🚀 Redirecting to venue dashboard...');
             
+            // Set currentStep high to bypass beforeunload prevention
+            currentStep = 999;
+            
+            // Hide any loading overlays
+            hideLoading();
+            
+            // Direct redirect without any interference
             try {
-                showLoading('Preparing dashboard...', 'Getting your venue ready');
-                
-                // Small delay for smooth transition
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                window.location.replace('/Venue%20Manager/venue-admin-dashboard.html');
-                
+                window.location.href = '/Venue%20Manager/venue-admin-dashboard.html';
             } catch (error) {
-                console.error('❌ Dashboard redirect error:', error);
-                hideLoading();
-                showError('Error redirecting to dashboard: ' + error.message);
+                // Fallback methods
+                console.log('Trying fallback redirect methods...');
+                setTimeout(() => {
+                    window.location.replace('/Venue%20Manager/venue-admin-dashboard.html');
+                }, 100);
+                
+                setTimeout(() => {
+                    window.location = '/Venue%20Manager/venue-admin-dashboard.html';
+                }, 500);
             }
         }
 
@@ -1468,14 +1468,8 @@
             });
         }
 
-        // Handle page reload/navigation
-        window.addEventListener('beforeunload', function(e) {
-            if (currentStep > 1 && currentStep < totalSteps) {
-                e.preventDefault();
-                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-                return e.returnValue;
-            }
-        });
+        // REMOVED: Problematic beforeunload listener that was blocking navigation
+        // This was the main cause of the redirect issue
 
         console.log('🏢 Vedi Venue Setup with Firebase integration loaded successfully');
     </script>
