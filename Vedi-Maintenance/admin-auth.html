@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vedi Admin Access</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .auth-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 450px;
+            margin: 20px;
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-section {
+            margin-bottom: 25px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        input[type="email"],
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        input[type="email"]:focus,
+        input[type="password"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            transform: translateY(-1px);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .toggle-link {
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 0.9rem;
+        }
+
+        .error-message {
+            background: #ff6b6b;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .success-message {
+            background: #51cf66;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .admin-info {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .admin-info h4 {
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .admin-info p {
+            font-size: 0.85rem;
+            color: #555;
+            margin: 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .admin-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .admin-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .admin-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .admin-item .info {
+            flex: 1;
+        }
+
+        .admin-item .name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .admin-item .email {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .remove-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="logo-section">
+            <div class="logo">VEDI</div>
+            <div class="subtitle">Admin Portal</div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="loading">
+            <div class="loading-spinner"></div>
+            <p>Checking authentication...</p>
+        </div>
+
+        <!-- Login Form -->
+        <div id="loginForm" class="hidden">
+            <div class="admin-info">
+                <h4>🔐 Admin Access Required</h4>
+                <p>This portal is restricted to Vedi administrators only.</p>
+            </div>
+
+            <div id="errorMessage" class="error-message hidden"></div>
+            <div id="successMessage" class="success-message hidden"></div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="loginEmail">Email Address</label>
+                    <input type="email" id="loginEmail" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="handleLogin()">
+                    Access Admin Dashboard
+                </button>
+            </div>
+
+            <div class="toggle-link" onclick="showRegisterForm()">
+                Need to register as admin? Click here
+            </div>
+        </div>
+
+        <!-- Registration Form -->
+        <div id="registerForm" class="hidden">
+            <div class="admin-info">
+                <h4>🚀 Admin Registration</h4>
+                <p>Enter the admin access code to create your account.</p>
+            </div>
+
+            <div id="regErrorMessage" class="error-message hidden"></div>
+            <div id="regSuccessMessage" class="success-message hidden"></div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="regName">Full Name</label>
+                    <input type="text" id="regName" placeholder="Enter your full name" required>
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">Email Address</label>
+                    <input type="email" id="regEmail" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="regPassword">Password</label>
+                    <input type="password" id="regPassword" placeholder="Create a password (min 6 characters)" required>
+                </div>
+                <div class="form-group">
+                    <label for="accessCode">Admin Access Code</label>
+                    <input type="text" id="accessCode" placeholder="Enter the admin access code" required>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="handleRegister()">
+                    Register as Admin
+                </button>
+            </div>
+
+            <div class="toggle-link" onclick="showLoginForm()">
+                Already have an account? Login here
+            </div>
+        </div>
+
+        <!-- Admin Management -->
+        <div id="adminManagement" class="hidden">
+            <div class="admin-info">
+                <h4>👋 Welcome Back, Admin!</h4>
+                <p>Manage your admin team and access the dashboard.</p>
+            </div>
+
+            <button type="button" class="btn btn-primary" onclick="accessDashboard()">
+                🚀 Open Admin Dashboard
+            </button>
+            
+            <button type="button" class="btn btn-secondary" onclick="handleLogout()">
+                🚪 Logout
+            </button>
+
+            <div class="admin-section">
+                <h4>Admin Team Management</h4>
+                <div id="adminList" class="admin-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
+            authDomain: "vedi00.firebaseapp.com",
+            projectId: "vedi00",
+            storageBucket: "vedi00.firebasestorage.app",
+            messagingSenderId: "136867441640",
+            appId: "1:136867441640:web:9ec709b63f5690f628125d",
+            measurementId: "G-ZS0FKPTEY2"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Admin access code
+        const ADMIN_ACCESS_CODE = 'VEDI2025ADMIN';
+
+        // UI Elements
+        const loadingState = document.getElementById('loadingState');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const adminManagement = document.getElementById('adminManagement');
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthState();
+        });
+
+        // Check authentication state
+        function checkAuthState() {
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    // Check if user is admin
+                    const isAdmin = await checkIfAdmin(user.uid);
+                    if (isAdmin) {
+                        showAdminManagement();
+                        loadAdminList();
+                        logAdminAccess(user.uid);
+                    } else {
+                        showError('Access denied. You are not authorized as an admin.');
+                        showLoginForm();
+                    }
+                } else {
+                    showLoginForm();
+                }
+                hideLoading();
+            });
+        }
+
+        // Check if user is admin
+        async function checkIfAdmin(userId) {
+            try {
+                const adminDoc = await db.collection('adminUsers').doc(userId).get();
+                return adminDoc.exists;
+            } catch (error) {
+                console.error('Error checking admin status:', error);
+                return false;
+            }
+        }
+
+        // Show/Hide UI sections
+        function showLoginForm() {
+            hideAll();
+            loginForm.classList.remove('hidden');
+        }
+
+        function showRegisterForm() {
+            hideAll();
+            registerForm.classList.remove('hidden');
+        }
+
+        function showAdminManagement() {
+            hideAll();
+            adminManagement.classList.remove('hidden');
+        }
+
+        function hideAll() {
+            loadingState.classList.add('hidden');
+            loginForm.classList.add('hidden');
+            registerForm.classList.add('hidden');
+            adminManagement.classList.add('hidden');
+        }
+
+        function hideLoading() {
+            loadingState.classList.add('hidden');
+        }
+
+        // Handle login
+        async function handleLogin() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                showError('Please fill in all fields.');
+                return;
+            }
+
+            try {
+                clearMessages();
+                await auth.signInWithEmailAndPassword(email, password);
+                // Auth state change will handle the rest
+            } catch (error) {
+                showError(getAuthErrorMessage(error.code));
+            }
+        }
+
+        // Handle registration
+        async function handleRegister() {
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const accessCode = document.getElementById('accessCode').value.trim();
+
+            if (!name || !email || !password || !accessCode) {
+                showRegError('Please fill in all fields.');
+                return;
+            }
+
+            if (accessCode !== ADMIN_ACCESS_CODE) {
+                showRegError('Invalid admin access code. Contact the system administrator.');
+                return;
+            }
+
+            if (password.length < 6) {
+                showRegError('Password must be at least 6 characters long.');
+                return;
+            }
+
+            try {
+                clearRegMessages();
+                
+                // Create Firebase auth user
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+
+                // Add to admin users collection
+                await db.collection('adminUsers').doc(user.uid).set({
+                    name: name,
+                    email: email,
+                    role: 'admin',
+                    accessCode: accessCode,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showRegSuccess('Admin account created successfully! Redirecting...');
+                
+                // Auto-redirect after success
+                setTimeout(() => {
+                    showAdminManagement();
+                    loadAdminList();
+                }, 2000);
+
+            } catch (error) {
+                showRegError(getAuthErrorMessage(error.code));
+            }
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            try {
+                await auth.signOut();
+                showLoginForm();
+                clearMessages();
+            } catch (error) {
+                showError('Error signing out. Please try again.');
+            }
+        }
+
+        // Access dashboard
+        function accessDashboard() {
+            // In a real app, this would redirect to the dashboard
+            window.location.href = 'app-admin-dashboard.html';
+        }
+
+        // Load admin list
+        async function loadAdminList() {
+            try {
+                const adminList = document.getElementById('adminList');
+                const querySnapshot = await db.collection('adminUsers').orderBy('createdAt', 'desc').get();
+                
+                if (querySnapshot.empty) {
+                    adminList.innerHTML = '<p style="text-align: center; color: #666;">No admin users found.</p>';
+                    return;
+                }
+
+                let html = '';
+                querySnapshot.forEach((doc) => {
+                    const admin = doc.data();
+                    const currentUser = auth.currentUser;
+                    const isCurrentUser = doc.id === currentUser.uid;
+                    
+                    html += `
+                        <div class="admin-item">
+                            <div class="info">
+                                <div class="name">${admin.name} ${isCurrentUser ? '(You)' : ''}</div>
+                                <div class="email">${admin.email}</div>
+                            </div>
+                            ${!isCurrentUser ? `<button class="remove-btn" onclick="removeAdmin('${doc.id}', '${admin.name}')">Remove</button>` : ''}
+                        </div>
+                    `;
+                });
+                
+                adminList.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading admin list:', error);
+            }
+        }
+
+        // Remove admin
+        async function removeAdmin(adminId, adminName) {
+            if (confirm(`Are you sure you want to remove ${adminName} from admin access?`)) {
+                try {
+                    await db.collection('adminUsers').doc(adminId).delete();
+                    loadAdminList(); // Refresh the list
+                    showSuccess('Admin user removed successfully.');
+                } catch (error) {
+                    showError('Error removing admin user.');
+                }
+            }
+        }
+
+        // Log admin access
+        async function logAdminAccess(userId) {
+            try {
+                await db.collection('adminUsers').doc(userId).update({
+                    lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (error) {
+                console.error('Error logging admin access:', error);
+            }
+        }
+
+        // Error handling
+        function getAuthErrorMessage(errorCode) {
+            const errorMessages = {
+                'auth/email-already-in-use': 'This email is already registered.',
+                'auth/weak-password': 'Password should be at least 6 characters long.',
+                'auth/invalid-email': 'Please enter a valid email address.',
+                'auth/user-not-found': 'No account found with this email.',
+                'auth/wrong-password': 'Incorrect password.',
+                'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
+                'auth/network-request-failed': 'Network error. Please check your connection.',
+                'auth/invalid-credential': 'Invalid email or password.'
+            };
+            
+            return errorMessages[errorCode] || 'An unexpected error occurred. Please try again.';
+        }
+
+        // Message functions
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.classList.remove('hidden');
+        }
+
+        function showRegError(message) {
+            const errorDiv = document.getElementById('regErrorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function showRegSuccess(message) {
+            const successDiv = document.getElementById('regSuccessMessage');
+            successDiv.textContent = message;
+            successDiv.classList.remove('hidden');
+        }
+
+        function clearMessages() {
+            document.getElementById('errorMessage').classList.add('hidden');
+            document.getElementById('successMessage').classList.add('hidden');
+        }
+
+        function clearRegMessages() {
+            document.getElementById('regErrorMessage').classList.add('hidden');
+            document.getElementById('regSuccessMessage').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
