@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - Vedi Admin</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    <script src="maintenance-api.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #334155;
+            padding: 20px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .header-title {
+            color: #f1f5f9;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .header-subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .nav-item {
+            color: #cbd5e1;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+            color: #a5b4fc;
+        }
+
+        .nav-item.active {
+            background: rgba(99, 102, 241, 0.2);
+            color: #c7d2fe;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .page-header {
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 10px;
+        }
+
+        .page-subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.15);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #6366f1;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .controls-section {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .controls-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            color: #f1f5f9;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .search-filters {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            background: rgba(71, 85, 105, 0.5);
+            border: 1px solid #64748b;
+            color: #e2e8f0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            min-width: 250px;
+            font-size: 0.95rem;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: rgba(71, 85, 105, 0.8);
+        }
+
+        .filter-select {
+            background: rgba(71, 85, 105, 0.5);
+            border: 1px solid #64748b;
+            color: #e2e8f0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            min-width: 150px;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        .users-table {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table-header {
+            background: rgba(15, 23, 42, 0.8);
+            padding: 20px;
+            border-bottom: 1px solid #475569;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            background: rgba(71, 85, 105, 0.5);
+            color: #cbd5e1;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table td {
+            padding: 15px;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+            color: #e2e8f0;
+        }
+
+        .table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .user-details {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .user-email {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .user-type {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .type-owner {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .type-manager {
+            background: rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+        }
+
+        .type-customer {
+            background: rgba(156, 163, 175, 0.2);
+            color: #d1d5db;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .status-inactive {
+            background: rgba(156, 163, 175, 0.2);
+            color: #d1d5db;
+        }
+
+        .status-suspended {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .activity-info {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+
+        .last-seen {
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 20px;
+        }
+
+        .page-btn {
+            background: rgba(71, 85, 105, 0.5);
+            border: 1px solid #64748b;
+            color: #cbd5e1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .page-btn:hover,
+        .page-btn.active {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: #6366f1;
+            color: #c7d2fe;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-info {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #475569;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            color: #f1f5f9;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #e2e8f0;
+        }
+
+        .user-detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            color: #e2e8f0;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+            color: #94a3b8;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #475569;
+            border-top: 4px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .search-filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-input,
+            .filter-select {
+                min-width: auto;
+                width: 100%;
+            }
+
+            .table {
+                font-size: 0.85rem;
+            }
+
+            .table th,
+            .table td {
+                padding: 10px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .nav-menu {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo">V</div>
+                <div>
+                    <div class="header-title">User Management</div>
+                    <div class="header-subtitle">Admin Tools & User Administration</div>
+                </div>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="app-admin-dashboard.html" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    Dashboard
+                </a>
+                <a href="api-analytics.html" class="nav-item">
+                    <i class="fas fa-code"></i>
+                    API Analytics
+                </a>
+                <a href="#" class="nav-item active">
+                    <i class="fas fa-users"></i>
+                    Users
+                </a>
+                <a href="system-health.html" class="nav-item">
+                    <i class="fas fa-heartbeat"></i>
+                    Health
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">User Management</h1>
+            <p class="page-subtitle">Manage and monitor all Vedi platform users</p>
+        </div>
+
+        <!-- User Statistics -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-number" id="totalUsers">-</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="activeUsers">-</div>
+                <div class="stat-label">Active Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="restaurantOwners">-</div>
+                <div class="stat-label">Restaurant Owners</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="venueManagers">-</div>
+                <div class="stat-label">Venue Managers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="newUsersToday">-</div>
+                <div class="stat-label">New Today</div>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="controls-section">
+            <div class="controls-header">
+                <h2 class="section-title">Search & Filter Users</h2>
+                <button class="btn" onclick="exportUsers()">
+                    <i class="fas fa-download"></i>
+                    Export Users
+                </button>
+            </div>
+            <div class="search-filters">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search by name, email, or ID..." onkeyup="filterUsers()">
+                <select class="filter-select" id="typeFilter" onchange="filterUsers()">
+                    <option value="all">All User Types</option>
+                    <option value="owner">Restaurant Owners</option>
+                    <option value="manager">Venue Managers</option>
+                    <option value="customer">Customers</option>
+                </select>
+                <select class="filter-select" id="statusFilter" onchange="filterUsers()">
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="suspended">Suspended</option>
+                </select>
+                <button class="btn btn-success" onclick="refreshUsers()">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="users-table">
+            <div class="table-header">
+                <h3 class="section-title">Platform Users</h3>
+            </div>
+            <div id="usersTableContainer">
+                <div class="loading-state">
+                    <div class="loading-spinner"></div>
+                    <p>Loading users...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div class="modal" id="userModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">User Details</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="userDetails">
+                <!-- User details will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allUsers = [];
+        let filteredUsers = [];
+        let currentPage = 1;
+        const usersPerPage = 20;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('User Management page initializing...');
+            await loadUsers();
+            await loadUserStats();
+        });
+
+        // Load all users
+        async function loadUsers() {
+            try {
+                // In a real implementation, this would use admin-level Firebase queries
+                // For now, we'll generate mock user data
+                allUsers = generateMockUsers();
+                filteredUsers = [...allUsers];
+                renderUsersTable();
+                
+            } catch (error) {
+                console.error('Error loading users:', error);
+                renderErrorState();
+            }
+        }
+
+        // Load user statistics
+        async function loadUserStats() {
+            try {
+                const stats = calculateUserStats(allUsers);
+                
+                document.getElementById('totalUsers').textContent = stats.total;
+                document.getElementById('activeUsers').textContent = stats.active;
+                document.getElementById('restaurantOwners').textContent = stats.owners;
+                document.getElementById('venueManagers').textContent = stats.managers;
+                document.getElementById('newUsersToday').textContent = stats.newToday;
+                
+            } catch (error) {
+                console.error('Error loading user stats:', error);
+            }
+        }
+
+        // Generate mock users for demonstration
+        function generateMockUsers() {
+            const users = [];
+            const firstNames = ['John', 'Sarah', 'Mike', 'Lisa', 'David', 'Emma', 'Chris', 'Anna', 'Tom', 'Kate'];
+            const lastNames = ['Smith', 'Johnson', 'Brown', 'Davis', 'Wilson', 'Miller', 'Taylor', 'Anderson', 'Thomas', 'Jackson'];
+            const domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'];
+            const types = ['owner', 'manager', 'customer'];
+            const statuses = ['active', 'inactive', 'suspended'];
+
+            for (let i = 0; i < 150; i++) {
+                const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+                const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+                const domain = domains[Math.floor(Math.random() * domains.length)];
+                const type = types[Math.floor(Math.random() * types.length)];
+                const status = statuses[Math.floor(Math.random() * statuses.length)];
+                
+                const user = {
+                    id: `user_${i + 1}`,
+                    name: `${firstName} ${lastName}`,
+                    email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`,
+                    type: type,
+                    status: status,
+                    lastSeen: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+                    createdAt: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000),
+                    restaurantCount: type === 'owner' ? Math.floor(Math.random() * 3) + 1 : 0,
+                    venueCount: type === 'manager' ? Math.floor(Math.random() * 2) + 1 : 0,
+                    apiCalls: Math.floor(Math.random() * 1000),
+                    lastLoginIP: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`
+                };
+                
+                users.push(user);
+            }
+            
+            return users.sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
+        }
+
+        // Calculate user statistics
+        function calculateUserStats(users) {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            return {
+                total: users.length,
+                active: users.filter(u => u.status === 'active').length,
+                owners: users.filter(u => u.type === 'owner').length,
+                managers: users.filter(u => u.type === 'manager').length,
+                newToday: users.filter(u => new Date(u.createdAt) >= today).length
+            };
+        }
+
+        // Filter users based on search and filters
+        function filterUsers() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const typeFilter = document.getElementById('typeFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            
+            filteredUsers = allUsers.filter(user => {
+                const matchesSearch = user.name.toLowerCase().includes(searchTerm) ||
+                                    user.email.toLowerCase().includes(searchTerm) ||
+                                    user.id.toLowerCase().includes(searchTerm);
+                
+                const matchesType = typeFilter === 'all' || user.type === typeFilter;
+                const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+                
+                return matchesSearch && matchesType && matchesStatus;
+            });
+            
+            currentPage = 1;
+            renderUsersTable();
+        }
+
+        // Render users table
+        function renderUsersTable() {
+            const container = document.getElementById('usersTableContainer');
+            
+            if (filteredUsers.length === 0) {
+                container.innerHTML = '<div class="loading-state"><p>No users found matching your criteria.</p></div>';
+                return;
+            }
+
+            const startIndex = (currentPage - 1) * usersPerPage;
+            const endIndex = startIndex + usersPerPage;
+            const pageUsers = filteredUsers.slice(startIndex, endIndex);
+
+            container.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Last Activity</th>
+                            <th>Restaurants/Venues</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pageUsers.map(user => `
+                            <tr>
+                                <td>
+                                    <div class="user-info">
+                                        <div class="user-avatar">
+                                            ${user.name.split(' ').map(n => n[0]).join('')}
+                                        </div>
+                                        <div class="user-details">
+                                            <div class="user-name">${user.name}</div>
+                                            <div class="user-email">${user.email}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="user-type type-${user.type}">
+                                        ${user.type === 'owner' ? 'Restaurant Owner' : 
+                                          user.type === 'manager' ? 'Venue Manager' : 'Customer'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-${user.status}">
+                                        ${user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="activity-info">
+                                        <div class="last-seen">${formatDate(user.lastSeen)}</div>
+                                        <div>${user.apiCalls} API calls</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    ${user.type === 'owner' ? `${user.restaurantCount} restaurants` :
+                                      user.type === 'manager' ? `${user.venueCount} venues` : '-'}
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-small" onclick="viewUser('${user.id}')">
+                                            <i class="fas fa-eye"></i>
+                                            View
+                                        </button>
+                                        ${user.status === 'active' ? 
+                                            `<button class="btn btn-small btn-warning" onclick="suspendUser('${user.id}')">
+                                                <i class="fas fa-ban"></i>
+                                                Suspend
+                                            </button>` :
+                                            `<button class="btn btn-small btn-success" onclick="activateUser('${user.id}')">
+                                                <i class="fas fa-check"></i>
+                                                Activate
+                                            </button>`
+                                        }
+                                        <button class="btn btn-small btn-danger" onclick="deleteUser('${user.id}')">
+                                            <i class="fas fa-trash"></i>
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${renderPagination()}
+            `;
+        }
+
+        // Render pagination
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+            if (totalPages <= 1) return '';
+
+            const startUser = (currentPage - 1) * usersPerPage + 1;
+            const endUser = Math.min(currentPage * usersPerPage, filteredUsers.length);
+
+            return `
+                <div class="pagination">
+                    <button class="page-btn" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    
+                    ${Array.from({length: totalPages}, (_, i) => i + 1)
+                        .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                        .map(page => `
+                            <button class="page-btn ${page === currentPage ? 'active' : ''}" onclick="changePage(${page})">
+                                ${page}
+                            </button>
+                        `).join('')}
+                    
+                    <button class="page-btn" onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    
+                    <div class="page-info">
+                        Showing ${startUser}-${endUser} of ${filteredUsers.length} users
+                    </div>
+                </div>
+            `;
+        }
+
+        // Change page
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+            if (page < 1 || page > totalPages) return;
+            
+            currentPage = page;
+            renderUsersTable();
+        }
+
+        // View user details
+        function viewUser(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) return;
+
+            const userDetails = document.getElementById('userDetails');
+            userDetails.innerHTML = `
+                <div class="user-detail-section">
+                    <div class="detail-label">User ID</div>
+                    <div class="detail-value">${user.id}</div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">Full Name</div>
+                    <div class="detail-value">${user.name}</div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">Email Address</div>
+                    <div class="detail-value">${user.email}</div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">User Type</div>
+                    <div class="detail-value">
+                        <span class="user-type type-${user.type}">
+                            ${user.type === 'owner' ? 'Restaurant Owner' : 
+                              user.type === 'manager' ? 'Venue Manager' : 'Customer'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">Account Status</div>
+                    <div class="detail-value">
+                        <span class="status-badge status-${user.status}">
+                            ${user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">Created Date</div>
+                    <div class="detail-value">${formatDate(user.createdAt)}</div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">Last Activity</div>
+                    <div class="detail-value">${formatDate(user.lastSeen)}</div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">API Usage</div>
+                    <div class="detail-value">${user.apiCalls} total API calls</div>
+                </div>
+                
+                <div class="user-detail-section">
+                    <div class="detail-label">Last Login IP</div>
+                    <div class="detail-value">${user.lastLoginIP}</div>
+                </div>
+                
+                ${user.type === 'owner' ? `
+                    <div class="user-detail-section">
+                        <div class="detail-label">Restaurants Owned</div>
+                        <div class="detail-value">${user.restaurantCount} restaurants</div>
+                    </div>
+                ` : ''}
+                
+                ${user.type === 'manager' ? `
+                    <div class="user-detail-section">
+                        <div class="detail-label">Venues Managed</div>
+                        <div class="detail-value">${user.venueCount} venues</div>
+                    </div>
+                ` : ''}
+            `;
+
+            openModal();
+        }
+
+        // Suspend user
+        async function suspendUser(userId) {
+            if (!confirm('Are you sure you want to suspend this user?')) return;
+            
+            try {
+                // In real implementation, this would call admin API
+                const user = allUsers.find(u => u.id === userId);
+                if (user) {
+                    user.status = 'suspended';
+                    filterUsers(); // Re-render table
+                    showNotification('User suspended successfully', 'success');
+                }
+            } catch (error) {
+                console.error('Error suspending user:', error);
+                showNotification('Failed to suspend user', 'error');
+            }
+        }
+
+        // Activate user
+        async function activateUser(userId) {
+            try {
+                // In real implementation, this would call admin API
+                const user = allUsers.find(u => u.id === userId);
+                if (user) {
+                    user.status = 'active';
+                    filterUsers(); // Re-render table
+                    showNotification('User activated successfully', 'success');
+                }
+            } catch (error) {
+                console.error('Error activating user:', error);
+                showNotification('Failed to activate user', 'error');
+            }
+        }
+
+        // Delete user
+        async function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+            
+            try {
+                // In real implementation, this would call admin API with proper safeguards
+                const userIndex = allUsers.findIndex(u => u.id === userId);
+                if (userIndex !== -1) {
+                    allUsers.splice(userIndex, 1);
+                    filterUsers(); // Re-render table
+                    await loadUserStats(); // Update stats
+                    showNotification('User deleted successfully', 'success');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showNotification('Failed to delete user', 'error');
+            }
+        }
+
+        // Refresh users
+        async function refreshUsers() {
+            const container = document.getElementById('usersTableContainer');
+            container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><p>Refreshing users...</p></div>';
+            
+            // Simulate API call delay
+            setTimeout(async () => {
+                await loadUsers();
+                await loadUserStats();
+                showNotification('Users refreshed successfully', 'success');
+            }, 1000);
+        }
+
+        // Export users
+        async function exportUsers() {
+            try {
+                const exportData = {
+                    exportDate: new Date().toISOString(),
+                    totalUsers: filteredUsers.length,
+                    users: filteredUsers.map(user => ({
+                        id: user.id,
+                        name: user.name,
+                        email: user.email,
+                        type: user.type,
+                        status: user.status,
+                        createdAt: user.createdAt,
+                        lastSeen: user.lastSeen,
+                        apiCalls: user.apiCalls,
+                        restaurantCount: user.restaurantCount,
+                        venueCount: user.venueCount
+                    }))
+                };
+
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(dataBlob);
+                link.download = `vedi-users-export-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                
+                showNotification('Users exported successfully', 'success');
+                
+            } catch (error) {
+                console.error('Error exporting users:', error);
+                showNotification('Failed to export users', 'error');
+            }
+        }
+
+        // Modal functions
+        function openModal() {
+            document.getElementById('userModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('userModal').classList.remove('show');
+        }
+
+        // Render error state
+        function renderErrorState() {
+            const container = document.getElementById('usersTableContainer');
+            container.innerHTML = `
+                <div class="loading-state">
+                    <p style="color: #ef4444;">Failed to load users. Please try refreshing the page.</p>
+                    <button class="btn" onclick="refreshUsers()" style="margin-top: 15px;">
+                        <i class="fas fa-sync-alt"></i>
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
+
+        // Utility functions
+        function formatDate(date) {
+            const now = new Date();
+            const diffTime = Math.abs(now - new Date(date));
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) {
+                return 'Yesterday';
+            } else if (diffDays < 7) {
+                return `${diffDays} days ago`;
+            } else if (diffDays < 30) {
+                const weeks = Math.floor(diffDays / 7);
+                return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+            } else {
+                return new Date(date).toLocaleDateString();
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 10000;
+                background: ${type === 'success' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #ef4444, #dc2626)'};
+                color: white;
+                padding: 15px 25px;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                font-weight: 600;
+                opacity: 0;
+                transition: all 0.3s ease;
+                transform: translateX(100%);
+            `;
+            
+            notification.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '1';
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('userModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        console.log('User Management page loaded successfully');
+    </script>
+</body>
+</html>
