@@ -1,4 +1,61 @@
-// firebase-api.js - Complete Vedi Firebase API Implementation with Loss Tracking
+// firebase-api.js - Complete Vedi Firebase API Implementation with Loss Tracking + API Analytics
+
+// ============================================================================
+// API TRACKING SYSTEM - For Maintenance Dashboard Analytics
+// ============================================================================
+
+/**
+ * Track API call for analytics
+ * @param {string} method - API method name
+ * @param {number} responseTime - Response time in ms
+ * @param {boolean} success - Whether call was successful
+ * @param {Object} metadata - Additional data
+ */
+async function trackAPICall(method, responseTime, success = true, metadata = {}) {
+  try {
+    await firebaseDb.collection('apiCalls').add({
+      method,
+      responseTime,
+      success,
+      metadata,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      hour: new Date().getHours(),
+      userId: firebase.auth().currentUser?.uid || 'anonymous'
+    });
+  } catch (error) {
+    // Silent fail - don't break main functionality
+    console.debug('API tracking error:', error);
+  }
+}
+
+/**
+ * Wrapper function to add tracking to any API method
+ * @param {string} methodName - Name of the method
+ * @param {Function} originalMethod - Original method function
+ * @returns {Function} Wrapped method with tracking
+ */
+function withTracking(methodName, originalMethod) {
+  return async function(...args) {
+    const startTime = Date.now();
+    try {
+      const result = await originalMethod.apply(this, args);
+      const responseTime = Date.now() - startTime;
+      await trackAPICall(methodName, responseTime, true, {
+        args: args.length,
+        resultType: typeof result
+      });
+      return result;
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      await trackAPICall(methodName, responseTime, false, {
+        error: error.message,
+        errorCode: error.code
+      });
+      throw error;
+    }
+  };
+}
 
 const VediAPI = {
   // ============================================================================
@@ -13,6 +70,7 @@ const VediAPI = {
    * @returns {Promise<Object>} User object
    */
   async signUp(email, password, userData) {
+    const startTime = Date.now();
     try {
       // Create Firebase auth user
       const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
@@ -28,10 +86,24 @@ const VediAPI = {
       
       await firebaseDb.collection('users').doc(user.uid).set(userDoc);
       
+      // Track successful API call
+      const responseTime = Date.now() - startTime;
+      await trackAPICall('signUp', responseTime, true, { 
+        accountType: userData.accountType,
+        email: email 
+      });
+      
       console.log('✅ User created successfully:', user.uid);
       return { id: user.uid, ...userDoc, email };
       
     } catch (error) {
+      // Track failed API call
+      const responseTime = Date.now() - startTime;
+      await trackAPICall('signUp', responseTime, false, { 
+        error: error.code,
+        email: email 
+      });
+      
       console.error('❌ Sign up error:', error);
       throw new Error(this.getAuthErrorMessage(error.code));
     }
@@ -44,6 +116,7 @@ const VediAPI = {
    * @returns {Promise<Object>} User object with data
    */
   async signIn(email, password) {
+    const startTime = Date.now();
     try {
       const userCredential = await firebaseAuth.signInWithEmailAndPassword(email, password);
       const user = userCredential.user;
@@ -51,10 +124,24 @@ const VediAPI = {
       // Get user data from Firestore
       const userData = await this.getUserData(user.uid);
       
+      // Track successful API call
+      const responseTime = Date.now() - startTime;
+      await trackAPICall('signIn', responseTime, true, { 
+        accountType: userData.accountType,
+        email: email 
+      });
+      
       console.log('✅ User signed in successfully:', user.uid);
       return userData;
       
     } catch (error) {
+      // Track failed API call
+      const responseTime = Date.now() - startTime;
+      await trackAPICall('signIn', responseTime, false, { 
+        error: error.code,
+        email: email 
+      });
+      
       console.error('❌ Sign in error:', error);
       throw new Error(this.getAuthErrorMessage(error.code));
     }
@@ -63,7 +150,7 @@ const VediAPI = {
   /**
    * Sign out current user
    */
-  async signOut() {
+  signOut: withTracking('signOut', async function() {
     try {
       await firebaseAuth.signOut();
       console.log('✅ User signed out successfully');
@@ -71,13 +158,13 @@ const VediAPI = {
       console.error('❌ Sign out error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get current authenticated user
    * @returns {Promise<Object|null>} Current user or null
    */
-  async getCurrentUser() {
+  getCurrentUser: withTracking('getCurrentUser', async function() {
     return new Promise((resolve) => {
       const unsubscribe = firebaseAuth.onAuthStateChanged(async (user) => {
         unsubscribe();
@@ -94,14 +181,14 @@ const VediAPI = {
         }
       });
     });
-  },
+  }),
 
   /**
    * Get user data from Firestore
    * @param {string} userId - User ID
    * @returns {Promise<Object>} User data
    */
-  async getUserData(userId) {
+  getUserData: withTracking('getUserData', async function(userId) {
     try {
       const doc = await firebaseDb.collection('users').doc(userId).get();
       if (doc.exists) {
@@ -112,14 +199,14 @@ const VediAPI = {
       console.error('❌ Get user data error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Check if email already exists
    * @param {string} email - Email to check
    * @returns {Promise<boolean>} True if email exists
    */
-  async checkEmailExists(email) {
+  checkEmailExists: withTracking('checkEmailExists', async function(email) {
     try {
       const methods = await firebaseAuth.fetchSignInMethodsForEmail(email);
       return methods.length > 0;
@@ -127,7 +214,7 @@ const VediAPI = {
       console.error('❌ Check email error:', error);
       return false;
     }
-  },
+  }),
 
   // ============================================================================
   // RESTAURANT MANAGEMENT
@@ -138,7 +225,7 @@ const VediAPI = {
    * @param {Object} restaurantData - Restaurant information
    * @returns {Promise<Object>} Created restaurant
    */
-  async createRestaurant(restaurantData) {
+  createRestaurant: withTracking('createRestaurant', async function(restaurantData) {
     try {
       const restaurant = {
         ...restaurantData,
@@ -156,7 +243,7 @@ const VediAPI = {
       console.error('❌ Create restaurant error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Update existing restaurant
@@ -164,7 +251,7 @@ const VediAPI = {
    * @param {Object} restaurantData - Updated data
    * @returns {Promise<Object>} Updated restaurant
    */
-  async updateRestaurant(restaurantId, restaurantData) {
+  updateRestaurant: withTracking('updateRestaurant', async function(restaurantId, restaurantData) {
     try {
       const updateData = {
         ...restaurantData,
@@ -182,14 +269,14 @@ const VediAPI = {
       console.error('❌ Update restaurant error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get restaurant by owner user ID
    * @param {string} ownerUserId - Owner's user ID
    * @returns {Promise<Object|null>} Restaurant or null
    */
-  async getRestaurantByOwner(ownerUserId) {
+  getRestaurantByOwner: withTracking('getRestaurantByOwner', async function(ownerUserId) {
     try {
       const querySnapshot = await firebaseDb.collection('restaurants')
         .where('ownerUserId', '==', ownerUserId)
@@ -206,14 +293,14 @@ const VediAPI = {
       console.error('❌ Get restaurant by owner error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get restaurant by ID
    * @param {string} restaurantId - Restaurant ID
    * @returns {Promise<Object>} Restaurant data
    */
-  async getRestaurant(restaurantId) {
+  getRestaurant: withTracking('getRestaurant', async function(restaurantId) {
     try {
       const doc = await firebaseDb.collection('restaurants').doc(restaurantId).get();
       if (doc.exists) {
@@ -224,14 +311,14 @@ const VediAPI = {
       console.error('❌ Get restaurant error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get restaurants by venue ID (uses existing venueId field)
    * @param {string} venueId - Venue ID
    * @returns {Promise<Array>} Array of restaurants in venue
    */
-  async getRestaurantsByVenue(venueId) {
+  getRestaurantsByVenue: withTracking('getRestaurantsByVenue', async function(venueId) {
     try {
       const querySnapshot = await firebaseDb.collection('restaurants')
         .where('venueId', '==', venueId)
@@ -247,7 +334,7 @@ const VediAPI = {
       console.error('❌ Get restaurants by venue error:', error);
       throw error;
     }
-  },
+  }),
 
   // ============================================================================
   // MENU CATEGORIES MANAGEMENT
@@ -258,7 +345,7 @@ const VediAPI = {
    * @param {string} restaurantId - Restaurant ID
    * @returns {Promise<Array>} Array of categories
    */
-  async getMenuCategories(restaurantId) {
+  getMenuCategories: withTracking('getMenuCategories', async function(restaurantId) {
     try {
       const querySnapshot = await firebaseDb.collection('menuCategories')
         .where('restaurantId', '==', restaurantId)
@@ -271,14 +358,14 @@ const VediAPI = {
       console.error('❌ Get menu categories error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Create new menu category
    * @param {Object} categoryData - Category data
    * @returns {Promise<Object>} Created category
    */
-  async createMenuCategory(categoryData) {
+  createMenuCategory: withTracking('createMenuCategory', async function(categoryData) {
     try {
       const category = {
         ...categoryData,
@@ -295,7 +382,7 @@ const VediAPI = {
       console.error('❌ Create menu category error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Update menu category
@@ -303,7 +390,7 @@ const VediAPI = {
    * @param {Object} categoryData - Updated data
    * @returns {Promise<Object>} Updated category
    */
-  async updateMenuCategory(categoryId, categoryData) {
+  updateMenuCategory: withTracking('updateMenuCategory', async function(categoryId, categoryData) {
     try {
       await firebaseDb.collection('menuCategories').doc(categoryId).update(categoryData);
       
@@ -314,13 +401,13 @@ const VediAPI = {
       console.error('❌ Update menu category error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Delete menu category
    * @param {string} categoryId - Category ID
    */
-  async deleteMenuCategory(categoryId) {
+  deleteMenuCategory: withTracking('deleteMenuCategory', async function(categoryId) {
     try {
       await firebaseDb.collection('menuCategories').doc(categoryId).delete();
       console.log('✅ Menu category deleted:', categoryId);
@@ -328,7 +415,7 @@ const VediAPI = {
       console.error('❌ Delete menu category error:', error);
       throw error;
     }
-  },
+  }),
 
   // ============================================================================
   // MENU ITEMS MANAGEMENT
@@ -339,7 +426,7 @@ const VediAPI = {
    * @param {string} restaurantId - Restaurant ID
    * @returns {Promise<Array>} Array of menu items
    */
-  async getMenuItems(restaurantId) {
+  getMenuItems: withTracking('getMenuItems', async function(restaurantId) {
     try {
       const querySnapshot = await firebaseDb.collection('menuItems')
         .where('restaurantId', '==', restaurantId)
@@ -351,7 +438,7 @@ const VediAPI = {
       console.error('❌ Get menu items error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get menu items by category
@@ -359,7 +446,7 @@ const VediAPI = {
    * @param {string} categoryId - Category ID
    * @returns {Promise<Array>} Array of menu items
    */
-  async getMenuItemsByCategory(restaurantId, categoryId) {
+  getMenuItemsByCategory: withTracking('getMenuItemsByCategory', async function(restaurantId, categoryId) {
     try {
       const querySnapshot = await firebaseDb.collection('menuItems')
         .where('restaurantId', '==', restaurantId)
@@ -372,14 +459,14 @@ const VediAPI = {
       console.error('❌ Get menu items by category error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Create new menu item
    * @param {Object} itemData - Menu item data
    * @returns {Promise<Object>} Created menu item
    */
-  async createMenuItem(itemData) {
+  createMenuItem: withTracking('createMenuItem', async function(itemData) {
     try {
       const item = {
         ...itemData,
@@ -397,7 +484,7 @@ const VediAPI = {
       console.error('❌ Create menu item error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Update menu item
@@ -405,7 +492,7 @@ const VediAPI = {
    * @param {Object} itemData - Updated data
    * @returns {Promise<Object>} Updated item
    */
-  async updateMenuItem(itemId, itemData) {
+  updateMenuItem: withTracking('updateMenuItem', async function(itemId, itemData) {
     try {
       const updateData = {
         ...itemData,
@@ -421,13 +508,13 @@ const VediAPI = {
       console.error('❌ Update menu item error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Delete menu item
    * @param {string} itemId - Item ID
    */
-  async deleteMenuItem(itemId) {
+  deleteMenuItem: withTracking('deleteMenuItem', async function(itemId) {
     try {
       await firebaseDb.collection('menuItems').doc(itemId).delete();
       console.log('✅ Menu item deleted:', itemId);
@@ -435,7 +522,7 @@ const VediAPI = {
       console.error('❌ Delete menu item error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Update item stock status
@@ -443,7 +530,7 @@ const VediAPI = {
    * @param {boolean} inStock - Stock status
    * @returns {Promise<Object>} Updated item
    */
-  async updateItemStock(itemId, inStock) {
+  updateItemStock: withTracking('updateItemStock', async function(itemId, inStock) {
     try {
       await firebaseDb.collection('menuItems').doc(itemId).update({
         inStock,
@@ -457,14 +544,14 @@ const VediAPI = {
       console.error('❌ Update item stock error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get menu with categories and items
    * @param {string} restaurantId - Restaurant ID
    * @returns {Promise<Object>} Menu data with categories and items
    */
-  async getFullMenu(restaurantId) {
+  getFullMenu: withTracking('getFullMenu', async function(restaurantId) {
     try {
       const [categories, items] = await Promise.all([
         this.getMenuCategories(restaurantId),
@@ -487,7 +574,7 @@ const VediAPI = {
       console.error('❌ Get full menu error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Search menu items by name or description
@@ -495,7 +582,7 @@ const VediAPI = {
    * @param {string} searchTerm - Search term
    * @returns {Promise<Array>} Array of matching menu items
    */
-  async searchMenuItems(restaurantId, searchTerm) {
+  searchMenuItems: withTracking('searchMenuItems', async function(restaurantId, searchTerm) {
     try {
       const allItems = await this.getMenuItems(restaurantId);
       const searchLower = searchTerm.toLowerCase();
@@ -512,7 +599,7 @@ const VediAPI = {
       console.error('❌ Search menu items error:', error);
       throw error;
     }
-  },
+  }),
 
   // ============================================================================
   // ORDER MANAGEMENT
@@ -523,7 +610,7 @@ const VediAPI = {
    * @param {Object} orderData - Order information
    * @returns {Promise<Object>} Created order
    */
-  async createOrder(orderData) {
+  createOrder: withTracking('createOrder', async function(orderData) {
     try {
       const order = {
         ...orderData,
@@ -541,14 +628,14 @@ const VediAPI = {
       console.error('❌ Create order error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get order by order number
    * @param {string} orderNumber - Order number
    * @returns {Promise<Object>} Order data
    */
-  async getOrderByNumber(orderNumber) {
+  getOrderByNumber: withTracking('getOrderByNumber', async function(orderNumber) {
     try {
       const querySnapshot = await firebaseDb.collection('orders')
         .where('orderNumber', '==', orderNumber)
@@ -565,7 +652,7 @@ const VediAPI = {
       console.error('❌ Get order by number error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get all orders for a restaurant
@@ -573,7 +660,7 @@ const VediAPI = {
    * @param {Object} options - Query options (limit, orderBy, etc.)
    * @returns {Promise<Array>} Array of orders
    */
-  async getOrders(restaurantId, options = {}) {
+  getOrders: withTracking('getOrders', async function(restaurantId, options = {}) {
     try {
       let query = firebaseDb.collection('orders')
         .where('restaurantId', '==', restaurantId);
@@ -602,14 +689,14 @@ const VediAPI = {
       console.error('❌ Get orders error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get orders by customer phone
    * @param {string} customerPhone - Customer phone number
    * @returns {Promise<Array>} Array of customer orders
    */
-  async getOrdersByCustomer(customerPhone) {
+  getOrdersByCustomer: withTracking('getOrdersByCustomer', async function(customerPhone) {
     try {
       const querySnapshot = await firebaseDb.collection('orders')
         .where('customerPhone', '==', customerPhone)
@@ -622,14 +709,14 @@ const VediAPI = {
       console.error('❌ Get orders by customer error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get customer's most recent active order
    * @param {string} customerPhone - Customer phone number
    * @returns {Promise<Object|null>} Most recent active order or null
    */
-  async getMostRecentActiveOrder(customerPhone) {
+  getMostRecentActiveOrder: withTracking('getMostRecentActiveOrder', async function(customerPhone) {
     try {
       const orders = await this.getOrdersByCustomer(customerPhone);
       const activeOrders = orders.filter(order => 
@@ -655,7 +742,7 @@ const VediAPI = {
       console.error('❌ Get most recent active order error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Update order status
@@ -664,7 +751,7 @@ const VediAPI = {
    * @param {string} estimatedTime - Optional estimated time
    * @returns {Promise<Object>} Updated order
    */
-  async updateOrderStatus(orderId, status, estimatedTime = null) {
+  updateOrderStatus: withTracking('updateOrderStatus', async function(orderId, status, estimatedTime = null) {
     try {
       const updateData = {
         status,
@@ -685,14 +772,14 @@ const VediAPI = {
       console.error('❌ Update order status error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get today's orders for a restaurant
    * @param {string} restaurantId - Restaurant ID
    * @returns {Promise<Array>} Today's orders
    */
-  async getTodaysOrders(restaurantId) {
+  getTodaysOrders: withTracking('getTodaysOrders', async function(restaurantId) {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -709,7 +796,7 @@ const VediAPI = {
       console.error('❌ Get today\'s orders error:', error);
       throw error;
     }
-  },
+  }),
 
   // ============================================================================
   // VENUE MANAGEMENT
@@ -720,7 +807,7 @@ const VediAPI = {
    * @param {Object} venueData - Venue information
    * @returns {Promise<Object>} Created venue
    */
-  async createVenue(venueData) {
+  createVenue: withTracking('createVenue', async function(venueData) {
     try {
       const venue = {
         ...venueData,
@@ -738,7 +825,7 @@ const VediAPI = {
       console.error('❌ Create venue error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Update existing venue
@@ -746,7 +833,7 @@ const VediAPI = {
    * @param {Object} venueData - Updated data
    * @returns {Promise<Object>} Updated venue
    */
-  async updateVenue(venueId, venueData) {
+  updateVenue: withTracking('updateVenue', async function(venueId, venueData) {
     try {
       const updateData = {
         ...venueData,
@@ -764,14 +851,14 @@ const VediAPI = {
       console.error('❌ Update venue error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get venue by manager user ID
    * @param {string} managerUserId - Manager's user ID
    * @returns {Promise<Object|null>} Venue or null
    */
-  async getVenueByManager(managerUserId) {
+  getVenueByManager: withTracking('getVenueByManager', async function(managerUserId) {
     try {
       const querySnapshot = await firebaseDb.collection('venues')
         .where('managerUserId', '==', managerUserId)
@@ -788,14 +875,14 @@ const VediAPI = {
       console.error('❌ Get venue by manager error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get venue by ID
    * @param {string} venueId - Venue ID
    * @returns {Promise<Object>} Venue data
    */
-  async getVenue(venueId) {
+  getVenue: withTracking('getVenue', async function(venueId) {
     try {
       const doc = await firebaseDb.collection('venues').doc(venueId).get();
       if (doc.exists) {
@@ -806,7 +893,7 @@ const VediAPI = {
       console.error('❌ Get venue error:', error);
       throw error;
     }
-  },
+  }),
 
   // ============================================================================
   // LOSS INCIDENT MANAGEMENT
@@ -817,7 +904,7 @@ const VediAPI = {
    * @param {Object} incidentData - Incident information
    * @returns {Promise<Object>} Created incident
    */
-  async createLossIncident(incidentData) {
+  createLossIncident: withTracking('createLossIncident', async function(incidentData) {
     try {
       const incident = {
         ...incidentData,
@@ -835,7 +922,7 @@ const VediAPI = {
       console.error('❌ Create loss incident error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get loss incidents for a restaurant
@@ -843,7 +930,7 @@ const VediAPI = {
    * @param {Object} options - Query options (limit, orderBy, timePeriod, type, severity)
    * @returns {Promise<Array>} Array of incidents
    */
-  async getLossIncidents(restaurantId, options = {}) {
+  getLossIncidents: withTracking('getLossIncidents', async function(restaurantId, options = {}) {
     try {
       let query = firebaseDb.collection('lossIncidents')
         .where('restaurantId', '==', restaurantId);
@@ -893,7 +980,7 @@ const VediAPI = {
       console.error('❌ Get loss incidents error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Get loss incidents for all restaurants in a venue
@@ -901,7 +988,7 @@ const VediAPI = {
    * @param {Object} options - Query options
    * @returns {Promise<Array>} Array of incidents across venue
    */
-  async getLossIncidentsByVenue(venueId, options = {}) {
+  getLossIncidentsByVenue: withTracking('getLossIncidentsByVenue', async function(venueId, options = {}) {
     try {
       let query = firebaseDb.collection('lossIncidents')
         .where('venueId', '==', venueId);
@@ -945,7 +1032,7 @@ const VediAPI = {
       console.error('❌ Get venue loss incidents error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Update loss incident
@@ -953,7 +1040,7 @@ const VediAPI = {
    * @param {Object} updateData - Updated data
    * @returns {Promise<Object>} Updated incident
    */
-  async updateLossIncident(incidentId, updateData) {
+  updateLossIncident: withTracking('updateLossIncident', async function(incidentId, updateData) {
     try {
       const data = {
         ...updateData,
@@ -971,18 +1058,205 @@ const VediAPI = {
       console.error('❌ Update loss incident error:', error);
       throw error;
     }
-  },
+  }),
 
   /**
    * Delete loss incident
    * @param {string} incidentId - Incident ID
    */
-  async deleteLossIncident(incidentId) {
+  deleteLossIncident: withTracking('deleteLossIncident', async function(incidentId) {
     try {
       await firebaseDb.collection('lossIncidents').doc(incidentId).delete();
       console.log('✅ Loss incident deleted:', incidentId);
     } catch (error) {
       console.error('❌ Delete loss incident error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get loss analytics for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @param {string} timePeriod - Time period (today, week, month, quarter, year)
+   * @returns {Promise<Object>} Analytics data
+   */
+  getLossAnalytics: withTracking('getLossAnalytics', async function(restaurantId, timePeriod = 'month') {
+    try {
+      const startDate = this.getTimePeriodStart(timePeriod);
+      
+      let query = firebaseDb.collection('lossIncidents')
+        .where('restaurantId', '==', restaurantId);
+      
+      if (startDate) {
+        query = query.where('createdAt', '>=', startDate);
+      }
+      
+      const querySnapshot = await query.get();
+      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Calculate analytics
+      const analytics = this.calculateLossAnalytics(incidents);
+      
+      console.log('✅ Retrieved loss analytics for restaurant:', analytics);
+      return analytics;
+      
+    } catch (error) {
+      console.error('❌ Get loss analytics error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get loss analytics for a venue
+   * @param {string} venueId - Venue ID
+   * @param {string} timePeriod - Time period
+   * @returns {Promise<Object>} Venue analytics data
+   */
+  getVenueLossAnalytics: withTracking('getVenueLossAnalytics', async function(venueId, timePeriod = 'month') {
+    try {
+      const startDate = this.getTimePeriodStart(timePeriod);
+      
+      let query = firebaseDb.collection('lossIncidents')
+        .where('venueId', '==', venueId);
+      
+      if (startDate) {
+        query = query.where('createdAt', '>=', startDate);
+      }
+      
+      const querySnapshot = await query.get();
+      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Calculate venue-wide analytics
+      const analytics = this.calculateLossAnalytics(incidents, true);
+      
+      console.log('✅ Retrieved venue loss analytics:', analytics);
+      return analytics;
+      
+    } catch (error) {
+      console.error('❌ Get venue loss analytics error:', error);
+      throw error;
+    }
+  }),
+
+  // ============================================================================
+  // REAL-TIME LISTENERS (No tracking needed for listeners)
+  // ============================================================================
+
+  /**
+   * Listen to real-time order updates
+   * @param {string} restaurantId - Restaurant ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToOrders(restaurantId, callback) {
+    return firebaseDb.collection('orders')
+      .where('restaurantId', '==', restaurantId)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(querySnapshot => {
+        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(orders);
+      });
+  },
+
+  /**
+   * Listen to specific order updates
+   * @param {string} orderId - Order ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToOrder(orderId, callback) {
+    return firebaseDb.collection('orders').doc(orderId)
+      .onSnapshot(doc => {
+        if (doc.exists) {
+          callback({ id: doc.id, ...doc.data() });
+        }
+      });
+  },
+
+  /**
+   * Listen to real-time updates for customer's orders
+   * @param {string} customerPhone - Customer phone number
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToCustomerOrders(customerPhone, callback) {
+    return firebaseDb.collection('orders')
+      .where('customerPhone', '==', customerPhone)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(querySnapshot => {
+        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(orders);
+      });
+  },
+
+  /**
+   * Listen to order updates by order number
+   * @param {string} orderNumber - Order number
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToOrderByNumber(orderNumber, callback) {
+    return firebaseDb.collection('orders')
+      .where('orderNumber', '==', orderNumber)
+      .limit(1)
+      .onSnapshot(querySnapshot => {
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          callback({ id: doc.id, ...doc.data() });
+        } else {
+          callback(null);
+        }
+      });
+  },
+
+  /**
+   * Listen to venue-wide order updates across all restaurants
+   * @param {string} venueId - Venue ID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Promise<Function>} Unsubscribe function
+   */
+  async listenToVenueOrders(venueId, callback) {
+    try {
+      // Get restaurants for this venue
+      const restaurants = await this.getRestaurantsByVenue(venueId);
+      
+      if (restaurants.length === 0) {
+        callback([]);
+        return () => {}; // Empty unsubscribe function
+      }
+      
+      const unsubscribeFunctions = [];
+      let allVenueOrders = [];
+      
+      restaurants.forEach(restaurant => {
+        const unsubscribe = this.listenToOrders(restaurant.id, (restaurantOrders) => {
+          // Update orders for this restaurant
+          allVenueOrders = allVenueOrders.filter(order => 
+            order.restaurantId !== restaurant.id
+          );
+          
+          const ordersWithRestaurant = restaurantOrders.map(order => ({
+            ...order,
+            restaurantName: restaurant.name,
+            restaurantCurrency: restaurant.currency
+          }));
+          
+          allVenueOrders = allVenueOrders.concat(ordersWithRestaurant);
+          
+          // Call the callback with all venue orders
+          callback(allVenueOrders);
+        });
+        
+        unsubscribeFunctions.push(unsubscribe);
+      });
+      
+      // Return a function that unsubscribes from all listeners
+      return () => {
+        unsubscribeFunctions.forEach(unsub => unsub());
+      };
+      
+    } catch (error) {
+      console.error('❌ Listen to venue orders error:', error);
       throw error;
     }
   },
@@ -1017,70 +1291,6 @@ const VediAPI = {
         const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(incidents);
       });
-  },
-
-  /**
-   * Get loss analytics for a restaurant
-   * @param {string} restaurantId - Restaurant ID
-   * @param {string} timePeriod - Time period (today, week, month, quarter, year)
-   * @returns {Promise<Object>} Analytics data
-   */
-  async getLossAnalytics(restaurantId, timePeriod = 'month') {
-    try {
-      const startDate = this.getTimePeriodStart(timePeriod);
-      
-      let query = firebaseDb.collection('lossIncidents')
-        .where('restaurantId', '==', restaurantId);
-      
-      if (startDate) {
-        query = query.where('createdAt', '>=', startDate);
-      }
-      
-      const querySnapshot = await query.get();
-      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Calculate analytics
-      const analytics = this.calculateLossAnalytics(incidents);
-      
-      console.log('✅ Retrieved loss analytics for restaurant:', analytics);
-      return analytics;
-      
-    } catch (error) {
-      console.error('❌ Get loss analytics error:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Get loss analytics for a venue
-   * @param {string} venueId - Venue ID
-   * @param {string} timePeriod - Time period
-   * @returns {Promise<Object>} Venue analytics data
-   */
-  async getVenueLossAnalytics(venueId, timePeriod = 'month') {
-    try {
-      const startDate = this.getTimePeriodStart(timePeriod);
-      
-      let query = firebaseDb.collection('lossIncidents')
-        .where('venueId', '==', venueId);
-      
-      if (startDate) {
-        query = query.where('createdAt', '>=', startDate);
-      }
-      
-      const querySnapshot = await query.get();
-      const incidents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Calculate venue-wide analytics
-      const analytics = this.calculateLossAnalytics(incidents, true);
-      
-      console.log('✅ Retrieved venue loss analytics:', analytics);
-      return analytics;
-      
-    } catch (error) {
-      console.error('❌ Get venue loss analytics error:', error);
-      throw error;
-    }
   },
 
   // ============================================================================
@@ -1228,129 +1438,6 @@ const VediAPI = {
     const startOfYear = new Date(date.getFullYear(), 0, 1);
     const weekNumber = Math.ceil(((date - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
     return `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
-  },
-
-  // ============================================================================
-  // REAL-TIME LISTENERS
-  // ============================================================================
-
-  /**
-   * Listen to real-time order updates
-   * @param {string} restaurantId - Restaurant ID
-   * @param {Function} callback - Callback function for updates
-   * @returns {Function} Unsubscribe function
-   */
-  listenToOrders(restaurantId, callback) {
-    return firebaseDb.collection('orders')
-      .where('restaurantId', '==', restaurantId)
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(querySnapshot => {
-        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        callback(orders);
-      });
-  },
-
-  /**
-   * Listen to specific order updates
-   * @param {string} orderId - Order ID
-   * @param {Function} callback - Callback function for updates
-   * @returns {Function} Unsubscribe function
-   */
-  listenToOrder(orderId, callback) {
-    return firebaseDb.collection('orders').doc(orderId)
-      .onSnapshot(doc => {
-        if (doc.exists) {
-          callback({ id: doc.id, ...doc.data() });
-        }
-      });
-  },
-
-  /**
-   * Listen to real-time updates for customer's orders
-   * @param {string} customerPhone - Customer phone number
-   * @param {Function} callback - Callback function for updates
-   * @returns {Function} Unsubscribe function
-   */
-  listenToCustomerOrders(customerPhone, callback) {
-    return firebaseDb.collection('orders')
-      .where('customerPhone', '==', customerPhone)
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(querySnapshot => {
-        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        callback(orders);
-      });
-  },
-
-  /**
-   * Listen to order updates by order number
-   * @param {string} orderNumber - Order number
-   * @param {Function} callback - Callback function for updates
-   * @returns {Function} Unsubscribe function
-   */
-  listenToOrderByNumber(orderNumber, callback) {
-    return firebaseDb.collection('orders')
-      .where('orderNumber', '==', orderNumber)
-      .limit(1)
-      .onSnapshot(querySnapshot => {
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          callback({ id: doc.id, ...doc.data() });
-        } else {
-          callback(null);
-        }
-      });
-  },
-
-  /**
-   * Listen to venue-wide order updates across all restaurants
-   * @param {string} venueId - Venue ID
-   * @param {Function} callback - Callback function for updates
-   * @returns {Promise<Function>} Unsubscribe function
-   */
-  async listenToVenueOrders(venueId, callback) {
-    try {
-      // Get restaurants for this venue
-      const restaurants = await this.getRestaurantsByVenue(venueId);
-      
-      if (restaurants.length === 0) {
-        callback([]);
-        return () => {}; // Empty unsubscribe function
-      }
-      
-      const unsubscribeFunctions = [];
-      let allVenueOrders = [];
-      
-      restaurants.forEach(restaurant => {
-        const unsubscribe = this.listenToOrders(restaurant.id, (restaurantOrders) => {
-          // Update orders for this restaurant
-          allVenueOrders = allVenueOrders.filter(order => 
-            order.restaurantId !== restaurant.id
-          );
-          
-          const ordersWithRestaurant = restaurantOrders.map(order => ({
-            ...order,
-            restaurantName: restaurant.name,
-            restaurantCurrency: restaurant.currency
-          }));
-          
-          allVenueOrders = allVenueOrders.concat(ordersWithRestaurant);
-          
-          // Call the callback with all venue orders
-          callback(allVenueOrders);
-        });
-        
-        unsubscribeFunctions.push(unsubscribe);
-      });
-      
-      // Return a function that unsubscribes from all listeners
-      return () => {
-        unsubscribeFunctions.forEach(unsub => unsub());
-      };
-      
-    } catch (error) {
-      console.error('❌ Listen to venue orders error:', error);
-      throw error;
-    }
   }
 };
 
@@ -1362,5 +1449,5 @@ window.FirebaseAPI = VediAPI;
 
 console.log('🍽️ Vedi Firebase API loaded successfully');
 console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
-console.log('📊 Loss tracking methods: 8 new methods added');
-console.log('🔥 Ready for production use!');
+console.log('📊 API tracking: ENABLED for all 41 methods');
+console.log('🔥 Ready for production use with complete analytics!');
