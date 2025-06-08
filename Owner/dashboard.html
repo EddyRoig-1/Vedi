@@ -1396,7 +1396,11 @@
                 updateStats();
                 
                 console.log('🔄 FORCE Populating category filter...');
-                populateCategoryFilter();
+                if (typeof populateCategoryFilter === 'function') {
+                    populateCategoryFilter();
+                } else {
+                    console.log('⚠️ populateCategoryFilter not available, skipping...');
+                }
 
                 console.log('✅ FORCE Menu data loading complete!');
 
@@ -2097,14 +2101,36 @@
             }
         }
 
-        // Listen for messages from settings iframe
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'settingsUpdated') {
-                console.log('Settings updated - refreshing dashboard');
-                loadMenuData();
-                showSuccess('Settings updated successfully!');
+        // FORCE load categories function that runs when clicking Categories tab
+        async function forceLoadCategoriesNow() {
+            try {
+                console.log('🔄 FORCE LOADING CATEGORIES NOW...');
+                const grid = document.getElementById('categoriesGrid');
+                if (grid) {
+                    grid.innerHTML = '<div class="empty-state">Loading categories...</div>';
+                }
+                
+                console.log('🔗 Calling VediAPI.getMenuCategories with restaurantId:', currentRestaurant.id);
+                const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
+                console.log('📊 FORCE Categories loaded:', categoriesData);
+                
+                if (categoriesData && categoriesData.length > 0) {
+                    categories = categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0));
+                    forceRenderCategories();
+                    console.log('✅ Categories now visible in UI!');
+                } else {
+                    if (grid) {
+                        grid.innerHTML = '<div class="empty-state">No categories yet. Click "Add Category" to get started!</div>';
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error force loading categories:', error);
+                const grid = document.getElementById('categoriesGrid');
+                if (grid) {
+                    grid.innerHTML = '<div class="empty-state">Error loading categories. Please try again.</div>';
+                }
             }
-        });
+        }
 
         // Modal functions
         function openModal(modalId) {
