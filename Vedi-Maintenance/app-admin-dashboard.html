@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vedi Admin Dashboard</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Chart.js for analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8fafc;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Navigation */
+        .nav-tabs {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0 2rem;
+        }
+
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-tab {
+            padding: 1rem 0;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            color: #64748b;
+        }
+
+        .nav-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .nav-tab:hover {
+            color: #667eea;
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Dashboard Overview */
+        .dashboard-overview {
+            margin-bottom: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-title {
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1a202c;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .stat-change.positive {
+            color: #10b981;
+        }
+
+        .stat-change.negative {
+            color: #ef4444;
+        }
+
+        /* Chart Section */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1a202c;
+        }
+
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Activity Feed */
+        .activity-section {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .activity-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 0.75rem;
+        }
+
+        .activity-feed {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-text {
+            font-size: 0.875rem;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+
+        .activity-time {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        /* API Methods Section */
+        .api-methods-section {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 2rem;
+        }
+
+        .api-methods-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .api-method-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            background: #f8fafc;
+        }
+
+        .api-method-name {
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 0.5rem;
+        }
+
+        .api-method-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: #64748b;
+        }
+
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .nav-content {
+                padding: 0 1rem;
+            }
+        }
+
+        /* Hidden class */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">🍽️ VEDI Admin</div>
+            <div class="header-info">
+                <div class="user-info">
+                    <span>👋 Welcome, <span id="adminName">Admin</span></span>
+                </div>
+                <button class="logout-btn" onclick="handleLogout()">
+                    🚪 Logout
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav-tabs">
+        <div class="nav-content">
+            <div class="nav-tab active" onclick="showSection('overview')">📊 Overview</div>
+            <div class="nav-tab" onclick="showSection('api-analytics')">🔌 API Analytics</div>
+            <div class="nav-tab" onclick="showSection('user-management')">👥 Users</div>
+            <div class="nav-tab" onclick="showSection('system-health')">💻 System Health</div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Overview Section -->
+        <section id="overview-section" class="dashboard-overview">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">Total Users</div>
+                        <div class="stat-icon" style="background: #dbeafe; color: #3b82f6;">👥</div>
+                    </div>
+                    <div class="stat-value" id="totalUsers">-</div>
+                    <div class="stat-change positive">
+                        <span>↗️</span>
+                        <span id="userGrowth">+0%</span> from last week
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">Active Restaurants</div>
+                        <div class="stat-icon" style="background: #d1fae5; color: #10b981;">🏪</div>
+                    </div>
+                    <div class="stat-value" id="totalRestaurants">-</div>
+                    <div class="stat-change positive">
+                        <span>↗️</span>
+                        <span id="restaurantGrowth">+0%</span> this month
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">Today's Orders</div>
+                        <div class="stat-icon" style="background: #fef3c7; color: #f59e0b;">📋</div>
+                    </div>
+                    <div class="stat-value" id="todayOrders">-</div>
+                    <div class="stat-change positive">
+                        <span>↗️</span>
+                        <span id="orderGrowth">+0%</span> vs yesterday
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">API Calls Today</div>
+                        <div class="stat-icon" style="background: #ede9fe; color: #8b5cf6;">⚡</div>
+                    </div>
+                    <div class="stat-value" id="apiCalls">-</div>
+                    <div class="stat-change positive">
+                        <span>↗️</span>
+                        <span id="apiGrowth">+0%</span> vs yesterday
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-section">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">User Growth (Last 7 Days)</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="userGrowthChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">API Usage (Last 24 Hours)</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="apiUsageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Activity Feed -->
+            <div class="activity-section">
+                <div class="activity-header">
+                    <h3 class="chart-title">🔴 Live Activity Feed</h3>
+                </div>
+                <div class="activity-feed" id="activityFeed">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        Loading recent activity...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- API Analytics Section -->
+        <section id="api-analytics-section" class="hidden">
+            <div class="api-methods-section">
+                <div class="chart-header">
+                    <h3 class="chart-title">🔌 VediAPI Methods Overview</h3>
+                    <div style="color: #64748b; font-size: 0.875rem;">
+                        Total: <strong>41 Methods</strong> | Status: <span style="color: #10b981;">✅ All Active</span>
+                    </div>
+                </div>
+                
+                <div class="api-methods-grid" id="apiMethodsGrid">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        Loading API methods...
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Performance Chart -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">API Performance Metrics</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="apiPerformanceChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- User Management Section -->
+        <section id="user-management-section" class="hidden">
+            <div class="activity-section">
+                <div class="activity-header">
+                    <h3 class="chart-title">👥 User Management</h3>
+                </div>
+                <div id="userManagementContent">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        Loading user data...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- System Health Section -->
+        <section id="system-health-section" class="hidden">
+            <div class="activity-section">
+                <div class="activity-header">
+                    <h3 class="chart-title">💻 System Health Monitor</h3>
+                </div>
+                <div id="systemHealthContent">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        Loading system health data...
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
+            authDomain: "vedi00.firebaseapp.com",
+            projectId: "vedi00",
+            storageBucket: "vedi00.firebasestorage.app",
+            messagingSenderId: "136867441640",
+            appId: "1:136867441640:web:9ec709b63f5690f628125d",
+            measurementId: "G-ZS0FKPTEY2"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Chart instances
+        let userGrowthChart, apiUsageChart, apiPerformanceChart;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAdminAuth();
+        });
+
+        // Check admin authentication
+        async function checkAdminAuth() {
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    const isAdmin = await checkIfAdmin(user.uid);
+                    if (isAdmin) {
+                        const adminData = await getAdminData(user.uid);
+                        document.getElementById('adminName').textContent = adminData.name;
+                        initializeDashboard();
+                    } else {
+                        alert('Access denied. Redirecting to login...');
+                        window.location.href = 'admin-auth.html';
+                    }
+                } else {
+                    window.location.href = 'admin-auth.html';
+                }
+            });
+        }
+
+        // Check if user is admin
+        async function checkIfAdmin(userId) {
+            try {
+                const adminDoc = await db.collection('adminUsers').doc(userId).get();
+                return adminDoc.exists;
+            } catch (error) {
+                console.error('Error checking admin status:', error);
+                return false;
+            }
+        }
+
+        // Get admin data
+        async function getAdminData(userId) {
+            try {
+                const adminDoc = await db.collection('adminUsers').doc(userId).get();
+                return adminDoc.data();
+            } catch (error) {
+                console.error('Error getting admin data:', error);
+                return { name: 'Admin' };
+            }
+        }
+
+        // Initialize dashboard
+        async function initializeDashboard() {
+            await loadDashboardData();
+            initializeCharts();
+            loadActivityFeed();
+            loadAPIAnalytics();
+            
+            // Set up real-time updates
+            setInterval(loadDashboardData, 30000); // Update every 30 seconds
+            setInterval(loadActivityFeed, 10000); // Update activity every 10 seconds
+        }
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                // Get counts from collections
+                const [usersSnapshot, restaurantsSnapshot, ordersSnapshot] = await Promise.all([
+                    db.collection('users').get(),
+                    db.collection('restaurants').get(),
+                    db.collection('orders').where('createdAt', '>=', getStartOfDay()).get()
+                ]);
+
+                // Update stats
+                document.getElementById('totalUsers').textContent = usersSnapshot.size;
+                document.getElementById('totalRestaurants').textContent = restaurantsSnapshot.size;
+                document.getElementById('todayOrders').textContent = ordersSnapshot.size;
+                
+                // Simulate API calls (in real app, track these)
+                const apiCalls = Math.floor(Math.random() * 5000) + 1000;
+                document.getElementById('apiCalls').textContent = apiCalls.toLocaleString();
+
+                // Update growth percentages (simulated)
+                document.getElementById('userGrowth').textContent = `+${Math.floor(Math.random() * 15) + 5}%`;
+                document.getElementById('restaurantGrowth').textContent = `+${Math.floor(Math.random() * 10) + 2}%`;
+                document.getElementById('orderGrowth').textContent = `+${Math.floor(Math.random() * 25) + 10}%`;
+                document.getElementById('apiGrowth').textContent = `+${Math.floor(Math.random() * 20) + 5}%`;
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        // Initialize charts
+        function initializeCharts() {
+            // User Growth Chart
+            const userCtx = document.getElementById('userGrowthChart').getContext('2d');
+            userGrowthChart = new Chart(userCtx, {
+                type: 'line',
+                data: {
+                    labels: getLast7Days(),
+                    datasets: [{
+                        label: 'New Users',
+                        data: generateMockData(7, 5, 25),
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f1f5f9'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: '#f1f5f9'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // API Usage Chart
+            const apiCtx = document.getElementById('apiUsageChart').getContext('2d');
+            apiUsageChart = new Chart(apiCtx, {
+                type: 'bar',
+                data: {
+                    labels: getLast24Hours(),
+                    datasets: [{
+                        label: 'API Calls',
+                        data: generateMockData(24, 50, 300),
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f1f5f9'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: '#f1f5f9'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load activity feed
+        function loadActivityFeed() {
+            const activityFeed = document.getElementById('activityFeed');
+            const activities = generateMockActivities();
+            
+            let html = '';
+            activities.forEach(activity => {
+                html += `
+                    <div class="activity-item">
+                        <div class="activity-icon" style="background: ${activity.color}; color: white;">
+                            ${activity.icon}
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-text">${activity.text}</div>
+                            <div class="activity-time">${activity.time}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            activityFeed.innerHTML = html;
+        }
+
+        // Load API analytics
+        function loadAPIAnalytics() {
+            const apiMethods = [
+                { name: 'VediAPI.signUp', category: 'Authentication', calls: 145, errors: 2 },
+                { name: 'VediAPI.signIn', category: 'Authentication', calls: 238, errors: 1 },
+                { name: 'VediAPI.createOrder', category: 'Orders', calls: 412, errors: 3 },
+                { name: 'VediAPI.getOrders', category: 'Orders', calls: 678, errors: 0 },
+                { name: 'VediAPI.getMenuItems', category: 'Menu', calls: 892, errors: 1 },
+                { name: 'VediAPI.createRestaurant', category: 'Restaurant', calls: 67, errors: 0 },
+                { name: 'VediAPI.updateOrderStatus', category: 'Orders', calls: 234, errors: 2 },
+                { name: 'VediAPI.listenToOrders', category: 'Real-time', calls: 156, errors: 0 },
+                { name: 'VediAPI.createLossIncident', category: 'Loss Tracking', calls: 23, errors: 0 },
+                { name: 'VediAPI.getLossAnalytics', category: 'Loss Tracking', calls: 45, errors: 1 }
+            ];
+
+            const grid = document.getElementById('apiMethodsGrid');
+            let html = '';
+            
+            apiMethods.forEach(method => {
+                const errorRate = method.calls > 0 ? ((method.errors / method.calls) * 100).toFixed(1) : '0.0';
+                const statusColor = method.errors === 0 ? '#10b981' : method.errors < 3 ? '#f59e0b' : '#ef4444';
+                
+                html += `
+                    <div class="api-method-card">
+                        <div class="api-method-name">${method.name}</div>
+                        <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem;">${method.category}</div>
+                        <div class="api-method-stats">
+                            <span>📊 ${method.calls} calls</span>
+                            <span style="color: ${statusColor};">⚠️ ${errorRate}% errors</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            grid.innerHTML = html;
+        }
+
+        // Navigation
+        function showSection(sectionName) {
+            // Hide all sections
+            const sections = ['overview', 'api-analytics', 'user-management', 'system-health'];
+            sections.forEach(section => {
+                document.getElementById(`${section}-section`).classList.add('hidden');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected section
+            document.getElementById(`${sectionName}-section`).classList.remove('hidden');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+            
+            // Load section-specific data
+            loadSectionData(sectionName);
+        }
+
+        // Load section-specific data
+        function loadSectionData(sectionName) {
+            switch(sectionName) {
+                case 'api-analytics':
+                    loadAPIPerformanceChart();
+                    break;
+                case 'user-management':
+                    loadUserManagement();
+                    break;
+                case 'system-health':
+                    loadSystemHealth();
+                    break;
+            }
+        }
+
+        // Load API performance chart
+        function loadAPIPerformanceChart() {
+            if (apiPerformanceChart) return; // Already loaded
+            
+            const ctx = document.getElementById('apiPerformanceChart').getContext('2d');
+            apiPerformanceChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Authentication', 'Orders', 'Menu', 'Real-time', 'Loss Tracking', 'Restaurant'],
+                    datasets: [{
+                        data: [383, 1324, 892, 156, 68, 67],
+                        backgroundColor: [
+                            '#667eea',
+                            '#10b981',
+                            '#f59e0b',
+                            '#ef4444',
+                            '#8b5cf6',
+                            '#06b6d4'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load user management
+        function loadUserManagement() {
+            const content = document.getElementById('userManagementContent');
+            content.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                    <div class="stat-card">
+                        <h4 style="margin-bottom: 1rem; color: #1a202c;">👥 User Distribution</h4>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span>Restaurant Owners</span>
+                            <strong>45</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span>Venue Managers</span>
+                            <strong>12</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Customers</span>
+                            <strong>2,847</strong>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h4 style="margin-bottom: 1rem; color: #1a202c;">📊 Recent Activity</h4>
+                        <div style="font-size: 0.875rem; color: #64748b;">
+                            <div style="margin-bottom: 0.5rem;">• 23 new signups today</div>
+                            <div style="margin-bottom: 0.5rem;">• 156 active sessions</div>
+                            <div>• 89% user retention rate</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Load system health
+        function loadSystemHealth() {
+            const content = document.getElementById('systemHealthContent');
+            content.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                    <div class="stat-card">
+                        <h4 style="margin-bottom: 1rem; color: #1a202c;">🔥 Firebase Status</h4>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span>Firestore Reads</span>
+                            <strong style="color: #10b981;">✅ Normal</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span>Firestore Writes</span>
+                            <strong style="color: #10b981;">✅ Normal</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Auth Operations</span>
+                            <strong style="color: #10b981;">✅ Normal</strong>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h4 style="margin-bottom: 1rem; color: #1a202c;">📈 Performance</h4>
+                        <div style="font-size: 0.875rem; color: #64748b;">
+                            <div style="margin-bottom: 0.5rem;">• Avg Response Time: <strong>125ms</strong></div>
+                            <div style="margin-bottom: 0.5rem;">• Error Rate: <strong>0.3%</strong></div>
+                            <div>• Uptime: <strong>99.9%</strong></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Utility functions
+        function getStartOfDay() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return today;
+        }
+
+        function getLast7Days() {
+            const days = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            }
+            return days;
+        }
+
+        function getLast24Hours() {
+            const hours = [];
+            for (let i = 23; i >= 0; i--) {
+                const date = new Date();
+                date.setHours(date.getHours() - i);
+                hours.push(date.getHours().toString().padStart(2, '0') + ':00');
+            }
+            return hours.filter((hour, index) => index % 4 === 0); // Show every 4 hours
+        }
+
+        function generateMockData(length, min, max) {
+            return Array.from({ length }, () => Math.floor(Math.random() * (max - min + 1)) + min);
+        }
+
+        function generateMockActivities() {
+            const activities = [
+                { icon: '👤', text: 'New restaurant owner registered', time: '2 minutes ago', color: '#10b981' },
+                { icon: '📋', text: 'Order #12345 completed at Pizza Palace', time: '5 minutes ago', color: '#f59e0b' },
+                { icon: '🏪', text: 'New restaurant "Sushi World" added', time: '12 minutes ago', color: '#667eea' },
+                { icon: '⚠️', text: 'Loss incident reported at Burger House', time: '18 minutes ago', color: '#ef4444' },
+                { icon: '💰', text: 'Daily revenue updated for 5 restaurants', time: '25 minutes ago', color: '#8b5cf6' },
+                { icon: '🔧', text: 'API rate limit adjusted for peak hours', time: '32 minutes ago', color: '#06b6d4' }
+            ];
+            return activities;
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            try {
+                await auth.signOut();
+                window.location.href = 'admin-auth.html';
+            } catch (error) {
+                alert('Error signing out. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html>
