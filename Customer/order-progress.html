@@ -821,11 +821,14 @@
         let audioContext = null;
         let vibrationInterval = null;
 
-        // Initialize page
+        // UPDATED: Initialize page with authentication check
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Order progress page loaded');
             
             try {
+                // ADDED: Check authentication first
+                await checkAuthentication();
+                
                 // Initialize audio context for sounds
                 initializeAudio();
                 
@@ -839,6 +842,25 @@
                 showError('Failed to load your order. Please try again.');
             }
         });
+
+        // ADDED: Authentication check function
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                firebase.auth().onAuthStateChanged(function(user) {
+                    if (user) {
+                        console.log('✅ User is authenticated:', user.uid);
+                        resolve(user);
+                    } else {
+                        console.log('❌ User not authenticated, redirecting to login');
+                        // Redirect back to customer login with current parameters
+                        const currentParams = new URLSearchParams(window.location.search);
+                        const loginUrl = `customer-login.html?${currentParams.toString()}`;
+                        window.location.href = loginUrl;
+                        reject(new Error('User not authenticated'));
+                    }
+                });
+            });
+        }
 
         // Load customer session data
         async function loadCustomerSession() {
