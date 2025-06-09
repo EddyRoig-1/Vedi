@@ -606,14 +606,19 @@ const VediAPI = {
   // ============================================================================
 
   /**
-   * Create new order
+   * Create new order with authenticated customer UID
    * @param {Object} orderData - Order information
    * @returns {Promise<Object>} Created order
    */
   createOrder: withTracking('createOrder', async function(orderData) {
     try {
+      // Get current authenticated user
+      const currentUser = firebase.auth().currentUser;
+      
       const order = {
         ...orderData,
+        // Add customer UID for security rules
+        customerUID: currentUser ? currentUser.uid : null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
@@ -712,6 +717,26 @@ const VediAPI = {
   }),
 
   /**
+   * Get orders by customer UID (for authenticated customers)
+   * @param {string} customerUID - Customer Firebase UID
+   * @returns {Promise<Array>} Array of customer orders
+   */
+  getOrdersByCustomerUID: withTracking('getOrdersByCustomerUID', async function(customerUID) {
+    try {
+      const querySnapshot = await firebaseDb.collection('orders')
+        .where('customerUID', '==', customerUID)
+        .orderBy('createdAt', 'desc')
+        .get();
+      
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+    } catch (error) {
+      console.error('❌ Get orders by customer UID error:', error);
+      throw error;
+    }
+  }),
+
+  /**
    * Get customer's most recent active order
    * @param {string} customerPhone - Customer phone number
    * @returns {Promise<Object|null>} Most recent active order or null
@@ -740,6 +765,39 @@ const VediAPI = {
       return null;
     } catch (error) {
       console.error('❌ Get most recent active order error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get customer's most recent active order by UID
+   * @param {string} customerUID - Customer Firebase UID
+   * @returns {Promise<Object|null>} Most recent active order or null
+   */
+  getMostRecentActiveOrderByUID: withTracking('getMostRecentActiveOrderByUID', async function(customerUID) {
+    try {
+      const orders = await this.getOrdersByCustomerUID(customerUID);
+      const activeOrders = orders.filter(order => 
+        order.status === 'pending' || 
+        order.status === 'preparing' || 
+        order.status === 'ready'
+      );
+      
+      if (activeOrders.length > 0) {
+        // Sort by creation date and return most recent
+        activeOrders.sort((a, b) => {
+          const dateA = this.timestampToDate(a.createdAt);
+          const dateB = this.timestampToDate(b.createdAt);
+          return dateB - dateA;
+        });
+        console.log('✅ Most recent active order found for UID:', activeOrders[0].orderNumber);
+        return activeOrders[0];
+      }
+      
+      console.log('ℹ️ No active orders found for customer UID');
+      return null;
+    } catch (error) {
+      console.error('❌ Get most recent active order by UID error:', error);
       throw error;
     }
   }),
@@ -1190,6 +1248,22 @@ const VediAPI = {
   },
 
   /**
+   * Listen to real-time updates for customer's orders by UID
+   * @param {string} customerUID - Customer Firebase UID
+   * @param {Function} callback - Callback function for updates
+   * @returns {Function} Unsubscribe function
+   */
+  listenToCustomerOrdersByUID(customerUID, callback) {
+    return firebaseDb.collection('orders')
+      .where('customerUID', '==', customerUID)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(querySnapshot => {
+        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(orders);
+      });
+  },
+
+  /**
    * Listen to order updates by order number
    * @param {string} orderNumber - Order number
    * @param {Function} callback - Callback function for updates
@@ -1449,5 +1523,5 @@ window.FirebaseAPI = VediAPI;
 
 console.log('🍽️ Vedi Firebase API loaded successfully');
 console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
-console.log('📊 API tracking: ENABLED for all 41 methods');
-console.log('🔥 Ready for production use with complete analytics!');
+console.log('📊 API tracking: ENABLED for all methods');
+console.log('🔥 Ready for production use with complete analytics and authentication!');
