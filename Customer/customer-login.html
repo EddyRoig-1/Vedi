@@ -291,7 +291,7 @@
         let restaurantData = null;
         let tableNumber = null;
         let restaurantId = null;
-        let location = null;
+        let tableLocation = null;
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
@@ -301,29 +301,29 @@
                 // Get URL parameters and show debug info
                 parseURLParameters();
                 
-                // Load restaurant information
+                // Always update table display first (doesn't require restaurant data)
+                updateTableDisplay();
+                
+                // Add phone input formatting
+                setupPhoneFormatting();
+
+                // Check for returning customer when phone is entered
+                setupCustomerCheck();
+                
+                // Load restaurant information (async, won't block the page)
                 if (restaurantId) {
-                    await loadRestaurantInfo();
+                    loadRestaurantInfo(); // Don't await - let it load in background
                 } else {
                     showError('Restaurant not found. Please scan a valid QR code.');
                     showDebugInfo();
                     return;
                 }
 
-                // Update table display
-                updateTableDisplay();
-
-                // Add phone input formatting
-                setupPhoneFormatting();
-
-                // Check for returning customer when phone is entered
-                setupCustomerCheck();
-
                 console.log('✅ Customer login page loaded successfully');
 
             } catch (error) {
                 console.error('❌ Page initialization error:', error);
-                showError('Failed to load restaurant information');
+                showError('Failed to load page');
                 showDebugInfo();
             }
         });
@@ -335,18 +335,18 @@
             // Try multiple parameter names for backward compatibility
             restaurantId = urlParams.get('restaurant') || urlParams.get('r');
             tableNumber = urlParams.get('table');
-            location = urlParams.get('location');
+            tableLocation = urlParams.get('location');
             
             // Update debug display
             document.getElementById('debugUrl').textContent = window.location.href;
             document.getElementById('debugRestaurant').textContent = restaurantId || 'Not found';
             document.getElementById('debugTable').textContent = tableNumber || 'Not specified';
-            document.getElementById('debugLocation').textContent = location || 'Not specified';
+            document.getElementById('debugLocation').textContent = tableLocation || 'Not specified';
             
             console.log('📍 URL Parameters:', {
                 restaurant: restaurantId,
                 table: tableNumber,
-                location: location,
+                location: tableLocation,
                 fullURL: window.location.href
             });
         }
@@ -355,14 +355,32 @@
         async function loadRestaurantInfo() {
             try {
                 console.log('🏪 Loading restaurant data for ID:', restaurantId);
+                
+                // Show loading state
+                document.getElementById('restaurantName').textContent = 'Loading...';
+                
+                // Wait for Firebase to be ready if needed
+                if (typeof VediAPI === 'undefined') {
+                    console.log('⏳ Waiting for Firebase API...');
+                    await new Promise(resolve => {
+                        const checkAPI = setInterval(() => {
+                            if (typeof VediAPI !== 'undefined') {
+                                clearInterval(checkAPI);
+                                resolve();
+                            }
+                        }, 100);
+                    });
+                }
+                
                 restaurantData = await VediAPI.getRestaurant(restaurantId);
                 document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
                 console.log('✅ Restaurant loaded:', restaurantData.name);
+                
             } catch (error) {
                 console.error('❌ Failed to load restaurant:', error);
                 document.getElementById('restaurantName').textContent = 'Unknown Restaurant';
-                showError('Failed to load restaurant information. Please try scanning the QR code again.');
-                showDebugInfo();
+                // Don't show error immediately - restaurant name is not critical
+                console.log('Will proceed without restaurant name');
             }
         }
 
@@ -370,7 +388,7 @@
         function updateTableDisplay() {
             const tableInfoElement = document.getElementById('tableInfo');
             
-            if (location === 'counter' || tableNumber === 'counter') {
+            if (tableLocation === 'counter' || tableNumber === 'counter') {
                 tableInfoElement.textContent = 'Counter Order';
             } else if (tableNumber) {
                 tableInfoElement.textContent = `Table #${tableNumber}`;
@@ -437,6 +455,8 @@
             const name = document.getElementById('customerName').value.trim();
             const phone = cleanPhoneNumber(document.getElementById('phoneNumber').value);
             
+            console.log('📝 Form submitted with:', { name, phone, restaurantId, tableNumber, tableLocation });
+            
             if (!name || !phone) {
                 showError('Please enter both your name and phone number');
                 return;
@@ -466,7 +486,7 @@
                     restaurantId: restaurantId,
                     restaurantName: restaurantData?.name || 'Restaurant',
                     tableNumber: tableNumber,
-                    location: location,
+                    location: tableLocation,
                     sessionStart: new Date().toISOString()
                 };
 
@@ -483,8 +503,8 @@
                     urlParams.set('table', tableNumber);
                 }
                 
-                if (location) {
-                    urlParams.set('location', location);
+                if (tableLocation) {
+                    urlParams.set('location', tableLocation);
                 }
                 
                 // Add customer info to URL for menu page
@@ -495,16 +515,12 @@
                 
                 console.log('🔄 Redirecting to menu with URL:', redirectUrl);
 
-                // Small delay to ensure session storage is saved
-                setTimeout(() => {
-                    window.location.href = redirectUrl;
-                }, 200);
+                // Immediate redirect - don't wait
+                window.location.href = redirectUrl;
 
             } catch (error) {
                 console.error('❌ Customer login error:', error);
                 showError('Failed to start your session. Please try again.');
-                showDebugInfo();
-            } finally {
                 setLoading(false);
             }
         });
