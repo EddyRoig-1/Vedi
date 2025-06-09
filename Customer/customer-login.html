@@ -127,6 +127,14 @@
             cursor: not-allowed;
         }
 
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
         .restaurant-info {
             background: rgba(102, 126, 234, 0.1);
             padding: 15px;
@@ -183,41 +191,90 @@
             display: none;
         }
 
-        .debug-info {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
+        .info-message {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 12px;
             border-radius: 8px;
-            padding: 15px;
             margin-bottom: 20px;
-            font-size: 0.85rem;
-            text-align: left;
+            font-size: 0.9rem;
             display: none;
         }
 
-        .debug-info h4 {
-            color: #495057;
-            margin-bottom: 10px;
-            font-size: 0.9rem;
-        }
-
-        .debug-item {
-            margin-bottom: 5px;
+        .step-indicator {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
         }
 
-        .debug-label {
-            font-weight: 500;
-            color: #6c757d;
+        .step {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin: 0 10px;
+            position: relative;
         }
 
-        .debug-value {
-            font-family: monospace;
-            color: #495057;
-            background: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.8rem;
+        .step.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .step.completed {
+            background: #27ae60;
+            color: white;
+        }
+
+        .step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 2px;
+            background: #e0e0e0;
+        }
+
+        .step.completed:not(:last-child)::after {
+            background: #27ae60;
+        }
+
+        /* Multi-step form phases */
+        .form-phase {
+            display: none;
+        }
+
+        .form-phase.active {
+            display: block;
+        }
+
+        .verification-input {
+            text-align: center;
+            font-size: 1.5rem;
+            letter-spacing: 0.5em;
+            font-weight: 600;
+        }
+
+        .resend-timer {
+            text-align: center;
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 15px;
+        }
+
+        .recaptcha-container {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
         }
 
         @media (max-width: 480px) {
@@ -229,6 +286,10 @@
             .login-page {
                 padding: 30px 20px;
             }
+
+            .step-indicator {
+                transform: scale(0.9);
+            }
         }
     </style>
 </head>
@@ -237,117 +298,158 @@
         <div class="login-page">
             <div class="logo">🍽️</div>
             <h1>Welcome!</h1>
-            <p class="subtitle">Please enter your details to start ordering</p>
+            <p class="subtitle">Please verify your phone to start ordering</p>
             
             <div class="restaurant-info" id="restaurantInfo">
                 <div class="restaurant-name" id="restaurantName">Loading restaurant...</div>
                 <div class="table-info" id="tableInfo">Table #--</div>
             </div>
 
-            <!-- Debug Info (only shown if there are issues) -->
-            <div class="debug-info" id="debugInfo">
-                <h4>🔍 Debug Information</h4>
-                <div class="debug-item">
-                    <span class="debug-label">Current URL:</span>
-                    <span class="debug-value" id="debugUrl">--</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Restaurant ID:</span>
-                    <span class="debug-value" id="debugRestaurant">--</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Table:</span>
-                    <span class="debug-value" id="debugTable">--</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">Location:</span>
-                    <span class="debug-value" id="debugLocation">--</span>
-                </div>
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step active" id="step1">1</div>
+                <div class="step" id="step2">2</div>
+                <div class="step" id="step3">3</div>
             </div>
 
             <div class="error-message" id="errorMessage"></div>
             <div class="welcome-back" id="welcomeMessage"></div>
+            <div class="info-message" id="infoMessage"></div>
             
-            <form id="loginForm">
+            <!-- Phase 1: Name Input -->
+            <div class="form-phase active" id="namePhase">
                 <div class="form-group">
                     <label for="customerName">Your Name</label>
                     <input type="text" id="customerName" name="customerName" placeholder="Enter your full name" required>
                 </div>
-                
+                <button type="button" class="btn" id="nameNextBtn" onclick="proceedToPhone()">
+                    <span class="loading-spinner" id="nameSpinner"></span>
+                    <span>Continue</span>
+                </button>
+            </div>
+
+            <!-- Phase 2: Phone Verification -->
+            <div class="form-phase" id="phonePhase">
                 <div class="form-group">
                     <label for="phoneNumber">Phone Number</label>
-                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 123-4567" required>
+                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="+1 (555) 123-4567" required>
                 </div>
                 
-                <button type="submit" class="btn" id="submitBtn">
-                    <span class="loading-spinner" id="loadingSpinner"></span>
-                    <span id="buttonText">Start Ordering</span>
+                <!-- reCAPTCHA container -->
+                <div class="recaptcha-container" id="recaptcha-container"></div>
+                
+                <button type="button" class="btn" id="sendCodeBtn" onclick="sendVerificationCode()">
+                    <span class="loading-spinner" id="phoneSpinner"></span>
+                    <span id="sendCodeText">Send Verification Code</span>
                 </button>
-            </form>
+                
+                <button type="button" class="btn btn-secondary" onclick="goBackToName()" style="margin-top: 10px;">
+                    ← Back
+                </button>
+            </div>
+
+            <!-- Phase 3: Code Verification -->
+            <div class="form-phase" id="codePhase">
+                <div class="form-group">
+                    <label for="verificationCode">Verification Code</label>
+                    <input type="text" id="verificationCode" name="verificationCode" 
+                           placeholder="123456" maxlength="6" class="verification-input" required>
+                    <div class="resend-timer" id="resendTimer"></div>
+                </div>
+                
+                <button type="button" class="btn" id="verifyCodeBtn" onclick="verifyCode()">
+                    <span class="loading-spinner" id="codeSpinner"></span>
+                    <span>Verify & Start Ordering</span>
+                </button>
+                
+                <button type="button" class="btn btn-secondary" id="resendBtn" onclick="resendCode()" 
+                        style="margin-top: 10px;" disabled>
+                    Resend Code
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
+        // Global variables
         let restaurantData = null;
         let tableNumber = null;
         let restaurantId = null;
         let tableLocation = null;
+        let phoneAuthProvider = null;
+        let confirmationResult = null;
+        let customerName = '';
+        let customerPhone = '';
+        let resendTimer = null;
+        let resendCountdown = 60;
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Customer login page initializing...');
+            console.log('🚀 Customer phone auth login initializing...');
             
             try {
-                // Get URL parameters and show debug info
+                // Initialize Firebase Phone Auth
+                initializePhoneAuth();
+                
+                // Parse URL parameters
                 parseURLParameters();
                 
-                // Always update table display first (doesn't require restaurant data)
+                // Update table display
                 updateTableDisplay();
                 
-                // Add phone input formatting
-                setupPhoneFormatting();
-
-                // Check for returning customer when phone is entered
-                setupCustomerCheck();
-                
-                // Load restaurant information (async, won't block the page)
+                // Load restaurant information
                 if (restaurantId) {
-                    loadRestaurantInfo(); // Don't await - let it load in background
+                    loadRestaurantInfo();
                 } else {
                     showError('Restaurant not found. Please scan a valid QR code.');
-                    showDebugInfo();
                     return;
                 }
 
-                console.log('✅ Customer login page loaded successfully');
+                // Setup phone formatting
+                setupPhoneFormatting();
+
+                console.log('✅ Customer phone auth login loaded successfully');
 
             } catch (error) {
                 console.error('❌ Page initialization error:', error);
                 showError('Failed to load page');
-                showDebugInfo();
             }
         });
 
-        // FIXED: Parse URL parameters with better error handling
+        // Initialize Firebase Phone Authentication
+        function initializePhoneAuth() {
+            try {
+                // Enable reCAPTCHA
+                window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                    'size': 'normal',
+                    'callback': function(response) {
+                        console.log('✅ reCAPTCHA solved');
+                    },
+                    'expired-callback': function() {
+                        console.log('⏰ reCAPTCHA expired');
+                        showError('reCAPTCHA expired. Please try again.');
+                    }
+                });
+
+                phoneAuthProvider = firebase.auth.PhoneAuthProvider;
+                console.log('📱 Phone authentication initialized');
+            } catch (error) {
+                console.error('❌ Phone auth initialization error:', error);
+                showError('Failed to initialize phone verification');
+            }
+        }
+
+        // Parse URL parameters
         function parseURLParameters() {
             const urlParams = new URLSearchParams(window.location.search);
-            
-            // Try multiple parameter names for backward compatibility
             restaurantId = urlParams.get('restaurant') || urlParams.get('r');
             tableNumber = urlParams.get('table');
             tableLocation = urlParams.get('location');
             
-            // Update debug display
-            document.getElementById('debugUrl').textContent = window.location.href;
-            document.getElementById('debugRestaurant').textContent = restaurantId || 'Not found';
-            document.getElementById('debugTable').textContent = tableNumber || 'Not specified';
-            document.getElementById('debugLocation').textContent = tableLocation || 'Not specified';
-            
             console.log('📍 URL Parameters:', {
                 restaurant: restaurantId,
                 table: tableNumber,
-                location: tableLocation,
-                fullURL: window.location.href
+                location: tableLocation
             });
         }
 
@@ -355,32 +457,18 @@
         async function loadRestaurantInfo() {
             try {
                 console.log('🏪 Loading restaurant data for ID:', restaurantId);
-                
-                // Show loading state
                 document.getElementById('restaurantName').textContent = 'Loading...';
                 
-                // Wait for Firebase to be ready if needed
-                if (typeof VediAPI === 'undefined') {
-                    console.log('⏳ Waiting for Firebase API...');
-                    await new Promise(resolve => {
-                        const checkAPI = setInterval(() => {
-                            if (typeof VediAPI !== 'undefined') {
-                                clearInterval(checkAPI);
-                                resolve();
-                            }
-                        }, 100);
-                    });
+                if (typeof VediAPI !== 'undefined') {
+                    restaurantData = await VediAPI.getRestaurant(restaurantId);
+                    document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+                    console.log('✅ Restaurant loaded:', restaurantData.name);
+                } else {
+                    document.getElementById('restaurantName').textContent = 'Restaurant';
                 }
-                
-                restaurantData = await VediAPI.getRestaurant(restaurantId);
-                document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
-                console.log('✅ Restaurant loaded:', restaurantData.name);
-                
             } catch (error) {
                 console.error('❌ Failed to load restaurant:', error);
-                document.getElementById('restaurantName').textContent = 'Unknown Restaurant';
-                // Don't show error immediately - restaurant name is not critical
-                console.log('Will proceed without restaurant name');
+                document.getElementById('restaurantName').textContent = 'Restaurant';
             }
         }
 
@@ -397,180 +485,286 @@
             }
         }
 
-        // Setup phone number formatting
+        // Setup phone formatting
         function setupPhoneFormatting() {
             const phoneInput = document.getElementById('phoneNumber');
             phoneInput.addEventListener('input', function(e) {
                 let value = e.target.value.replace(/\D/g, '');
-                if (value.length >= 6) {
-                    value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
-                } else if (value.length >= 3) {
-                    value = `(${value.slice(0,3)}) ${value.slice(3)}`;
+                
+                // Add country code if not present
+                if (value.length > 0 && !value.startsWith('1')) {
+                    value = '1' + value;
                 }
+                
+                // Format as +1 (xxx) xxx-xxxx
+                if (value.length >= 7) {
+                    value = `+${value.slice(0,1)} (${value.slice(1,4)}) ${value.slice(4,7)}-${value.slice(7,11)}`;
+                } else if (value.length >= 4) {
+                    value = `+${value.slice(0,1)} (${value.slice(1,4)}) ${value.slice(4)}`;
+                } else if (value.length >= 1) {
+                    value = `+${value}`;
+                }
+                
                 e.target.value = value;
             });
         }
 
-        // Setup customer recognition
-        function setupCustomerCheck() {
-            const phoneInput = document.getElementById('phoneNumber');
-            
-            phoneInput.addEventListener('blur', async function() {
-                const phone = cleanPhoneNumber(phoneInput.value);
-                if (phone.length >= 10) {
-                    await checkReturningCustomer(phone);
-                }
-            });
-        }
-
-        // Check if customer has ordered before
-        async function checkReturningCustomer(phone) {
-            try {
-                const previousOrders = await VediAPI.getOrdersByCustomer(phone);
-                
-                if (previousOrders && previousOrders.length > 0) {
-                    // Customer has ordered before
-                    const lastOrder = previousOrders[0]; // Most recent order
-                    const customerName = lastOrder.customerName;
-                    
-                    if (customerName) {
-                        // Pre-fill name
-                        document.getElementById('customerName').value = customerName;
-                        
-                        // Show welcome back message
-                        const orderCount = previousOrders.length;
-                        showWelcomeMessage(`Welcome back, ${customerName}! You've ordered ${orderCount} time${orderCount > 1 ? 's' : ''} before.`);
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking customer history:', error);
-                // Don't show error to user - just continue normally
-            }
-        }
-
-        // FIXED: Handle login form submission with correct parameter passing
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
+        // Step navigation functions
+        function proceedToPhone() {
             const name = document.getElementById('customerName').value.trim();
-            const phone = cleanPhoneNumber(document.getElementById('phoneNumber').value);
             
-            console.log('📝 Form submitted with:', { name, phone, restaurantId, tableNumber, tableLocation });
-            
-            if (!name || !phone) {
-                showError('Please enter both your name and phone number');
+            if (!name) {
+                showError('Please enter your name');
                 return;
             }
 
-            if (phone.length < 10) {
+            customerName = name;
+            
+            // Update steps
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+            
+            // Switch phases
+            document.getElementById('namePhase').classList.remove('active');
+            document.getElementById('phonePhase').classList.add('active');
+            
+            // Try to render reCAPTCHA
+            try {
+                window.recaptchaVerifier.render();
+            } catch (error) {
+                console.log('reCAPTCHA already rendered or error:', error);
+            }
+            
+            console.log('📱 Proceeding to phone verification');
+        }
+
+        function goBackToName() {
+            // Update steps
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step1').classList.remove('completed');
+            document.getElementById('step1').classList.add('active');
+            
+            // Switch phases
+            document.getElementById('phonePhase').classList.remove('active');
+            document.getElementById('namePhase').classList.add('active');
+        }
+
+        // Send verification code
+        async function sendVerificationCode() {
+            const phoneInput = document.getElementById('phoneNumber');
+            const phone = phoneInput.value.trim();
+            
+            if (!phone || phone.length < 14) { // +1 (xxx) xxx-xxxx
                 showError('Please enter a valid phone number');
                 return;
             }
 
-            if (!restaurantId) {
-                showError('Restaurant information not found. Please scan a valid QR code.');
-                showDebugInfo();
+            customerPhone = phone.replace(/\D/g, ''); // Clean phone number
+            
+            try {
+                setLoading('phone', true);
+                hideMessages();
+                
+                console.log('📱 Sending verification code to:', phone);
+                
+                // Send verification code
+                confirmationResult = await firebase.auth().signInWithPhoneNumber(phone, window.recaptchaVerifier);
+                
+                console.log('✅ Verification code sent');
+                showInfo('Verification code sent! Please check your phone.');
+                
+                // Update steps
+                document.getElementById('step2').classList.remove('active');
+                document.getElementById('step2').classList.add('completed');
+                document.getElementById('step3').classList.add('active');
+                
+                // Switch phases
+                document.getElementById('phonePhase').classList.remove('active');
+                document.getElementById('codePhase').classList.add('active');
+                
+                // Start resend timer
+                startResendTimer();
+                
+            } catch (error) {
+                console.error('❌ Error sending verification code:', error);
+                showError(getAuthErrorMessage(error.code) || 'Failed to send verification code. Please try again.');
+            } finally {
+                setLoading('phone', false);
+            }
+        }
+
+        // Verify code
+        async function verifyCode() {
+            const code = document.getElementById('verificationCode').value.trim();
+            
+            if (!code || code.length !== 6) {
+                showError('Please enter the 6-digit verification code');
                 return;
             }
 
             try {
-                setLoading(true);
+                setLoading('code', true);
                 hideMessages();
-
-                console.log('💾 Storing customer session data...');
-
-                // Store customer session data (no signup needed)
+                
+                console.log('🔐 Verifying code...');
+                
+                // Verify the code
+                const result = await confirmationResult.confirm(code);
+                const user = result.user;
+                
+                console.log('✅ Phone verified! User:', user.uid);
+                
+                // Store customer session data
                 const customerSession = {
-                    name: name,
-                    phone: phone,
+                    name: customerName,
+                    phone: customerPhone,
+                    phoneFormatted: document.getElementById('phoneNumber').value,
                     restaurantId: restaurantId,
                     restaurantName: restaurantData?.name || 'Restaurant',
                     tableNumber: tableNumber,
                     location: tableLocation,
-                    sessionStart: new Date().toISOString()
+                    sessionStart: new Date().toISOString(),
+                    firebaseUID: user.uid,
+                    isAuthenticated: true
                 };
 
-                // Store in sessionStorage for this browsing session
+                // Store in sessionStorage
                 sessionStorage.setItem('customerSession', JSON.stringify(customerSession));
+                
+                // Store customer profile in Firestore for future reference
+                try {
+                    await firebaseDb.collection('customerProfiles').doc(user.uid).set({
+                        name: customerName,
+                        phone: customerPhone,
+                        lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    console.log('✅ Customer profile saved');
+                } catch (profileError) {
+                    console.warn('⚠️ Could not save customer profile:', profileError);
+                }
 
-                console.log('✅ Customer session created:', customerSession);
-
-                // FIXED: Build redirect URL with correct parameter names and all required data
+                showInfo('Phone verified! Redirecting to menu...');
+                
+                // Build redirect URL
                 const urlParams = new URLSearchParams();
-                urlParams.set('restaurant', restaurantId); // Use 'restaurant' not 'r'
-                
-                if (tableNumber) {
-                    urlParams.set('table', tableNumber);
-                }
-                
-                if (tableLocation) {
-                    urlParams.set('location', tableLocation);
-                }
-                
-                // Add customer info to URL for menu page
-                urlParams.set('name', name);
-                urlParams.set('phone', phone);
+                urlParams.set('restaurant', restaurantId);
+                if (tableNumber) urlParams.set('table', tableNumber);
+                if (tableLocation) urlParams.set('location', tableLocation);
+                urlParams.set('name', customerName);
+                urlParams.set('phone', customerPhone);
                 
                 const redirectUrl = `menu.html?${urlParams.toString()}`;
                 
-                console.log('🔄 Redirecting to menu with URL:', redirectUrl);
-
-                // Immediate redirect - don't wait
-                window.location.href = redirectUrl;
-
+                console.log('🔄 Redirecting to menu:', redirectUrl);
+                
+                setTimeout(() => {
+                    window.location.href = redirectUrl;
+                }, 1500);
+                
             } catch (error) {
-                console.error('❌ Customer login error:', error);
-                showError('Failed to start your session. Please try again.');
-                setLoading(false);
+                console.error('❌ Error verifying code:', error);
+                showError('Invalid verification code. Please try again.');
+            } finally {
+                setLoading('code', false);
             }
-        });
-
-        // Utility functions
-        function cleanPhoneNumber(phone) {
-            return phone.replace(/\D/g, '');
         }
 
-        function setLoading(loading) {
-            const submitBtn = document.getElementById('submitBtn');
-            const spinner = document.getElementById('loadingSpinner');
-            const buttonText = document.getElementById('buttonText');
+        // Resend code
+        async function resendCode() {
+            try {
+                setLoading('phone', true);
+                
+                // Reset reCAPTCHA
+                window.recaptchaVerifier.clear();
+                window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                    'size': 'normal'
+                });
+                
+                await sendVerificationCode();
+                
+            } catch (error) {
+                console.error('❌ Error resending code:', error);
+                showError('Failed to resend code. Please try again.');
+            } finally {
+                setLoading('phone', false);
+            }
+        }
+
+        // Timer functions
+        function startResendTimer() {
+            resendCountdown = 60;
+            document.getElementById('resendBtn').disabled = true;
             
-            submitBtn.disabled = loading;
-            spinner.style.display = loading ? 'inline-block' : 'none';
-            buttonText.textContent = loading ? 'Please wait...' : 'Start Ordering';
+            resendTimer = setInterval(() => {
+                resendCountdown--;
+                document.getElementById('resendTimer').textContent = 
+                    `You can request a new code in ${resendCountdown} seconds`;
+                
+                if (resendCountdown <= 0) {
+                    clearInterval(resendTimer);
+                    document.getElementById('resendBtn').disabled = false;
+                    document.getElementById('resendTimer').textContent = 
+                        'Didn\'t receive a code? Click resend below.';
+                }
+            }, 1000);
+        }
+
+        // Utility functions
+        function setLoading(type, loading) {
+            const spinners = {
+                name: 'nameSpinner',
+                phone: 'phoneSpinner',
+                code: 'codeSpinner'
+            };
+            
+            const buttons = {
+                name: 'nameNextBtn',
+                phone: 'sendCodeBtn',
+                code: 'verifyCodeBtn'
+            };
+            
+            if (spinners[type] && buttons[type]) {
+                document.getElementById(spinners[type]).style.display = loading ? 'inline-block' : 'none';
+                document.getElementById(buttons[type]).disabled = loading;
+            }
         }
 
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
-            
-            // Hide after 8 seconds
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 8000);
+            setTimeout(() => errorDiv.style.display = 'none', 8000);
         }
 
-        function showWelcomeMessage(message) {
-            const welcomeDiv = document.getElementById('welcomeMessage');
-            welcomeDiv.textContent = message;
-            welcomeDiv.style.display = 'block';
+        function showInfo(message) {
+            const infoDiv = document.getElementById('infoMessage');
+            infoDiv.textContent = message;
+            infoDiv.style.display = 'block';
+            setTimeout(() => infoDiv.style.display = 'none', 5000);
         }
 
         function hideMessages() {
             document.getElementById('errorMessage').style.display = 'none';
             document.getElementById('welcomeMessage').style.display = 'none';
+            document.getElementById('infoMessage').style.display = 'none';
         }
 
-        function showDebugInfo() {
-            document.getElementById('debugInfo').style.display = 'block';
+        function getAuthErrorMessage(errorCode) {
+            const errorMessages = {
+                'auth/invalid-phone-number': 'Invalid phone number. Please check and try again.',
+                'auth/too-many-requests': 'Too many attempts. Please try again later.',
+                'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
+                'auth/code-expired': 'Verification code has expired. Please request a new one.',
+                'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
+                'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.'
+            };
+            
+            return errorMessages[errorCode] || 'An error occurred. Please try again.';
         }
 
-        function hideDebugInfo() {
-            document.getElementById('debugInfo').style.display = 'none';
-        }
-
-        console.log('Customer login page script loaded successfully');
+        console.log('Customer phone authentication loaded successfully');
     </script>
 </body>
 </html>
