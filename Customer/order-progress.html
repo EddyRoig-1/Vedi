@@ -493,12 +493,48 @@
         .error-message {
             background: #ffe6e6;
             color: #d63031;
-            padding: 12px;
-            border-radius: 8px;
+            padding: 20px;
+            border-radius: 16px;
             margin-bottom: 20px;
             font-size: 0.9rem;
             display: none;
             text-align: center;
+            border: 2px solid #feb2b2;
+        }
+
+        .error-message h3 {
+            margin-bottom: 12px;
+            font-size: 1.2rem;
+        }
+
+        .error-message p {
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .error-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .error-btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+        }
+
+        .error-btn.secondary {
+            background: #48bb78;
+        }
+
+        .error-btn.secondary:hover {
+            background: #38a169;
         }
 
         /* Special Instructions */
@@ -533,6 +569,43 @@
         @keyframes blink {
             0%, 50% { opacity: 1; }
             51%, 100% { opacity: 0.3; }
+        }
+
+        /* Debug Info */
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .debug-info h4 {
+            color: #495057;
+            margin-bottom: 12px;
+            font-size: 1rem;
+        }
+
+        .debug-item {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .debug-label {
+            font-weight: 500;
+            color: #6c757d;
+        }
+
+        .debug-value {
+            font-family: monospace;
+            color: #495057;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
         }
 
         /* Responsive Design */
@@ -622,6 +695,27 @@
 
             <!-- Error Message -->
             <div class="error-message" id="errorMessage"></div>
+
+            <!-- Debug Info (only shown when debugging) -->
+            <div class="debug-info" id="debugInfo">
+                <h4>🔍 Debug Information</h4>
+                <div class="debug-item">
+                    <span class="debug-label">Current URL:</span>
+                    <span class="debug-value" id="debugUrl">--</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">Order Number:</span>
+                    <span class="debug-value" id="debugOrderNumber">--</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">Customer Phone:</span>
+                    <span class="debug-value" id="debugCustomerPhone">--</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">Restaurant ID:</span>
+                    <span class="debug-value" id="debugRestaurantId">--</span>
+                </div>
+            </div>
 
             <!-- Completion Message -->
             <div class="completion-message" id="completionMessage">
@@ -787,39 +881,123 @@
             }
         }
 
-        // Load order data from Firebase
+        // FIXED: Load order data with proper retry mechanism and error handling
         async function loadOrderData() {
             const urlParams = new URLSearchParams(window.location.search);
             const orderNumber = urlParams.get('orderNumber');
             
+            // Update debug info
+            updateDebugInfo(orderNumber);
+            
+            console.log('🔍 Loading order data with params:', {
+                orderNumber: orderNumber,
+                customerPhone: customerSession.phone,
+                restaurantId: customerSession.restaurantId,
+                allParams: Object.fromEntries(urlParams.entries())
+            });
+            
             if (orderNumber) {
-                // Load specific order by order number
+                // Load specific order by order number with retry mechanism
                 try {
+                    console.log('📋 Fetching order by number:', orderNumber);
+                    
+                    // First attempt
                     orderData = await VediAPI.getOrderByNumber(orderNumber);
-                    console.log('📋 Order data loaded by number:', orderData);
-                    displayOrderInfo();
+                    
+                    if (orderData) {
+                        console.log('✅ Order found immediately:', orderData);
+                        displayOrderInfo();
+                    } else {
+                        // If not found immediately, wait and retry
+                        console.log('⏳ Order not found immediately, retrying in 3 seconds...');
+                        
+                        setTimeout(async () => {
+                            try {
+                                orderData = await VediAPI.getOrderByNumber(orderNumber);
+                                if (orderData) {
+                                    console.log('✅ Order found on retry:', orderData);
+                                    displayOrderInfo();
+                                } else {
+                                    // Final attempt after another delay
+                                    console.log('⏳ Second retry in 3 seconds...');
+                                    setTimeout(async () => {
+                                        try {
+                                            orderData = await VediAPI.getOrderByNumber(orderNumber);
+                                            if (orderData) {
+                                                console.log('✅ Order found on final retry:', orderData);
+                                                displayOrderInfo();
+                                            } else {
+                                                console.error('❌ Order still not found after all retries');
+                                                showError('Order not found. The order may still be processing. Please wait a moment and refresh the page, or contact restaurant staff if the issue persists.');
+                                                showDebugInfo();
+                                            }
+                                        } catch (retryError) {
+                                            console.error('❌ Final retry failed:', retryError);
+                                            showError('Failed to load order details. Please try refreshing the page or contact restaurant staff.');
+                                            showDebugInfo();
+                                        }
+                                    }, 3000);
+                                }
+                            } catch (retryError) {
+                                console.error('❌ Retry failed:', retryError);
+                                showError('Failed to load order details. Please try refreshing the page.');
+                                showDebugInfo();
+                            }
+                        }, 3000);
+                    }
                 } catch (error) {
                     console.error('❌ Failed to load order by number:', error);
-                    showError('Order not found. Please check the order number.');
+                    showError('Failed to load order details: ' + error.message);
+                    showDebugInfo();
                 }
             } else if (customerSession.phone) {
-                // Find most recent active order for customer using new convenience method
+                // Find most recent active order for customer
                 try {
+                    console.log('📋 Fetching most recent order for customer:', customerSession.phone);
                     orderData = await VediAPI.getMostRecentActiveOrder(customerSession.phone);
                     
                     if (orderData) {
-                        console.log('📋 Most recent active order loaded:', orderData);
+                        console.log('✅ Most recent active order found:', orderData);
                         displayOrderInfo();
                     } else {
-                        showError('No active orders found. Please place an order first.');
+                        // Try getting all orders and find the most recent one
+                        console.log('🔍 No active order found, checking all orders...');
+                        const allOrders = await VediAPI.getOrdersByCustomer(customerSession.phone);
+                        
+                        if (allOrders && allOrders.length > 0) {
+                            // Get the most recent order
+                            orderData = allOrders[0];
+                            console.log('✅ Most recent order found:', orderData);
+                            displayOrderInfo();
+                        } else {
+                            console.log('❌ No orders found for customer');
+                            showError('No orders found. Please place an order first.');
+                            showDebugInfo();
+                        }
                     }
                 } catch (error) {
                     console.error('❌ Failed to load customer orders:', error);
-                    showError('Failed to load your orders. Please try again.');
+                    showError('Failed to load your orders: ' + error.message);
+                    showDebugInfo();
                 }
             } else {
-                showError('Customer information not found. Please login again.');
+                console.error('❌ No order number or customer phone provided');
+                showError('Order information not found. Please scan the QR code and place an order first.');
+                showDebugInfo();
             }
+        }
+
+        // Update debug information
+        function updateDebugInfo(orderNumber) {
+            document.getElementById('debugUrl').textContent = window.location.href;
+            document.getElementById('debugOrderNumber').textContent = orderNumber || 'Not provided';
+            document.getElementById('debugCustomerPhone').textContent = customerSession.phone || 'Not provided';
+            document.getElementById('debugRestaurantId').textContent = customerSession.restaurantId || 'Not provided';
+        }
+
+        // Show debug information
+        function showDebugInfo() {
+            document.getElementById('debugInfo').style.display = 'block';
         }
 
         // Setup real-time order tracking
@@ -1021,16 +1199,31 @@
             return `${symbol}${Number(amount).toFixed(2)}`;
         }
 
+        // FIXED: Better error display with helpful buttons
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
-            errorDiv.textContent = message;
+            const loadingDiv = document.getElementById('loadingMessage');
+            
+            // Hide loading
+            loadingDiv.style.display = 'none';
+            
+            // Show error with more detailed message and helpful buttons
+            errorDiv.innerHTML = `
+                <h3>⚠️ Unable to load order</h3>
+                <p>${message}</p>
+                <button class="error-btn" onclick="location.reload()">
+                    🔄 Refresh Page
+                </button>
+                <button class="error-btn secondary" onclick="goBackToMenu()">
+                    🍽️ Back to Menu
+                </button>
+            `;
             errorDiv.style.display = 'block';
             
-            document.getElementById('loadingMessage').style.display = 'none';
-            
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 10000);
+            // Hide other content
+            document.getElementById('orderInfoCard').style.display = 'none';
+            document.getElementById('orderTracker').style.display = 'none';
+            document.getElementById('orderDetails').style.display = 'none';
         }
 
         // Navigation functions
@@ -1039,10 +1232,16 @@
             
             const params = new URLSearchParams();
             if (customerSession.restaurantId) {
-                params.set('r', customerSession.restaurantId);
+                params.set('restaurant', customerSession.restaurantId);
             }
             if (customerSession.tableNumber) {
                 params.set('table', customerSession.tableNumber);
+            }
+            if (customerSession.name) {
+                params.set('name', customerSession.name);
+            }
+            if (customerSession.phone) {
+                params.set('phone', customerSession.phone);
             }
             
             window.location.href = `menu.html?${params.toString()}`;
@@ -1053,13 +1252,40 @@
             
             const params = new URLSearchParams();
             if (customerSession.restaurantId) {
-                params.set('r', customerSession.restaurantId);
+                params.set('restaurant', customerSession.restaurantId);
             }
             if (customerSession.tableNumber) {
                 params.set('table', customerSession.tableNumber);
             }
+            if (customerSession.name) {
+                params.set('name', customerSession.name);
+            }
+            if (customerSession.phone) {
+                params.set('phone', customerSession.phone);
+            }
             
             window.location.href = `customer-orders.html?${params.toString()}`;
+        }
+
+        // FIXED: Add this function for the error button
+        function goBackToMenu() {
+            console.log('🔙 Going back to menu...');
+            
+            const params = new URLSearchParams();
+            if (customerSession.restaurantId) {
+                params.set('restaurant', customerSession.restaurantId);
+            }
+            if (customerSession.tableNumber) {
+                params.set('table', customerSession.tableNumber);
+            }
+            if (customerSession.name) {
+                params.set('name', customerSession.name);
+            }
+            if (customerSession.phone) {
+                params.set('phone', customerSession.phone);
+            }
+            
+            window.location.href = `menu.html?${params.toString()}`;
         }
 
         // Audio notification functions
