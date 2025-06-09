@@ -183,6 +183,43 @@
             display: none;
         }
 
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            text-align: left;
+            display: none;
+        }
+
+        .debug-info h4 {
+            color: #495057;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .debug-item {
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .debug-label {
+            font-weight: 500;
+            color: #6c757d;
+        }
+
+        .debug-value {
+            font-family: monospace;
+            color: #495057;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
         @media (max-width: 480px) {
             .container {
                 margin: 10px;
@@ -205,6 +242,27 @@
             <div class="restaurant-info" id="restaurantInfo">
                 <div class="restaurant-name" id="restaurantName">Loading restaurant...</div>
                 <div class="table-info" id="tableInfo">Table #--</div>
+            </div>
+
+            <!-- Debug Info (only shown if there are issues) -->
+            <div class="debug-info" id="debugInfo">
+                <h4>🔍 Debug Information</h4>
+                <div class="debug-item">
+                    <span class="debug-label">Current URL:</span>
+                    <span class="debug-value" id="debugUrl">--</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">Restaurant ID:</span>
+                    <span class="debug-value" id="debugRestaurant">--</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">Table:</span>
+                    <span class="debug-value" id="debugTable">--</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">Location:</span>
+                    <span class="debug-value" id="debugLocation">--</span>
+                </div>
             </div>
 
             <div class="error-message" id="errorMessage"></div>
@@ -233,20 +291,22 @@
         let restaurantData = null;
         let tableNumber = null;
         let restaurantId = null;
+        let location = null;
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Customer login page initializing...');
+            
             try {
-                // Get URL parameters
-                const urlParams = new URLSearchParams(window.location.search);
-                tableNumber = urlParams.get('table');
-                restaurantId = urlParams.get('restaurant') || urlParams.get('r');
-
+                // Get URL parameters and show debug info
+                parseURLParameters();
+                
                 // Load restaurant information
                 if (restaurantId) {
                     await loadRestaurantInfo();
                 } else {
                     showError('Restaurant not found. Please scan a valid QR code.');
+                    showDebugInfo();
                     return;
                 }
 
@@ -259,31 +319,63 @@
                 // Check for returning customer when phone is entered
                 setupCustomerCheck();
 
+                console.log('✅ Customer login page loaded successfully');
+
             } catch (error) {
-                console.error('Page initialization error:', error);
+                console.error('❌ Page initialization error:', error);
                 showError('Failed to load restaurant information');
+                showDebugInfo();
             }
         });
+
+        // FIXED: Parse URL parameters with better error handling
+        function parseURLParameters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Try multiple parameter names for backward compatibility
+            restaurantId = urlParams.get('restaurant') || urlParams.get('r');
+            tableNumber = urlParams.get('table');
+            location = urlParams.get('location');
+            
+            // Update debug display
+            document.getElementById('debugUrl').textContent = window.location.href;
+            document.getElementById('debugRestaurant').textContent = restaurantId || 'Not found';
+            document.getElementById('debugTable').textContent = tableNumber || 'Not specified';
+            document.getElementById('debugLocation').textContent = location || 'Not specified';
+            
+            console.log('📍 URL Parameters:', {
+                restaurant: restaurantId,
+                table: tableNumber,
+                location: location,
+                fullURL: window.location.href
+            });
+        }
 
         // Load restaurant information
         async function loadRestaurantInfo() {
             try {
+                console.log('🏪 Loading restaurant data for ID:', restaurantId);
                 restaurantData = await VediAPI.getRestaurant(restaurantId);
                 document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+                console.log('✅ Restaurant loaded:', restaurantData.name);
             } catch (error) {
-                console.error('Failed to load restaurant:', error);
+                console.error('❌ Failed to load restaurant:', error);
                 document.getElementById('restaurantName').textContent = 'Unknown Restaurant';
+                showError('Failed to load restaurant information. Please try scanning the QR code again.');
+                showDebugInfo();
             }
         }
 
         // Update table display
         function updateTableDisplay() {
             const tableInfoElement = document.getElementById('tableInfo');
-            if (tableNumber) {
+            
+            if (location === 'counter' || tableNumber === 'counter') {
+                tableInfoElement.textContent = 'Counter Order';
+            } else if (tableNumber) {
                 tableInfoElement.textContent = `Table #${tableNumber}`;
             } else {
-                // Hide table info if no table number
-                document.getElementById('restaurantInfo').style.display = 'none';
+                tableInfoElement.textContent = 'Restaurant Order';
             }
         }
 
@@ -304,7 +396,6 @@
         // Setup customer recognition
         function setupCustomerCheck() {
             const phoneInput = document.getElementById('phoneNumber');
-            const nameInput = document.getElementById('customerName');
             
             phoneInput.addEventListener('blur', async function() {
                 const phone = cleanPhoneNumber(phoneInput.value);
@@ -339,7 +430,7 @@
             }
         }
 
-        // Handle login form submission
+        // FIXED: Handle login form submission with correct parameter passing
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -357,13 +448,16 @@
             }
 
             if (!restaurantId) {
-                showError('Restaurant information not found');
+                showError('Restaurant information not found. Please scan a valid QR code.');
+                showDebugInfo();
                 return;
             }
 
             try {
                 setLoading(true);
                 hideMessages();
+
+                console.log('💾 Storing customer session data...');
 
                 // Store customer session data (no signup needed)
                 const customerSession = {
@@ -372,6 +466,7 @@
                     restaurantId: restaurantId,
                     restaurantName: restaurantData?.name || 'Restaurant',
                     tableNumber: tableNumber,
+                    location: location,
                     sessionStart: new Date().toISOString()
                 };
 
@@ -380,13 +475,35 @@
 
                 console.log('✅ Customer session created:', customerSession);
 
-                // Redirect to menu page
-                const redirectUrl = `menu.html?r=${restaurantId}${tableNumber ? `&table=${tableNumber}` : ''}`;
-                window.location.href = redirectUrl;
+                // FIXED: Build redirect URL with correct parameter names and all required data
+                const urlParams = new URLSearchParams();
+                urlParams.set('restaurant', restaurantId); // Use 'restaurant' not 'r'
+                
+                if (tableNumber) {
+                    urlParams.set('table', tableNumber);
+                }
+                
+                if (location) {
+                    urlParams.set('location', location);
+                }
+                
+                // Add customer info to URL for menu page
+                urlParams.set('name', name);
+                urlParams.set('phone', phone);
+                
+                const redirectUrl = `menu.html?${urlParams.toString()}`;
+                
+                console.log('🔄 Redirecting to menu with URL:', redirectUrl);
+
+                // Small delay to ensure session storage is saved
+                setTimeout(() => {
+                    window.location.href = redirectUrl;
+                }, 200);
 
             } catch (error) {
                 console.error('❌ Customer login error:', error);
                 showError('Failed to start your session. Please try again.');
+                showDebugInfo();
             } finally {
                 setLoading(false);
             }
@@ -412,10 +529,10 @@
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
             
-            // Hide after 5 seconds
+            // Hide after 8 seconds
             setTimeout(() => {
                 errorDiv.style.display = 'none';
-            }, 5000);
+            }, 8000);
         }
 
         function showWelcomeMessage(message) {
@@ -428,6 +545,16 @@
             document.getElementById('errorMessage').style.display = 'none';
             document.getElementById('welcomeMessage').style.display = 'none';
         }
+
+        function showDebugInfo() {
+            document.getElementById('debugInfo').style.display = 'block';
+        }
+
+        function hideDebugInfo() {
+            document.getElementById('debugInfo').style.display = 'none';
+        }
+
+        console.log('Customer login page script loaded successfully');
     </script>
 </body>
 </html>
