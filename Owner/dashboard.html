@@ -692,14 +692,14 @@
             display: none;
         }
 
-        /* Settings, QR Code, and Orders Section styles */
-        .settings-section, .qr-section, .orders-section {
+        /* Settings, QR Code, Orders, and Incidents Section styles */
+        .settings-section, .qr-section, .orders-section, .incidents-section {
             padding: 0;
             background: transparent;
             box-shadow: none;
         }
 
-        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container {
+        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container, .incidents-iframe-container {
             width: 100%;
             height: 100vh;
             border: none;
@@ -709,7 +709,7 @@
             position: relative;
         }
 
-        .settings-iframe, .qr-iframe, .orders-iframe {
+        .settings-iframe, .qr-iframe, .orders-iframe, .incidents-iframe {
             width: 100%;
             height: 100%;
             border: none;
@@ -1053,7 +1053,7 @@
                 <div class="nav-tab active" data-section="overview">Overview</div>
                 <div class="nav-tab" data-section="menu">Menu</div>
                 <div class="nav-tab" data-section="orders">Orders</div>
-                <div class="nav-tab" data-section="incidents" onclick="goToIncidents()">Loss Reports</div>
+                <div class="nav-tab" data-section="incidents">Loss Reports</div>
                 <div class="nav-tab" data-section="qr-code">QR Code</div>
                 <div class="nav-tab" data-section="settings">Settings</div>
             </div>
@@ -1161,16 +1161,14 @@
             </div>
         </div>
 
-        <!-- Incidents Section -->
-        <div class="dashboard-section" id="incidents">
-            <div class="section-header">
-                <h2 class="section-title">Loss Reports</h2>
-                <button class="btn btn-danger" onclick="goToIncidents()">View Full Reports</button>
-            </div>
-            
-            <div class="empty-state">
-                <h3>Recent Loss Reports</h3>
-                <p>Click "View Full Reports" to manage all loss incidents and analytics.</p>
+        <!-- Incidents Section with iframe -->
+        <div class="dashboard-section incidents-section" id="incidents">
+            <div class="incidents-iframe-container">
+                <div class="iframe-loading" id="incidentsIframeLoading">
+                    <div class="spinner"></div>
+                    <p>Loading Loss Reports...</p>
+                </div>
+                <iframe id="incidentsIframe" class="incidents-iframe" style="display: none;"></iframe>
             </div>
         </div>
 
@@ -1657,11 +1655,6 @@
         function setupNavigation() {
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.addEventListener('click', async function() {
-                    // Skip if this is Loss Reports (they have their own onclick handlers)
-                    if (this.dataset.section === 'incidents') {
-                        return;
-                    }
-                    
                     console.log('🖱️ Nav tab clicked:', this.textContent, this.dataset.section);
                     
                     // Update active states
@@ -1682,6 +1675,8 @@
                             await loadMenuSection();
                         } else if (sectionId === 'orders') {
                             loadOrdersIframe();
+                        } else if (sectionId === 'incidents') {
+                            loadIncidentsIframe();
                         } else if (sectionId === 'settings') {
                             loadSettingsIframe();
                         } else if (sectionId === 'qr-code') {
@@ -2174,6 +2169,45 @@
             }
         }
 
+        // Incidents iframe management
+        function loadIncidentsIframe() {
+            const iframe = document.getElementById('incidentsIframe');
+            const loading = document.getElementById('incidentsIframeLoading');
+            
+            loading.style.display = 'block';
+            iframe.style.display = 'none';
+            
+            if (!iframe.src || iframe.src === 'about:blank') {
+                iframe.onload = function() {
+                    loading.style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+                
+                iframe.onerror = function(error) {
+                    console.error('Error loading incidents iframe:', error);
+                    loading.innerHTML = '<p style="color: #dc3545;">Error loading incident reports page. Make sure incident-reports.html exists in the Owner folder.</p>';
+                };
+                
+                // Check if we're in a subdirectory and adjust path accordingly
+                const currentPath = window.location.pathname;
+                let incidentsPath = 'incident-reports.html';
+                
+                // If we're in Owner folder, use relative path
+                if (currentPath.includes('/Owner/')) {
+                    incidentsPath = 'incident-reports.html';
+                } else {
+                    // If we're in a different location, adjust path
+                    incidentsPath = './incident-reports.html';
+                }
+                
+                console.log('📉 Loading incidents iframe from:', incidentsPath);
+                iframe.src = incidentsPath;
+            } else {
+                loading.style.display = 'none';
+                iframe.style.display = 'block';
+            }
+        }
+
         // Settings iframe management
         function loadSettingsIframe() {
             const iframe = document.getElementById('settingsIframe');
@@ -2533,7 +2567,7 @@
             showNotification(message, 'error');
         }
 
-        console.log('Restaurant dashboard with merged menu section loaded successfully');
+        console.log('Restaurant dashboard with merged menu section and incidents iframe loaded successfully');
     </script>
 </body>
 </html>
