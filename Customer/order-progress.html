@@ -866,66 +866,94 @@
                     throw new Error('Authentication required to view orders');
                 }
 
-                const authProvider = currentUser.providerData[0]?.providerId || 'unknown';
-                
-                // PRIMARY METHOD: Search by customer UID (works for ALL auth methods)
-                const userOrdersSnapshot = await firebaseDb.collection('orders')
-                    .where('customerUID', '==', currentUser.uid)
-                    .where('orderNumber', '==', orderNumber)
-                    .limit(1)
-                    .get();
+                console.log('🔍 Searching for order:', orderNumber, 'for user:', currentUser.uid);
 
-                if (!userOrdersSnapshot.empty) {
-                    const doc = userOrdersSnapshot.docs[0];
-                    return { id: doc.id, ...doc.data() };
+                // Method 1: Direct document access if we have the document ID stored
+                if (orderData && orderData.id) {
+                    try {
+                        const doc = await firebaseDb.collection('orders').doc(orderData.id).get();
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.customerUID === currentUser.uid && 
+                                (data.orderNumber === orderNumber || data.orderNumber === String(orderNumber))) {
+                                return { id: doc.id, ...data };
+                            }
+                        }
+                    } catch (directError) {
+                        console.log('📄 Direct document access failed, trying queries');
+                    }
                 }
 
-                // ENHANCED FALLBACK: Get all user orders and search in memory
-                const allUserOrdersSnapshot = await firebaseDb.collection('orders')
-                    .where('customerUID', '==', currentUser.uid)
-                    .get();
-
-                const matchingOrder = allUserOrdersSnapshot.docs.find(doc => {
-                    const data = doc.data();
-                    return data.orderNumber === orderNumber || data.orderNumber === String(orderNumber);
-                });
-
-                if (matchingOrder) {
-                    const orderData = matchingOrder.data();
-                    return { id: matchingOrder.id, ...orderData };
-                }
-
-                // PHONE FALLBACK: Only for phone auth users
-                if (currentUser.phoneNumber && authProvider === 'phone') {
-                    // Try with E.164 format first
-                    const phoneOrdersSnapshot = await firebaseDb.collection('orders')
-                        .where('customerPhone', '==', currentUser.phoneNumber)
+                // Method 2: UID-based query (most reliable)
+                try {
+                    const userOrdersSnapshot = await firebaseDb.collection('orders')
+                        .where('customerUID', '==', currentUser.uid)
                         .where('orderNumber', '==', orderNumber)
                         .limit(1)
                         .get();
 
-                    if (!phoneOrdersSnapshot.empty) {
-                        const doc = phoneOrdersSnapshot.docs[0];
+                    if (!userOrdersSnapshot.empty) {
+                        const doc = userOrdersSnapshot.docs[0];
                         return { id: doc.id, ...doc.data() };
                     }
+                } catch (uidError) {
+                    console.log('👤 UID query failed:', uidError.message);
+                }
 
-                    // Try with digits-only format
-                    const phoneDigits = currentUser.phoneNumber.replace(/\D/g, '');
-                    const phoneDigitsSnapshot = await firebaseDb.collection('orders')
-                        .where('customerPhone', '==', phoneDigits)
-                        .where('orderNumber', '==', orderNumber)
-                        .limit(1)
+                // Method 3: Get all user orders and search in memory (fallback)
+                try {
+                    const allUserOrdersSnapshot = await firebaseDb.collection('orders')
+                        .where('customerUID', '==', currentUser.uid)
                         .get();
 
-                    if (!phoneDigitsSnapshot.empty) {
-                        const doc = phoneDigitsSnapshot.docs[0];
-                        return { id: doc.id, ...doc.data() };
+                    const matchingOrder = allUserOrdersSnapshot.docs.find(doc => {
+                        const data = doc.data();
+                        return data.orderNumber === orderNumber || data.orderNumber === String(orderNumber);
+                    });
+
+                    if (matchingOrder) {
+                        return { id: matchingOrder.id, ...matchingOrder.data() };
+                    }
+                } catch (memoryError) {
+                    console.log('🧠 Memory search failed:', memoryError.message);
+                }
+
+                // Method 4: Phone-based queries (for phone auth users)
+                if (currentUser.phoneNumber) {
+                    try {
+                        // Try E.164 format
+                        const phoneOrdersSnapshot = await firebaseDb.collection('orders')
+                            .where('customerPhone', '==', currentUser.phoneNumber)
+                            .where('orderNumber', '==', orderNumber)
+                            .limit(1)
+                            .get();
+
+                        if (!phoneOrdersSnapshot.empty) {
+                            const doc = phoneOrdersSnapshot.docs[0];
+                            return { id: doc.id, ...doc.data() };
+                        }
+
+                        // Try digits-only format
+                        const phoneDigits = currentUser.phoneNumber.replace(/\D/g, '');
+                        const phoneDigitsSnapshot = await firebaseDb.collection('orders')
+                            .where('customerPhone', '==', phoneDigits)
+                            .where('orderNumber', '==', orderNumber)
+                            .limit(1)
+                            .get();
+
+                        if (!phoneDigitsSnapshot.empty) {
+                            const doc = phoneDigitsSnapshot.docs[0];
+                            return { id: doc.id, ...doc.data() };
+                        }
+                    } catch (phoneError) {
+                        console.log('📱 Phone queries failed:', phoneError.message);
                     }
                 }
 
                 throw new Error(`Order #${orderNumber} not found. This order may not belong to your account or may still be processing.`);
                 
             } catch (error) {
+                console.error('❌ getOrderByNumberFixed error:', error);
                 throw error;
             }
         }
@@ -1051,9 +1079,11 @@
 
             // NEW: Try to load customer profile from Firestore
             try {
-                const profile = await VediAPI.getCustomerProfile(currentUser.uid);
-                if (profile) {
-                    customerSession = { ...customerSession, ...profile };
+                if (typeof VediAPI !== 'undefined' && VediAPI.getCustomerProfile) {
+                    const profile = await VediAPI.getCustomerProfile(currentUser.uid);
+                    if (profile) {
+                        customerSession = { ...customerSession, ...profile };
+                    }
                 }
             } catch (profileError) {
                 // Profile not found, continue with session data
@@ -1072,8 +1102,13 @@
         async function loadRestaurantData() {
             if (customerSession.restaurantId) {
                 try {
-                    restaurantData = await VediAPI.getRestaurant(customerSession.restaurantId);
-                    document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+                    if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurant) {
+                        restaurantData = await VediAPI.getRestaurant(customerSession.restaurantId);
+                        document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+                    } else {
+                        restaurantData = { name: 'Restaurant', currency: 'USD' };
+                        document.getElementById('restaurantName').textContent = 'Restaurant';
+                    }
                 } catch (error) {
                     restaurantData = { name: 'Restaurant', currency: 'USD' };
                     document.getElementById('restaurantName').textContent = 'Restaurant';
@@ -1149,40 +1184,46 @@
                 try {
                     
                     // Try UID-based lookup first (more secure)
-                    if (currentUser?.uid) {
-                        orderData = await VediAPI.getMostRecentActiveOrderByUID(currentUser.uid);
-                        
-                        if (orderData) {
-                            displayOrderInfo();
-                            return;
+                    if (currentUser?.uid && typeof VediAPI !== 'undefined') {
+                        if (VediAPI.getMostRecentActiveOrderByUID) {
+                            orderData = await VediAPI.getMostRecentActiveOrderByUID(currentUser.uid);
+                            
+                            if (orderData) {
+                                displayOrderInfo();
+                                return;
+                            }
                         }
                     }
                     
                     // Fallback to phone-based lookup
-                    if (customerSession.phone) {
-                        orderData = await VediAPI.getMostRecentActiveOrder(customerSession.phone);
-                        
-                        if (orderData) {
-                            displayOrderInfo();
-                        } else {
-                            // Try getting all orders by UID first, then phone
+                    if (customerSession.phone && typeof VediAPI !== 'undefined') {
+                        if (VediAPI.getMostRecentActiveOrder) {
+                            orderData = await VediAPI.getMostRecentActiveOrder(customerSession.phone);
                             
-                            let allOrders = [];
-                            if (currentUser?.uid) {
-                                allOrders = await VediAPI.getOrdersByCustomerUID(currentUser.uid);
-                            }
-                            
-                            if (allOrders.length === 0 && customerSession.phone) {
-                                allOrders = await VediAPI.getOrdersByCustomer(customerSession.phone);
-                            }
-                            
-                            if (allOrders && allOrders.length > 0) {
-                                // Get the most recent order
-                                orderData = allOrders[0];
+                            if (orderData) {
                                 displayOrderInfo();
                             } else {
-                                showError('No orders found. Please place an order first.');
+                                // Try getting all orders by UID first, then phone
+                                
+                                let allOrders = [];
+                                if (currentUser?.uid && VediAPI.getOrdersByCustomerUID) {
+                                    allOrders = await VediAPI.getOrdersByCustomerUID(currentUser.uid);
+                                }
+                                
+                                if (allOrders.length === 0 && customerSession.phone && VediAPI.getOrdersByCustomer) {
+                                    allOrders = await VediAPI.getOrdersByCustomer(customerSession.phone);
+                                }
+                                
+                                if (allOrders && allOrders.length > 0) {
+                                    // Get the most recent order
+                                    orderData = allOrders[0];
+                                    displayOrderInfo();
+                                } else {
+                                    showError('No orders found. Please place an order first.');
+                                }
                             }
+                        } else {
+                            showError('No orders found. Please place an order first.');
                         }
                     } else {
                         showError('Customer information not found. Please sign in and try again.');
@@ -1202,8 +1243,8 @@
 
             console.log('🔄 Setting up real-time tracking for order:', orderData.orderNumber);
 
-            // Method 1: Try VediAPI real-time listener first
-            if (typeof VediAPI.listenToOrderByNumber === 'function') {
+            // Method 1: Try VediAPI real-time listener first (if available)
+            if (typeof VediAPI !== 'undefined' && typeof VediAPI.listenToOrderByNumber === 'function') {
                 console.log('📡 Using VediAPI real-time listener');
                 
                 orderUpdateListener = VediAPI.listenToOrderByNumber(orderData.orderNumber, (updatedOrder) => {
@@ -1243,7 +1284,7 @@
             }
         }
 
-        // Method 2: Direct Firestore listener with proper query constraints
+        // FIXED: Direct Firestore listener with proper query constraints matching security rules
         function setupDirectFirestoreListener() {
             if (!firebase.firestore) {
                 console.error('❌ Firestore not available');
@@ -1254,20 +1295,75 @@
             try {
                 console.log('🔥 Setting up direct Firestore listener');
                 
-                // Create the query with proper constraints that match security rules
+                // CRITICAL FIX: Query must match the exact constraints in your security rules
+                // Your security rules expect specific query patterns for list operations
+                
+                // Try Method 1: Single document get by building document ID (if you have a predictable ID pattern)
+                if (orderData.id) {
+                    console.log('📄 Using single document listener');
+                    orderUpdateListener = firebase.firestore()
+                        .collection('orders')
+                        .doc(orderData.id)
+                        .onSnapshot((doc) => {
+                            if (doc.exists) {
+                                const updatedOrder = { id: doc.id, ...doc.data() };
+                                console.log('📲 Single doc update:', updatedOrder.status);
+                                
+                                // Verify ownership
+                                if (updatedOrder.customerUID && updatedOrder.customerUID !== currentUser.uid) {
+                                    console.error('🚫 Order ownership mismatch');
+                                    showError('Order access has changed. Please refresh the page.');
+                                    return;
+                                }
+                                
+                                const previousStatus = orderData.status;
+                                orderData = updatedOrder;
+                                
+                                if (previousStatus !== updatedOrder.status) {
+                                    console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                                    handleStatusChange(previousStatus, updatedOrder.status);
+                                }
+                                
+                                updateOrderProgress();
+                            }
+                        }, (error) => {
+                            console.error('❌ Single doc listener error:', error);
+                            setupQueryBasedListener();
+                        });
+                    return;
+                }
+                
+                // Method 2: Use query-based approach
+                setupQueryBasedListener();
+                    
+            } catch (error) {
+                console.error('❌ Failed to setup Firestore listener:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // FIXED: Query-based listener that matches security rules exactly
+        function setupQueryBasedListener() {
+            try {
+                console.log('🔍 Setting up query-based listener');
+                
+                // CRITICAL: The query must exactly match what your security rules allow
+                // Based on your rules, these are the allowed query patterns:
+                
+                // Pattern 1: customerUID + orderNumber (most secure)
                 let query = firebase.firestore()
                     .collection('orders')
-                    .where('orderNumber', '==', orderData.orderNumber)
                     .where('customerUID', '==', currentUser.uid)
-                    .limit(1);
+                    .where('orderNumber', '==', orderData.orderNumber);
 
-                // Listen to the query
+                console.log('🔗 Trying UID + orderNumber query');
+                
                 orderUpdateListener = query.onSnapshot((snapshot) => {
-                    console.log('📡 Firestore snapshot received, docs:', snapshot.docs.length);
+                    console.log('📡 Query snapshot received, docs:', snapshot.docs.length);
                     
                     if (!snapshot.empty) {
                         const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-                        console.log('📲 Order update:', updatedOrder.status);
+                        console.log('📲 Query-based order update:', updatedOrder.status);
                         
                         const previousStatus = orderData.status;
                         orderData = updatedOrder;
@@ -1279,19 +1375,14 @@
                         
                         updateOrderProgress();
                     } else {
-                        console.warn('⚠️ No matching order found in real-time update');
-                        
-                        // Try phone-based query as fallback for phone auth users
-                        if (currentUser.phoneNumber) {
-                            setupPhoneBasedListener();
-                        } else {
-                            setupPollingTracking();
-                        }
+                        console.warn('⚠️ No matching order found in UID query');
+                        // Try phone-based query for phone auth users
+                        setupPhoneBasedListener();
                     }
                 }, (error) => {
-                    console.error('❌ Firestore listener error:', error);
+                    console.error('❌ UID query listener error:', error);
                     
-                    // If UID-based query fails, try phone-based for phone auth users
+                    // Try phone-based query as fallback
                     if (currentUser.phoneNumber && error.code === 'permission-denied') {
                         console.log('🔄 Trying phone-based listener');
                         setupPhoneBasedListener();
@@ -1299,14 +1390,14 @@
                         setupPollingTracking();
                     }
                 });
-                    
+                        
             } catch (error) {
-                console.error('❌ Failed to setup Firestore listener:', error);
+                console.error('❌ Query setup failed:', error);
                 setupPollingTracking();
             }
         }
 
-        // Method 3: Phone-based listener for phone auth users
+        // FIXED: Phone-based listener that matches security rules
         function setupPhoneBasedListener() {
             if (!currentUser.phoneNumber) {
                 setupPollingTracking();
@@ -1316,12 +1407,11 @@
             try {
                 console.log('📱 Setting up phone-based Firestore listener');
                 
-                // Try both E.164 and digits-only format
+                // CRITICAL: Query must match security rules pattern for phone auth
                 let query = firebase.firestore()
                     .collection('orders')
-                    .where('orderNumber', '==', orderData.orderNumber)
                     .where('customerPhone', '==', currentUser.phoneNumber)
-                    .limit(1);
+                    .where('orderNumber', '==', orderData.orderNumber);
 
                 orderUpdateListener = query.onSnapshot((snapshot) => {
                     console.log('📡 Phone-based snapshot received, docs:', snapshot.docs.length);
@@ -1340,27 +1430,77 @@
                         
                         updateOrderProgress();
                     } else {
-                        console.warn('⚠️ No phone-based match, falling back to polling');
-                        setupPollingTracking();
+                        console.warn('⚠️ No phone-based match, trying digits-only format');
+                        setupPhoneDigitsListener();
                     }
                 }, (error) => {
                     console.error('❌ Phone-based listener error:', error);
-                    setupPollingTracking();
+                    setupPhoneDigitsListener();
                 });
-                    
+                        
             } catch (error) {
                 console.error('❌ Failed to setup phone-based listener:', error);
                 setupPollingTracking();
             }
         }
 
-        // Method 4: Polling fallback
+        // FIXED: Phone digits-only format listener
+        function setupPhoneDigitsListener() {
+            if (!currentUser.phoneNumber) {
+                setupPollingTracking();
+                return;
+            }
+
+            try {
+                // Try with digits-only format
+                const phoneDigits = currentUser.phoneNumber.replace(/\D/g, '');
+                console.log('🔢 Trying phone digits format:', phoneDigits);
+                
+                let query = firebase.firestore()
+                    .collection('orders')
+                    .where('customerPhone', '==', phoneDigits)
+                    .where('orderNumber', '==', orderData.orderNumber);
+
+                orderUpdateListener = query.onSnapshot((snapshot) => {
+                    console.log('📡 Phone digits snapshot received, docs:', snapshot.docs.length);
+                    
+                    if (!snapshot.empty) {
+                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                        console.log('📲 Phone digits order update:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        orderData = updatedOrder;
+                        
+                        if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    } else {
+                        console.warn('⚠️ No phone digits match, falling back to polling');
+                        setupPollingTracking();
+                    }
+                }, (error) => {
+                    console.error('❌ Phone digits listener error:', error);
+                    setupPollingTracking();
+                });
+                        
+            } catch (error) {
+                console.error('❌ Failed to setup phone digits listener:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // ENHANCED: Better polling with proper authentication
         function setupPollingTracking() {
             console.log('⏰ Setting up polling tracking (fallback method)');
             
             const pollInterval = setInterval(async () => {
                 try {
                     console.log('🔄 Polling for order updates...');
+                    
+                    // Use the same function that works for initial load
                     const updatedOrder = await getOrderByNumberFixed(orderData.orderNumber);
                     
                     if (updatedOrder && updatedOrder.status !== orderData.status) {
