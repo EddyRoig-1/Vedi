@@ -692,14 +692,14 @@
             display: none;
         }
 
-        /* Settings and QR Code Section styles */
-        .settings-section, .qr-section {
+        /* Settings, QR Code, and Orders Section styles */
+        .settings-section, .qr-section, .orders-section {
             padding: 0;
             background: transparent;
             box-shadow: none;
         }
 
-        .settings-iframe-container, .qr-iframe-container {
+        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container {
             width: 100%;
             height: 100vh;
             border: none;
@@ -709,7 +709,7 @@
             position: relative;
         }
 
-        .settings-iframe, .qr-iframe {
+        .settings-iframe, .qr-iframe, .orders-iframe {
             width: 100%;
             height: 100%;
             border: none;
@@ -1052,7 +1052,7 @@
             <div class="nav-tabs">
                 <div class="nav-tab active" data-section="overview">Overview</div>
                 <div class="nav-tab" data-section="menu">Menu</div>
-                <div class="nav-tab" data-section="orders" onclick="goToOrders()">Orders</div>
+                <div class="nav-tab" data-section="orders">Orders</div>
                 <div class="nav-tab" data-section="incidents" onclick="goToIncidents()">Loss Reports</div>
                 <div class="nav-tab" data-section="qr-code">QR Code</div>
                 <div class="nav-tab" data-section="settings">Settings</div>
@@ -1151,15 +1151,13 @@
         </div>
 
         <!-- Orders Section -->
-        <div class="dashboard-section" id="orders">
-            <div class="section-header">
-                <h2 class="section-title">Orders</h2>
-                <button class="btn" onclick="goToOrders()">View Full Orders</button>
-            </div>
-            
-            <div class="empty-state">
-                <h3>Recent Orders</h3>
-                <p>Click "View Full Orders" to manage all restaurant orders.</p>
+        <div class="dashboard-section orders-section" id="orders">
+            <div class="orders-iframe-container">
+                <div class="iframe-loading" id="ordersIframeLoading">
+                    <div class="spinner"></div>
+                    <p>Loading Orders Management...</p>
+                </div>
+                <iframe id="ordersIframe" class="orders-iframe" style="display: none;"></iframe>
             </div>
         </div>
 
@@ -1659,8 +1657,8 @@
         function setupNavigation() {
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.addEventListener('click', async function() {
-                    // Skip if this is Orders or Loss Reports (they have their own onclick handlers)
-                    if (this.dataset.section === 'orders' || this.dataset.section === 'incidents') {
+                    // Skip if this is Loss Reports (they have their own onclick handlers)
+                    if (this.dataset.section === 'incidents') {
                         return;
                     }
                     
@@ -1682,6 +1680,8 @@
                         if (sectionId === 'menu') {
                             console.log('📂 Loading menu section...');
                             await loadMenuSection();
+                        } else if (sectionId === 'orders') {
+                            loadOrdersIframe();
                         } else if (sectionId === 'settings') {
                             loadSettingsIframe();
                         } else if (sectionId === 'qr-code') {
@@ -2145,6 +2145,32 @@
                 if (container) container.classList.remove('has-image');
             } catch (error) {
                 console.warn('⚠️ Error removing image:', error);
+            }
+        }
+
+        // Orders iframe management
+        function loadOrdersIframe() {
+            const iframe = document.getElementById('ordersIframe');
+            const loading = document.getElementById('ordersIframeLoading');
+            
+            loading.style.display = 'block';
+            iframe.style.display = 'none';
+            
+            if (!iframe.src || iframe.src === 'about:blank') {
+                iframe.onload = function() {
+                    loading.style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+                
+                iframe.onerror = function(error) {
+                    console.error('Error loading orders iframe:', error);
+                    loading.innerHTML = '<p style="color: #dc3545;">Error loading orders page</p>';
+                };
+                
+                iframe.src = 'orders.html';
+            } else {
+                loading.style.display = 'none';
+                iframe.style.display = 'block';
             }
         }
 
