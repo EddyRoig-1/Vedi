@@ -862,7 +862,8 @@
                 updateKPIs(analytics);
                 updateCharts(analytics);
                 updateInsights(analytics);
-                updateTables(analytics);
+                // Update tables with real analytics data
+            updateTables(analytics, analyticsData.orders);
                 
                 showLoading(false);
                 
@@ -875,15 +876,27 @@
 
         async function loadOrdersData() {
             try {
+                console.log('📦 Loading orders data...');
                 const orders = await VediAPI.getOrders(currentRestaurant.id, {
                     limit: 1000,
                     orderBy: 'createdAt',
                     orderDirection: 'desc'
                 });
                 
+                console.log('📦 Raw orders from Firebase:', orders);
+                
+                // Debug: Check structure of first order
+                if (orders.length > 0) {
+                    console.log('🔍 First order structure:', orders[0]);
+                    console.log('🔍 Order keys:', Object.keys(orders[0]));
+                    if (orders[0].items) {
+                        console.log('🔍 First order items:', orders[0].items);
+                    }
+                }
+                
                 // Filter by time period
                 const filteredOrders = filterByTimePeriod(orders, currentTimePeriod);
-                console.log('📦 Loaded orders:', filteredOrders.length);
+                console.log('📦 Filtered orders for', currentTimePeriod, ':', filteredOrders.length);
                 
                 return filteredOrders;
             } catch (error) {
@@ -950,29 +963,49 @@
         }
 
         function calculateAnalytics(data) {
+            console.log('🔢 Calculating analytics with data:', data);
             const { orders, lossIncidents, menuItems } = data;
             
+            console.log('📊 Processing orders:', orders.length);
+            console.log('📉 Processing loss incidents:', lossIncidents.length);
+            console.log('🍽️ Processing menu items:', menuItems.length);
+            
             // Basic KPIs
-            const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+            const totalRevenue = orders.reduce((sum, order) => {
+                const orderTotal = order.total || 0;
+                console.log(`Order ${order.orderNumber || 'unknown'}: ${orderTotal}`);
+                return sum + orderTotal;
+            }, 0);
+            
             const totalOrders = orders.length;
             const completedOrders = orders.filter(order => order.status === 'completed');
             const totalLosses = lossIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
+            
+            console.log('💰 Total revenue calculated:', totalRevenue);
+            console.log('📦 Total orders:', totalOrders);
+            console.log('✅ Completed orders:', completedOrders.length);
+            console.log('📉 Total losses:', totalLosses);
             
             // Customer analytics
             const uniqueCustomers = new Set(orders.map(order => order.customerPhone)).size;
             const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
             
-            // Popular items
+            console.log('👥 Unique customers:', uniqueCustomers);
+            console.log('🎯 Average order value:', avgOrderValue);
+            
+            // Popular items analysis
             const itemStats = {};
             orders.forEach(order => {
-                if (order.items) {
+                if (order.items && Array.isArray(order.items)) {
                     order.items.forEach(item => {
                         if (!itemStats[item.name]) {
                             itemStats[item.name] = { count: 0, revenue: 0 };
                         }
-                        itemStats[item.name].count += item.quantity;
-                        itemStats[item.name].revenue += item.price * item.quantity;
+                        itemStats[item.name].count += item.quantity || 1;
+                        itemStats[item.name].revenue += (item.price || 0) * (item.quantity || 1);
                     });
+                } else {
+                    console.warn('⚠️ Order missing items:', order.orderNumber);
                 }
             });
             
@@ -980,9 +1013,12 @@
                 .map(([name, stats]) => ({ name, ...stats }))
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 10);
+                
+            console.log('🍽️ Popular items calculated:', popularItems);
 
             // Time-based data for charts
             const timeData = generateTimeSeriesData(orders, data.timePeriod);
+            console.log('📈 Time series data:', timeData);
             
             // Order status distribution
             const statusData = {
@@ -992,6 +1028,8 @@
                 completed: orders.filter(o => o.status === 'completed').length,
                 cancelled: orders.filter(o => o.status === 'cancelled').length
             };
+            
+            console.log('📋 Status distribution:', statusData);
 
             // Loss breakdown
             const lossBreakdown = {};
@@ -999,8 +1037,14 @@
                 const type = incident.type || 'other';
                 lossBreakdown[type] = (lossBreakdown[type] || 0) + (incident.amount || 0);
             });
+            
+            console.log('📉 Loss breakdown:', lossBreakdown);
 
-            return {
+            // Calculate customer metrics
+            const customerMetrics = calculateRealCustomerMetrics(orders);
+            console.log('👥 Customer metrics:', customerMetrics);
+
+            const analytics = {
                 kpis: {
                     totalRevenue,
                     totalOrders,
@@ -1013,9 +1057,12 @@
                 timeData,
                 statusData,
                 lossBreakdown,
-                customerMetrics: calculateCustomerMetrics(orders),
+                customerMetrics,
                 insights: generateInsights({ orders, lossIncidents, menuItems })
             };
+            
+            console.log('✅ Final analytics calculated:', analytics);
+            return analytics;
         }
 
         function generateTimeSeriesData(orders, period) {
@@ -1593,14 +1640,14 @@
             `).join('');
         }
 
-        function updateTables(analytics) {
+        function updateTables(analytics, orders) {
             // Popular Items Table
             const popularItemsTable = document.getElementById('popularItemsTable');
             
             if (analytics.popularItems.length === 0) {
                 popularItemsTable.innerHTML = `
                     <tr>
-                        <td colspan="4" style="text-align: center; padding: 40px;">No order data available</td>
+                        <td colspan="4" style="text-align: center; padding: 40px;">No order data available for this period</td>
                     </tr>
                 `;
             } else {
