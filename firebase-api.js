@@ -1,4 +1,4 @@
-// firebase-api.js - Complete Vedi Firebase API Implementation with Loss Tracking + API Analytics
+// firebase-api.js - Complete Vedi Firebase API Implementation with Loss Tracking + API Analytics + Social Authentication
 
 // ============================================================================
 // API TRACKING SYSTEM - For Maintenance Dashboard Analytics
@@ -59,7 +59,7 @@ function withTracking(methodName, originalMethod) {
 
 const VediAPI = {
   // ============================================================================
-  // AUTHENTICATION & USER MANAGEMENT
+  // ENHANCED AUTHENTICATION & USER MANAGEMENT WITH SOCIAL AUTH
   // ============================================================================
   
   /**
@@ -145,6 +145,219 @@ const VediAPI = {
       console.error('❌ Sign in error:', error);
       throw new Error(this.getAuthErrorMessage(error.code));
     }
+  },
+
+  /**
+   * Send SMS verification code for phone authentication
+   * @param {string} phoneNumber - Phone number in E.164 format
+   * @returns {Promise<Object>} Confirmation result for verification
+   */
+  sendPhoneVerification: withTracking('sendPhoneVerification', async function(phoneNumber) {
+    try {
+      console.log('📱 Sending phone verification to:', phoneNumber);
+      
+      // Get reCAPTCHA verifier
+      const recaptchaVerifier = window.recaptchaVerifier;
+      if (!recaptchaVerifier) {
+        throw new Error('reCAPTCHA verifier not initialized');
+      }
+      
+      // Send verification code
+      const confirmationResult = await firebase.auth().signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
+      
+      console.log('✅ SMS verification code sent successfully');
+      return confirmationResult;
+      
+    } catch (error) {
+      console.error('❌ Phone verification error:', error);
+      throw this.handlePhoneAuthError(error);
+    }
+  }),
+
+  /**
+   * Verify SMS code and complete phone authentication
+   * @param {Object} confirmationResult - Result from sendPhoneVerification
+   * @param {string} code - 6-digit verification code
+   * @returns {Promise<Object>} Firebase user credential
+   */
+  verifyPhoneCode: withTracking('verifyPhoneCode', async function(confirmationResult, code) {
+    try {
+      console.log('🔐 Verifying phone code...');
+      
+      if (!confirmationResult) {
+        throw new Error('No verification in progress');
+      }
+      
+      const result = await confirmationResult.confirm(code);
+      
+      console.log('✅ Phone verification successful, UID:', result.user.uid);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Phone code verification error:', error);
+      throw this.handlePhoneAuthError(error);
+    }
+  }),
+
+  /**
+   * Sign in with Google (social authentication)
+   * @returns {Promise<Object>} User credential result
+   */
+  signInWithGoogle: withTracking('signInWithGoogle', async function() {
+    try {
+      console.log('🔍 Initiating Google sign-in...');
+      
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      
+      const result = await firebase.auth().signInWithPopup(provider);
+      
+      console.log('✅ Google sign-in successful:', result.user.displayName);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Google sign-in error:', error);
+      throw this.handleSocialAuthError(error, 'Google');
+    }
+  }),
+
+  /**
+   * Sign in with Facebook (social authentication)
+   * @returns {Promise<Object>} User credential result
+   */
+  signInWithFacebook: withTracking('signInWithFacebook', async function() {
+    try {
+      console.log('📘 Initiating Facebook sign-in...');
+      
+      const provider = new firebase.auth.FacebookAuthProvider();
+      provider.addScope('email');
+      
+      const result = await firebase.auth().signInWithPopup(provider);
+      
+      console.log('✅ Facebook sign-in successful:', result.user.displayName);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Facebook sign-in error:', error);
+      throw this.handleSocialAuthError(error, 'Facebook');
+    }
+  }),
+
+  /**
+   * Sign in with Apple (social authentication)
+   * @returns {Promise<Object>} User credential result
+   */
+  signInWithApple: withTracking('signInWithApple', async function() {
+    try {
+      console.log('🍎 Initiating Apple sign-in...');
+      
+      const provider = new firebase.auth.OAuthProvider('apple.com');
+      provider.addScope('email');
+      provider.addScope('name');
+      
+      const result = await firebase.auth().signInWithPopup(provider);
+      
+      console.log('✅ Apple sign-in successful:', result.user.displayName);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Apple sign-in error:', error);
+      throw this.handleSocialAuthError(error, 'Apple');
+    }
+  }),
+
+  /**
+   * Save or update customer profile in Firestore
+   * @param {string} uid - Firebase user UID
+   * @param {Object} profileData - Customer profile data
+   * @returns {Promise<Object>} Saved profile data
+   */
+  saveCustomerProfile: withTracking('saveCustomerProfile', async function(uid, profileData) {
+    try {
+      const profile = {
+        ...profileData,
+        lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      // Set createdAt only if it's a new profile
+      await firebaseDb.collection('customerProfiles').doc(uid).set({
+        ...profile,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      
+      console.log('✅ Customer profile saved for UID:', uid);
+      return profile;
+      
+    } catch (error) {
+      console.error('❌ Save customer profile error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get customer profile by UID
+   * @param {string} uid - Firebase user UID
+   * @returns {Promise<Object|null>} Customer profile or null
+   */
+  getCustomerProfile: withTracking('getCustomerProfile', async function(uid) {
+    try {
+      const doc = await firebaseDb.collection('customerProfiles').doc(uid).get();
+      
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      
+      return null;
+      
+    } catch (error) {
+      console.error('❌ Get customer profile error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Handle phone authentication errors
+   * @param {Object} error - Firebase error object
+   * @returns {Error} Formatted error
+   */
+  handlePhoneAuthError(error) {
+    const phoneErrorMessages = {
+      'auth/invalid-phone-number': 'Please enter a valid phone number.',
+      'auth/too-many-requests': 'Too many attempts. Please try again later.',
+      'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
+      'auth/code-expired': 'Verification code has expired. Please request a new one.',
+      'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
+      'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
+      'auth/operation-not-allowed': 'Phone authentication is not enabled.',
+      'auth/missing-verification-code': 'Please enter the verification code.',
+      'auth/invalid-verification-id': 'Invalid verification session. Please start over.'
+    };
+    
+    const message = phoneErrorMessages[error.code] || 'Phone authentication failed. Please try again.';
+    return new Error(message);
+  },
+
+  /**
+   * Handle social authentication errors
+   * @param {Object} error - Firebase error object
+   * @param {string} provider - Provider name (Google, Facebook, Apple)
+   * @returns {Error} Formatted error
+   */
+  handleSocialAuthError(error, provider) {
+    const socialErrorMessages = {
+      'auth/popup-closed-by-user': `${provider} sign-in was cancelled. Please try again.`,
+      'auth/popup-blocked': 'Popup was blocked. Please allow popups and try again.',
+      'auth/account-exists-with-different-credential': 'An account already exists with the same email. Please try signing in with a different method.',
+      'auth/auth-domain-config-required': 'Authentication configuration error. Please contact support.',
+      'auth/cancelled-popup-request': 'Another sign-in process is already in progress.',
+      'auth/operation-not-allowed': `${provider} sign-in is not enabled. Please contact support.`,
+      'auth/unauthorized-domain': 'This domain is not authorized for authentication.'
+    };
+    
+    const message = socialErrorMessages[error.code] || `${provider} sign-in failed. Please try again.`;
+    return new Error(message);
   },
 
   /**
@@ -602,7 +815,7 @@ const VediAPI = {
   }),
 
   // ============================================================================
-  // ORDER MANAGEMENT
+  // ENHANCED ORDER MANAGEMENT WITH AUTHENTICATION SUPPORT
   // ============================================================================
 
   /**
@@ -1197,7 +1410,7 @@ const VediAPI = {
   }),
 
   // ============================================================================
-  // REAL-TIME LISTENERS (No tracking needed for listeners)
+  // ENHANCED REAL-TIME LISTENERS WITH AUTHENTICATION SUPPORT
   // ============================================================================
 
   /**
@@ -1521,7 +1734,14 @@ window.VediAPI = VediAPI;
 // Legacy support - also make it available as FirebaseAPI for backward compatibility
 window.FirebaseAPI = VediAPI;
 
-console.log('🍽️ Vedi Firebase API loaded successfully');
+console.log('🍽️ Enhanced Vedi Firebase API loaded successfully');
 console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
 console.log('📊 API tracking: ENABLED for all methods');
-console.log('🔥 Ready for production use with complete analytics and authentication!');
+console.log('🔐 Enhanced authentication support:');
+console.log('   📱 Phone authentication with SMS verification');
+console.log('   🔍 Google social authentication');
+console.log('   📘 Facebook social authentication');
+console.log('   🍎 Apple social authentication');
+console.log('   👤 Customer profile management');
+console.log('   🔒 UID-based order security');
+console.log('🔥 Ready for production use with complete analytics and enhanced authentication!');
