@@ -854,12 +854,13 @@
                 .sort((a, b) => VediAPI.timestampToDate(b.createdAt) - VediAPI.timestampToDate(a.createdAt))
                 .map(incident => {
                     const date = VediAPI.timestampToDate(incident.createdAt).toLocaleDateString();
+                    const typeColor = getIncidentTypeColor(incident.type || 'other');
                     
                     return `
-                        <div class="incident-card severity-${incident.severity || 'medium'}">
+                        <div class="incident-card severity-${incident.severity || 'medium'}" style="border-left-color: ${typeColor};">
                             <div class="incident-header">
                                 <div>
-                                    <div class="incident-type">${formatIncidentType(incident.type)}</div>
+                                    <div class="incident-type" style="color: ${typeColor};">${formatIncidentType(incident.type)}</div>
                                     <div class="incident-title">${incident.title || 'Untitled Incident'}</div>
                                 </div>
                                 <div class="incident-amount">${formatCurrency(incident.amount || 0)}</div>
@@ -884,6 +885,20 @@
                 }).join('');
         }
 
+        // Define consistent color scheme for incident types
+        const INCIDENT_TYPE_COLORS = {
+            'theft': '#ef4444',      // Red - for theft/security issues
+            'accident': '#8b5cf6',   // Purple - for accidents
+            'walkout': '#f59e0b',    // Orange - for customer walkouts
+            'recall': '#06b6d4',     // Cyan - for product recalls
+            'waste': '#10b981',      // Green - for food waste
+            'other': '#6b7280'       // Gray - for other incidents
+        };
+
+        function getIncidentTypeColor(type) {
+            return INCIDENT_TYPE_COLORS[type] || INCIDENT_TYPE_COLORS['other'];
+        }
+
         function initializeCharts() {
             // Incident Type Chart
             const typeCtx = document.getElementById('incidentTypeChart').getContext('2d');
@@ -893,14 +908,7 @@
                     labels: [],
                     datasets: [{
                         data: [],
-                        backgroundColor: [
-                            '#ef4444', // theft
-                            '#f59e0b', // accident
-                            '#8b5cf6', // walkout
-                            '#06b6d4', // recall
-                            '#10b981', // waste
-                            '#6b7280'  // other
-                        ]
+                        backgroundColor: []
                     }]
                 },
                 options: {
@@ -910,6 +918,13 @@
                         title: {
                             display: true,
                             text: 'Incidents by Type'
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
                         }
                     }
                 }
@@ -971,9 +986,13 @@
 
             const labels = Object.keys(typeData).map(type => formatIncidentType(type));
             const data = Object.values(typeData);
+            
+            // Generate colors based on the incident types in the data
+            const colors = Object.keys(typeData).map(type => getIncidentTypeColor(type));
 
             incidentTypeChart.data.labels = labels;
             incidentTypeChart.data.datasets[0].data = data;
+            incidentTypeChart.data.datasets[0].backgroundColor = colors;
             incidentTypeChart.update();
         }
 
