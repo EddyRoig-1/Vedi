@@ -942,22 +942,72 @@
         }
 
         function initializeCharts() {
-            // Combined Chart showing incident types (bar) with loss amounts (line)
+            // Combined Chart showing incident types (stacked bar) with loss amounts (line)
             const combinedCtx = document.getElementById('combinedChart').getContext('2d');
             combinedChart = new Chart(combinedCtx, {
                 type: 'bar',
                 data: {
                     labels: [],
                     datasets: [
+                        // Stacked bar datasets for each incident type
                         {
                             type: 'bar',
-                            label: 'Incident Count',
+                            label: 'Theft',
                             data: [],
-                            backgroundColor: 'rgba(102, 126, 234, 0.7)',
-                            borderColor: '#667eea',
-                            borderWidth: 2,
-                            borderRadius: 6,
-                            borderSkipped: false,
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderColor: '#ef4444',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Accident',
+                            data: [],
+                            backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                            borderColor: '#8b5cf6',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Walkout',
+                            data: [],
+                            backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                            borderColor: '#f59e0b',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Recall',
+                            data: [],
+                            backgroundColor: 'rgba(6, 182, 212, 0.8)',
+                            borderColor: '#06b6d4',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Food Waste',
+                            data: [],
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                            borderColor: '#10b981',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Other',
+                            data: [],
+                            backgroundColor: 'rgba(107, 114, 128, 0.8)',
+                            borderColor: '#6b7280',
+                            borderWidth: 1,
+                            stack: 'incidents',
                             yAxisID: 'y'
                         },
                         {
@@ -999,23 +1049,46 @@
                             position: 'top',
                             labels: {
                                 usePointStyle: true,
-                                padding: 20
+                                padding: 15,
+                                filter: function(item, chart) {
+                                    // Only show legend items that have data
+                                    return item.text !== 'Total Loss ($)' || true;
+                                }
                             }
                         },
                         tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.9)',
                             titleColor: 'white',
                             bodyColor: 'white',
                             borderColor: 'rgba(255, 255, 255, 0.2)',
                             borderWidth: 1,
                             cornerRadius: 8,
+                            padding: 12,
                             callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
                                 label: function(context) {
-                                    if (context.datasetIndex === 0) {
-                                        return `Incidents: ${context.parsed.y}`;
-                                    } else {
-                                        return `Loss: ${formatCurrency(context.parsed.y)}`;
+                                    if (context.datasetIndex === 6) { // Loss line
+                                        return `Total Loss: ${formatCurrency(context.parsed.y)}`;
+                                    } else { // Incident bars
+                                        const count = context.parsed.y;
+                                        if (count > 0) {
+                                            return `${context.dataset.label}: ${count} incident${count > 1 ? 's' : ''}`;
+                                        }
+                                        return null; // Don't show if 0
                                     }
+                                },
+                                footer: function(context) {
+                                    // Calculate total incidents for this time period
+                                    let totalIncidents = 0;
+                                    for (let i = 0; i < 6; i++) { // First 6 datasets are incident types
+                                        totalIncidents += context[0].chart.data.datasets[i].data[context[0].dataIndex] || 0;
+                                    }
+                                    if (totalIncidents > 0) {
+                                        return `Total Incidents: ${totalIncidents}`;
+                                    }
+                                    return '';
                                 }
                             }
                         }
@@ -1024,6 +1097,10 @@
                         x: {
                             grid: {
                                 display: false
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 0
                             }
                         },
                         y: {
@@ -1037,6 +1114,14 @@
                             },
                             grid: {
                                 color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                stepSize: 1, // Force whole numbers
+                                callback: function(value) {
+                                    if (Number.isInteger(value)) {
+                                        return value;
+                                    }
+                                }
                             }
                         },
                         y1: {
@@ -1071,22 +1156,20 @@
         function updateCombinedChart() {
             if (!combinedChart) return;
 
-            // Get time-based data based on current filter
-            const { labels, incidentCounts, lossAmounts } = getTimeBasedData();
+            // Get time-based data with incident type breakdown
+            const { labels, incidentsByType, totalLoss } = getTimeBasedDataWithTypes();
 
             // Update chart data
             combinedChart.data.labels = labels;
-            combinedChart.data.datasets[0].data = incidentCounts;
-            combinedChart.data.datasets[1].data = lossAmounts;
             
-            // Use consistent blue/red color scheme for time-based data
-            const barColor = '#667eea';
-            const lineColor = '#dc2626';
+            // Update each incident type dataset
+            const incidentTypes = ['theft', 'accident', 'walkout', 'recall', 'waste', 'other'];
+            incidentTypes.forEach((type, index) => {
+                combinedChart.data.datasets[index].data = incidentsByType[type] || [];
+            });
             
-            combinedChart.data.datasets[0].backgroundColor = barColor + '70'; // Add transparency
-            combinedChart.data.datasets[0].borderColor = barColor;
-            combinedChart.data.datasets[1].borderColor = lineColor;
-            combinedChart.data.datasets[1].pointBackgroundColor = lineColor;
+            // Update loss line dataset
+            combinedChart.data.datasets[6].data = totalLoss;
             
             // Update chart title based on filter
             const timePeriod = currentFilters.timePeriod;
@@ -1103,7 +1186,7 @@
             combinedChart.update();
         }
 
-        function getTimeBasedData() {
+        function getTimeBasedDataWithTypes() {
             const timePeriod = currentFilters.timePeriod;
             const now = new Date();
             let timeData = {};
@@ -1115,7 +1198,10 @@
                     // Hourly breakdown for today
                     for (let i = 0; i < 24; i++) {
                         const hour = i.toString().padStart(2, '0') + ':00';
-                        timeData[hour] = { incidents: 0, loss: 0 };
+                        timeData[hour] = {
+                            theft: 0, accident: 0, walkout: 0, 
+                            recall: 0, waste: 0, other: 0, loss: 0
+                        };
                     }
                     labels = Object.keys(timeData);
                     break;
@@ -1125,7 +1211,10 @@
                     for (let i = 6; i >= 0; i--) {
                         const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
                         const dateKey = date.toLocaleDateString('en-US', { weekday: 'short' });
-                        timeData[dateKey] = { incidents: 0, loss: 0 };
+                        timeData[dateKey] = {
+                            theft: 0, accident: 0, walkout: 0, 
+                            recall: 0, waste: 0, other: 0, loss: 0
+                        };
                     }
                     labels = Object.keys(timeData);
                     break;
@@ -1135,7 +1224,10 @@
                     for (let i = 29; i >= 0; i--) {
                         const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
                         const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        timeData[dateKey] = { incidents: 0, loss: 0 };
+                        timeData[dateKey] = {
+                            theft: 0, accident: 0, walkout: 0, 
+                            recall: 0, waste: 0, other: 0, loss: 0
+                        };
                     }
                     labels = Object.keys(timeData);
                     break;
@@ -1146,7 +1238,10 @@
                         const date = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
                         const weekStart = new Date(date.getTime() - date.getDay() * 24 * 60 * 60 * 1000);
                         const dateKey = 'Week of ' + weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        timeData[dateKey] = { incidents: 0, loss: 0 };
+                        timeData[dateKey] = {
+                            theft: 0, accident: 0, walkout: 0, 
+                            recall: 0, waste: 0, other: 0, loss: 0
+                        };
                     }
                     labels = Object.keys(timeData);
                     break;
@@ -1157,7 +1252,10 @@
                     for (let i = 11; i >= 0; i--) {
                         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
                         const dateKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                        timeData[dateKey] = { incidents: 0, loss: 0 };
+                        timeData[dateKey] = {
+                            theft: 0, accident: 0, walkout: 0, 
+                            recall: 0, waste: 0, other: 0, loss: 0
+                        };
                     }
                     labels = Object.keys(timeData);
                     break;
@@ -1168,6 +1266,7 @@
                 if (!incident.createdAt) return;
                 
                 const incidentDate = VediAPI.timestampToDate(incident.createdAt);
+                const incidentType = incident.type || 'other';
                 let timeKey;
 
                 switch(timePeriod) {
@@ -1206,15 +1305,24 @@
                 }
 
                 if (timeKey && timeData[timeKey]) {
-                    timeData[timeKey].incidents += 1;
+                    timeData[timeKey][incidentType] += 1;
                     timeData[timeKey].loss += incident.amount || 0;
                 }
             });
 
-            const incidentCounts = labels.map(label => timeData[label].incidents);
-            const lossAmounts = labels.map(label => timeData[label].loss);
+            // Prepare data for chart
+            const incidentsByType = {
+                theft: labels.map(label => timeData[label].theft),
+                accident: labels.map(label => timeData[label].accident),
+                walkout: labels.map(label => timeData[label].walkout),
+                recall: labels.map(label => timeData[label].recall),
+                waste: labels.map(label => timeData[label].waste),
+                other: labels.map(label => timeData[label].other)
+            };
+            
+            const totalLoss = labels.map(label => timeData[label].loss);
 
-            return { labels, incidentCounts, lossAmounts };
+            return { labels, incidentsByType, totalLoss };
         }
 
         // Modal and form functions
