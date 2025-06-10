@@ -911,7 +911,7 @@
         }
 
         // =============================================================================
-        // PHONE AUTHENTICATION METHODS (Existing)
+        // PHONE AUTHENTICATION METHODS (CORRECTED FOR FIREBASE V8)
         // =============================================================================
 
         // Switch to phone auth
@@ -936,39 +936,83 @@
             hideMessages();
         }
 
-        // Initialize reCAPTCHA
+        // CORRECTED: Initialize reCAPTCHA using Firebase v8 compat syntax
         function initializeRecaptcha() {
-            console.log('🔐 Initializing reCAPTCHA...');
+            console.log('🔐 Initializing reCAPTCHA with Firebase v8 compat...');
             
             try {
+                // Clear any existing reCAPTCHA first
                 if (recaptchaVerifier) {
-                    recaptchaVerifier.clear();
+                    try {
+                        console.log('🔄 Clearing existing reCAPTCHA verifier');
+                        recaptchaVerifier.clear();
+                    } catch (clearError) {
+                        console.warn('⚠️ reCAPTCHA already cleared:', clearError);
+                    }
+                    recaptchaVerifier = null;
                 }
 
-                recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-                    'size': 'normal',
-                    'callback': function(response) {
-                        console.log('✅ reCAPTCHA solved');
-                        document.getElementById('sendCodeBtn').disabled = false;
-                    },
-                    'expired-callback': function() {
-                        console.log('⏰ reCAPTCHA expired');
-                        showError('reCAPTCHA expired. Please solve it again.');
-                        document.getElementById('sendCodeBtn').disabled = true;
-                    }
-                });
+                // Clear the container
+                const container = document.getElementById('recaptcha-container');
+                if (container) {
+                    container.innerHTML = '';
+                }
 
-                recaptchaVerifier.render().then(function(widgetId) {
-                    window.recaptchaWidgetId = widgetId;
-                    console.log('✅ reCAPTCHA rendered successfully');
-                }).catch(function(error) {
-                    console.error('❌ reCAPTCHA render error:', error);
-                    showError('Failed to load reCAPTCHA. Please refresh the page.');
-                });
+                // Wait before creating new verifier
+                setTimeout(() => {
+                    try {
+                        console.log('🔐 Creating reCAPTCHA verifier with v8 compat syntax...');
+
+                        // CORRECTED: Use Firebase v8 compat syntax (no auth parameter)
+                        recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                            'size': 'normal',
+                            'callback': function(response) {
+                                console.log('✅ reCAPTCHA solved successfully');
+                                const sendBtn = document.getElementById('sendCodeBtn');
+                                if (sendBtn) {
+                                    sendBtn.disabled = false;
+                                }
+                                hideMessages();
+                            },
+                            'expired-callback': function() {
+                                console.log('⏰ reCAPTCHA expired');
+                                showError('reCAPTCHA expired. Please solve it again.');
+                                const sendBtn = document.getElementById('sendCodeBtn');
+                                if (sendBtn) {
+                                    sendBtn.disabled = true;
+                                }
+                            },
+                            'error-callback': function(error) {
+                                console.error('❌ reCAPTCHA error:', error);
+                                showError('reCAPTCHA failed. Please refresh and try again.');
+                            }
+                        });
+
+                        // CORRECTED: Render using v8 compat syntax
+                        recaptchaVerifier.render().then(function(widgetId) {
+                            window.recaptchaWidgetId = widgetId;
+                            console.log('✅ reCAPTCHA rendered successfully with widget ID:', widgetId);
+                            
+                            // Initially disable send button until solved
+                            const sendBtn = document.getElementById('sendCodeBtn');
+                            if (sendBtn) {
+                                sendBtn.disabled = true;
+                            }
+                            
+                        }).catch(function(error) {
+                            console.error('❌ reCAPTCHA render error:', error);
+                            showError('Failed to load reCAPTCHA. Please refresh the page.');
+                        });
+                        
+                    } catch (error) {
+                        console.error('❌ reCAPTCHA initialization failed:', error);
+                        showError('Failed to initialize phone verification. Please refresh the page.');
+                    }
+                }, 500);
                 
             } catch (error) {
-                console.error('❌ reCAPTCHA initialization failed:', error);
-                showError('Failed to initialize phone verification. Please refresh the page.');
+                console.error('❌ reCAPTCHA setup failed:', error);
+                showError('Phone verification setup failed. Please refresh the page.');
             }
         }
 
@@ -1034,7 +1078,11 @@
 
         function goBackToName() {
             if (recaptchaVerifier) {
-                recaptchaVerifier.clear();
+                try {
+                    recaptchaVerifier.clear();
+                } catch (error) {
+                    console.warn('⚠️ Error clearing reCAPTCHA on back:', error);
+                }
                 recaptchaVerifier = null;
             }
 
@@ -1046,7 +1094,7 @@
             hideMessages();
         }
 
-        // Send verification code (existing function)
+        // CORRECTED: Send verification code using Firebase v8 compat syntax
         async function sendVerificationCode() {
             const phoneInput = document.getElementById('phoneNumber');
             const phone = phoneInput.value.trim();
@@ -1073,7 +1121,12 @@
                     throw new Error('reCAPTCHA not initialized. Please refresh the page.');
                 }
                 
-                confirmationResult = await firebase.auth().signInWithPhoneNumber(phone, recaptchaVerifier);
+                // CORRECTED: Format phone number properly for Firebase
+                const formattedPhone = phone.startsWith('+') ? phone : `+${customerPhone}`;
+                console.log('📱 Using formatted phone:', formattedPhone);
+                
+                // CORRECTED: Use Firebase v8 compat syntax
+                confirmationResult = await firebase.auth().signInWithPhoneNumber(formattedPhone, recaptchaVerifier);
                 
                 console.log('✅ Verification code sent successfully');
                 showInfo('Verification code sent! Please check your phone.');
@@ -1092,24 +1145,44 @@
                 
             } catch (error) {
                 console.error('❌ Error sending verification code:', error);
-                showError(getAuthErrorMessage(error.code) || 'Failed to send verification code. Please try again.');
                 
-                if (recaptchaVerifier) {
+                let errorMessage = 'Failed to send verification code. Please try again.';
+                
+                // Handle specific Firebase errors
+                if (error.code === 'auth/internal-error' || error.code === 'auth/internal-error-encountered') {
+                    errorMessage = 'Service temporarily unavailable. Please wait and try again.';
+                } else if (error.code === 'auth/too-many-requests') {
+                    errorMessage = 'Too many attempts. Please wait before trying again.';
+                } else if (error.code === 'auth/invalid-phone-number') {
+                    errorMessage = 'Invalid phone number. Please check the format.';
+                } else if (error.code === 'auth/quota-exceeded') {
+                    errorMessage = 'SMS quota exceeded. Please try again later.';
+                } else if (error.code === 'auth/captcha-check-failed') {
+                    errorMessage = 'reCAPTCHA verification failed. Please try again.';
+                }
+                
+                showError(errorMessage);
+                
+                // CORRECTED: Reset reCAPTCHA using v8 compat syntax
+                if (recaptchaVerifier && window.recaptchaWidgetId) {
                     try {
-                        recaptchaVerifier.clear();
+                        grecaptcha.reset(window.recaptchaWidgetId);
+                        console.log('🔄 reCAPTCHA reset for retry');
+                    } catch (resetError) {
+                        console.warn('⚠️ Could not reset reCAPTCHA:', resetError);
+                        // Reinitialize if reset fails
                         setTimeout(() => {
                             initializeRecaptcha();
                         }, 1000);
-                    } catch (resetError) {
-                        console.error('❌ Error resetting reCAPTCHA:', resetError);
                     }
                 }
+                
             } finally {
                 setLoading('phone', false);
             }
         }
 
-        // Verify code (existing function)
+        // CORRECTED: Verify code using Firebase v8 compat syntax
         async function verifyCode() {
             const code = document.getElementById('verificationCode').value.trim();
             
@@ -1133,6 +1206,7 @@
                     throw new Error('No verification in progress. Please request a new code.');
                 }
                 
+                // CORRECTED: Use confirmationResult.confirm() - this is correct for v8
                 const result = await confirmationResult.confirm(code);
                 const user = result.user;
                 
@@ -1214,7 +1288,7 @@
             }, 1500);
         }
 
-        // Resend code (existing function)
+        // Resend code function
         async function resendCode() {
             try {
                 setLoading('code', true);
@@ -1233,7 +1307,11 @@
                 }
                 
                 if (recaptchaVerifier) {
-                    recaptchaVerifier.clear();
+                    try {
+                        recaptchaVerifier.clear();
+                    } catch (error) {
+                        console.warn('⚠️ Error clearing reCAPTCHA on resend:', error);
+                    }
                 }
                 
                 setTimeout(() => {
@@ -1250,7 +1328,7 @@
             }
         }
 
-        // Timer functions (existing)
+        // Timer functions
         function startResendTimer() {
             resendCountdown = 60;
             const resendBtn = document.getElementById('resendBtn');
@@ -1370,23 +1448,6 @@
             return phoneNumber;
         }
 
-        // Error message handler
-        function getAuthErrorMessage(errorCode) {
-            const errorMessages = {
-                'auth/invalid-phone-number': 'Invalid phone number. Please check and try again.',
-                'auth/too-many-requests': 'Too many attempts. Please try again later.',
-                'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
-                'auth/code-expired': 'Verification code has expired. Please request a new one.',
-                'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
-                'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
-                'auth/operation-not-allowed': 'Phone authentication is not enabled.',
-                'auth/missing-verification-code': 'Please enter the verification code.',
-                'auth/invalid-verification-id': 'Invalid verification session. Please start over.'
-            };
-            
-            return errorMessages[errorCode] || null;
-        }
-
         // Auto-submit code when 6 digits entered
         document.addEventListener('DOMContentLoaded', function() {
             const codeInput = document.getElementById('verificationCode');
@@ -1404,7 +1465,7 @@
             }
         });
 
-        console.log('📱🔍 Enhanced customer authentication system loaded (Social + SMS)');
+        console.log('📱🔍 Enhanced customer authentication system loaded (Social + SMS) with Firebase v8 compat');
     </script>
 </body>
 </html>
