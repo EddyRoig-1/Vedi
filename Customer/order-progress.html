@@ -946,6 +946,7 @@
                 setupRealtimeTracking();
                 
             } catch (error) {
+                console.error('❌ Initialization error:', error);
                 showError('Failed to load your order. Please try again.');
             }
         });
@@ -957,6 +958,7 @@
                     if (user) {
                         currentUser = user;
                         updateAuthenticationIndicator();
+                        console.log('✅ User authenticated:', user.uid);
                         resolve(user);
                     } else {
                         showSessionWarning();
@@ -1055,6 +1057,7 @@
                 }
             } catch (profileError) {
                 // Profile not found, continue with session data
+                console.log('📝 No customer profile found, using session data');
             }
 
             // Update display
@@ -1190,17 +1193,26 @@
             }
         }
 
-        // ENHANCED: Setup real-time order tracking with UID support
+        // FIXED: Setup real-time order tracking with proper query constraints
         function setupRealtimeTracking() {
-            if (!orderData.orderNumber) return;
+            if (!orderData.orderNumber || !currentUser) {
+                console.warn('⚠️ No order number or user available for tracking');
+                return;
+            }
 
-            
-            // Use real-time listener by order number
+            console.log('🔄 Setting up real-time tracking for order:', orderData.orderNumber);
+
+            // Method 1: Try VediAPI real-time listener first
             if (typeof VediAPI.listenToOrderByNumber === 'function') {
+                console.log('📡 Using VediAPI real-time listener');
+                
                 orderUpdateListener = VediAPI.listenToOrderByNumber(orderData.orderNumber, (updatedOrder) => {
                     if (updatedOrder) {
-                        // NEW: Verify order still belongs to current user
+                        console.log('📲 Real-time update received:', updatedOrder.status);
+                        
+                        // Verify order still belongs to current user
                         if (updatedOrder.customerUID && updatedOrder.customerUID !== currentUser.uid) {
+                            console.error('🚫 Order ownership mismatch');
                             showError('Order access has changed. Please refresh the page.');
                             return;
                         }
@@ -1210,38 +1222,176 @@
                         
                         // Check for status changes that require notifications
                         if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
                             handleStatusChange(previousStatus, updatedOrder.status);
                         }
                         
                         updateOrderProgress();
                     }
+                }, (error) => {
+                    console.error('❌ Real-time listener error:', error);
+                    
+                    // If permission denied, fall back to direct Firestore
+                    if (error.code === 'permission-denied') {
+                        console.log('🔄 Falling back to direct Firestore method');
+                        setupDirectFirestoreListener();
+                    }
                 });
             } else {
-                // Fallback to periodic updates
-                setInterval(async () => {
-                    try {
-                        const updatedOrder = await getOrderByNumberFixed(orderData.orderNumber);
-                        if (updatedOrder && updatedOrder.status !== orderData.status) {
-                            // NEW: Verify order ownership in polling
-                            if (updatedOrder.customerUID && updatedOrder.customerUID !== currentUser.uid) {
-                                showError('Order access has changed. Please refresh the page.');
-                                return;
-                            }
-                            
-                            const previousStatus = orderData.status;
-                            orderData = updatedOrder;
-                            handleStatusChange(previousStatus, updatedOrder.status);
-                            updateOrderProgress();
-                        }
-                    } catch (error) {
-                        // Silent error - don't show to user
-                    }
-                }, 10000); // Poll every 10 seconds
+                console.log('📊 VediAPI listener not available, using direct Firestore');
+                setupDirectFirestoreListener();
             }
+        }
+
+        // Method 2: Direct Firestore listener with proper query constraints
+        function setupDirectFirestoreListener() {
+            if (!firebase.firestore) {
+                console.error('❌ Firestore not available');
+                setupPollingTracking();
+                return;
+            }
+
+            try {
+                console.log('🔥 Setting up direct Firestore listener');
+                
+                // Create the query with proper constraints that match security rules
+                let query = firebase.firestore()
+                    .collection('orders')
+                    .where('orderNumber', '==', orderData.orderNumber)
+                    .where('customerUID', '==', currentUser.uid)
+                    .limit(1);
+
+                // Listen to the query
+                orderUpdateListener = query.onSnapshot((snapshot) => {
+                    console.log('📡 Firestore snapshot received, docs:', snapshot.docs.length);
+                    
+                    if (!snapshot.empty) {
+                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                        console.log('📲 Order update:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        orderData = updatedOrder;
+                        
+                        if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    } else {
+                        console.warn('⚠️ No matching order found in real-time update');
+                        
+                        // Try phone-based query as fallback for phone auth users
+                        if (currentUser.phoneNumber) {
+                            setupPhoneBasedListener();
+                        } else {
+                            setupPollingTracking();
+                        }
+                    }
+                }, (error) => {
+                    console.error('❌ Firestore listener error:', error);
+                    
+                    // If UID-based query fails, try phone-based for phone auth users
+                    if (currentUser.phoneNumber && error.code === 'permission-denied') {
+                        console.log('🔄 Trying phone-based listener');
+                        setupPhoneBasedListener();
+                    } else {
+                        setupPollingTracking();
+                    }
+                });
+                    
+            } catch (error) {
+                console.error('❌ Failed to setup Firestore listener:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // Method 3: Phone-based listener for phone auth users
+        function setupPhoneBasedListener() {
+            if (!currentUser.phoneNumber) {
+                setupPollingTracking();
+                return;
+            }
+
+            try {
+                console.log('📱 Setting up phone-based Firestore listener');
+                
+                // Try both E.164 and digits-only format
+                let query = firebase.firestore()
+                    .collection('orders')
+                    .where('orderNumber', '==', orderData.orderNumber)
+                    .where('customerPhone', '==', currentUser.phoneNumber)
+                    .limit(1);
+
+                orderUpdateListener = query.onSnapshot((snapshot) => {
+                    console.log('📡 Phone-based snapshot received, docs:', snapshot.docs.length);
+                    
+                    if (!snapshot.empty) {
+                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                        console.log('📲 Phone-based order update:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        orderData = updatedOrder;
+                        
+                        if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    } else {
+                        console.warn('⚠️ No phone-based match, falling back to polling');
+                        setupPollingTracking();
+                    }
+                }, (error) => {
+                    console.error('❌ Phone-based listener error:', error);
+                    setupPollingTracking();
+                });
+                    
+            } catch (error) {
+                console.error('❌ Failed to setup phone-based listener:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // Method 4: Polling fallback
+        function setupPollingTracking() {
+            console.log('⏰ Setting up polling tracking (fallback method)');
+            
+            const pollInterval = setInterval(async () => {
+                try {
+                    console.log('🔄 Polling for order updates...');
+                    const updatedOrder = await getOrderByNumberFixed(orderData.orderNumber);
+                    
+                    if (updatedOrder && updatedOrder.status !== orderData.status) {
+                        console.log('📈 Polling detected status change:', orderData.status, '→', updatedOrder.status);
+                        
+                        // Verify order ownership
+                        if (updatedOrder.customerUID && updatedOrder.customerUID !== currentUser.uid) {
+                            console.error('🚫 Order ownership mismatch in polling');
+                            showError('Order access has changed. Please refresh the page.');
+                            clearInterval(pollInterval);
+                            return;
+                        }
+                        
+                        const previousStatus = orderData.status;
+                        orderData = updatedOrder;
+                        handleStatusChange(previousStatus, updatedOrder.status);
+                        updateOrderProgress();
+                    }
+                } catch (error) {
+                    console.error('❌ Polling error:', error);
+                    // Continue polling even on errors, but don't spam console
+                }
+            }, 5000); // Poll every 5 seconds
+            
+            // Store the interval so we can clear it later
+            window.pollingInterval = pollInterval;
         }
 
         // Handle status changes
         function handleStatusChange(previousStatus, newStatus) {
+            console.log('🔄 Handling status change:', previousStatus, '→', newStatus);
             
             // Play notification when order becomes ready
             if (newStatus === 'ready' && !hasPlayedReadyNotification) {
@@ -1365,6 +1515,7 @@
 
         // Handle order completion
         function handleOrderCompletion() {
+            console.log('🎉 Order completed!');
             
             // Show completion message
             const completionMessage = document.getElementById('completionMessage');
@@ -1380,8 +1531,17 @@
             
             // Stop real-time tracking when completed
             if (orderUpdateListener) {
-                orderUpdateListener();
+                if (typeof orderUpdateListener === 'function') {
+                    orderUpdateListener(); // VediAPI unsubscribe
+                } else if (orderUpdateListener.unsubscribe) {
+                    orderUpdateListener.unsubscribe(); // Firestore unsubscribe
+                }
                 orderUpdateListener = null;
+            }
+            
+            if (window.pollingInterval) {
+                clearInterval(window.pollingInterval);
+                window.pollingInterval = null;
             }
         }
 
@@ -1422,7 +1582,7 @@
 
         // Navigation functions
         function createNewOrder() {
-            
+            console.log('🛒 Creating new order');
             const params = new URLSearchParams();
             if (customerSession.restaurantId) {
                 params.set('restaurant', customerSession.restaurantId);
@@ -1441,7 +1601,7 @@
         }
 
         function goToCustomerOrders() {
-            
+            console.log('📋 Going to customer orders');
             const params = new URLSearchParams();
             if (customerSession.restaurantId) {
                 params.set('restaurant', customerSession.restaurantId);
@@ -1461,7 +1621,7 @@
 
         // Add this function for the error button
         function goBackToMenu() {
-            
+            console.log('🔙 Going back to menu');
             const params = new URLSearchParams();
             if (customerSession.restaurantId) {
                 params.set('restaurant', customerSession.restaurantId);
@@ -1489,12 +1649,13 @@
                             
                             if (audioContext.state === 'suspended') {
                                 audioContext.resume().then(() => {
-                                    // Audio context resumed
+                                    console.log('🔊 Audio context resumed');
                                 }).catch(err => {
-                                    // Audio context resume failed
+                                    console.warn('⚠️ Audio context resume failed:', err);
                                 });
                             }
                         } catch (err) {
+                            console.warn('⚠️ Audio context creation failed:', err);
                             audioContext = null;
                         }
                     }
@@ -1508,7 +1669,7 @@
 
                 initAudioContext();
             } catch (error) {
-                // Audio initialization failed
+                console.warn('⚠️ Audio initialization failed:', error);
             }
         }
 
@@ -1531,7 +1692,7 @@
                     oscillator.stop(audioContext.currentTime + duration / 1000);
                     
                 } catch (error) {
-                    // Beep play error
+                    console.warn('⚠️ Beep play error:', error);
                 }
             }
         }
@@ -1543,6 +1704,7 @@
         }
 
         function playOrderReadyNotification() {
+            console.log('🔔 Playing order ready notification');
             
             // Show browser notification
             if ('Notification' in window) {
@@ -1610,11 +1772,13 @@
             firebase.auth().onAuthStateChanged(function(user) {
                 if (!user && currentUser) {
                     // User was signed out unexpectedly
+                    console.warn('⚠️ User signed out unexpectedly');
                     showSessionWarning();
                     currentUser = null;
                     updateAuthenticationIndicator();
                 } else if (user && !currentUser) {
                     // User signed in during session
+                    console.log('✅ User signed in during session');
                     currentUser = user;
                     updateAuthenticationIndicator();
                     hideSessionWarning();
@@ -1635,11 +1799,24 @@
             monitorAuthenticationState();
         }, 1000);
 
-        // Cleanup on page unload
+        // Enhanced cleanup on page unload
         window.addEventListener('beforeunload', function() {
+            console.log('🧹 Cleaning up tracking listeners');
+            
             if (orderUpdateListener) {
-                orderUpdateListener();
+                if (typeof orderUpdateListener === 'function') {
+                    orderUpdateListener(); // VediAPI unsubscribe
+                } else if (orderUpdateListener.unsubscribe) {
+                    orderUpdateListener.unsubscribe(); // Firestore unsubscribe
+                }
+                orderUpdateListener = null;
             }
+            
+            if (window.pollingInterval) {
+                clearInterval(window.pollingInterval);
+                window.pollingInterval = null;
+            }
+            
             if (vibrationInterval) {
                 clearInterval(vibrationInterval);
             }
