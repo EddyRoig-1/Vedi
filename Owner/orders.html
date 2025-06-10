@@ -1379,7 +1379,7 @@
             }
         }
 
-        // FIXED: Load history orders with PRECISE date filtering
+        // FIXED: Load history orders with flexible date filtering
         async function loadHistoryOrders() {
             if (currentTab !== 'history') return;
             
@@ -1390,40 +1390,64 @@
                 const dateFilterValue = document.getElementById('dateFilter').value;
                 console.log('📅 Date filter value:', dateFilterValue);
                 
-                // FIXED: Get target date and create precise date range
-                let targetDate;
+                let historySnapshot;
+                
                 if (dateFilterValue) {
-                    targetDate = new Date(dateFilterValue);
+                    // If specific date is selected, try to get orders for that date
+                    const targetDate = new Date(dateFilterValue);
+                    const startOfDay = new Date(targetDate);
+                    startOfDay.setHours(0, 0, 0, 0);
+                    
+                    const endOfDay = new Date(targetDate);
+                    endOfDay.setHours(23, 59, 59, 999);
+                    
+                    console.log('📅 Querying for specific date:', {
+                        targetDate: targetDate.toDateString(),
+                        startOfDay: startOfDay,
+                        endOfDay: endOfDay
+                    });
+                    
+                    historySnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('restaurantId', '==', currentRestaurant.id)
+                        .where('createdAt', '>=', startOfDay)
+                        .where('createdAt', '<=', endOfDay)
+                        .orderBy('createdAt', 'desc')
+                        .get();
+                    
+                    console.log('✅ Date-specific query result:', historySnapshot.docs.length, 'total docs');
+                    
+                    // If no orders found for specific date, fall back to recent orders
+                    if (historySnapshot.docs.length === 0) {
+                        console.log('📅 No orders found for specific date, loading recent orders...');
+                        
+                        historySnapshot = await firebase.firestore()
+                            .collection('orders')
+                            .where('restaurantId', '==', currentRestaurant.id)
+                            .orderBy('createdAt', 'desc')
+                            .limit(100)
+                            .get();
+                            
+                        console.log('✅ Fallback query result:', historySnapshot.docs.length, 'recent orders');
+                        showNotification(`No orders found for ${targetDate.toLocaleDateString()}. Showing recent orders.`, 'warning');
+                    } else {
+                        showNotification(`Loading orders for ${targetDate.toLocaleDateString()}`, 'success');
+                    }
                 } else {
-                    targetDate = new Date(); // Default to today
+                    // No date filter - load recent orders
+                    console.log('📅 No date filter, loading recent orders...');
+                    
+                    historySnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('restaurantId', '==', currentRestaurant.id)
+                        .orderBy('createdAt', 'desc')
+                        .limit(100)
+                        .get();
+                        
+                    console.log('✅ Recent orders query result:', historySnapshot.docs.length, 'docs');
                 }
                 
-                // Create start and end of day for precise filtering
-                const startOfDay = new Date(targetDate);
-                startOfDay.setHours(0, 0, 0, 0);
-                
-                const endOfDay = new Date(targetDate);
-                endOfDay.setHours(23, 59, 59, 999);
-                
-                console.log('📅 Date range:', {
-                    targetDate: targetDate.toDateString(),
-                    startOfDay: startOfDay,
-                    endOfDay: endOfDay
-                });
-                
-                // FIXED: Query with date range filtering
-                const historySnapshot = await firebase.firestore()
-                    .collection('orders')
-                    .where('restaurantId', '==', currentRestaurant.id)
-                    .where('createdAt', '>=', startOfDay)
-                    .where('createdAt', '<=', endOfDay)
-                    .orderBy('createdAt', 'desc')
-                    .get();
-                    
-                console.log('✅ Query successful, total docs in date range:', historySnapshot.docs.length);
-                
                 historyOrders.clear();
-                
                 let completedFound = 0;
                 
                 historySnapshot.docs.forEach(doc => {
@@ -1434,17 +1458,21 @@
                         completedFound++;
                         historyOrders.set(doc.id, order);
                         
-                        console.log('📋 Found completed order:', {
-                            orderNumber: order.orderNumber,
-                            status: order.status,
-                            customerName: order.customerName,
-                            total: order.total
-                        });
+                        // Log first few for debugging
+                        if (completedFound <= 3) {
+                            console.log('📋 Found completed order:', {
+                                orderNumber: order.orderNumber,
+                                status: order.status,
+                                customerName: order.customerName,
+                                total: order.total,
+                                createdAt: order.createdAt?.toDate?.() || order.createdAt
+                            });
+                        }
                     }
                 });
                 
                 console.log('📊 History processing results:', {
-                    totalDocsInRange: historySnapshot.docs.length,
+                    totalDocsQueried: historySnapshot.docs.length,
                     completedFound,
                     dateFilter: dateFilterValue,
                     historyOrdersSize: historyOrders.size
@@ -1453,15 +1481,12 @@
                 renderHistoryOrders();
                 hideLoading();
                 
-                // Show helpful message
                 if (historyOrders.size === 0) {
-                    const dateStr = targetDate.toLocaleDateString();
-                    showNotification(`No completed orders found for ${dateStr}`, 'warning');
+                    console.log('❌ No completed orders found at all');
+                    showNotification('No completed orders found. Complete some orders to see history.', 'warning');
                 } else {
-                    showNotification(`Found ${historyOrders.size} completed orders for ${targetDate.toLocaleDateString()}`, 'success');
+                    console.log('✅ History loading complete:', historyOrders.size, 'completed orders to display');
                 }
-                
-                console.log('✅ History loading complete:', historyOrders.size, 'orders to display');
                 
             } catch (error) {
                 console.error('❌ Failed to load history orders:', error);
@@ -1470,7 +1495,7 @@
             }
         }
 
-        // ENHANCED: Better history rendering
+        // ENHANCED: Better history rendering with more helpful empty states
         function renderHistoryOrders() {
             const grid = document.getElementById('historyOrdersGrid');
             const ordersArray = Array.from(historyOrders.values());
@@ -1478,14 +1503,27 @@
             console.log('🎨 Rendering history orders:', ordersArray.length);
             
             if (ordersArray.length === 0) {
+                const dateFilterValue = document.getElementById('dateFilter').value;
+                const isDateFiltered = dateFilterValue !== '';
+                
                 grid.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📜</div>
                         <h3>No order history found</h3>
-                        <p>Try selecting a different date or complete some orders first</p>
-                        <button class="btn btn-primary" onclick="debugHistoryOrders()" style="margin-top: 15px;">
-                            🔍 Debug History
-                        </button>
+                        <p>${isDateFiltered ? 
+                            'Try selecting a different date or complete some orders first' : 
+                            'Complete some orders to see them appear here'
+                        }</p>
+                        <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
+                                🔍 Debug History
+                            </button>
+                            ${isDateFiltered ? `
+                                <button class="btn btn-secondary" onclick="clearDateFilter()">
+                                    📅 Show All Recent
+                                </button>
+                            ` : ''}
+                        </div>
                     </div>
                 `;
                 return;
@@ -1556,6 +1594,12 @@
             });
         }
 
+        // HELPER: Clear date filter and show all recent orders
+        function clearDateFilter() {
+            document.getElementById('dateFilter').value = '';
+            loadHistoryOrders();
+        }
+
         // HELPER: Clear history filters
         function clearHistoryFilters() {
             document.getElementById('historyTableFilter').value = 'all';
@@ -1565,11 +1609,46 @@
 
         // HELPER: Debug history orders
         function debugHistoryOrders() {
-            console.log('🔍 Debug: Current history orders:', Array.from(historyOrders.values()));
-            console.log('🔍 Debug: Date filter value:', document.getElementById('dateFilter').value);
+            console.log('🔍 === HISTORY DEBUG INFO ===');
+            console.log('🔍 Current history orders count:', historyOrders.size);
+            console.log('🔍 History orders:', Array.from(historyOrders.values()));
+            console.log('🔍 Date filter value:', document.getElementById('dateFilter').value);
+            console.log('🔍 Table filter value:', document.getElementById('historyTableFilter').value);
+            console.log('🔍 Search filter value:', document.getElementById('historySearchInput').value);
+            console.log('🔍 Restaurant ID:', currentRestaurant?.id);
+            
+            // Test query to see what's in the database
+            console.log('🔍 Testing direct database query...');
+            
+            firebase.firestore()
+                .collection('orders')
+                .where('restaurantId', '==', currentRestaurant.id)
+                .orderBy('createdAt', 'desc')
+                .limit(10)
+                .get()
+                .then(snapshot => {
+                    console.log('🔍 Direct query result - Total docs:', snapshot.docs.length);
+                    snapshot.docs.forEach((doc, index) => {
+                        const order = doc.data();
+                        console.log(`🔍 Order ${index + 1}:`, {
+                            id: doc.id,
+                            orderNumber: order.orderNumber,
+                            status: order.status,
+                            customerName: order.customerName,
+                            createdAt: order.createdAt?.toDate?.() || order.createdAt,
+                            tableNumber: order.tableNumber
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('🔍 Direct query failed:', error);
+                });
             
             // Force reload
-            loadHistoryOrders();
+            setTimeout(() => {
+                console.log('🔍 Force reloading history...');
+                loadHistoryOrders();
+            }, 1000);
         }
 
         // UI Event Handlers
