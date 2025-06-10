@@ -1167,21 +1167,32 @@ const VediAPI = {
   }),
 
   // ============================================================================
-  // LOSS INCIDENT MANAGEMENT
+  // LOSS INCIDENT MANAGEMENT (FIXED VERSION)
   // ============================================================================
 
   /**
-   * Create new loss incident
+   * Create new loss incident (FIXED to handle undefined values)
    * @param {Object} incidentData - Incident information
    * @returns {Promise<Object>} Created incident
    */
   createLossIncident: withTracking('createLossIncident', async function(incidentData) {
     try {
+      // Remove undefined values from the incident data
+      const cleanIncidentData = {};
+      
+      Object.keys(incidentData).forEach(key => {
+        if (incidentData[key] !== undefined && incidentData[key] !== null) {
+          cleanIncidentData[key] = incidentData[key];
+        }
+      });
+      
       const incident = {
-        ...incidentData,
+        ...cleanIncidentData,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
+      
+      console.log('📝 Creating incident with clean data:', incident);
       
       const docRef = await firebaseDb.collection('lossIncidents').add(incident);
       const doc = await docRef.get();
@@ -1745,3 +1756,4 @@ console.log('   🍎 Apple social authentication');
 console.log('   👤 Customer profile management');
 console.log('   🔒 UID-based order security');
 console.log('🔥 Ready for production use with complete analytics and enhanced authentication!');
+console.log('✅ FIXED: Loss incident creation now handles undefined values properly');
