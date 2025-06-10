@@ -39,40 +39,6 @@
             scroll-behavior: smooth;
         }
 
-        /* Smooth scrolling for main content areas */
-        .dashboard-section {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
-            scroll-margin-top: 20px;
-        }
-
-        /* Custom scrollbar for main page */
-        html {
-            scrollbar-width: thin;
-            scrollbar-color: #cbd5e0 #f7fafc;
-        }
-
-        html::-webkit-scrollbar {
-            width: 12px;
-        }
-
-        html::-webkit-scrollbar-track {
-            background: #f7fafc;
-        }
-
-        html::-webkit-scrollbar-thumb {
-            background: #cbd5e0;
-            border-radius: 6px;
-            border: 2px solid #f7fafc;
-        }
-
-        html::-webkit-scrollbar-thumb:hover {
-            background: #a0aec0;
-        }
-
         .loading-spinner {
             display: none;
             text-align: center;
@@ -109,12 +75,37 @@
             display: none;
         }
 
+        /* Main page scrollbar styling */
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e0 #f7fafc;
+        }
+
+        html::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        html::-webkit-scrollbar-track {
+            background: #f7fafc;
+        }
+
+        html::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 6px;
+            border: 2px solid #f7fafc;
+        }
+
+        html::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+
         .dashboard-section {
             background: white;
             border-radius: 15px;
             padding: 30px;
             margin-bottom: 30px;
             box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            scroll-margin-top: 20px;
         }
 
         .section-header {
@@ -377,34 +368,6 @@
             background: white;
         }
 
-        /* Custom legend styles */
-        .custom-legend {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .legend-item {
-            background: var(--bg-color);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            text-align: center;
-            min-width: 80px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: transform 0.2s ease;
-            cursor: pointer;
-        }
-
-        .legend-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
         .modal {
             display: none;
             position: fixed;
@@ -441,7 +404,7 @@
             scrollbar-color: #cbd5e0 #f7fafc;
         }
 
-        /* Custom scrollbar for webkit browsers */
+        /* Custom scrollbar for modal */
         .modal-content::-webkit-scrollbar {
             width: 8px;
         }
@@ -733,8 +696,12 @@
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Estimated Loss Amount ($) *</label>
-                    <input type="number" class="form-input" id="reportAmount" step="0.01" min="0" required placeholder="0.00">
+                    <label class="form-label">Estimated Loss Amount *</label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #666; font-weight: 600;" id="currencySymbol">$</span>
+                        <input type="number" class="form-input" id="reportAmount" step="0.01" min="0" required placeholder="0.00" style="padding-left: 35px;">
+                    </div>
+                    <small style="color: #666; font-size: 0.85rem;" id="currencyHelp">* Amount in USD</small>
                 </div>
                 
                 <div class="form-group">
@@ -771,6 +738,12 @@
             timePeriod: 'month',
             incidentType: 'all',
             status: 'all'
+        };
+
+        // Currency cache for formatting
+        const appCache = {
+            currency: { code: 'USD', symbol: '$' },
+            lastRefresh: 0
         };
 
         // Define consistent color scheme for incident types
@@ -851,6 +824,10 @@
                 }
 
                 console.log('✅ Restaurant loaded:', currentRestaurant.name);
+
+                // Set currency from restaurant data
+                appCache.currency = currentRestaurant.currency || { code: 'USD', symbol: '$' };
+                console.log('💰 Currency loaded:', appCache.currency);
 
                 // Setup real-time incident tracking
                 setupRealtimeTracking();
@@ -1097,7 +1074,7 @@
                         },
                         {
                             type: 'line',
-                            label: 'Total Loss ($)',
+                            label: `Total Loss (${appCache.currency.code})`,
                             data: [],
                             borderColor: '#dc2626',
                             backgroundColor: 'rgba(220, 38, 38, 0.1)',
@@ -1216,7 +1193,8 @@
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: 'Loss Amount ($)'
+                                text: `Loss Amount (${appCache.currency.code})`,
+                                color: '#333'
                             },
                             grid: {
                                 drawOnChartArea: false,
@@ -1267,6 +1245,12 @@
             };
             
             combinedChart.options.plugins.title.text = titleMap[timePeriod] || 'Incident Count & Loss Trends';
+            
+            // Update loss line label with current currency
+            combinedChart.data.datasets[6].label = `Total Loss (${appCache.currency.code})`;
+            
+            // Update y1 axis title with current currency
+            combinedChart.options.scales.y1.title.text = `Loss Amount (${appCache.currency.code})`;
             
             combinedChart.update();
         }
@@ -1416,6 +1400,18 @@
             modal.classList.add('show');
             document.getElementById('incidentForm').reset();
             
+            // Update currency symbol in the form
+            const currencySymbol = document.getElementById('currencySymbol');
+            if (currencySymbol) {
+                currencySymbol.textContent = appCache.currency.symbol;
+            }
+            
+            // Update currency help text
+            const currencyHelp = document.getElementById('currencyHelp');
+            if (currencyHelp) {
+                currencyHelp.textContent = `* Amount in ${appCache.currency.code}`;
+            }
+            
             // Prevent body scroll when modal is open
             document.body.style.overflow = 'hidden';
             
@@ -1544,38 +1540,79 @@
 
         function exportReport() {
             try {
-                console.log('📄 Exporting incident report...');
+                console.log('📄 Exporting incident report as CSV...');
                 
-                const reportData = {
-                    generatedAt: new Date().toISOString(),
-                    restaurant: {
-                        id: currentRestaurant.id,
-                        name: currentRestaurant.name
-                    },
-                    filters: currentFilters,
-                    incidents: allIncidents,
-                    summary: {
-                        totalIncidents: allIncidents.length,
-                        totalLoss: allIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0),
-                        byType: getIncidentsByType(),
-                        bySeverity: getIncidentsBySeverity()
-                    },
-                    reportType: 'restaurant_incident_report'
-                };
-
-                const dataStr = JSON.stringify(reportData, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                // Add headers with currency awareness
+                const headers = [
+                    'Date',
+                    'Incident Type',
+                    'Title',
+                    'Description',
+                    `Amount (${appCache.currency.code})`,
+                    'Severity',
+                    'Status',
+                    'Reported By',
+                    'Category'
+                ];
                 
+                // Prepare CSV data
+                const csvData = allIncidents.map(incident => {
+                    const date = incident.createdAt ? 
+                        VediAPI.timestampToDate(incident.createdAt).toLocaleDateString() : 
+                        'N/A';
+                    
+                    return [
+                        date,
+                        formatIncidentTypeClean(incident.type || 'other'),
+                        `"${(incident.title || 'Untitled').replace(/"/g, '""')}"`, // Escape quotes
+                        `"${(incident.description || 'No description').replace(/"/g, '""')}"`, // Escape quotes
+                        incident.amount || 0,
+                        incident.severity || 'medium',
+                        incident.status || 'reported',
+                        incident.reportedBy || 'Unknown',
+                        incident.category || 'other'
+                    ];
+                });
+                
+                // Add summary row
+                const totalIncidents = allIncidents.length;
+                const totalLoss = allIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
+                const mostCommon = calculateMostCommonIncident();
+                
+                // Add summary with currency awareness
+                csvData.push([]);
+                csvData.push(['SUMMARY', '', '', '', '', '', '', '', '']);
+                csvData.push(['Total Incidents', totalIncidents, '', '', '', '', '', '', '']);
+                csvData.push([`Total Loss (${appCache.currency.code})`, totalLoss, '', '', '', '', '', '', '']);
+                csvData.push(['Most Common Type', mostCommon, '', '', '', '', '', '', '']);
+                csvData.push(['Report Generated', new Date().toLocaleString(), '', '', '', '', '', '', '']);
+                csvData.push(['Currency', `${appCache.currency.code} (${appCache.currency.symbol})`, '', '', '', '', '', '', '']);
+                
+                // Convert to CSV format
+                const csvContent = [
+                    headers.join(','),
+                    ...csvData.map(row => row.join(','))
+                ].join('\n');
+                
+                // Create and download file
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
-                link.href = URL.createObjectURL(dataBlob);
-                link.download = `incident-report-${currentRestaurant.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.json`;
-                link.click();
                 
-                showNotification('Report exported successfully');
+                if (link.download !== undefined) {
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `incident-report-${currentRestaurant.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+                
+                showNotification('CSV report exported successfully');
 
             } catch (error) {
                 console.error('❌ Export error:', error);
-                showNotification('Error exporting report', 'error');
+                showNotification('Error exporting CSV report', 'error');
             }
         }
 
@@ -1621,10 +1658,8 @@
 
         // Utility functions
         function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-            }).format(amount);
+            if (!amount && amount !== 0) return `${appCache.currency.symbol}0.00`;
+            return `${appCache.currency.symbol}${Number(amount).toFixed(2)}`;
         }
 
         function truncateText(text, maxLength) {
