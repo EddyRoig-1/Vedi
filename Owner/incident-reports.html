@@ -628,8 +628,8 @@
                         <div class="stat-label">This Month</div>
                     </div>
                     <div class="stat-card success">
-                        <div class="stat-number" id="avgResponseTime">0</div>
-                        <div class="stat-label">Days Avg Resolution</div>
+                        <div class="stat-number" id="mostCommonIncident">None</div>
+                        <div class="stat-label">Most Common Incident</div>
                     </div>
                 </div>
             </div>
@@ -943,25 +943,38 @@
             );
             const monthlyLoss = monthlyIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
             
-            // Calculate average response time (placeholder)
-            const avgResponseTime = calculateAverageResponseTime();
+            // Calculate most common incident type
+            const mostCommonIncident = calculateMostCommonIncident();
 
             document.getElementById('totalIncidents').textContent = totalIncidents;
             document.getElementById('totalLoss').textContent = formatCurrency(totalLoss);
             document.getElementById('monthlyLoss').textContent = formatCurrency(monthlyLoss);
-            document.getElementById('avgResponseTime').textContent = avgResponseTime;
+            document.getElementById('mostCommonIncident').textContent = mostCommonIncident;
         }
 
-        function calculateAverageResponseTime() {
-            const resolvedIncidents = allIncidents.filter(incident => 
-                incident.status === 'resolved' || incident.status === 'closed'
-            );
+        function calculateMostCommonIncident() {
+            if (allIncidents.length === 0) return 'None';
             
-            if (resolvedIncidents.length === 0) return '0';
+            // Count incidents by type
+            const incidentCounts = {};
+            allIncidents.forEach(incident => {
+                const type = incident.type || 'other';
+                incidentCounts[type] = (incidentCounts[type] || 0) + 1;
+            });
             
-            // Simplified calculation - would need actual resolution dates
-            const avgDays = Math.floor(Math.random() * 5) + 1; // Placeholder
-            return avgDays;
+            // Find the type with the highest count
+            let maxCount = 0;
+            let mostCommonType = 'None';
+            
+            for (const [type, count] of Object.entries(incidentCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    mostCommonType = type;
+                }
+            }
+            
+            // Return formatted incident type name
+            return formatIncidentTypeClean(mostCommonType);
         }
 
         function updateIncidentsGrid() {
