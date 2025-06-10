@@ -38,6 +38,51 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        /* Session Warning */
+        .session-warning {
+            background: linear-gradient(135deg, #fef5e7, #fed7aa);
+            border: 1px solid #f6ad55;
+            color: #c05621;
+            padding: 16px 20px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(246, 173, 85, 0.2);
+        }
+
+        .session-warning.show {
+            display: flex;
+        }
+
+        .session-warning-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .session-warning-text {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .reauth-btn {
+            background: #c05621;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .reauth-btn:hover {
+            background: #9c4221;
+            transform: translateY(-1px);
+        }
+
         /* Header Styles */
         .progress-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -96,7 +141,32 @@
             font-size: 0.9rem;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .auth-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(46, 204, 113, 0.2);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .auth-indicator.social {
+            background: rgba(52, 152, 219, 0.2);
+            border-color: rgba(52, 152, 219, 0.3);
+        }
+
+        .auth-indicator.phone {
+            background: rgba(155, 89, 182, 0.2);
+            border-color: rgba(155, 89, 182, 0.3);
         }
 
         /* Content Styles */
@@ -666,11 +736,31 @@
                 margin: 16px -16px -16px -16px;
                 padding: 16px;
             }
+
+            .customer-info {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+
+            .auth-indicator {
+                font-size: 0.7rem;
+                padding: 2px 6px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Session Warning -->
+        <div class="session-warning" id="sessionWarning">
+            <div class="session-warning-icon">⚠️</div>
+            <div class="session-warning-text">
+                Your session has expired. Please sign in again to track your order.
+            </div>
+            <button class="reauth-btn" onclick="redirectToLogin()">Sign In</button>
+        </div>
+
         <!-- Header -->
         <div class="progress-header">
             <div class="real-time-indicator">● LIVE</div>
@@ -678,7 +768,11 @@
                 <div class="header-info">
                     <h1 class="restaurant-title" id="restaurantName">Restaurant</h1>
                     <div class="customer-info">
-                        <strong id="customerName">Customer</strong> • Table #<span id="tableNumber">--</span>
+                        <span><strong id="customerName">Customer</strong> • Table #<span id="tableNumber">--</span></span>
+                        <div class="auth-indicator" id="authIndicator">
+                            <span id="authIcon">🔐</span>
+                            <span id="authText">Secured</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -712,8 +806,16 @@
                     <span class="debug-value" id="debugCustomerPhone">--</span>
                 </div>
                 <div class="debug-item">
+                    <span class="debug-label">Customer UID:</span>
+                    <span class="debug-value" id="debugCustomerUID">--</span>
+                </div>
+                <div class="debug-item">
                     <span class="debug-label">Restaurant ID:</span>
                     <span class="debug-value" id="debugRestaurantId">--</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">Auth Provider:</span>
+                    <span class="debug-value" id="debugAuthProvider">--</span>
                 </div>
             </div>
 
@@ -814,6 +916,7 @@
     <script>
         // Global variables
         let customerSession = {};
+        let currentUser = null; // NEW: Firebase user object
         let orderData = {};
         let orderUpdateListener = null;
         let restaurantData = null;
@@ -821,13 +924,13 @@
         let audioContext = null;
         let vibrationInterval = null;
 
-        // UPDATED: Initialize page with authentication check
+        // ENHANCED: Initialize page with authentication check
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Order progress page loaded');
+            console.log('🚀 Enhanced order progress page loaded');
             
             try {
-                // ADDED: Check authentication first
-                await checkAuthentication();
+                // ENHANCED: Check authentication first
+                await checkAuthenticationAndSession();
                 
                 // Initialize audio context for sounds
                 initializeAudio();
@@ -843,45 +946,135 @@
             }
         });
 
-        // ADDED: Authentication check function
-        async function checkAuthentication() {
+        // ENHANCED: Authentication and session check
+        async function checkAuthenticationAndSession() {
             return new Promise((resolve, reject) => {
-                firebase.auth().onAuthStateChanged(function(user) {
+                firebase.auth().onAuthStateChanged(async function(user) {
                     if (user) {
-                        console.log('✅ User is authenticated:', user.uid);
+                        console.log('✅ User is authenticated for order tracking:', {
+                            uid: user.uid,
+                            email: user.email,
+                            displayName: user.displayName,
+                            phoneNumber: user.phoneNumber,
+                            providerId: user.providerData[0]?.providerId
+                        });
+                        
+                        currentUser = user;
+                        
+                        // NEW: Update authentication indicator
+                        updateAuthenticationIndicator();
+                        
                         resolve(user);
+                        
                     } else {
-                        console.log('❌ User not authenticated, redirecting to login');
-                        // Redirect back to customer login with current parameters
-                        const currentParams = new URLSearchParams(window.location.search);
-                        const loginUrl = `customer-login.html?${currentParams.toString()}`;
-                        window.location.href = loginUrl;
+                        console.log('❌ User not authenticated for order tracking, redirecting to login');
+                        showSessionWarning();
+                        redirectToLogin();
                         reject(new Error('User not authenticated'));
                     }
                 });
             });
         }
 
-        // Load customer session data
+        // NEW: Show session warning
+        function showSessionWarning() {
+            const warning = document.getElementById('sessionWarning');
+            if (warning) {
+                warning.classList.add('show');
+            }
+        }
+
+        // NEW: Redirect to login with current parameters
+        function redirectToLogin() {
+            const currentParams = new URLSearchParams(window.location.search);
+            const loginUrl = `customer-login.html?${currentParams.toString()}`;
+            
+            setTimeout(() => {
+                window.location.href = loginUrl;
+            }, 2000);
+        }
+
+        // NEW: Update authentication indicator
+        function updateAuthenticationIndicator() {
+            const authIndicator = document.getElementById('authIndicator');
+            const authIcon = document.getElementById('authIcon');
+            const authText = document.getElementById('authText');
+            
+            if (!currentUser) {
+                authIndicator.className = 'auth-indicator';
+                authIcon.textContent = '❌';
+                authText.textContent = 'Not Signed In';
+                return;
+            }
+            
+            // Determine auth method and display appropriate indicator
+            const providerId = currentUser.providerData[0]?.providerId;
+            
+            if (providerId === 'phone') {
+                authIndicator.className = 'auth-indicator phone';
+                authIcon.textContent = '📱';
+                authText.textContent = 'Phone';
+            } else if (providerId === 'google.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '🔍';
+                authText.textContent = 'Google';
+            } else if (providerId === 'facebook.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '📘';
+                authText.textContent = 'Facebook';
+            } else if (providerId === 'apple.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '🍎';
+                authText.textContent = 'Apple';
+            } else {
+                authIndicator.className = 'auth-indicator';
+                authIcon.textContent = '🔐';
+                authText.textContent = 'Secured';
+            }
+        }
+
+        // ENHANCED: Load customer session data with authentication support
         async function loadCustomerSession() {
-            // Try to get from sessionStorage first (from login)
+            // Try to get from sessionStorage first (from login/checkout)
             const sessionData = sessionStorage.getItem('customerSession');
             if (sessionData) {
                 customerSession = JSON.parse(sessionData);
-                console.log('👤 Customer session loaded:', customerSession);
+                console.log('👤 Customer session loaded for order tracking:', customerSession);
+                
+                // NEW: Verify session belongs to current user
+                if (customerSession.firebaseUID !== currentUser.uid) {
+                    console.warn('⚠️ Session UID mismatch in order tracking');
+                    customerSession = {};
+                }
             } else {
                 // Fallback to URL parameters
                 const urlParams = new URLSearchParams(window.location.search);
                 customerSession = {
-                    name: urlParams.get('name') || 'Guest',
-                    phone: urlParams.get('phone') || '',
+                    name: urlParams.get('name') || currentUser?.displayName || 'Guest',
+                    phone: urlParams.get('phone') || currentUser?.phoneNumber || '',
                     restaurantId: urlParams.get('r') || urlParams.get('restaurant'),
-                    tableNumber: urlParams.get('table')
+                    tableNumber: urlParams.get('table'),
+                    firebaseUID: currentUser.uid // NEW: Add Firebase UID
                 };
             }
 
+            // NEW: Try to load customer profile from Firestore
+            try {
+                const profile = await VediAPI.getCustomerProfile(currentUser.uid);
+                if (profile) {
+                    console.log('👤 Enhanced customer profile loaded for order tracking');
+                    // Merge profile data with session
+                    customerSession = { ...customerSession, ...profile };
+                }
+            } catch (profileError) {
+                console.log('ℹ️ No customer profile found for order tracking');
+            }
+
             // Update display
-            document.getElementById('customerName').textContent = customerSession.name?.split(' ')[0] || 'Customer';
+            const displayName = customerSession.name?.split(' ')[0] || 
+                              currentUser?.displayName?.split(' ')[0] || 
+                              'Customer';
+            document.getElementById('customerName').textContent = displayName;
             document.getElementById('tableNumber').textContent = customerSession.tableNumber || '--';
         }
 
@@ -891,7 +1084,7 @@
                 try {
                     restaurantData = await VediAPI.getRestaurant(customerSession.restaurantId);
                     document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
-                    console.log('🏪 Restaurant data loaded:', restaurantData.name);
+                    console.log('🏪 Restaurant data loaded for order tracking:', restaurantData.name);
                 } catch (error) {
                     console.error('❌ Failed to load restaurant data:', error);
                     restaurantData = { name: 'Restaurant', currency: 'USD' };
@@ -903,7 +1096,7 @@
             }
         }
 
-        // FIXED: Load order data with proper retry mechanism and error handling
+        // ENHANCED: Load order data with authentication support and improved error handling
         async function loadOrderData() {
             const urlParams = new URLSearchParams(window.location.search);
             const orderNumber = urlParams.get('orderNumber');
@@ -911,10 +1104,12 @@
             // Update debug info
             updateDebugInfo(orderNumber);
             
-            console.log('🔍 Loading order data with params:', {
+            console.log('🔍 Loading order data with enhanced authentication:', {
                 orderNumber: orderNumber,
                 customerPhone: customerSession.phone,
+                customerUID: currentUser?.uid,
                 restaurantId: customerSession.restaurantId,
+                authProvider: currentUser?.providerData[0]?.providerId,
                 allParams: Object.fromEntries(urlParams.entries())
             });
             
@@ -927,7 +1122,15 @@
                     orderData = await VediAPI.getOrderByNumber(orderNumber);
                     
                     if (orderData) {
-                        console.log('✅ Order found immediately:', orderData);
+                        // NEW: Verify order belongs to current user
+                        if (orderData.customerUID && orderData.customerUID !== currentUser.uid) {
+                            console.warn('⚠️ Order does not belong to current user');
+                            showError('This order does not belong to your account. Please check your order details.');
+                            showDebugInfo();
+                            return;
+                        }
+                        
+                        console.log('✅ Order found and verified:', orderData);
                         displayOrderInfo();
                     } else {
                         // If not found immediately, wait and retry
@@ -937,7 +1140,15 @@
                             try {
                                 orderData = await VediAPI.getOrderByNumber(orderNumber);
                                 if (orderData) {
-                                    console.log('✅ Order found on retry:', orderData);
+                                    // NEW: Verify order ownership on retry
+                                    if (orderData.customerUID && orderData.customerUID !== currentUser.uid) {
+                                        console.warn('⚠️ Order does not belong to current user (retry)');
+                                        showError('This order does not belong to your account. Please check your order details.');
+                                        showDebugInfo();
+                                        return;
+                                    }
+                                    
+                                    console.log('✅ Order found on retry and verified:', orderData);
                                     displayOrderInfo();
                                 } else {
                                     // Final attempt after another delay
@@ -946,7 +1157,15 @@
                                         try {
                                             orderData = await VediAPI.getOrderByNumber(orderNumber);
                                             if (orderData) {
-                                                console.log('✅ Order found on final retry:', orderData);
+                                                // NEW: Final verification
+                                                if (orderData.customerUID && orderData.customerUID !== currentUser.uid) {
+                                                    console.warn('⚠️ Order does not belong to current user (final retry)');
+                                                    showError('This order does not belong to your account. Please check your order details.');
+                                                    showDebugInfo();
+                                                    return;
+                                                }
+                                                
+                                                console.log('✅ Order found on final retry and verified:', orderData);
                                                 displayOrderInfo();
                                             } else {
                                                 console.error('❌ Order still not found after all retries');
@@ -972,49 +1191,74 @@
                     showError('Failed to load order details: ' + error.message);
                     showDebugInfo();
                 }
-            } else if (customerSession.phone) {
-                // Find most recent active order for customer
+            } else {
+                // ENHANCED: Find most recent active order using UID or phone
                 try {
-                    console.log('📋 Fetching most recent order for customer:', customerSession.phone);
-                    orderData = await VediAPI.getMostRecentActiveOrder(customerSession.phone);
+                    console.log('📋 Fetching most recent order for authenticated user');
                     
-                    if (orderData) {
-                        console.log('✅ Most recent active order found:', orderData);
-                        displayOrderInfo();
-                    } else {
-                        // Try getting all orders and find the most recent one
-                        console.log('🔍 No active order found, checking all orders...');
-                        const allOrders = await VediAPI.getOrdersByCustomer(customerSession.phone);
+                    // Try UID-based lookup first (more secure)
+                    if (currentUser?.uid) {
+                        orderData = await VediAPI.getMostRecentActiveOrderByUID(currentUser.uid);
                         
-                        if (allOrders && allOrders.length > 0) {
-                            // Get the most recent order
-                            orderData = allOrders[0];
-                            console.log('✅ Most recent order found:', orderData);
+                        if (orderData) {
+                            console.log('✅ Most recent active order found by UID:', orderData);
+                            displayOrderInfo();
+                            return;
+                        }
+                    }
+                    
+                    // Fallback to phone-based lookup
+                    if (customerSession.phone) {
+                        orderData = await VediAPI.getMostRecentActiveOrder(customerSession.phone);
+                        
+                        if (orderData) {
+                            console.log('✅ Most recent active order found by phone:', orderData);
                             displayOrderInfo();
                         } else {
-                            console.log('❌ No orders found for customer');
-                            showError('No orders found. Please place an order first.');
-                            showDebugInfo();
+                            // Try getting all orders by UID first, then phone
+                            console.log('🔍 No active order found, checking all orders...');
+                            
+                            let allOrders = [];
+                            if (currentUser?.uid) {
+                                allOrders = await VediAPI.getOrdersByCustomerUID(currentUser.uid);
+                            }
+                            
+                            if (allOrders.length === 0 && customerSession.phone) {
+                                allOrders = await VediAPI.getOrdersByCustomer(customerSession.phone);
+                            }
+                            
+                            if (allOrders && allOrders.length > 0) {
+                                // Get the most recent order
+                                orderData = allOrders[0];
+                                console.log('✅ Most recent order found:', orderData);
+                                displayOrderInfo();
+                            } else {
+                                console.log('❌ No orders found for customer');
+                                showError('No orders found. Please place an order first.');
+                                showDebugInfo();
+                            }
                         }
+                    } else {
+                        console.error('❌ No customer identification available');
+                        showError('Customer information not found. Please sign in and try again.');
+                        showDebugInfo();
                     }
                 } catch (error) {
                     console.error('❌ Failed to load customer orders:', error);
                     showError('Failed to load your orders: ' + error.message);
                     showDebugInfo();
                 }
-            } else {
-                console.error('❌ No order number or customer phone provided');
-                showError('Order information not found. Please scan the QR code and place an order first.');
-                showDebugInfo();
             }
         }
 
-        // Update debug information
+        // ENHANCED: Update debug information with authentication details
         function updateDebugInfo(orderNumber) {
             document.getElementById('debugUrl').textContent = window.location.href;
             document.getElementById('debugOrderNumber').textContent = orderNumber || 'Not provided';
             document.getElementById('debugCustomerPhone').textContent = customerSession.phone || 'Not provided';
+            document.getElementById('debugCustomerUID').textContent = currentUser?.uid || 'Not authenticated';
             document.getElementById('debugRestaurantId').textContent = customerSession.restaurantId || 'Not provided';
+            document.getElementById('debugAuthProvider').textContent = currentUser?.providerData[0]?.providerId || 'Not authenticated';
         }
 
         // Show debug information
@@ -1022,16 +1266,23 @@
             document.getElementById('debugInfo').style.display = 'block';
         }
 
-        // Setup real-time order tracking
+        // ENHANCED: Setup real-time order tracking with UID support
         function setupRealtimeTracking() {
             if (!orderData.orderNumber) return;
 
-            console.log('🔄 Setting up real-time tracking for order:', orderData.orderNumber);
+            console.log('🔄 Setting up enhanced real-time tracking for order:', orderData.orderNumber);
             
             // Use real-time listener by order number
             if (typeof VediAPI.listenToOrderByNumber === 'function') {
                 orderUpdateListener = VediAPI.listenToOrderByNumber(orderData.orderNumber, (updatedOrder) => {
                     if (updatedOrder) {
+                        // NEW: Verify order still belongs to current user
+                        if (updatedOrder.customerUID && updatedOrder.customerUID !== currentUser.uid) {
+                            console.warn('⚠️ Order ownership changed during tracking');
+                            showError('Order access has changed. Please refresh the page.');
+                            return;
+                        }
+                        
                         console.log('🔄 Real-time order update received:', updatedOrder.status);
                         
                         const previousStatus = orderData.status;
@@ -1052,6 +1303,13 @@
                     try {
                         const updatedOrder = await VediAPI.getOrderByNumber(orderData.orderNumber);
                         if (updatedOrder && updatedOrder.status !== orderData.status) {
+                            // NEW: Verify order ownership in polling
+                            if (updatedOrder.customerUID && updatedOrder.customerUID !== currentUser.uid) {
+                                console.warn('⚠️ Order ownership changed during polling');
+                                showError('Order access has changed. Please refresh the page.');
+                                return;
+                            }
+                            
                             const previousStatus = orderData.status;
                             orderData = updatedOrder;
                             handleStatusChange(previousStatus, updatedOrder.status);
@@ -1221,7 +1479,7 @@
             return `${symbol}${Number(amount).toFixed(2)}`;
         }
 
-        // FIXED: Better error display with helpful buttons
+        // ENHANCED: Better error display with helpful buttons
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
             const loadingDiv = document.getElementById('loadingMessage');
@@ -1289,7 +1547,7 @@
             window.location.href = `customer-orders.html?${params.toString()}`;
         }
 
-        // FIXED: Add this function for the error button
+        // Add this function for the error button
         function goBackToMenu() {
             console.log('🔙 Going back to menu...');
             
@@ -1441,6 +1699,38 @@
             }, 600);
         }
 
+        // NEW: Session monitoring for enhanced security
+        function monitorAuthenticationState() {
+            firebase.auth().onAuthStateChanged(function(user) {
+                if (!user && currentUser) {
+                    // User was signed out unexpectedly
+                    console.warn('⚠️ User signed out unexpectedly during order tracking');
+                    showSessionWarning();
+                    currentUser = null;
+                    updateAuthenticationIndicator();
+                } else if (user && !currentUser) {
+                    // User signed in during session
+                    console.log('✅ User signed in during order tracking session');
+                    currentUser = user;
+                    updateAuthenticationIndicator();
+                    hideSessionWarning();
+                }
+            });
+        }
+
+        // NEW: Hide session warning
+        function hideSessionWarning() {
+            const warning = document.getElementById('sessionWarning');
+            if (warning) {
+                warning.classList.remove('show');
+            }
+        }
+
+        // Start monitoring authentication state
+        setTimeout(() => {
+            monitorAuthenticationState();
+        }, 1000);
+
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
             if (orderUpdateListener) {
@@ -1450,6 +1740,8 @@
                 clearInterval(vibrationInterval);
             }
         });
+
+        console.log('📱🔔 Enhanced order progress with Firebase authentication and social login support loaded successfully');
     </script>
 </body>
 </html>
