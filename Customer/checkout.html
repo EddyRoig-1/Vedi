@@ -1258,6 +1258,26 @@
             sessionStorage.setItem('customerCart', JSON.stringify(cartData));
         }
 
+        // ADD this helper function to your checkout page:
+        function formatPhoneForStorage(phone) {
+            if (!phone) return '';
+            
+            // If it's already in E.164 format (starts with +), return as is
+            if (phone.startsWith('+')) return phone;
+            
+            // Remove all non-digits
+            const digits = phone.replace(/\D/g, '');
+            
+            // Add +1 prefix for US numbers if not present
+            if (digits.length === 11 && digits.startsWith('1')) {
+                return `+${digits}`;
+            } else if (digits.length === 10) {
+                return `+1${digits}`;
+            }
+            
+            return phone; // Return original if format is unclear
+        }
+
         // ENHANCED: Place order function with enhanced authentication
         async function placeOrder() {
             console.log('📝 Placing order with enhanced authentication...');
@@ -1319,7 +1339,8 @@
                     orderNumber: orderNumber,
                     restaurantId: customerData.restaurantId,
                     customerName: customerData.name || 'Walk-in Customer',
-                    customerPhone: customerData.phone || '',
+                    // FIXED: Store phone number in E.164 format to match Firebase Auth
+                    customerPhone: formatPhoneForStorage(customerData.phone) || currentUser.phoneNumber || '',
                     customerUID: currentUser.uid, // ENHANCED: Include Firebase UID
                     customerEmail: currentUser.email || '', // NEW: Include email for social users
                     authProvider: currentUser.providerData[0]?.providerId || 'unknown', // NEW: Track auth method
@@ -1342,10 +1363,10 @@
                 const createdOrder = await VediAPI.createOrder(orderData);
                 console.log('✅ Order created successfully with enhanced data:', createdOrder);
 
-                // Verify the order was created by trying to fetch it
-                console.log('🔍 Verifying order creation...');
-                const verifyOrder = await VediAPI.getOrderByNumber(orderNumber);
-                console.log('✅ Order verification:', verifyOrder ? 'Found' : 'Not found');
+                // REMOVED: Order verification step that was causing the error
+                // console.log('🔍 Verifying order creation...');
+                // const verifyOrder = await VediAPI.getOrderByNumber(orderNumber);
+                // console.log('✅ Order verification:', verifyOrder ? 'Found' : 'Not found');
 
                 // ENHANCED: Save customer profile if it doesn't exist
                 try {
@@ -1408,7 +1429,7 @@
                     
                     // Redirect to order progress page
                     window.location.href = redirectUrl;
-                }, 3000);
+                }, 2000); // Reduced from 3000 to 2000
 
             } catch (error) {
                 console.error('❌ Error placing order with enhanced auth:', error);
