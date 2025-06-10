@@ -1192,6 +1192,14 @@
             
             const statusClass = `status-${order.status}`;
             
+            // FIXED: Handle counter vs table display
+            let tableDisplay;
+            if (String(order.tableNumber).toLowerCase() === 'counter' || order.tableNumber === 0) {
+                tableDisplay = 'Counter';
+            } else {
+                tableDisplay = `Table ${order.tableNumber}`;
+            }
+            
             let actionButtons = '';
             if (isLive) {
                 const buttonConfig = getActionButtons(order.status, order.id);
@@ -1210,7 +1218,7 @@
                         <h3>Order #${order.orderNumber}</h3>
                         <div class="order-meta">
                             <strong>${order.customerName}</strong> • ${order.customerPhone}<br>
-                            Table ${order.tableNumber} • ${timeAgo}
+                            ${tableDisplay} • ${timeAgo}
                             ${duration ? `<div class="order-timer">⏱️ ${duration}</div>` : ''}
                         </div>
                     </div>
@@ -1323,7 +1331,18 @@
             
             return ordersList.filter(order => {
                 if (statusFilter !== 'all' && order.status !== statusFilter) return false;
-                if (tableFilter !== 'all' && order.tableNumber != tableFilter) return false;
+                
+                // Handle counter vs table filtering
+                if (tableFilter !== 'all') {
+                    if (tableFilter === 'counter') {
+                        // Check if order is from counter (tableNumber could be 'counter', 'Counter', or 0)
+                        const tableNum = String(order.tableNumber).toLowerCase();
+                        if (tableNum !== 'counter' && order.tableNumber !== 0) return false;
+                    } else {
+                        // Regular table number
+                        if (order.tableNumber != tableFilter) return false;
+                    }
+                }
                 
                 if (searchTerm) {
                     const searchableText = `${order.customerName} ${order.customerPhone} ${order.orderNumber}`.toLowerCase();
@@ -1360,7 +1379,7 @@
             }
         }
 
-        // FIXED: Load history orders with better date handling
+        // FIXED: Load history orders with PRECISE date filtering
         async function loadHistoryOrders() {
             if (currentTab !== 'history') return;
             
@@ -1371,86 +1390,76 @@
                 const dateFilterValue = document.getElementById('dateFilter').value;
                 console.log('📅 Date filter value:', dateFilterValue);
                 
-                // Load all recent completed/cancelled orders
+                // FIXED: Get target date and create precise date range
+                let targetDate;
+                if (dateFilterValue) {
+                    targetDate = new Date(dateFilterValue);
+                } else {
+                    targetDate = new Date(); // Default to today
+                }
+                
+                // Create start and end of day for precise filtering
+                const startOfDay = new Date(targetDate);
+                startOfDay.setHours(0, 0, 0, 0);
+                
+                const endOfDay = new Date(targetDate);
+                endOfDay.setHours(23, 59, 59, 999);
+                
+                console.log('📅 Date range:', {
+                    targetDate: targetDate.toDateString(),
+                    startOfDay: startOfDay,
+                    endOfDay: endOfDay
+                });
+                
+                // FIXED: Query with date range filtering
                 const historySnapshot = await firebase.firestore()
                     .collection('orders')
                     .where('restaurantId', '==', currentRestaurant.id)
+                    .where('createdAt', '>=', startOfDay)
+                    .where('createdAt', '<=', endOfDay)
                     .orderBy('createdAt', 'desc')
-                    .limit(200)
                     .get();
                     
-                console.log('✅ Query successful, total docs:', historySnapshot.docs.length);
+                console.log('✅ Query successful, total docs in date range:', historySnapshot.docs.length);
                 
                 historyOrders.clear();
                 
-                // Get target date for filtering
-                const targetDate = dateFilterValue ? new Date(dateFilterValue) : new Date();
-                const targetDateStr = targetDate.toDateString();
-                
-                console.log('🎯 Target date string:', targetDateStr);
-                
-                let totalProcessed = 0;
                 let completedFound = 0;
-                let dateMatched = 0;
                 
                 historySnapshot.docs.forEach(doc => {
                     const order = { id: doc.id, ...doc.data() };
-                    totalProcessed++;
                     
-                    // Check if it's a completed/cancelled order
+                    // Only include completed/cancelled orders
                     if (['completed', 'cancelled'].includes(order.status)) {
                         completedFound++;
+                        historyOrders.set(doc.id, order);
                         
-                        // Convert Firestore timestamp to Date
-                        let orderDate;
-                        if (order.createdAt?.toDate) {
-                            orderDate = order.createdAt.toDate();
-                        } else if (order.createdAt instanceof Date) {
-                            orderDate = order.createdAt;
-                        } else if (typeof order.createdAt === 'string' || typeof order.createdAt === 'number') {
-                            orderDate = new Date(order.createdAt);
-                        } else {
-                            console.warn('Unknown date format for order:', order.orderNumber, order.createdAt);
-                            orderDate = new Date();
-                        }
-                        
-                        const orderDateStr = orderDate.toDateString();
-                        
-                        // Check date match
-                        if (orderDateStr === targetDateStr) {
-                            dateMatched++;
-                            historyOrders.set(doc.id, order);
-                        }
+                        console.log('📋 Found completed order:', {
+                            orderNumber: order.orderNumber,
+                            status: order.status,
+                            customerName: order.customerName,
+                            total: order.total
+                        });
                     }
                 });
                 
                 console.log('📊 History processing results:', {
-                    totalProcessed,
+                    totalDocsInRange: historySnapshot.docs.length,
                     completedFound,
-                    dateMatched,
-                    targetDateStr,
+                    dateFilter: dateFilterValue,
                     historyOrdersSize: historyOrders.size
                 });
                 
-                // If no orders match the selected date, show all completed orders
-                if (historyOrders.size === 0 && completedFound > 0) {
-                    console.log('🔄 No matches for selected date, showing all completed orders...');
-                    
-                    historyOrders.clear();
-                    
-                    historySnapshot.docs.forEach(doc => {
-                        const order = { id: doc.id, ...doc.data() };
-                        if (['completed', 'cancelled'].includes(order.status)) {
-                            historyOrders.set(doc.id, order);
-                        }
-                    });
-                    
-                    console.log('📊 Showing all completed orders:', historyOrders.size);
-                    showNotification(`No orders found for selected date. Showing all ${historyOrders.size} completed orders.`, 'warning');
-                }
-                
                 renderHistoryOrders();
                 hideLoading();
+                
+                // Show helpful message
+                if (historyOrders.size === 0) {
+                    const dateStr = targetDate.toLocaleDateString();
+                    showNotification(`No completed orders found for ${dateStr}`, 'warning');
+                } else {
+                    showNotification(`Found ${historyOrders.size} completed orders for ${targetDate.toLocaleDateString()}`, 'success');
+                }
                 
                 console.log('✅ History loading complete:', historyOrders.size, 'orders to display');
                 
@@ -1526,7 +1535,17 @@
             const searchTerm = (document.getElementById('historySearchInput')?.value || '').toLowerCase();
             
             return ordersList.filter(order => {
-                if (tableFilter !== 'all' && order.tableNumber != tableFilter) return false;
+                // Handle counter vs table filtering
+                if (tableFilter !== 'all') {
+                    if (tableFilter === 'counter') {
+                        // Check if order is from counter
+                        const tableNum = String(order.tableNumber).toLowerCase();
+                        if (tableNum !== 'counter' && order.tableNumber !== 0) return false;
+                    } else {
+                        // Regular table number
+                        if (order.tableNumber != tableFilter) return false;
+                    }
+                }
                 
                 if (searchTerm) {
                     const searchableText = `${order.customerName} ${order.customerPhone} ${order.orderNumber}`.toLowerCase();
@@ -1665,6 +1684,14 @@
             const liveTableFilter = document.getElementById('tableFilter');
             const historyTableFilter = document.getElementById('historyTableFilter');
             
+            // Add Counter option first
+            const counterOption = document.createElement('option');
+            counterOption.value = 'counter';
+            counterOption.textContent = 'Counter';
+            liveTableFilter.appendChild(counterOption.cloneNode(true));
+            historyTableFilter.appendChild(counterOption.cloneNode(true));
+            
+            // Add table options
             for (let i = 1; i <= appCache.tableCount; i++) {
                 const option = document.createElement('option');
                 option.value = i;
