@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Incident Reports - Restaurant Dashboard</title>
     
-    <!-- Firebase Scripts -->
+    <!-- Firebase Scripts with correct root paths -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
-    <script src="firebase-config.js"></script>
-    <script src="firebase-api.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
     
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
@@ -30,48 +30,9 @@
             color: #1a202c;
         }
 
-        .header {
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            color: white;
-            padding: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header h1 {
-            font-size: 1.8rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .back-btn {
-            background: rgba(255,255,255,0.15);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 8px 16px;
-            border-radius: 12px;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-        }
-
-        .back-btn:hover {
-            background: rgba(255,255,255,0.25);
-        }
-
         .container {
             max-width: 1200px;
-            margin: 30px auto;
+            margin: 20px auto;
             padding: 0 20px;
         }
 
@@ -132,6 +93,9 @@
             font-size: 1.5rem;
             font-weight: 600;
             color: #333;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         .btn {
@@ -488,12 +452,6 @@
                 padding: 15px;
             }
 
-            .header-content {
-                flex-direction: column;
-                gap: 15px;
-                text-align: center;
-            }
-
             .section-header {
                 flex-direction: column;
                 gap: 15px;
@@ -520,13 +478,6 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-content">
-            <h1>📉 Loss Incident Reports</h1>
-            <a href="dashboard.html" class="back-btn">← Back to Dashboard</a>
-        </div>
-    </div>
-
     <div class="container">
         <!-- Loading State -->
         <div id="loadingSpinner" class="loading-spinner">
@@ -541,11 +492,18 @@
 
         <!-- Main Content -->
         <div id="mainContent" style="display: none;">
+            <!-- Page Header -->
+            <div class="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">📉 Loss Incident Reports</h2>
+                    <button class="btn btn-danger" onclick="openReportModal()">📉 Report New Incident</button>
+                </div>
+            </div>
+
             <!-- Statistics Overview -->
             <div class="dashboard-section">
                 <div class="section-header">
                     <h2 class="section-title">Loss Overview</h2>
-                    <button class="btn btn-danger" onclick="openReportModal()">📉 Report New Incident</button>
                 </div>
                 
                 <div class="stats-grid">
@@ -715,12 +673,40 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             console.log('📉 Incident Reports initializing...');
-            initializeIncidentReports();
+            
+            // Add a delay to ensure parent window's Firebase is loaded
+            setTimeout(async () => {
+                try {
+                    await initializeIncidentReports();
+                } catch (error) {
+                    console.error('❌ Failed to initialize after delay:', error);
+                    // Try to get Firebase from parent window if available
+                    if (window.parent && window.parent.VediAPI) {
+                        console.log('🔄 Using parent window Firebase API...');
+                        window.VediAPI = window.parent.VediAPI;
+                        window.firebase = window.parent.firebase;
+                        await initializeIncidentReports();
+                    } else {
+                        showError('Firebase API not available. Please refresh the page.');
+                    }
+                }
+            }, 1000);
         });
 
         async function initializeIncidentReports() {
             try {
                 showLoading(true);
+                
+                // Check if VediAPI is available
+                if (typeof VediAPI === 'undefined') {
+                    // Try to get from parent window
+                    if (window.parent && window.parent.VediAPI) {
+                        window.VediAPI = window.parent.VediAPI;
+                        window.firebase = window.parent.firebase;
+                    } else {
+                        throw new Error('VediAPI not available. Please check Firebase configuration.');
+                    }
+                }
                 
                 // Get current user
                 currentUser = await VediAPI.getCurrentUser();
