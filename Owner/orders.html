@@ -1106,7 +1106,7 @@
                     if (wasNew && change.type === 'added') {
                         hasNewOrder = true;
                         playNewOrderNotification();
-                        showNotification(`New order #${order.orderNumber} from ${order.customerName}`, 'success');
+                        // REMOVED: showNotification for new orders
                     }
                     
                     hasUpdates = true;
@@ -1124,7 +1124,7 @@
             if (hasUpdates) {
                 performanceMetrics.lastUpdate = Date.now();
                 renderLiveOrdersOptimized();
-                updateLiveStatsOnly(); // Only update live stats, not completed
+                updateLiveStatsOnly();
             }
         }
 
@@ -1275,7 +1275,7 @@
             }
         }
 
-        // FIXED: Fast order status updates with completed stats refresh
+        // FIXED: Fast order status updates with completed stats refresh (NO NOTIFICATIONS)
         async function updateOrderStatusFast(orderId, newStatus) {
             try {
                 const order = liveOrders.get(orderId);
@@ -1307,7 +1307,7 @@
                     setTimeout(() => loadTodayCompletedStatsFixed(), 1000);
                 }
                 
-                showNotification(`Order #${order.orderNumber} marked as ${newStatus}`, 'success');
+                // REMOVED: showNotification for status updates
                 
                 if (soundEnabled) {
                     playNotificationSound();
@@ -1315,7 +1315,7 @@
                 
             } catch (error) {
                 console.error('❌ Failed to update order status:', error);
-                showNotification('Failed to update order status', 'error');
+                // REMOVED: showNotification for errors - only console log
                 await loadLiveOrdersFast();
             }
         }
@@ -1354,8 +1354,13 @@
         }
 
         function updateBadgesOptimized() {
-            const liveOrdersCount = liveOrders.size;
+            const liveOrdersCount = Array.from(liveOrders.values()).filter(order => 
+                ['pending', 'preparing', 'ready'].includes(order.status)
+            ).length;
+            
             const liveBadge = document.getElementById('liveBadge');
+            
+            console.log('🔢 Updating badge - Live orders count:', liveOrdersCount);
             
             if (liveOrdersCount > 0) {
                 liveBadge.textContent = liveOrdersCount;
@@ -1379,7 +1384,6 @@
             }
         }
 
-        // FIXED: Load history orders with strict date filtering (no fallback)
         async function loadHistoryOrders() {
             if (currentTab !== 'history') return;
             
@@ -1478,28 +1482,12 @@
                 renderHistoryOrders();
                 hideLoading();
                 
-                // Show appropriate messages
-                if (isDateFiltered) {
-                    if (historyOrders.size === 0) {
-                        console.log('❌ No completed orders found for selected date');
-                        showNotification(`No orders found for ${selectedDateStr}`, 'warning');
-                    } else {
-                        console.log('✅ Found orders for selected date');
-                        showNotification(`Found ${historyOrders.size} orders for ${selectedDateStr}`, 'success');
-                    }
-                } else {
-                    if (historyOrders.size === 0) {
-                        console.log('❌ No completed orders found at all');
-                        showNotification('No completed orders found. Complete some orders to see history.', 'warning');
-                    } else {
-                        console.log('✅ Loaded recent orders');
-                        showNotification(`Loaded ${historyOrders.size} recent orders`, 'success');
-                    }
-                }
+                // REMOVED: All showNotification calls for history loading
+                console.log('✅ History loading complete:', historyOrders.size, 'orders to display');
                 
             } catch (error) {
                 console.error('❌ Failed to load history orders:', error);
-                showNotification('Failed to load order history: ' + error.message, 'error');
+                // REMOVED: showNotification for errors - only console log
                 hideLoading();
             }
         }
@@ -1711,7 +1699,7 @@
         async function forceRefresh() {
             const now = Date.now();
             if (now - appCache.lastRefresh < appCache.refreshCooldown) {
-                showNotification('Please wait before refreshing again', 'warning');
+                // REMOVED: showNotification for cooldown
                 return;
             }
             
@@ -1722,10 +1710,10 @@
                 await loadLiveOrdersFast();
                 await loadTodayCompletedStatsFixed();
                 hideLoading();
-                showNotification('Orders refreshed successfully', 'success');
+                // REMOVED: showNotification for successful refresh
             } catch (error) {
                 console.error('❌ Refresh failed:', error);
-                showNotification('Failed to refresh orders', 'error');
+                // REMOVED: showNotification for refresh errors
                 hideLoading();
             }
         }
@@ -1734,7 +1722,7 @@
             const preparingOrders = Array.from(liveOrders.values()).filter(o => o.status === 'preparing');
             
             if (preparingOrders.length === 0) {
-                showNotification('No orders currently being prepared', 'warning');
+                // REMOVED: showNotification for no preparing orders
                 return;
             }
             
@@ -1750,12 +1738,12 @@
                 );
                 
                 await Promise.all(updatePromises);
-                showNotification(`${preparingOrders.length} orders marked as ready`, 'success');
+                // REMOVED: showNotification for successful bulk update
                 hideLoading();
                 
             } catch (error) {
                 console.error('❌ Failed to mark orders as ready:', error);
-                showNotification('Failed to mark orders as ready', 'error');
+                // REMOVED: showNotification for bulk update errors
                 hideLoading();
             }
         }
