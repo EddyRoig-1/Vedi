@@ -475,7 +475,74 @@
             font-style: italic;
         }
 
+        .incident-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detail-item.severity-high {
+            border-left-color: #ef4444;
+        }
+
+        .detail-item.severity-medium {
+            border-left-color: #f59e0b;
+        }
+
+        .detail-item.severity-low {
+            border-left-color: #10b981;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            color: #1f2937;
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+
+        .detail-value.amount {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #ef4444;
+        }
+
+        .detail-description {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .detail-actions-taken {
+            background: #f0f9ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #0ea5e9;
+        }
+
         @media (max-width: 768px) {
+            .incident-details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
             .container {
                 padding: 15px;
             }
@@ -625,6 +692,19 @@
                 <div class="incidents-grid" id="incidentsGrid">
                     <!-- Will be populated dynamically -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Incident Details Modal -->
+    <div class="modal" id="detailsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Incident Details</h3>
+                <button class="close-btn" onclick="closeDetailsModal()">&times;</button>
+            </div>
+            <div id="incidentDetailsContent">
+                <!-- Will be populated dynamically -->
             </div>
         </div>
     </div>
@@ -934,7 +1014,6 @@
                             
                             <div class="incident-actions">
                                 <button class="btn btn-small" onclick="viewIncidentDetails('${incident.id}')">View Details</button>
-                                <button class="btn btn-small btn-secondary" onclick="updateIncidentStatus('${incident.id}')">Update Status</button>
                             </div>
                         </div>
                     `;
@@ -1507,18 +1586,84 @@
             }
             
             console.log('👁️ Viewing incident details:', incident.title);
-            showNotification('Incident details feature coming soon');
+            
+            // Format the incident date
+            const incidentDate = VediAPI.timestampToDate(incident.createdAt);
+            const formattedDate = incidentDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            // Get reporter name (placeholder for now)
+            const reporterName = currentUser?.name || 'Unknown Reporter';
+
+            // Create the details content
+            const detailsContent = `
+                <div class="incident-details-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Incident Type</div>
+                        <div class="detail-value">${formatIncidentTypeClean(incident.type)}</div>
+                    </div>
+                    
+                    <div class="detail-item severity-${incident.severity || 'medium'}">
+                        <div class="detail-label">Severity Level</div>
+                        <div class="detail-value">${(incident.severity || 'medium').toUpperCase()}</div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <div class="detail-label">Status</div>
+                        <div class="detail-value">${(incident.status || 'reported').toUpperCase()}</div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <div class="detail-label">Estimated Loss</div>
+                        <div class="detail-value amount">${formatCurrency(incident.amount || 0)}</div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <div class="detail-label">Date & Time</div>
+                        <div class="detail-value">${formattedDate}</div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <div class="detail-label">Reported By</div>
+                        <div class="detail-value">${reporterName}</div>
+                    </div>
+                </div>
+
+                ${incident.description ? `
+                    <div class="detail-description">
+                        <div class="detail-label">Description</div>
+                        <div class="detail-value">${incident.description}</div>
+                    </div>
+                ` : ''}
+
+                ${incident.resolutionNotes ? `
+                    <div class="detail-actions-taken">
+                        <div class="detail-label">Immediate Actions Taken</div>
+                        <div class="detail-value">${incident.resolutionNotes}</div>
+                    </div>
+                ` : ''}
+
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                    <div class="detail-label">Incident ID</div>
+                    <div class="detail-value" style="font-family: monospace; font-size: 0.9rem; color: #6b7280;">${incident.id}</div>
+                </div>
+            `;
+
+            document.getElementById('incidentDetailsContent').innerHTML = detailsContent;
+            document.getElementById('detailsModal').classList.add('show');
+        }
+
+        function closeDetailsModal() {
+            document.getElementById('detailsModal').classList.remove('show');
         }
 
         function updateIncidentStatus(incidentId) {
-            const incident = allIncidents.find(inc => inc.id === incidentId);
-            if (!incident) {
-                showNotification('Incident not found', 'error');
-                return;
-            }
-            
-            console.log('🔄 Updating incident status:', incident.title);
-            showNotification('Status update feature coming soon');
+            // This function is now removed as per requirements
         }
 
         // Utility functions
