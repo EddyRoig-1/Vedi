@@ -1379,7 +1379,7 @@
             }
         }
 
-        // FIXED: Load history orders with flexible date filtering
+        // FIXED: Load history orders with strict date filtering (no fallback)
         async function loadHistoryOrders() {
             if (currentTab !== 'history') return;
             
@@ -1391,17 +1391,22 @@
                 console.log('📅 Date filter value:', dateFilterValue);
                 
                 let historySnapshot;
+                let isDateFiltered = false;
+                let selectedDateStr = '';
                 
                 if (dateFilterValue) {
-                    // If specific date is selected, try to get orders for that date
+                    // Strict date filtering - only show orders for the selected date
+                    isDateFiltered = true;
                     const targetDate = new Date(dateFilterValue);
+                    selectedDateStr = targetDate.toLocaleDateString();
+                    
                     const startOfDay = new Date(targetDate);
                     startOfDay.setHours(0, 0, 0, 0);
                     
                     const endOfDay = new Date(targetDate);
                     endOfDay.setHours(23, 59, 59, 999);
                     
-                    console.log('📅 Querying for specific date:', {
+                    console.log('📅 Querying for specific date only:', {
                         targetDate: targetDate.toDateString(),
                         startOfDay: startOfDay,
                         endOfDay: endOfDay
@@ -1416,23 +1421,6 @@
                         .get();
                     
                     console.log('✅ Date-specific query result:', historySnapshot.docs.length, 'total docs');
-                    
-                    // If no orders found for specific date, fall back to recent orders
-                    if (historySnapshot.docs.length === 0) {
-                        console.log('📅 No orders found for specific date, loading recent orders...');
-                        
-                        historySnapshot = await firebase.firestore()
-                            .collection('orders')
-                            .where('restaurantId', '==', currentRestaurant.id)
-                            .orderBy('createdAt', 'desc')
-                            .limit(100)
-                            .get();
-                            
-                        console.log('✅ Fallback query result:', historySnapshot.docs.length, 'recent orders');
-                        showNotification(`No orders found for ${targetDate.toLocaleDateString()}. Showing recent orders.`, 'warning');
-                    } else {
-                        showNotification(`Loading orders for ${targetDate.toLocaleDateString()}`, 'success');
-                    }
                 } else {
                     // No date filter - load recent orders
                     console.log('📅 No date filter, loading recent orders...');
@@ -1475,17 +1463,37 @@
                     totalDocsQueried: historySnapshot.docs.length,
                     completedFound,
                     dateFilter: dateFilterValue,
+                    isDateFiltered,
                     historyOrdersSize: historyOrders.size
                 });
+                
+                // Set global variable for rendering logic
+                window.currentHistoryFilter = {
+                    isDateFiltered,
+                    selectedDateStr,
+                    hasOrders: historyOrders.size > 0
+                };
                 
                 renderHistoryOrders();
                 hideLoading();
                 
-                if (historyOrders.size === 0) {
-                    console.log('❌ No completed orders found at all');
-                    showNotification('No completed orders found. Complete some orders to see history.', 'warning');
+                // Show appropriate messages
+                if (isDateFiltered) {
+                    if (historyOrders.size === 0) {
+                        console.log('❌ No completed orders found for selected date');
+                        showNotification(`No orders found for ${selectedDateStr}`, 'warning');
+                    } else {
+                        console.log('✅ Found orders for selected date');
+                        showNotification(`Found ${historyOrders.size} orders for ${selectedDateStr}`, 'success');
+                    }
                 } else {
-                    console.log('✅ History loading complete:', historyOrders.size, 'completed orders to display');
+                    if (historyOrders.size === 0) {
+                        console.log('❌ No completed orders found at all');
+                        showNotification('No completed orders found. Complete some orders to see history.', 'warning');
+                    } else {
+                        console.log('✅ Loaded recent orders');
+                        showNotification(`Loaded ${historyOrders.size} recent orders`, 'success');
+                    }
                 }
                 
             } catch (error) {
@@ -1495,41 +1503,62 @@
             }
         }
 
-        // ENHANCED: Better history rendering with more helpful empty states
+        // ENHANCED: Better history rendering with strict date filtering logic
         function renderHistoryOrders() {
             const grid = document.getElementById('historyOrdersGrid');
             const ordersArray = Array.from(historyOrders.values());
             
             console.log('🎨 Rendering history orders:', ordersArray.length);
             
+            // Get filter context
+            const filterContext = window.currentHistoryFilter || {
+                isDateFiltered: false,
+                selectedDateStr: '',
+                hasOrders: ordersArray.length > 0
+            };
+            
             if (ordersArray.length === 0) {
-                const dateFilterValue = document.getElementById('dateFilter').value;
-                const isDateFiltered = dateFilterValue !== '';
+                let emptyMessage, emptyDescription, actionButtons;
+                
+                if (filterContext.isDateFiltered) {
+                    // Specific date selected but no orders found
+                    emptyMessage = `No orders found for ${filterContext.selectedDateStr}`;
+                    emptyDescription = 'No orders were completed on this date';
+                    actionButtons = `
+                        <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="clearDateFilter()">
+                                📅 Show All Recent Orders
+                            </button>
+                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
+                                🔍 Debug History
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    // No date filter but still no orders
+                    emptyMessage = 'No order history found';
+                    emptyDescription = 'Complete some orders to see them appear here';
+                    actionButtons = `
+                        <div style="margin-top: 15px;">
+                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
+                                🔍 Debug History
+                            </button>
+                        </div>
+                    `;
+                }
                 
                 grid.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📜</div>
-                        <h3>No order history found</h3>
-                        <p>${isDateFiltered ? 
-                            'Try selecting a different date or complete some orders first' : 
-                            'Complete some orders to see them appear here'
-                        }</p>
-                        <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
-                                🔍 Debug History
-                            </button>
-                            ${isDateFiltered ? `
-                                <button class="btn btn-secondary" onclick="clearDateFilter()">
-                                    📅 Show All Recent
-                                </button>
-                            ` : ''}
-                        </div>
+                        <h3>${emptyMessage}</h3>
+                        <p>${emptyDescription}</p>
+                        ${actionButtons}
                     </div>
                 `;
                 return;
             }
             
-            // Apply filters
+            // Apply additional filters (table, search)
             const filtered = applyHistoryFilters(ordersArray);
             console.log('🎨 After filters:', filtered.length);
             
@@ -1538,9 +1567,9 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">🔍</div>
                         <h3>No orders match your filters</h3>
-                        <p>Found ${ordersArray.length} history orders, but none match your current filters</p>
+                        <p>Found ${ordersArray.length} orders for ${filterContext.isDateFiltered ? filterContext.selectedDateStr : 'this period'}, but none match your current filters</p>
                         <button class="btn btn-secondary" onclick="clearHistoryFilters()" style="margin-top: 15px;">
-                            Clear Filters
+                            Clear Table/Search Filters
                         </button>
                     </div>
                 `;
