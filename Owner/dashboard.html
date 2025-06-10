@@ -230,6 +230,42 @@
             margin: 0 auto 15px;
         }
 
+        /* Menu section specific styles */
+        .menu-section-nav {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .menu-sub-tab {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .menu-sub-tab.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+        }
+
+        .menu-sub-tab:hover:not(.active) {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+
+        .menu-sub-section {
+            display: none;
+        }
+
+        .menu-sub-section.active {
+            display: block;
+        }
+
         /* Categories Section */
         .categories-grid {
             display: flex;
@@ -1015,8 +1051,7 @@
         <div class="dashboard-nav">
             <div class="nav-tabs">
                 <div class="nav-tab active" data-section="overview">Overview</div>
-                <div class="nav-tab" data-section="categories">Categories</div>
-                <div class="nav-tab" data-section="menu-items">Menu Items</div>
+                <div class="nav-tab" data-section="menu">Menu</div>
                 <div class="nav-tab" data-section="orders" onclick="goToOrders()">Orders</div>
                 <div class="nav-tab" data-section="incidents" onclick="goToIncidents()">Loss Reports</div>
                 <div class="nav-tab" data-section="qr-code">QR Code</div>
@@ -1072,39 +1107,46 @@
             </div>
         </div>
 
-        <!-- Categories Section -->
-        <div class="dashboard-section" id="categories">
+        <!-- Merged Menu Section -->
+        <div class="dashboard-section" id="menu">
             <div class="section-header">
-                <h2 class="section-title">Menu Categories</h2>
-                <button class="btn" onclick="openModal('addCategoryModal')">+ Add Category</button>
+                <h2 class="section-title">Menu Management</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn" onclick="openModal('addCategoryModal')">+ Add Category</button>
+                    <button class="btn" onclick="openModal('addItemModal')">+ Add Item</button>
+                </div>
             </div>
             
-            <div class="categories-grid" id="categoriesGrid">
-                <div class="empty-state">Loading categories...</div>
-            </div>
-        </div>
-
-        <!-- Menu Items Section -->
-        <div class="dashboard-section" id="menu-items">
-            <div class="section-header">
-                <h2 class="section-title">Menu Items</h2>
-                <button class="btn" onclick="openModal('addItemModal')">+ Add Item</button>
-            </div>
-            
-            <div class="menu-filter">
-                <select class="filter-select" id="categoryFilter" onchange="filterMenuItems()">
-                    <option value="all">All Categories</option>
-                </select>
-                <select class="filter-select" id="stockFilter" onchange="filterMenuItems()">
-                    <option value="all">All Items</option>
-                    <option value="in-stock">In Stock</option>
-                    <option value="out-of-stock">Out of Stock</option>
-                </select>
-                <input type="text" class="search-input" id="searchInput" placeholder="Search menu items..." onkeyup="filterMenuItems()">
+            <!-- Sub Navigation for Menu -->
+            <div class="menu-section-nav">
+                <div class="menu-sub-tab active" data-subsection="categories">Categories</div>
+                <div class="menu-sub-tab" data-subsection="items">Menu Items</div>
             </div>
 
-            <div class="menu-items-grid" id="menuItemsGrid">
-                <div class="empty-state">Loading menu items...</div>
+            <!-- Categories Sub-section -->
+            <div class="menu-sub-section active" id="menu-categories">
+                <div class="categories-grid" id="categoriesGrid">
+                    <div class="empty-state">Loading categories...</div>
+                </div>
+            </div>
+
+            <!-- Menu Items Sub-section -->
+            <div class="menu-sub-section" id="menu-items">
+                <div class="menu-filter">
+                    <select class="filter-select" id="categoryFilter" onchange="filterMenuItems()">
+                        <option value="all">All Categories</option>
+                    </select>
+                    <select class="filter-select" id="stockFilter" onchange="filterMenuItems()">
+                        <option value="all">All Items</option>
+                        <option value="in-stock">In Stock</option>
+                        <option value="out-of-stock">Out of Stock</option>
+                    </select>
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search menu items..." onkeyup="filterMenuItems()">
+                </div>
+
+                <div class="menu-items-grid" id="menuItemsGrid">
+                    <div class="empty-state">Loading menu items...</div>
+                </div>
             </div>
         </div>
 
@@ -1337,6 +1379,7 @@
                 // Setup UI
                 console.log('🎨 Setting up UI...');
                 setupNavigation();
+                setupMenuNavigation();
                 setupModals();
                 populateAllergenCheckboxes();
                 console.log('✅ UI setup complete');
@@ -1520,60 +1563,62 @@
             console.log('✅ FORCE Menu items rendered successfully');
         }
 
-        // Load categories section specifically when tab is clicked
-        async function loadCategoriesSection() {
+        // Load menu section specifically when tab is clicked
+        async function loadMenuSection() {
             try {
-                console.log('🔄 Loading categories section...');
-                const grid = document.getElementById('categoriesGrid');
+                console.log('🔄 Loading menu section...');
                 
-                // Show loading state
-                grid.innerHTML = '<div class="empty-state">Loading categories...</div>';
-                
-                // Force reload categories from Firebase
-                console.log('🔗 Fetching fresh categories from Firebase...');
+                // Force reload data from Firebase
+                console.log('🔗 Fetching fresh data from Firebase...');
                 const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
-                console.log('📊 Fresh categories loaded:', categoriesData);
+                const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
                 
-                if (categoriesData && categoriesData.length > 0) {
+                if (categoriesData) {
                     categories = categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0));
-                    forceRenderCategories();
-                    console.log('✅ Categories rendered in UI!');
-                } else {
-                    grid.innerHTML = '<div class="empty-state">No categories yet. Click "Add Category" to get started!</div>';
-                    console.log('📋 No categories found');
+                }
+                if (menuItemsData) {
+                    menuItems = menuItemsData;
                 }
                 
+                // Render both subsections
+                forceRenderCategories();
+                forceRenderMenuItems();
+                populateCategoryFilter();
+                
+                console.log('✅ Menu section loaded successfully!');
+                
             } catch (error) {
-                console.error('❌ Error loading categories section:', error);
-                const grid = document.getElementById('categoriesGrid');
-                grid.innerHTML = '<div class="empty-state">Error loading categories. Please try again.</div>';
+                console.error('❌ Error loading menu section:', error);
+                const categoriesGrid = document.getElementById('categoriesGrid');
+                const menuItemsGrid = document.getElementById('menuItemsGrid');
+                
+                if (categoriesGrid) {
+                    categoriesGrid.innerHTML = '<div class="empty-state">Error loading categories. Please try again.</div>';
+                }
+                if (menuItemsGrid) {
+                    menuItemsGrid.innerHTML = '<div class="empty-state">Error loading menu items. Please try again.</div>';
+                }
             }
         }
 
-        // Load menu items section specifically when tab is clicked
-        async function loadMenuItemsSection() {
-            try {
-                console.log('🔄 Loading menu items section...');
-                const grid = document.getElementById('menuItemsGrid');
-                
-                // Show loading state
-                grid.innerHTML = '<div class="empty-state">Loading menu items...</div>';
-                
-                // Force reload menu items from Firebase
-                console.log('🔗 Fetching fresh menu items from Firebase...');
-                const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
-                console.log('📊 Fresh menu items loaded:', menuItemsData);
-                
-                menuItems = menuItemsData || [];
-                forceRenderMenuItems();
-                populateCategoryFilter();
-                console.log('✅ Menu items rendered in UI!');
-                
-            } catch (error) {
-                console.error('❌ Error loading menu items section:', error);
-                const grid = document.getElementById('menuItemsGrid');
-                grid.innerHTML = '<div class="empty-state">Error loading menu items. Please try again.</div>';
-            }
+        // Setup menu navigation for sub-tabs
+        function setupMenuNavigation() {
+            document.querySelectorAll('.menu-sub-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Update active states
+                    document.querySelectorAll('.menu-sub-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.menu-sub-section').forEach(s => s.classList.remove('active'));
+                    
+                    this.classList.add('active');
+                    const subsectionId = `menu-${this.dataset.subsection}`;
+                    const subsectionElement = document.getElementById(subsectionId);
+                    
+                    if (subsectionElement) {
+                        subsectionElement.classList.add('active');
+                        console.log('Switched to menu subsection:', subsectionId);
+                    }
+                });
+            });
         }
 
         // Category filter functions
@@ -1634,12 +1679,9 @@
                         console.log('Switched to section:', sectionId);
                         
                         // Load data for specific sections
-                        if (sectionId === 'categories') {
-                            console.log('📂 Loading categories section...');
-                            await loadCategoriesSection();
-                        } else if (sectionId === 'menu-items') {
-                            console.log('🍽️ Loading menu items section...');
-                            await loadMenuItemsSection();
+                        if (sectionId === 'menu') {
+                            console.log('📂 Loading menu section...');
+                            await loadMenuSection();
                         } else if (sectionId === 'settings') {
                             loadSettingsIframe();
                         } else if (sectionId === 'qr-code') {
@@ -2439,7 +2481,7 @@
             showNotification(message, 'error');
         }
 
-        console.log('Restaurant dashboard with Firebase integration loaded successfully');
+        console.log('Restaurant dashboard with merged menu section loaded successfully');
     </script>
 </body>
 </html>
