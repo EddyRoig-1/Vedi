@@ -77,6 +77,29 @@
             flex: 1;
         }
 
+        .auth-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(46, 204, 113, 0.2);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .auth-indicator.social {
+            background: rgba(52, 152, 219, 0.2);
+            border-color: rgba(52, 152, 219, 0.3);
+        }
+
+        .auth-indicator.phone {
+            background: rgba(155, 89, 182, 0.2);
+            border-color: rgba(155, 89, 182, 0.3);
+        }
+
         .header-right {
             display: flex;
             align-items: center;
@@ -628,6 +651,53 @@
             opacity: 0.5;
         }
 
+        /* Session Warning */
+        .session-warning {
+            background: linear-gradient(135deg, #fef5e7, #fed7aa);
+            border: 1px solid #f6ad55;
+            color: #c05621;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin: 16px 20px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(246, 173, 85, 0.2);
+        }
+
+        .session-warning.show {
+            display: flex;
+        }
+
+        .session-warning-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .session-warning-text {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .reauth-btn {
+            background: #c05621;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .reauth-btn:hover {
+            background: #9c4221;
+            transform: translateY(-1px);
+        }
+
         /* Allergen Modal Styles */
         .allergen-modal {
             display: none;
@@ -863,6 +933,21 @@
             .item-image {
                 height: 140px;
             }
+
+            .customer-info {
+                flex-direction: column;
+                gap: 8px;
+                align-items: stretch;
+            }
+
+            .header-right {
+                justify-content: space-between;
+            }
+
+            .auth-indicator {
+                font-size: 0.7rem;
+                padding: 3px 6px;
+            }
         }
     </style>
 </head>
@@ -877,12 +962,25 @@
     </div>
 
     <div class="container">
+        <!-- Session Warning -->
+        <div class="session-warning" id="sessionWarning">
+            <div class="session-warning-icon">⚠️</div>
+            <div class="session-warning-text">
+                Your session has expired. Please sign in again to continue ordering.
+            </div>
+            <button class="reauth-btn" onclick="redirectToLogin()">Sign In</button>
+        </div>
+
         <!-- Header -->
         <div class="menu-header">
             <h1 class="restaurant-title" id="restaurantName">Loading...</h1>
             <div class="customer-info">
                 <div class="welcome-text">
                     <span>Welcome, <strong id="displayName">Guest</strong></span>
+                    <div class="auth-indicator" id="authIndicator">
+                        <span id="authIcon">🔐</span>
+                        <span id="authText">Secured</span>
+                    </div>
                 </div>
                 <div class="header-right">
                     <button class="allergen-header-btn" id="allergenHeaderBtn" onclick="openAllergenModal()">
@@ -982,6 +1080,8 @@
         let menuItems = [];
         let cart = {};
         let customerData = {};
+        let customerSession = {}; // NEW: For enhanced session management
+        let currentUser = null; // NEW: Firebase user object
         let itemQuantities = {};
         let activeCategory = null;
         let customerAllergens = [];
@@ -1005,7 +1105,7 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Menu page initializing...');
+            console.log('🚀 Enhanced menu page initializing...');
             
             try {
                 await initializeMenuPage();
@@ -1016,22 +1116,22 @@
             }
         });
 
-        // UPDATED: Main initialization function with authentication check
+        // ENHANCED: Main initialization function with authentication check
         async function initializeMenuPage() {
             showLoading();
             
             try {
-                // ADDED: Check if user is authenticated
-                await checkAuthentication();
+                // ENHANCED: Check authentication with session management
+                await checkAuthenticationAndSession();
                 
-                // Get customer data from URL parameters
+                // Get customer data from URL parameters and session
                 customerData = getCustomerDataFromURL();
                 console.log('👤 Customer data:', customerData);
                 
                 // Load restaurant and menu data from Firebase
                 await loadRestaurantAndMenuData();
                 
-                // Update customer display
+                // ENHANCED: Update customer display with auth status
                 updateCustomerDisplay();
                 
                 // Load saved allergen settings
@@ -1051,7 +1151,7 @@
                 // Check if allergen modal should be shown
                 checkAllergenPrompt();
                 
-                console.log('✅ Menu page loaded successfully');
+                console.log('✅ Enhanced menu page loaded successfully');
                 
             } catch (error) {
                 console.error('Menu page initialization error:', error);
@@ -1060,31 +1160,124 @@
             }
         }
 
-        // ADDED: Authentication check function
-        async function checkAuthentication() {
+        // ENHANCED: Authentication and session check
+        async function checkAuthenticationAndSession() {
             return new Promise((resolve, reject) => {
-                firebase.auth().onAuthStateChanged(function(user) {
+                firebase.auth().onAuthStateChanged(async function(user) {
                     if (user) {
-                        console.log('✅ User is authenticated:', user.uid);
+                        console.log('✅ User is authenticated:', {
+                            uid: user.uid,
+                            email: user.email,
+                            displayName: user.displayName,
+                            phoneNumber: user.phoneNumber,
+                            providerId: user.providerData[0]?.providerId
+                        });
+                        
+                        currentUser = user;
+                        
+                        // NEW: Load customer session data
+                        await loadCustomerSession();
+                        
+                        // NEW: Verify session consistency
+                        if (!verifySessionConsistency()) {
+                            console.warn('⚠️ Session inconsistency detected, redirecting to login');
+                            redirectToLogin();
+                            reject(new Error('Session inconsistency'));
+                            return;
+                        }
+                        
                         resolve(user);
+                        
                     } else {
                         console.log('❌ User not authenticated, redirecting to login');
-                        // Redirect back to customer login with current parameters
-                        const currentParams = new URLSearchParams(window.location.search);
-                        const loginUrl = `customer-login.html?${currentParams.toString()}`;
-                        window.location.href = loginUrl;
+                        showSessionWarning();
+                        redirectToLogin();
                         reject(new Error('User not authenticated'));
                     }
                 });
             });
         }
 
-        // Get customer data from URL parameters (from QR code scan)
+        // NEW: Load customer session data
+        async function loadCustomerSession() {
+            try {
+                // Get session from sessionStorage
+                const sessionData = sessionStorage.getItem('customerSession');
+                if (sessionData) {
+                    customerSession = JSON.parse(sessionData);
+                    console.log('📱 Loaded customer session:', customerSession);
+                    
+                    // Verify session belongs to current user
+                    if (customerSession.firebaseUID !== currentUser.uid) {
+                        console.warn('⚠️ Session UID mismatch');
+                        customerSession = {};
+                    }
+                } else {
+                    console.log('ℹ️ No customer session found in storage');
+                    customerSession = {};
+                }
+                
+                // Try to load customer profile from Firestore
+                try {
+                    const profile = await VediAPI.getCustomerProfile(currentUser.uid);
+                    if (profile) {
+                        console.log('👤 Loaded customer profile from Firestore');
+                        // Merge profile data with session
+                        customerSession = { ...customerSession, ...profile };
+                    }
+                } catch (profileError) {
+                    console.log('ℹ️ No customer profile found in Firestore');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error loading customer session:', error);
+                customerSession = {};
+            }
+        }
+
+        // NEW: Verify session consistency
+        function verifySessionConsistency() {
+            // Check if we have minimum required data
+            const hasRestaurantId = customerSession.restaurantId || getCustomerDataFromURL().restaurantId;
+            const hasUserAuth = currentUser && currentUser.uid;
+            
+            return hasRestaurantId && hasUserAuth;
+        }
+
+        // NEW: Show session warning
+        function showSessionWarning() {
+            const warning = document.getElementById('sessionWarning');
+            if (warning) {
+                warning.classList.add('show');
+            }
+        }
+
+        // NEW: Redirect to login with current parameters
+        function redirectToLogin() {
+            const currentParams = new URLSearchParams(window.location.search);
+            const loginUrl = `customer-login.html?${currentParams.toString()}`;
+            
+            setTimeout(() => {
+                window.location.href = loginUrl;
+            }, 2000);
+        }
+
+        // ENHANCED: Get customer data from URL parameters and session
         function getCustomerDataFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
-            const restaurantId = urlParams.get('restaurant');
-            const tableNumber = urlParams.get('table');
-            const location = urlParams.get('location');
+            
+            // Get from URL or fallback to session
+            const restaurantId = urlParams.get('restaurant') || 
+                               urlParams.get('r') || 
+                               customerSession.restaurantId;
+            
+            const tableNumber = urlParams.get('table') || 
+                              customerSession.tableNumber || 
+                              'counter';
+            
+            const location = urlParams.get('location') || 
+                           customerSession.location || 
+                           (tableNumber === 'counter' ? 'counter' : 'table');
             
             if (!restaurantId) {
                 throw new Error('No restaurant ID provided. Please scan a valid QR code.');
@@ -1094,19 +1287,25 @@
             let tableDisplay;
             if (location === 'counter') {
                 tableDisplay = 'At Counter';
-            } else if (tableNumber) {
+            } else if (tableNumber && tableNumber !== 'counter') {
                 tableDisplay = `Table ${tableNumber}`;
             } else {
-                tableDisplay = 'Unknown Location';
+                tableDisplay = 'Restaurant Order';
             }
             
             return {
                 restaurantId: restaurantId,
-                tableNumber: tableNumber || 'counter',
-                location: location || (tableNumber ? 'table' : 'counter'),
+                tableNumber: tableNumber,
+                location: location,
                 tableDisplay: tableDisplay,
-                name: urlParams.get('name') || null,
-                phone: urlParams.get('phone') || null
+                name: urlParams.get('name') || 
+                      customerSession.name || 
+                      currentUser?.displayName ||
+                      null,
+                phone: urlParams.get('phone') || 
+                       customerSession.phone || 
+                       currentUser?.phoneNumber ||
+                       null
             };
         }
 
@@ -1158,14 +1357,64 @@
             return `${currency.symbol}${formattedAmount}`;
         }
 
-        // Update customer display
+        // ENHANCED: Update customer display with authentication status
         function updateCustomerDisplay() {
             document.getElementById('restaurantName').textContent = currentRestaurant.name;
             document.getElementById('tableBadge').textContent = customerData.tableDisplay;
             
-            // Set display name if provided, otherwise use "Guest"
-            const displayName = customerData.name ? customerData.name.split(' ')[0] : 'Guest';
+            // NEW: Enhanced display name logic
+            let displayName = 'Guest';
+            if (customerData.name) {
+                displayName = customerData.name.split(' ')[0];
+            } else if (customerSession.name) {
+                displayName = customerSession.name.split(' ')[0];
+            } else if (currentUser?.displayName) {
+                displayName = currentUser.displayName.split(' ')[0];
+            }
+            
             document.getElementById('displayName').textContent = displayName;
+            
+            // NEW: Update authentication indicator
+            updateAuthenticationIndicator();
+        }
+
+        // NEW: Update authentication indicator
+        function updateAuthenticationIndicator() {
+            const authIndicator = document.getElementById('authIndicator');
+            const authIcon = document.getElementById('authIcon');
+            const authText = document.getElementById('authText');
+            
+            if (!currentUser) {
+                authIndicator.className = 'auth-indicator';
+                authIcon.textContent = '❌';
+                authText.textContent = 'Not Signed In';
+                return;
+            }
+            
+            // Determine auth method and display appropriate indicator
+            const providerId = currentUser.providerData[0]?.providerId;
+            
+            if (providerId === 'phone') {
+                authIndicator.className = 'auth-indicator phone';
+                authIcon.textContent = '📱';
+                authText.textContent = 'Phone';
+            } else if (providerId === 'google.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '🔍';
+                authText.textContent = 'Google';
+            } else if (providerId === 'facebook.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '📘';
+                authText.textContent = 'Facebook';
+            } else if (providerId === 'apple.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '🍎';
+                authText.textContent = 'Apple';
+            } else {
+                authIndicator.className = 'auth-indicator';
+                authIcon.textContent = '🔐';
+                authText.textContent = 'Secured';
+            }
         }
 
         // Allergen Management Functions
@@ -1537,6 +1786,7 @@
             updateCartSummary();
         }
 
+        // ENHANCED: Cart summary with authentication support
         function updateCartSummary() {
             let totalItems = 0;
             let totalPrice = 0;
@@ -1560,20 +1810,43 @@
                 cartTotal.textContent = formatPrice(totalPrice);
                 cartSummary.classList.add('show');
                 
-                // Save cart to sessionStorage
-                sessionStorage.setItem('customerCart', JSON.stringify(cart));
+                // ENHANCED: Save cart with customer UID for security
+                const cartData = {
+                    items: cart,
+                    customerUID: currentUser ? currentUser.uid : null,
+                    restaurantId: customerData.restaurantId,
+                    timestamp: new Date().toISOString()
+                };
+                sessionStorage.setItem('customerCart', JSON.stringify(cartData));
             } else {
                 cartSummary.classList.remove('show');
                 sessionStorage.removeItem('customerCart');
             }
         }
 
+        // ENHANCED: Load saved cart with authentication verification
         function loadSavedCart() {
             try {
-                const savedCart = sessionStorage.getItem('customerCart');
-                if (savedCart) {
-                    cart = JSON.parse(savedCart);
-                    console.log('🛒 Loaded saved cart:', cart);
+                const savedCartData = sessionStorage.getItem('customerCart');
+                if (savedCartData) {
+                    const cartData = JSON.parse(savedCartData);
+                    
+                    // NEW: Verify cart belongs to current user and restaurant
+                    if (cartData.customerUID && 
+                        currentUser && 
+                        cartData.customerUID === currentUser.uid &&
+                        cartData.restaurantId === customerData.restaurantId) {
+                        
+                        cart = cartData.items || {};
+                        console.log('🛒 Loaded saved cart for authenticated user:', cart);
+                    } else if (!cartData.customerUID) {
+                        // Legacy cart without UID (backward compatibility)
+                        cart = cartData.items || cartData || {};
+                        console.log('🛒 Loaded legacy cart:', cart);
+                    } else {
+                        console.log('🛒 Cart verification failed, starting fresh');
+                        cart = {};
+                    }
                 } else {
                     cart = {};
                 }
@@ -1619,15 +1892,33 @@
             });
         }
 
+        // ENHANCED: View cart with enhanced session data
         function viewCart() {
-            // Save current cart and customer data
-            sessionStorage.setItem('customerCart', JSON.stringify(cart));
-            sessionStorage.setItem('customerData', JSON.stringify(customerData));
+            // ENHANCED: Save comprehensive cart and customer data
+            const enhancedCartData = {
+                items: cart,
+                customerUID: currentUser ? currentUser.uid : null,
+                restaurantId: customerData.restaurantId,
+                timestamp: new Date().toISOString()
+            };
+            sessionStorage.setItem('customerCart', JSON.stringify(enhancedCartData));
+            
+            // ENHANCED: Save comprehensive customer session
+            const enhancedCustomerData = {
+                ...customerData,
+                ...customerSession,
+                firebaseUID: currentUser ? currentUser.uid : null,
+                authProvider: currentUser ? (currentUser.providerData[0]?.providerId || 'unknown') : null,
+                isAuthenticated: !!currentUser,
+                sessionTimestamp: new Date().toISOString()
+            };
             
             // Include allergen information
             if (customerAllergens.length > 0 || customerData.customAllergens) {
-                customerData.allergens = customerAllergens;
+                enhancedCustomerData.allergens = customerAllergens;
             }
+            
+            sessionStorage.setItem('customerData', JSON.stringify(enhancedCustomerData));
             
             // Build URL parameters for checkout
             const params = new URLSearchParams();
@@ -1637,6 +1928,12 @@
             if (customerData.name) params.set('name', customerData.name);
             if (customerData.phone) params.set('phone', customerData.phone);
             
+            // NEW: Add authentication session parameter
+            if (currentUser) {
+                params.set('session', 'authenticated');
+            }
+            
+            console.log('🔄 Navigating to checkout with enhanced data');
             window.location.href = `checkout.html?${params.toString()}`;
         }
 
@@ -1661,7 +1958,39 @@
             document.getElementById('errorMessage').style.display = 'block';
         }
 
-        console.log('Customer menu with Firebase authentication loaded successfully');
+        // NEW: Session monitoring for enhanced security
+        function monitorAuthenticationState() {
+            firebase.auth().onAuthStateChanged(function(user) {
+                if (!user && currentUser) {
+                    // User was signed out unexpectedly
+                    console.warn('⚠️ User signed out unexpectedly');
+                    showSessionWarning();
+                    currentUser = null;
+                    updateAuthenticationIndicator();
+                } else if (user && !currentUser) {
+                    // User signed in during session
+                    console.log('✅ User signed in during session');
+                    currentUser = user;
+                    updateAuthenticationIndicator();
+                    hideSessionWarning();
+                }
+            });
+        }
+
+        // NEW: Hide session warning
+        function hideSessionWarning() {
+            const warning = document.getElementById('sessionWarning');
+            if (warning) {
+                warning.classList.remove('show');
+            }
+        }
+
+        // Start monitoring authentication state
+        setTimeout(() => {
+            monitorAuthenticationState();
+        }, 1000);
+
+        console.log('🍽️ Enhanced customer menu with Firebase authentication and social login support loaded successfully');
     </script>
 </body>
 </html>
