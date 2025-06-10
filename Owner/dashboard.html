@@ -701,14 +701,14 @@
             display: none;
         }
 
-        /* Settings, QR Code, Orders, and Incidents Section styles */
-        .settings-section, .qr-section, .orders-section, .incidents-section {
+        /* Settings, QR Code, Orders, Analytics, and Incidents Section styles */
+        .settings-section, .qr-section, .orders-section, .incidents-section, .analytics-section {
             padding: 0;
             background: transparent;
             box-shadow: none;
         }
 
-        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container, .incidents-iframe-container {
+        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container, .incidents-iframe-container, .analytics-iframe-container {
             width: 100%;
             height: 100vh;
             border: none;
@@ -718,7 +718,7 @@
             position: relative;
         }
 
-        .settings-iframe, .qr-iframe, .orders-iframe, .incidents-iframe {
+        .settings-iframe, .qr-iframe, .orders-iframe, .incidents-iframe, .analytics-iframe {
             width: 100%;
             height: 100%;
             border: none;
@@ -1062,6 +1062,7 @@
                 <div class="nav-tab" data-section="menu">Menu</div>
                 <div class="nav-tab" data-section="orders">Orders</div>
                 <div class="nav-tab" data-section="incidents">Loss Reports</div>
+                <div class="nav-tab" data-section="analytics">Analytics</div>
                 <div class="nav-tab" data-section="qr-code">QR Code</div>
                 <div class="nav-tab" data-section="settings">Settings</div>
             </div>
@@ -1177,6 +1178,17 @@
                     <p>Loading Loss Reports...</p>
                 </div>
                 <iframe id="incidentsIframe" class="incidents-iframe" style="display: none;"></iframe>
+            </div>
+        </div>
+
+        <!-- Analytics Section with iframe -->
+        <div class="dashboard-section analytics-section" id="analytics">
+            <div class="analytics-iframe-container">
+                <div class="iframe-loading" id="analyticsIframeLoading">
+                    <div class="spinner"></div>
+                    <p>Loading Analytics Dashboard...</p>
+                </div>
+                <iframe id="analyticsIframe" class="analytics-iframe" style="display: none;"></iframe>
             </div>
         </div>
 
@@ -1696,6 +1708,8 @@
                             loadOrdersIframe();
                         } else if (sectionId === 'incidents') {
                             loadIncidentsIframe();
+                        } else if (sectionId === 'analytics') {
+                            loadAnalyticsIframe();
                         } else if (sectionId === 'settings') {
                             loadSettingsIframe();
                         } else if (sectionId === 'qr-code') {
@@ -2260,6 +2274,45 @@
                 
                 console.log('🔧 Loading settings iframe from:', settingsPath);
                 iframe.src = settingsPath;
+            } else {
+                loading.style.display = 'none';
+                iframe.style.display = 'block';
+            }
+        }
+
+        // Analytics iframe management
+        function loadAnalyticsIframe() {
+            const iframe = document.getElementById('analyticsIframe');
+            const loading = document.getElementById('analyticsIframeLoading');
+            
+            loading.style.display = 'block';
+            iframe.style.display = 'none';
+            
+            if (!iframe.src || iframe.src === 'about:blank') {
+                iframe.onload = function() {
+                    loading.style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+                
+                iframe.onerror = function(error) {
+                    console.error('Error loading analytics iframe:', error);
+                    loading.innerHTML = '<p style="color: #dc3545;">Error loading analytics page. Make sure restaurant-analytics.html exists in the Owner folder.</p>';
+                };
+                
+                // Check if we're in a subdirectory and adjust path accordingly
+                const currentPath = window.location.pathname;
+                let analyticsPath = 'restaurant-analytics.html';
+                
+                // If we're in Owner folder, use relative path
+                if (currentPath.includes('/Owner/')) {
+                    analyticsPath = 'restaurant-analytics.html';
+                } else {
+                    // If we're in a different location, adjust path
+                    analyticsPath = './restaurant-analytics.html';
+                }
+                
+                console.log('📊 Loading analytics iframe from:', analyticsPath);
+                iframe.src = analyticsPath;
             } else {
                 loading.style.display = 'none';
                 iframe.style.display = 'block';
