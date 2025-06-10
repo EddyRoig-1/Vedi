@@ -535,7 +535,6 @@
             background: rgba(255, 255, 255, 0.3);
         }
 
-        /* Performance indicator */
         .performance-indicator {
             position: fixed;
             bottom: 20px;
@@ -783,7 +782,7 @@
         // Global variables
         let currentUser = null;
         let currentRestaurant = null;
-        let liveOrders = new Map(); // Use Map for O(1) lookups
+        let liveOrders = new Map();
         let historyOrders = new Map();
         let filteredOrders = [];
         let currentTab = 'live';
@@ -797,7 +796,7 @@
             currency: { code: 'USD', symbol: '$' },
             tableCount: 20,
             lastRefresh: 0,
-            refreshCooldown: 2000 // 2 seconds minimum between refreshes
+            refreshCooldown: 2000
         };
 
         // Real-time connection management
@@ -825,7 +824,6 @@
             try {
                 showLoading('Authenticating...');
                 
-                // Set aggressive timeout for production
                 const timeout = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Initialization timeout - please refresh')), 10000)
                 );
@@ -849,30 +847,26 @@
         }
 
         async function performFastInit() {
-            // Step 1: Authentication (critical)
             showLoading('Checking authentication...');
             currentUser = await getAuthenticatedUser();
             
-            // Step 2: Restaurant data (critical)
             showLoading('Loading restaurant...');
             currentRestaurant = await getRestaurantData();
             
-            // Step 3: Setup UI immediately
             setupUIComponents();
             
-            // Step 4: Load live orders (critical for production)
             showLoading('Loading live orders...');
             await loadLiveOrdersFast();
             
-            // Step 5: Start real-time updates
             showLoading('Starting real-time updates...');
             startOptimizedRealTimeUpdates();
             
-            // Step 6: Load additional data in background
+            // Load today's completed stats immediately
+            await loadTodayCompletedStatsFixed();
+            
             loadBackgroundData();
         }
 
-        // OPTIMIZED: Get authenticated user with caching
         async function getAuthenticatedUser() {
             try {
                 const user = firebase.auth().currentUser;
@@ -880,7 +874,6 @@
                     return user;
                 }
                 
-                // Wait for auth state with timeout
                 return new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => reject(new Error('Auth timeout')), 3000);
                     
@@ -902,7 +895,6 @@
             }
         }
 
-        // OPTIMIZED: Get restaurant data with caching
         async function getRestaurantData() {
             try {
                 if (typeof VediAPI === 'undefined') {
@@ -916,7 +908,6 @@
                     throw new Error('No restaurant found');
                 }
                 
-                // Cache restaurant settings
                 appCache.currency = restaurant.currency || { code: 'USD', symbol: '$' };
                 appCache.tableCount = parseInt(restaurant.tableCount) || 20;
                 
@@ -927,7 +918,6 @@
             }
         }
 
-        // OPTIMIZED: Setup UI components immediately
         function setupUIComponents() {
             try {
                 populateTableFilters();
@@ -939,48 +929,140 @@
             }
         }
 
-        // PRODUCTION CRITICAL: Fast live orders loading
         async function loadLiveOrdersFast() {
             try {
-                // Clear existing orders
                 liveOrders.clear();
                 
-                // Use direct Firestore query for speed
                 const ordersSnapshot = await firebase.firestore()
                     .collection('orders')
                     .where('restaurantId', '==', currentRestaurant.id)
                     .where('status', 'in', ['pending', 'preparing', 'ready'])
                     .orderBy('createdAt', 'desc')
-                    .limit(50) // Limit for performance
+                    .limit(50)
                     .get();
                 
                 ordersSnapshot.docs.forEach(doc => {
                     liveOrders.set(doc.id, { id: doc.id, ...doc.data() });
                 });
                 
-                // Update UI immediately
                 renderLiveOrdersOptimized();
-                updateStatsOptimized();
+                updateLiveStatsOnly();
                 
                 console.log('✅ Loaded', liveOrders.size, 'live orders');
                 
             } catch (error) {
                 console.error('❌ Failed to load live orders:', error);
-                
-                // Show error but don't fail completely
                 renderErrorState('Failed to load orders. Retrying...');
-                
-                // Retry once
                 setTimeout(() => loadLiveOrdersFast(), 2000);
             }
         }
 
-        // PRODUCTION CRITICAL: Optimized real-time updates
+        // FIXED: Load today's completed orders for stats
+        async function loadTodayCompletedStatsFixed() {
+            try {
+                console.log('📊 Loading today\'s completed orders for stats...');
+                
+                const today = new Date();
+                const todayStr = today.toDateString();
+                console.log('📅 Today string for stats:', todayStr);
+                
+                // Get ALL recent orders to find completed ones
+                const ordersSnapshot = await firebase.firestore()
+                    .collection('orders')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .orderBy('createdAt', 'desc')
+                    .limit(200) // Get enough to find today's completed orders
+                    .get();
+                
+                let completedToday = 0;
+                let revenueToday = 0;
+                
+                console.log('📊 Total orders to check:', ordersSnapshot.docs.length);
+                
+                ordersSnapshot.docs.forEach(doc => {
+                    const order = doc.data();
+                    
+                    // Convert Firestore timestamp to Date
+                    let orderDate;
+                    if (order.createdAt?.toDate) {
+                        orderDate = order.createdAt.toDate();
+                    } else if (order.createdAt instanceof Date) {
+                        orderDate = order.createdAt;
+                    } else {
+                        orderDate = new Date(order.createdAt);
+                    }
+                    
+                    const orderDateStr = orderDate.toDateString();
+                    
+                    // Check if it's today and completed
+                    if (orderDateStr === todayStr && order.status === 'completed') {
+                        completedToday++;
+                        revenueToday += (order.total || 0);
+                        
+                        console.log('💰 Completed order today:', {
+                            orderNumber: order.orderNumber,
+                            total: order.total,
+                            orderDate: orderDateStr
+                        });
+                    }
+                });
+                
+                console.log('📊 Today\'s completed stats:', { completedToday, revenueToday });
+                
+                // Update completed today stats
+                updateCompletedTodayStats(completedToday, revenueToday);
+                
+            } catch (error) {
+                console.error('❌ Failed to load completed stats:', error);
+                // Don't fail silently - show 0 but log the error
+                updateCompletedTodayStats(0, 0);
+            }
+        }
+
+        // FIXED: Update only completed today stats
+        function updateCompletedTodayStats(completedToday, revenueToday) {
+            console.log('🎯 Updating completed today stats:', { completedToday, revenueToday });
+            
+            // Update completed today count
+            document.getElementById('completedToday').textContent = completedToday;
+            
+            // Update revenue today
+            const revenueElement = document.getElementById('revenueToday');
+            revenueElement.setAttribute('data-amount', revenueToday);
+            revenueElement.textContent = formatPrice(revenueToday);
+            
+            console.log('✅ Completed today stats updated');
+        }
+
+        // FIXED: Update only live order stats (pending, preparing, ready)
+        function updateLiveStatsOnly() {
+            const orders = Array.from(liveOrders.values());
+            
+            const liveStats = {
+                pending: 0,
+                preparing: 0,
+                ready: 0
+            };
+            
+            orders.forEach(order => {
+                if (liveStats[order.status] !== undefined) {
+                    liveStats[order.status]++;
+                }
+            });
+            
+            console.log('📊 Live stats:', liveStats);
+            
+            // Update only live order counts
+            document.getElementById('pendingCount').textContent = liveStats.pending;
+            document.getElementById('preparingCount').textContent = liveStats.preparing;
+            
+            // Don't update completed/revenue here - they're handled separately
+        }
+
         function startOptimizedRealTimeUpdates() {
             try {
                 updateConnectionStatus(false, 'Connecting...');
                 
-                // Use direct Firestore listener for maximum performance
                 const query = firebase.firestore()
                     .collection('orders')
                     .where('restaurantId', '==', currentRestaurant.id)
@@ -1009,10 +1091,10 @@
             }
         }
 
-        // OPTIMIZED: Handle Firestore snapshots efficiently
         function handleOptimizedSnapshot(snapshot) {
             const changes = snapshot.docChanges();
             let hasUpdates = false;
+            let hasNewOrder = false;
             
             changes.forEach((change) => {
                 const order = { id: change.doc.id, ...change.doc.data() };
@@ -1022,6 +1104,7 @@
                     liveOrders.set(order.id, order);
                     
                     if (wasNew && change.type === 'added') {
+                        hasNewOrder = true;
                         playNewOrderNotification();
                         showNotification(`New order #${order.orderNumber} from ${order.customerName}`, 'success');
                     }
@@ -1030,17 +1113,21 @@
                 } else if (change.type === 'removed') {
                     liveOrders.delete(order.id);
                     hasUpdates = true;
+                    
+                    // If an order was completed, refresh today's stats
+                    if (order.status === 'completed') {
+                        setTimeout(() => loadTodayCompletedStatsFixed(), 1000);
+                    }
                 }
             });
             
             if (hasUpdates) {
                 performanceMetrics.lastUpdate = Date.now();
                 renderLiveOrdersOptimized();
-                updateStatsOptimized();
+                updateLiveStatsOnly(); // Only update live stats, not completed
             }
         }
 
-        // OPTIMIZED: Handle connection errors with retry logic
         function handleConnectionError(error) {
             connectionHealthy = false;
             updateConnectionStatus(false, 'Connection Error');
@@ -1061,12 +1148,10 @@
             }
         }
 
-        // OPTIMIZED: Render live orders efficiently
         function renderLiveOrdersOptimized() {
             const grid = document.getElementById('liveOrdersGrid');
             const ordersArray = Array.from(liveOrders.values());
             
-            // Apply filters
             filteredOrders = applyFiltersOptimized(ordersArray);
             
             if (filteredOrders.length === 0) {
@@ -1080,7 +1165,6 @@
                 return;
             }
             
-            // Use DocumentFragment for better performance
             const fragment = document.createDocumentFragment();
             
             filteredOrders.forEach(order => {
@@ -1094,7 +1178,6 @@
             updateBadgesOptimized();
         }
 
-        // OPTIMIZED: Create order element efficiently
         function createOrderElement(order, isLive) {
             const div = document.createElement('div');
             div.className = `order-card ${order.status}`;
@@ -1102,7 +1185,6 @@
             return div;
         }
 
-        // OPTIMIZED: Generate order HTML
         function generateOrderHTML(order, isLive) {
             const orderTime = new Date(order.createdAt?.toDate?.() || order.createdAt);
             const timeAgo = getTimeAgo(orderTime);
@@ -1163,7 +1245,6 @@
             `;
         }
 
-        // OPTIMIZED: Get action buttons based on status
         function getActionButtons(status, orderId) {
             switch (status) {
                 case 'pending':
@@ -1186,10 +1267,9 @@
             }
         }
 
-        // PRODUCTION CRITICAL: Fast order status updates
+        // FIXED: Fast order status updates with completed stats refresh
         async function updateOrderStatusFast(orderId, newStatus) {
             try {
-                // Optimistic update for immediate UI feedback
                 const order = liveOrders.get(orderId);
                 if (order) {
                     order.status = newStatus;
@@ -1197,13 +1277,11 @@
                     renderLiveOrdersOptimized();
                 }
                 
-                // Update in Firestore
                 const estimatedTime = newStatus === 'preparing' ? '15-20 minutes' : null;
                 
                 if (typeof VediAPI !== 'undefined' && VediAPI.updateOrderStatus) {
                     await VediAPI.updateOrderStatus(orderId, newStatus, estimatedTime);
                 } else {
-                    // Direct Firestore update as fallback
                     await firebase.firestore()
                         .collection('orders')
                         .doc(orderId)
@@ -1214,7 +1292,13 @@
                         });
                 }
                 
-                updateStatsOptimized();
+                updateLiveStatsOnly();
+                
+                // If order was completed, refresh today's stats
+                if (newStatus === 'completed') {
+                    setTimeout(() => loadTodayCompletedStatsFixed(), 1000);
+                }
+                
                 showNotification(`Order #${order.orderNumber} marked as ${newStatus}`, 'success');
                 
                 if (soundEnabled) {
@@ -1224,13 +1308,10 @@
             } catch (error) {
                 console.error('❌ Failed to update order status:', error);
                 showNotification('Failed to update order status', 'error');
-                
-                // Revert optimistic update
                 await loadLiveOrdersFast();
             }
         }
 
-        // OPTIMIZED: Apply filters efficiently
         function applyFiltersOptimized(ordersList) {
             const statusFilter = document.getElementById('statusFilter')?.value || 'all';
             const tableFilter = document.getElementById('tableFilter')?.value || 'all';
@@ -1253,42 +1334,6 @@
             });
         }
 
-        // OPTIMIZED: Update stats efficiently
-        function updateStatsOptimized() {
-            const orders = Array.from(liveOrders.values());
-            
-            const stats = {
-                pending: 0,
-                preparing: 0,
-                ready: 0,
-                completedToday: 0,
-                revenueToday: 0
-            };
-            
-            const today = new Date().toDateString();
-            
-            orders.forEach(order => {
-                const orderDate = new Date(order.createdAt?.toDate?.() || order.createdAt).toDateString();
-                
-                stats[order.status] = (stats[order.status] || 0) + 1;
-                
-                if (orderDate === today && order.status === 'completed') {
-                    stats.completedToday++;
-                    stats.revenueToday += order.total || 0;
-                }
-            });
-            
-            // Update DOM efficiently
-            document.getElementById('pendingCount').textContent = stats.pending;
-            document.getElementById('preparingCount').textContent = stats.preparing;
-            document.getElementById('completedToday').textContent = stats.completedToday;
-            
-            const revenueElement = document.getElementById('revenueToday');
-            revenueElement.setAttribute('data-amount', stats.revenueToday);
-            revenueElement.textContent = formatPrice(stats.revenueToday);
-        }
-
-        // OPTIMIZED: Update badges efficiently
         function updateBadgesOptimized() {
             const liveOrdersCount = liveOrders.size;
             const liveBadge = document.getElementById('liveBadge');
@@ -1301,10 +1346,8 @@
             }
         }
 
-        // Load background data after main load
         async function loadBackgroundData() {
             try {
-                // Load menu items for order display
                 if (typeof VediAPI !== 'undefined' && VediAPI.getMenuItems) {
                     const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
                     appCache.menuItems.clear();
@@ -1317,68 +1360,165 @@
             }
         }
 
-        // History orders loading (on-demand)
+        // FIXED: Load history orders with better date handling
         async function loadHistoryOrders() {
             if (currentTab !== 'history') return;
             
             try {
                 showLoading('Loading order history...');
+                console.log('🔍 Loading history orders...');
                 
-                const dateFilter = document.getElementById('dateFilter').value;
-                const targetDate = dateFilter ? new Date(dateFilter) : new Date();
+                const dateFilterValue = document.getElementById('dateFilter').value;
+                console.log('📅 Date filter value:', dateFilterValue);
                 
-                const startOfDay = new Date(targetDate);
-                startOfDay.setHours(0, 0, 0, 0);
-                
-                const endOfDay = new Date(targetDate);
-                endOfDay.setHours(23, 59, 59, 999);
-                
+                // Load all recent completed/cancelled orders
                 const historySnapshot = await firebase.firestore()
                     .collection('orders')
                     .where('restaurantId', '==', currentRestaurant.id)
-                    .where('status', 'in', ['completed', 'cancelled'])
-                    .where('createdAt', '>=', startOfDay)
-                    .where('createdAt', '<=', endOfDay)
                     .orderBy('createdAt', 'desc')
-                    .limit(100)
+                    .limit(200)
                     .get();
+                    
+                console.log('✅ Query successful, total docs:', historySnapshot.docs.length);
                 
                 historyOrders.clear();
+                
+                // Get target date for filtering
+                const targetDate = dateFilterValue ? new Date(dateFilterValue) : new Date();
+                const targetDateStr = targetDate.toDateString();
+                
+                console.log('🎯 Target date string:', targetDateStr);
+                
+                let totalProcessed = 0;
+                let completedFound = 0;
+                let dateMatched = 0;
+                
                 historySnapshot.docs.forEach(doc => {
-                    historyOrders.set(doc.id, { id: doc.id, ...doc.data() });
+                    const order = { id: doc.id, ...doc.data() };
+                    totalProcessed++;
+                    
+                    // Check if it's a completed/cancelled order
+                    if (['completed', 'cancelled'].includes(order.status)) {
+                        completedFound++;
+                        
+                        // Convert Firestore timestamp to Date
+                        let orderDate;
+                        if (order.createdAt?.toDate) {
+                            orderDate = order.createdAt.toDate();
+                        } else if (order.createdAt instanceof Date) {
+                            orderDate = order.createdAt;
+                        } else if (typeof order.createdAt === 'string' || typeof order.createdAt === 'number') {
+                            orderDate = new Date(order.createdAt);
+                        } else {
+                            console.warn('Unknown date format for order:', order.orderNumber, order.createdAt);
+                            orderDate = new Date();
+                        }
+                        
+                        const orderDateStr = orderDate.toDateString();
+                        
+                        // Check date match
+                        if (orderDateStr === targetDateStr) {
+                            dateMatched++;
+                            historyOrders.set(doc.id, order);
+                        }
+                    }
                 });
+                
+                console.log('📊 History processing results:', {
+                    totalProcessed,
+                    completedFound,
+                    dateMatched,
+                    targetDateStr,
+                    historyOrdersSize: historyOrders.size
+                });
+                
+                // If no orders match the selected date, show all completed orders
+                if (historyOrders.size === 0 && completedFound > 0) {
+                    console.log('🔄 No matches for selected date, showing all completed orders...');
+                    
+                    historyOrders.clear();
+                    
+                    historySnapshot.docs.forEach(doc => {
+                        const order = { id: doc.id, ...doc.data() };
+                        if (['completed', 'cancelled'].includes(order.status)) {
+                            historyOrders.set(doc.id, order);
+                        }
+                    });
+                    
+                    console.log('📊 Showing all completed orders:', historyOrders.size);
+                    showNotification(`No orders found for selected date. Showing all ${historyOrders.size} completed orders.`, 'warning');
+                }
                 
                 renderHistoryOrders();
                 hideLoading();
                 
+                console.log('✅ History loading complete:', historyOrders.size, 'orders to display');
+                
             } catch (error) {
                 console.error('❌ Failed to load history orders:', error);
-                showNotification('Failed to load order history', 'error');
+                showNotification('Failed to load order history: ' + error.message, 'error');
                 hideLoading();
             }
         }
 
+        // ENHANCED: Better history rendering
         function renderHistoryOrders() {
             const grid = document.getElementById('historyOrdersGrid');
             const ordersArray = Array.from(historyOrders.values());
-            const filtered = applyHistoryFilters(ordersArray);
             
-            if (filtered.length === 0) {
+            console.log('🎨 Rendering history orders:', ordersArray.length);
+            
+            if (ordersArray.length === 0) {
                 grid.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📜</div>
-                        <h3>No order history</h3>
-                        <p>Completed orders will appear here</p>
+                        <h3>No order history found</h3>
+                        <p>Try selecting a different date or complete some orders first</p>
+                        <button class="btn btn-primary" onclick="debugHistoryOrders()" style="margin-top: 15px;">
+                            🔍 Debug History
+                        </button>
                     </div>
                 `;
                 return;
             }
             
-            grid.innerHTML = filtered.map(order => `
-                <div class="order-card ${order.status}">
-                    ${generateOrderHTML(order, false)}
-                </div>
-            `).join('');
+            // Apply filters
+            const filtered = applyHistoryFilters(ordersArray);
+            console.log('🎨 After filters:', filtered.length);
+            
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h3>No orders match your filters</h3>
+                        <p>Found ${ordersArray.length} history orders, but none match your current filters</p>
+                        <button class="btn btn-secondary" onclick="clearHistoryFilters()" style="margin-top: 15px;">
+                            Clear Filters
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort by creation date (newest first)
+            filtered.sort((a, b) => {
+                const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+                const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+                return dateB - dateA;
+            });
+            
+            // Render orders
+            const fragment = document.createDocumentFragment();
+            
+            filtered.forEach(order => {
+                const orderElement = createOrderElement(order, false);
+                fragment.appendChild(orderElement);
+            });
+            
+            grid.innerHTML = '';
+            grid.appendChild(fragment);
+            
+            console.log('✅ Rendered', filtered.length, 'history orders');
         }
 
         function applyHistoryFilters(ordersList) {
@@ -1395,6 +1535,22 @@
                 
                 return true;
             });
+        }
+
+        // HELPER: Clear history filters
+        function clearHistoryFilters() {
+            document.getElementById('historyTableFilter').value = 'all';
+            document.getElementById('historySearchInput').value = '';
+            renderHistoryOrders();
+        }
+
+        // HELPER: Debug history orders
+        function debugHistoryOrders() {
+            console.log('🔍 Debug: Current history orders:', Array.from(historyOrders.values()));
+            console.log('🔍 Debug: Date filter value:', document.getElementById('dateFilter').value);
+            
+            // Force reload
+            loadHistoryOrders();
         }
 
         // UI Event Handlers
@@ -1424,7 +1580,6 @@
             renderHistoryOrders();
         }
 
-        // Force refresh with cooldown
         async function forceRefresh() {
             const now = Date.now();
             if (now - appCache.lastRefresh < appCache.refreshCooldown) {
@@ -1437,6 +1592,7 @@
             try {
                 showLoading('Refreshing orders...');
                 await loadLiveOrdersFast();
+                await loadTodayCompletedStatsFixed();
                 hideLoading();
                 showNotification('Orders refreshed successfully', 'success');
             } catch (error) {
@@ -1484,7 +1640,7 @@
                 ? completedOrders.reduce((sum, order) => sum + order.total, 0) / completedOrders.length 
                 : 0;
             
-            const avgPrepTime = 15; // Mock calculation
+            const avgPrepTime = 15;
             const totalOrders = allOrders.length;
             
             const tableCounts = {};
@@ -1553,7 +1709,6 @@
             return `${minutes}m`;
         }
 
-        // Performance and connection monitoring
         function updatePerformanceIndicator(text, status) {
             const indicator = document.getElementById('performanceIndicator');
             indicator.textContent = text;
@@ -1568,7 +1723,6 @@
             statusText.textContent = text;
         }
 
-        // Notification and sound functions
         function showLoading(message = 'Loading...') {
             const overlay = document.getElementById('loadingOverlay');
             const text = document.getElementById('loadingText');
@@ -1761,7 +1915,7 @@
             console.log('Could not load sound preference');
         }
 
-        console.log('🚀 Production-ready orders management loaded');
+        console.log('🚀 Production-ready orders management loaded with FIXED stats and history');
     </script>
 </body>
 </html>
