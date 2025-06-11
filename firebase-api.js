@@ -1,4 +1,4 @@
-// firebase-api.js - Complete Vedi Firebase API Implementation with Loss Tracking + API Analytics + Social Authentication
+// firebase-api.js - Complete Vedi Firebase API Implementation with Dynamic Fee Management + Loss Tracking + API Analytics + Social Authentication
 
 // ============================================================================
 // API TRACKING SYSTEM - For Maintenance Dashboard Analytics
@@ -426,6 +426,301 @@ const VediAPI = {
     } catch (error) {
       console.error('❌ Check email error:', error);
       return false;
+    }
+  }),
+
+  // ============================================================================
+  // DYNAMIC FEE MANAGEMENT SYSTEM
+  // ============================================================================
+
+  /**
+   * Create or update fee configuration for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @param {Object} feeConfig - Fee configuration
+   * @returns {Promise<Object>} Created/updated fee config
+   */
+  createOrUpdateFeeConfig: withTracking('createOrUpdateFeeConfig', async function(restaurantId, feeConfig) {
+    try {
+      const config = {
+        restaurantId,
+        serviceFeeFixed: feeConfig.serviceFeeFixed || 0, // Fixed amount like $2.00
+        serviceFeePercentage: feeConfig.serviceFeePercentage || 0, // Percentage like 3%
+        feeType: feeConfig.feeType || 'fixed', // 'fixed', 'percentage', or 'hybrid'
+        taxRate: feeConfig.taxRate || 0.085, // Default 8.5%
+        minimumOrderAmount: feeConfig.minimumOrderAmount || 0,
+        // Negotiated rates
+        isNegotiated: feeConfig.isNegotiated || false,
+        negotiatedBy: feeConfig.negotiatedBy || null, // Admin user ID
+        negotiatedDate: feeConfig.negotiatedDate || null,
+        notes: feeConfig.notes || '',
+        // Metadata
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: firebase.auth().currentUser?.uid
+      };
+      
+      // Use restaurant ID as document ID for easy lookup
+      await firebaseDb.collection('feeConfigurations').doc(restaurantId).set(config, { merge: true });
+      
+      console.log('✅ Fee configuration saved for restaurant:', restaurantId);
+      return config;
+      
+    } catch (error) {
+      console.error('❌ Create/update fee config error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get fee configuration for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @returns {Promise<Object|null>} Fee configuration or default
+   */
+  getFeeConfig: withTracking('getFeeConfig', async function(restaurantId) {
+    try {
+      const doc = await firebaseDb.collection('feeConfigurations').doc(restaurantId).get();
+      
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      
+      // Return default configuration if none exists
+      return {
+        restaurantId,
+        serviceFeeFixed: 2.00, // Default $2.00
+        serviceFeePercentage: 0,
+        feeType: 'fixed',
+        taxRate: 0.085, // Default 8.5%
+        minimumOrderAmount: 0,
+        isNegotiated: false,
+        isDefault: true
+      };
+      
+    } catch (error) {
+      console.error('❌ Get fee config error:', error);
+      // Return default on error
+      return {
+        restaurantId,
+        serviceFeeFixed: 2.00,
+        serviceFeePercentage: 0,
+        feeType: 'fixed',
+        taxRate: 0.085,
+        minimumOrderAmount: 0,
+        isDefault: true
+      };
+    }
+  }),
+
+  /**
+   * Get fee configuration for a venue (affects all restaurants in venue)
+   * @param {string} venueId - Venue ID
+   * @returns {Promise<Object|null>} Venue fee configuration
+   */
+  getVenueFeeConfig: withTracking('getVenueFeeConfig', async function(venueId) {
+    try {
+      const doc = await firebaseDb.collection('venueFeeConfigurations').doc(venueId).get();
+      
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      
+      return null; // No venue-level configuration
+      
+    } catch (error) {
+      console.error('❌ Get venue fee config error:', error);
+      return null;
+    }
+  }),
+
+  /**
+   * Calculate fees for an order
+   * @param {string} restaurantId - Restaurant ID
+   * @param {number} subtotal - Order subtotal
+   * @returns {Promise<Object>} Calculated fees
+   */
+  calculateOrderFees: withTracking('calculateOrderFees', async function(restaurantId, subtotal) {
+    try {
+      const feeConfig = await this.getFeeConfig(restaurantId);
+      
+      let serviceFee = 0;
+      let taxAmount = 0;
+      
+      // Calculate service fee based on configuration
+      switch (feeConfig.feeType) {
+        case 'fixed':
+          serviceFee = feeConfig.serviceFeeFixed || 0;
+          break;
+        case 'percentage':
+          serviceFee = (subtotal * (feeConfig.serviceFeePercentage / 100));
+          break;
+        case 'hybrid':
+          serviceFee = feeConfig.serviceFeeFixed + (subtotal * (feeConfig.serviceFeePercentage / 100));
+          break;
+        default:
+          serviceFee = feeConfig.serviceFeeFixed || 2.00;
+      }
+      
+      // Apply minimum order amount logic
+      if (subtotal < feeConfig.minimumOrderAmount) {
+        const shortfall = feeConfig.minimumOrderAmount - subtotal;
+        serviceFee += shortfall; // Add shortfall to service fee
+      }
+      
+      // Calculate tax
+      taxAmount = subtotal * (feeConfig.taxRate || 0.085);
+      
+      const total = subtotal + serviceFee + taxAmount;
+      
+      return {
+        subtotal,
+        serviceFee: Math.round(serviceFee * 100) / 100, // Round to 2 decimals
+        taxAmount: Math.round(taxAmount * 100) / 100,
+        taxRate: feeConfig.taxRate || 0.085,
+        total: Math.round(total * 100) / 100,
+        feeConfig: feeConfig,
+        breakdown: {
+          serviceFeeType: feeConfig.feeType,
+          serviceFeeFixed: feeConfig.serviceFeeFixed,
+          serviceFeePercentage: feeConfig.serviceFeePercentage,
+          isNegotiated: feeConfig.isNegotiated
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Calculate order fees error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get all fee configurations (for admin dashboard)
+   * @param {Object} options - Query options
+   * @returns {Promise<Array>} Array of fee configurations
+   */
+  getAllFeeConfigs: withTracking('getAllFeeConfigs', async function(options = {}) {
+    try {
+      let query = firebaseDb.collection('feeConfigurations');
+      
+      if (options.orderBy) {
+        query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
+      } else {
+        query = query.orderBy('updatedAt', 'desc');
+      }
+      
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      const querySnapshot = await query.get();
+      const configs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Enrich with restaurant data
+      const enrichedConfigs = await Promise.all(configs.map(async (config) => {
+        try {
+          const restaurant = await this.getRestaurant(config.restaurantId);
+          return {
+            ...config,
+            restaurantName: restaurant.name,
+            restaurantCurrency: restaurant.currency || 'USD'
+          };
+        } catch (error) {
+          return {
+            ...config,
+            restaurantName: 'Unknown Restaurant',
+            restaurantCurrency: 'USD'
+          };
+        }
+      }));
+      
+      console.log('✅ Retrieved fee configurations:', enrichedConfigs.length);
+      return enrichedConfigs;
+      
+    } catch (error) {
+      console.error('❌ Get all fee configs error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Delete fee configuration (revert to default)
+   * @param {string} restaurantId - Restaurant ID
+   */
+  deleteFeeConfig: withTracking('deleteFeeConfig', async function(restaurantId) {
+    try {
+      await firebaseDb.collection('feeConfigurations').doc(restaurantId).delete();
+      console.log('✅ Fee configuration deleted for restaurant:', restaurantId);
+    } catch (error) {
+      console.error('❌ Delete fee config error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get fee analytics (revenue tracking)
+   * @param {string} timePeriod - Time period (today, week, month, year)
+   * @param {string} restaurantId - Optional restaurant filter
+   * @returns {Promise<Object>} Fee analytics
+   */
+  getFeeAnalytics: withTracking('getFeeAnalytics', async function(timePeriod = 'month', restaurantId = null) {
+    try {
+      const startDate = this.getTimePeriodStart(timePeriod);
+      
+      let query = firebaseDb.collection('orders');
+      
+      if (startDate) {
+        query = query.where('createdAt', '>=', startDate);
+      }
+      
+      if (restaurantId) {
+        query = query.where('restaurantId', '==', restaurantId);
+      }
+      
+      const ordersSnapshot = await query.get();
+      
+      let totalRevenue = 0;
+      let totalServiceFees = 0;
+      let totalTax = 0;
+      let orderCount = 0;
+      const revenueByRestaurant = {};
+      
+      ordersSnapshot.docs.forEach(doc => {
+        const order = doc.data();
+        if (order.status === 'completed') {
+          totalRevenue += order.total || 0;
+          totalServiceFees += order.serviceFee || 0;
+          totalTax += order.tax || 0;
+          orderCount++;
+          
+          const restId = order.restaurantId;
+          if (!revenueByRestaurant[restId]) {
+            revenueByRestaurant[restId] = {
+              revenue: 0,
+              serviceFees: 0,
+              orders: 0
+            };
+          }
+          
+          revenueByRestaurant[restId].revenue += order.total || 0;
+          revenueByRestaurant[restId].serviceFees += order.serviceFee || 0;
+          revenueByRestaurant[restId].orders++;
+        }
+      });
+      
+      return {
+        timePeriod,
+        totalRevenue,
+        totalServiceFees,
+        totalTax,
+        orderCount,
+        averageOrderValue: orderCount > 0 ? totalRevenue / orderCount : 0,
+        averageServiceFee: orderCount > 0 ? totalServiceFees / orderCount : 0,
+        revenueByRestaurant,
+        platformCommission: totalServiceFees // This is your revenue
+      };
+      
+    } catch (error) {
+      console.error('❌ Get fee analytics error:', error);
+      throw error;
     }
   }),
 
@@ -1166,6 +1461,37 @@ const VediAPI = {
     }
   }),
 
+  /**
+   * Get all venues (for admin dashboard)
+   * @param {Object} options - Query options
+   * @returns {Promise<Array>} Array of venues
+   */
+  getAllVenues: withTracking('getAllVenues', async function(options = {}) {
+    try {
+      let query = firebaseDb.collection('venues');
+      
+      if (options.orderBy) {
+        query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
+      } else {
+        query = query.orderBy('createdAt', 'desc');
+      }
+      
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      const querySnapshot = await query.get();
+      const venues = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      console.log('✅ Retrieved all venues:', venues.length);
+      return venues;
+      
+    } catch (error) {
+      console.error('❌ Get all venues error:', error);
+      throw error;
+    }
+  }),
+
   // ============================================================================
   // LOSS INCIDENT MANAGEMENT (FIXED VERSION)
   // ============================================================================
@@ -1755,5 +2081,12 @@ console.log('   📘 Facebook social authentication');
 console.log('   🍎 Apple social authentication');
 console.log('   👤 Customer profile management');
 console.log('   🔒 UID-based order security');
-console.log('🔥 Ready for production use with complete analytics and enhanced authentication!');
+console.log('💰 Dynamic Fee Management System:');
+console.log('   ⚙️ Custom fee configurations per restaurant');
+console.log('   📊 Fixed, percentage, and hybrid fee structures');
+console.log('   🤝 Negotiated rate tracking and management');
+console.log('   📈 Platform revenue analytics and tracking');
+console.log('   🏛️ Custom tax rates and minimum order amounts');
+console.log('🔥 Ready for production use with complete analytics, enhanced authentication, and dynamic fee management!');
 console.log('✅ FIXED: Loss incident creation now handles undefined values properly');
+console.log('💡 NEW: Dynamic fee system allows complete control over platform revenue');
