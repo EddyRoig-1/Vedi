@@ -1,4 +1,71 @@
-// firebase-api.js - Complete Vedi Firebase API Implementation with Dynamic Fee Management + Loss Tracking + API Analytics + Social Authentication
+// firebase-api.js - Complete Vedi Firebase API Implementation with Firebase Reference Initialization
+
+// ============================================================================
+// FIREBASE REFERENCE INITIALIZATION (CRITICAL FIX)
+// ============================================================================
+
+// Create database reference getter that waits for initialization
+function getFirebaseDb() {
+  if (window.firebaseDb) {
+    return window.firebaseDb;
+  } else if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+    window.firebaseDb = firebase.firestore();
+    return window.firebaseDb;
+  } else {
+    throw new Error('Firebase database not initialized. Please ensure Firebase is loaded.');
+  }
+}
+
+function getFirebaseAuth() {
+  if (window.firebaseAuth) {
+    return window.firebaseAuth;
+  } else if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+    window.firebaseAuth = firebase.auth();
+    return window.firebaseAuth;
+  } else {
+    throw new Error('Firebase auth not initialized. Please ensure Firebase is loaded.');
+  }
+}
+
+// Initialize database references when Firebase is ready
+function initializeFirebaseAPI() {
+  return new Promise((resolve, reject) => {
+    if (typeof firebase === 'undefined') {
+      reject(new Error('Firebase not loaded'));
+      return;
+    }
+
+    const checkFirebaseInit = () => {
+      try {
+        if (firebase.apps.length > 0) {
+          window.firebaseDb = firebase.firestore();
+          window.firebaseAuth = firebase.auth();
+          console.log('✅ Firebase API database references initialized');
+          resolve();
+        } else {
+          setTimeout(checkFirebaseInit, 100);
+        }
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    checkFirebaseInit();
+  });
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initializeFirebaseAPI().catch(error => {
+      console.error('❌ Firebase API initialization failed:', error);
+    });
+  });
+} else {
+  initializeFirebaseAPI().catch(error => {
+    console.error('❌ Firebase API initialization failed:', error);
+  });
+}
 
 // ============================================================================
 // API TRACKING SYSTEM - For Maintenance Dashboard Analytics
@@ -13,7 +80,10 @@
  */
 async function trackAPICall(method, responseTime, success = true, metadata = {}) {
   try {
-    await firebaseDb.collection('apiCalls').add({
+    const db = getFirebaseDb();
+    const auth = getFirebaseAuth();
+    
+    await db.collection('apiCalls').add({
       method,
       responseTime,
       success,
@@ -21,7 +91,7 @@ async function trackAPICall(method, responseTime, success = true, metadata = {})
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       hour: new Date().getHours(),
-      userId: firebase.auth().currentUser?.uid || 'anonymous'
+      userId: auth.currentUser?.uid || 'anonymous'
     });
   } catch (error) {
     // Silent fail - don't break main functionality
@@ -72,8 +142,11 @@ const VediAPI = {
   async signUp(email, password, userData) {
     const startTime = Date.now();
     try {
+      const auth = getFirebaseAuth();
+      const db = getFirebaseDb();
+      
       // Create Firebase auth user
-      const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
+      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
       const user = userCredential.user;
       
       // Save additional user data to Firestore
@@ -84,7 +157,7 @@ const VediAPI = {
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      await firebaseDb.collection('users').doc(user.uid).set(userDoc);
+      await db.collection('users').doc(user.uid).set(userDoc);
       
       // Track successful API call
       const responseTime = Date.now() - startTime;
@@ -118,7 +191,9 @@ const VediAPI = {
   async signIn(email, password) {
     const startTime = Date.now();
     try {
-      const userCredential = await firebaseAuth.signInWithEmailAndPassword(email, password);
+      const auth = getFirebaseAuth();
+      
+      const userCredential = await auth.signInWithEmailAndPassword(email, password);
       const user = userCredential.user;
       
       // Get user data from Firestore
@@ -275,6 +350,8 @@ const VediAPI = {
    */
   saveCustomerProfile: withTracking('saveCustomerProfile', async function(uid, profileData) {
     try {
+      const db = getFirebaseDb();
+      
       const profile = {
         ...profileData,
         lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
@@ -282,7 +359,7 @@ const VediAPI = {
       };
       
       // Set createdAt only if it's a new profile
-      await firebaseDb.collection('customerProfiles').doc(uid).set({
+      await db.collection('customerProfiles').doc(uid).set({
         ...profile,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
@@ -303,7 +380,9 @@ const VediAPI = {
    */
   getCustomerProfile: withTracking('getCustomerProfile', async function(uid) {
     try {
-      const doc = await firebaseDb.collection('customerProfiles').doc(uid).get();
+      const db = getFirebaseDb();
+      
+      const doc = await db.collection('customerProfiles').doc(uid).get();
       
       if (doc.exists) {
         return { id: doc.id, ...doc.data() };
@@ -365,7 +444,8 @@ const VediAPI = {
    */
   signOut: withTracking('signOut', async function() {
     try {
-      await firebaseAuth.signOut();
+      const auth = getFirebaseAuth();
+      await auth.signOut();
       console.log('✅ User signed out successfully');
     } catch (error) {
       console.error('❌ Sign out error:', error);
@@ -379,7 +459,9 @@ const VediAPI = {
    */
   getCurrentUser: withTracking('getCurrentUser', async function() {
     return new Promise((resolve) => {
-      const unsubscribe = firebaseAuth.onAuthStateChanged(async (user) => {
+      const auth = getFirebaseAuth();
+      
+      const unsubscribe = auth.onAuthStateChanged(async (user) => {
         unsubscribe();
         if (user) {
           try {
@@ -403,7 +485,9 @@ const VediAPI = {
    */
   getUserData: withTracking('getUserData', async function(userId) {
     try {
-      const doc = await firebaseDb.collection('users').doc(userId).get();
+      const db = getFirebaseDb();
+      
+      const doc = await db.collection('users').doc(userId).get();
       if (doc.exists) {
         return { id: doc.id, ...doc.data() };
       }
@@ -421,306 +505,12 @@ const VediAPI = {
    */
   checkEmailExists: withTracking('checkEmailExists', async function(email) {
     try {
-      const methods = await firebaseAuth.fetchSignInMethodsForEmail(email);
+      const auth = getFirebaseAuth();
+      const methods = await auth.fetchSignInMethodsForEmail(email);
       return methods.length > 0;
     } catch (error) {
       console.error('❌ Check email error:', error);
       return false;
-    }
-  }),
-
-  // ============================================================================
-  // DYNAMIC FEE MANAGEMENT SYSTEM
-  // ============================================================================
-
-  /**
-   * Create or update fee configuration for a restaurant
-   * @param {string} restaurantId - Restaurant ID
-   * @param {Object} feeConfig - Fee configuration
-   * @returns {Promise<Object>} Created/updated fee config
-   */
-  createOrUpdateFeeConfig: withTracking('createOrUpdateFeeConfig', async function(restaurantId, feeConfig) {
-    try {
-      const config = {
-        restaurantId,
-        serviceFeeFixed: feeConfig.serviceFeeFixed || 0, // Fixed amount like $2.00
-        serviceFeePercentage: feeConfig.serviceFeePercentage || 0, // Percentage like 3%
-        feeType: feeConfig.feeType || 'fixed', // 'fixed', 'percentage', or 'hybrid'
-        taxRate: feeConfig.taxRate || 0.085, // Default 8.5%
-        minimumOrderAmount: feeConfig.minimumOrderAmount || 0,
-        // Negotiated rates
-        isNegotiated: feeConfig.isNegotiated || false,
-        negotiatedBy: feeConfig.negotiatedBy || null, // Admin user ID
-        negotiatedDate: feeConfig.negotiatedDate || null,
-        notes: feeConfig.notes || '',
-        // Metadata
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdBy: firebase.auth().currentUser?.uid
-      };
-      
-      // Use restaurant ID as document ID for easy lookup
-      await firebaseDb.collection('feeConfigurations').doc(restaurantId).set(config, { merge: true });
-      
-      console.log('✅ Fee configuration saved for restaurant:', restaurantId);
-      return config;
-      
-    } catch (error) {
-      console.error('❌ Create/update fee config error:', error);
-      throw error;
-    }
-  }),
-
-  /**
-   * Get fee configuration for a restaurant
-   * @param {string} restaurantId - Restaurant ID
-   * @returns {Promise<Object|null>} Fee configuration or default
-   */
-  getFeeConfig: withTracking('getFeeConfig', async function(restaurantId) {
-    try {
-      const doc = await firebaseDb.collection('feeConfigurations').doc(restaurantId).get();
-      
-      if (doc.exists) {
-        return { id: doc.id, ...doc.data() };
-      }
-      
-      // Return default configuration if none exists
-      return {
-        restaurantId,
-        serviceFeeFixed: 2.00, // Default $2.00
-        serviceFeePercentage: 0,
-        feeType: 'fixed',
-        taxRate: 0.085, // Default 8.5%
-        minimumOrderAmount: 0,
-        isNegotiated: false,
-        isDefault: true
-      };
-      
-    } catch (error) {
-      console.error('❌ Get fee config error:', error);
-      // Return default on error
-      return {
-        restaurantId,
-        serviceFeeFixed: 2.00,
-        serviceFeePercentage: 0,
-        feeType: 'fixed',
-        taxRate: 0.085,
-        minimumOrderAmount: 0,
-        isDefault: true
-      };
-    }
-  }),
-
-  /**
-   * Get fee configuration for a venue (affects all restaurants in venue)
-   * @param {string} venueId - Venue ID
-   * @returns {Promise<Object|null>} Venue fee configuration
-   */
-  getVenueFeeConfig: withTracking('getVenueFeeConfig', async function(venueId) {
-    try {
-      const doc = await firebaseDb.collection('venueFeeConfigurations').doc(venueId).get();
-      
-      if (doc.exists) {
-        return { id: doc.id, ...doc.data() };
-      }
-      
-      return null; // No venue-level configuration
-      
-    } catch (error) {
-      console.error('❌ Get venue fee config error:', error);
-      return null;
-    }
-  }),
-
-  /**
-   * Calculate fees for an order
-   * @param {string} restaurantId - Restaurant ID
-   * @param {number} subtotal - Order subtotal
-   * @returns {Promise<Object>} Calculated fees
-   */
-  calculateOrderFees: withTracking('calculateOrderFees', async function(restaurantId, subtotal) {
-    try {
-      const feeConfig = await this.getFeeConfig(restaurantId);
-      
-      let serviceFee = 0;
-      let taxAmount = 0;
-      
-      // Calculate service fee based on configuration
-      switch (feeConfig.feeType) {
-        case 'fixed':
-          serviceFee = feeConfig.serviceFeeFixed || 0;
-          break;
-        case 'percentage':
-          serviceFee = (subtotal * (feeConfig.serviceFeePercentage / 100));
-          break;
-        case 'hybrid':
-          serviceFee = feeConfig.serviceFeeFixed + (subtotal * (feeConfig.serviceFeePercentage / 100));
-          break;
-        default:
-          serviceFee = feeConfig.serviceFeeFixed || 2.00;
-      }
-      
-      // Apply minimum order amount logic
-      if (subtotal < feeConfig.minimumOrderAmount) {
-        const shortfall = feeConfig.minimumOrderAmount - subtotal;
-        serviceFee += shortfall; // Add shortfall to service fee
-      }
-      
-      // Calculate tax
-      taxAmount = subtotal * (feeConfig.taxRate || 0.085);
-      
-      const total = subtotal + serviceFee + taxAmount;
-      
-      return {
-        subtotal,
-        serviceFee: Math.round(serviceFee * 100) / 100, // Round to 2 decimals
-        taxAmount: Math.round(taxAmount * 100) / 100,
-        taxRate: feeConfig.taxRate || 0.085,
-        total: Math.round(total * 100) / 100,
-        feeConfig: feeConfig,
-        breakdown: {
-          serviceFeeType: feeConfig.feeType,
-          serviceFeeFixed: feeConfig.serviceFeeFixed,
-          serviceFeePercentage: feeConfig.serviceFeePercentage,
-          isNegotiated: feeConfig.isNegotiated
-        }
-      };
-      
-    } catch (error) {
-      console.error('❌ Calculate order fees error:', error);
-      throw error;
-    }
-  }),
-
-  /**
-   * Get all fee configurations (for admin dashboard)
-   * @param {Object} options - Query options
-   * @returns {Promise<Array>} Array of fee configurations
-   */
-  getAllFeeConfigs: withTracking('getAllFeeConfigs', async function(options = {}) {
-    try {
-      let query = firebaseDb.collection('feeConfigurations');
-      
-      if (options.orderBy) {
-        query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
-      } else {
-        query = query.orderBy('updatedAt', 'desc');
-      }
-      
-      if (options.limit) {
-        query = query.limit(options.limit);
-      }
-      
-      const querySnapshot = await query.get();
-      const configs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Enrich with restaurant data
-      const enrichedConfigs = await Promise.all(configs.map(async (config) => {
-        try {
-          const restaurant = await this.getRestaurant(config.restaurantId);
-          return {
-            ...config,
-            restaurantName: restaurant.name,
-            restaurantCurrency: restaurant.currency || 'USD'
-          };
-        } catch (error) {
-          return {
-            ...config,
-            restaurantName: 'Unknown Restaurant',
-            restaurantCurrency: 'USD'
-          };
-        }
-      }));
-      
-      console.log('✅ Retrieved fee configurations:', enrichedConfigs.length);
-      return enrichedConfigs;
-      
-    } catch (error) {
-      console.error('❌ Get all fee configs error:', error);
-      throw error;
-    }
-  }),
-
-  /**
-   * Delete fee configuration (revert to default)
-   * @param {string} restaurantId - Restaurant ID
-   */
-  deleteFeeConfig: withTracking('deleteFeeConfig', async function(restaurantId) {
-    try {
-      await firebaseDb.collection('feeConfigurations').doc(restaurantId).delete();
-      console.log('✅ Fee configuration deleted for restaurant:', restaurantId);
-    } catch (error) {
-      console.error('❌ Delete fee config error:', error);
-      throw error;
-    }
-  }),
-
-  /**
-   * Get fee analytics (revenue tracking)
-   * @param {string} timePeriod - Time period (today, week, month, year)
-   * @param {string} restaurantId - Optional restaurant filter
-   * @returns {Promise<Object>} Fee analytics
-   */
-  getFeeAnalytics: withTracking('getFeeAnalytics', async function(timePeriod = 'month', restaurantId = null) {
-    try {
-      const startDate = this.getTimePeriodStart(timePeriod);
-      
-      let query = firebaseDb.collection('orders');
-      
-      if (startDate) {
-        query = query.where('createdAt', '>=', startDate);
-      }
-      
-      if (restaurantId) {
-        query = query.where('restaurantId', '==', restaurantId);
-      }
-      
-      const ordersSnapshot = await query.get();
-      
-      let totalRevenue = 0;
-      let totalServiceFees = 0;
-      let totalTax = 0;
-      let orderCount = 0;
-      const revenueByRestaurant = {};
-      
-      ordersSnapshot.docs.forEach(doc => {
-        const order = doc.data();
-        if (order.status === 'completed') {
-          totalRevenue += order.total || 0;
-          totalServiceFees += order.serviceFee || 0;
-          totalTax += order.tax || 0;
-          orderCount++;
-          
-          const restId = order.restaurantId;
-          if (!revenueByRestaurant[restId]) {
-            revenueByRestaurant[restId] = {
-              revenue: 0,
-              serviceFees: 0,
-              orders: 0
-            };
-          }
-          
-          revenueByRestaurant[restId].revenue += order.total || 0;
-          revenueByRestaurant[restId].serviceFees += order.serviceFee || 0;
-          revenueByRestaurant[restId].orders++;
-        }
-      });
-      
-      return {
-        timePeriod,
-        totalRevenue,
-        totalServiceFees,
-        totalTax,
-        orderCount,
-        averageOrderValue: orderCount > 0 ? totalRevenue / orderCount : 0,
-        averageServiceFee: orderCount > 0 ? totalServiceFees / orderCount : 0,
-        revenueByRestaurant,
-        platformCommission: totalServiceFees // This is your revenue
-      };
-      
-    } catch (error) {
-      console.error('❌ Get fee analytics error:', error);
-      throw error;
     }
   }),
 
@@ -735,13 +525,15 @@ const VediAPI = {
    */
   createRestaurant: withTracking('createRestaurant', async function(restaurantData) {
     try {
+      const db = getFirebaseDb();
+      
       const restaurant = {
         ...restaurantData,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      const docRef = await firebaseDb.collection('restaurants').add(restaurant);
+      const docRef = await db.collection('restaurants').add(restaurant);
       const doc = await docRef.get();
       
       console.log('✅ Restaurant created:', docRef.id);
@@ -761,14 +553,16 @@ const VediAPI = {
    */
   updateRestaurant: withTracking('updateRestaurant', async function(restaurantId, restaurantData) {
     try {
+      const db = getFirebaseDb();
+      
       const updateData = {
         ...restaurantData,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      await firebaseDb.collection('restaurants').doc(restaurantId).update(updateData);
+      await db.collection('restaurants').doc(restaurantId).update(updateData);
       
-      const doc = await firebaseDb.collection('restaurants').doc(restaurantId).get();
+      const doc = await db.collection('restaurants').doc(restaurantId).get();
       
       console.log('✅ Restaurant updated:', restaurantId);
       return { id: doc.id, ...doc.data() };
@@ -786,7 +580,9 @@ const VediAPI = {
    */
   getRestaurantByOwner: withTracking('getRestaurantByOwner', async function(ownerUserId) {
     try {
-      const querySnapshot = await firebaseDb.collection('restaurants')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('restaurants')
         .where('ownerUserId', '==', ownerUserId)
         .limit(1)
         .get();
@@ -810,7 +606,9 @@ const VediAPI = {
    */
   getRestaurant: withTracking('getRestaurant', async function(restaurantId) {
     try {
-      const doc = await firebaseDb.collection('restaurants').doc(restaurantId).get();
+      const db = getFirebaseDb();
+      
+      const doc = await db.collection('restaurants').doc(restaurantId).get();
       if (doc.exists) {
         return { id: doc.id, ...doc.data() };
       }
@@ -828,7 +626,9 @@ const VediAPI = {
    */
   getRestaurantsByVenue: withTracking('getRestaurantsByVenue', async function(venueId) {
     try {
-      const querySnapshot = await firebaseDb.collection('restaurants')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('restaurants')
         .where('venueId', '==', venueId)
         .orderBy('createdAt', 'desc')
         .get();
@@ -855,7 +655,9 @@ const VediAPI = {
    */
   getMenuCategories: withTracking('getMenuCategories', async function(restaurantId) {
     try {
-      const querySnapshot = await firebaseDb.collection('menuCategories')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('menuCategories')
         .where('restaurantId', '==', restaurantId)
         .orderBy('order', 'asc')
         .get();
@@ -875,12 +677,14 @@ const VediAPI = {
    */
   createMenuCategory: withTracking('createMenuCategory', async function(categoryData) {
     try {
+      const db = getFirebaseDb();
+      
       const category = {
         ...categoryData,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      const docRef = await firebaseDb.collection('menuCategories').add(category);
+      const docRef = await db.collection('menuCategories').add(category);
       const doc = await docRef.get();
       
       console.log('✅ Menu category created:', docRef.id);
@@ -900,9 +704,11 @@ const VediAPI = {
    */
   updateMenuCategory: withTracking('updateMenuCategory', async function(categoryId, categoryData) {
     try {
-      await firebaseDb.collection('menuCategories').doc(categoryId).update(categoryData);
+      const db = getFirebaseDb();
       
-      const doc = await firebaseDb.collection('menuCategories').doc(categoryId).get();
+      await db.collection('menuCategories').doc(categoryId).update(categoryData);
+      
+      const doc = await db.collection('menuCategories').doc(categoryId).get();
       return { id: doc.id, ...doc.data() };
       
     } catch (error) {
@@ -917,7 +723,9 @@ const VediAPI = {
    */
   deleteMenuCategory: withTracking('deleteMenuCategory', async function(categoryId) {
     try {
-      await firebaseDb.collection('menuCategories').doc(categoryId).delete();
+      const db = getFirebaseDb();
+      
+      await db.collection('menuCategories').doc(categoryId).delete();
       console.log('✅ Menu category deleted:', categoryId);
     } catch (error) {
       console.error('❌ Delete menu category error:', error);
@@ -936,7 +744,9 @@ const VediAPI = {
    */
   getMenuItems: withTracking('getMenuItems', async function(restaurantId) {
     try {
-      const querySnapshot = await firebaseDb.collection('menuItems')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('menuItems')
         .where('restaurantId', '==', restaurantId)
         .get();
       
@@ -956,7 +766,9 @@ const VediAPI = {
    */
   getMenuItemsByCategory: withTracking('getMenuItemsByCategory', async function(restaurantId, categoryId) {
     try {
-      const querySnapshot = await firebaseDb.collection('menuItems')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('menuItems')
         .where('restaurantId', '==', restaurantId)
         .where('categoryId', '==', categoryId)
         .get();
@@ -976,13 +788,15 @@ const VediAPI = {
    */
   createMenuItem: withTracking('createMenuItem', async function(itemData) {
     try {
+      const db = getFirebaseDb();
+      
       const item = {
         ...itemData,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      const docRef = await firebaseDb.collection('menuItems').add(item);
+      const docRef = await db.collection('menuItems').add(item);
       const doc = await docRef.get();
       
       console.log('✅ Menu item created:', docRef.id);
@@ -1002,14 +816,16 @@ const VediAPI = {
    */
   updateMenuItem: withTracking('updateMenuItem', async function(itemId, itemData) {
     try {
+      const db = getFirebaseDb();
+      
       const updateData = {
         ...itemData,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      await firebaseDb.collection('menuItems').doc(itemId).update(updateData);
+      await db.collection('menuItems').doc(itemId).update(updateData);
       
-      const doc = await firebaseDb.collection('menuItems').doc(itemId).get();
+      const doc = await db.collection('menuItems').doc(itemId).get();
       return { id: doc.id, ...doc.data() };
       
     } catch (error) {
@@ -1024,7 +840,9 @@ const VediAPI = {
    */
   deleteMenuItem: withTracking('deleteMenuItem', async function(itemId) {
     try {
-      await firebaseDb.collection('menuItems').doc(itemId).delete();
+      const db = getFirebaseDb();
+      
+      await db.collection('menuItems').doc(itemId).delete();
       console.log('✅ Menu item deleted:', itemId);
     } catch (error) {
       console.error('❌ Delete menu item error:', error);
@@ -1040,12 +858,14 @@ const VediAPI = {
    */
   updateItemStock: withTracking('updateItemStock', async function(itemId, inStock) {
     try {
-      await firebaseDb.collection('menuItems').doc(itemId).update({
+      const db = getFirebaseDb();
+      
+      await db.collection('menuItems').doc(itemId).update({
         inStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       
-      const doc = await firebaseDb.collection('menuItems').doc(itemId).get();
+      const doc = await db.collection('menuItems').doc(itemId).get();
       return { id: doc.id, ...doc.data() };
       
     } catch (error) {
@@ -1120,6 +940,8 @@ const VediAPI = {
    */
   createOrder: withTracking('createOrder', async function(orderData) {
     try {
+      const db = getFirebaseDb();
+      
       // Get current authenticated user
       const currentUser = firebase.auth().currentUser;
       
@@ -1131,7 +953,7 @@ const VediAPI = {
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      const docRef = await firebaseDb.collection('orders').add(order);
+      const docRef = await db.collection('orders').add(order);
       const doc = await docRef.get();
       
       console.log('✅ Order created:', orderData.orderNumber);
@@ -1150,7 +972,9 @@ const VediAPI = {
    */
   getOrderByNumber: withTracking('getOrderByNumber', async function(orderNumber) {
     try {
-      const querySnapshot = await firebaseDb.collection('orders')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('orders')
         .where('orderNumber', '==', orderNumber)
         .limit(1)
         .get();
@@ -1175,7 +999,9 @@ const VediAPI = {
    */
   getOrders: withTracking('getOrders', async function(restaurantId, options = {}) {
     try {
-      let query = firebaseDb.collection('orders')
+      const db = getFirebaseDb();
+      
+      let query = db.collection('orders')
         .where('restaurantId', '==', restaurantId);
       
       // Add ordering
@@ -1211,7 +1037,9 @@ const VediAPI = {
    */
   getOrdersByCustomer: withTracking('getOrdersByCustomer', async function(customerPhone) {
     try {
-      const querySnapshot = await firebaseDb.collection('orders')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('orders')
         .where('customerPhone', '==', customerPhone)
         .orderBy('createdAt', 'desc')
         .get();
@@ -1231,7 +1059,9 @@ const VediAPI = {
    */
   getOrdersByCustomerUID: withTracking('getOrdersByCustomerUID', async function(customerUID) {
     try {
-      const querySnapshot = await firebaseDb.collection('orders')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('orders')
         .where('customerUID', '==', customerUID)
         .orderBy('createdAt', 'desc')
         .get();
@@ -1319,6 +1149,8 @@ const VediAPI = {
    */
   updateOrderStatus: withTracking('updateOrderStatus', async function(orderId, status, estimatedTime = null) {
     try {
+      const db = getFirebaseDb();
+      
       const updateData = {
         status,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1328,9 +1160,9 @@ const VediAPI = {
         updateData.estimatedTime = estimatedTime;
       }
       
-      await firebaseDb.collection('orders').doc(orderId).update(updateData);
+      await db.collection('orders').doc(orderId).update(updateData);
       
-      const doc = await firebaseDb.collection('orders').doc(orderId).get();
+      const doc = await db.collection('orders').doc(orderId).get();
       console.log('✅ Order status updated:', orderId, status);
       return { id: doc.id, ...doc.data() };
       
@@ -1347,10 +1179,12 @@ const VediAPI = {
    */
   getTodaysOrders: withTracking('getTodaysOrders', async function(restaurantId) {
     try {
+      const db = getFirebaseDb();
+      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const querySnapshot = await firebaseDb.collection('orders')
+      const querySnapshot = await db.collection('orders')
         .where('restaurantId', '==', restaurantId)
         .where('createdAt', '>=', today)
         .orderBy('createdAt', 'desc')
@@ -1375,13 +1209,15 @@ const VediAPI = {
    */
   createVenue: withTracking('createVenue', async function(venueData) {
     try {
+      const db = getFirebaseDb();
+      
       const venue = {
         ...venueData,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      const docRef = await firebaseDb.collection('venues').add(venue);
+      const docRef = await db.collection('venues').add(venue);
       const doc = await docRef.get();
       
       console.log('✅ Venue created:', docRef.id);
@@ -1401,14 +1237,16 @@ const VediAPI = {
    */
   updateVenue: withTracking('updateVenue', async function(venueId, venueData) {
     try {
+      const db = getFirebaseDb();
+      
       const updateData = {
         ...venueData,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      await firebaseDb.collection('venues').doc(venueId).update(updateData);
+      await db.collection('venues').doc(venueId).update(updateData);
       
-      const doc = await firebaseDb.collection('venues').doc(venueId).get();
+      const doc = await db.collection('venues').doc(venueId).get();
       
       console.log('✅ Venue updated:', venueId);
       return { id: doc.id, ...doc.data() };
@@ -1426,7 +1264,9 @@ const VediAPI = {
    */
   getVenueByManager: withTracking('getVenueByManager', async function(managerUserId) {
     try {
-      const querySnapshot = await firebaseDb.collection('venues')
+      const db = getFirebaseDb();
+      
+      const querySnapshot = await db.collection('venues')
         .where('managerUserId', '==', managerUserId)
         .limit(1)
         .get();
@@ -1450,13 +1290,322 @@ const VediAPI = {
    */
   getVenue: withTracking('getVenue', async function(venueId) {
     try {
-      const doc = await firebaseDb.collection('venues').doc(venueId).get();
+      const db = getFirebaseDb();
+      
+      const doc = await db.collection('venues').doc(venueId).get();
       if (doc.exists) {
         return { id: doc.id, ...doc.data() };
       }
       throw new Error('Venue not found');
     } catch (error) {
       console.error('❌ Get venue error:', error);
+      throw error;
+    }
+  }),
+
+  // ============================================================================
+  // DYNAMIC FEE MANAGEMENT SYSTEM
+  // ============================================================================
+
+  /**
+   * Create or update fee configuration for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @param {Object} feeConfig - Fee configuration
+   * @returns {Promise<Object>} Created/updated fee config
+   */
+  createOrUpdateFeeConfig: withTracking('createOrUpdateFeeConfig', async function(restaurantId, feeConfig) {
+    try {
+      const db = getFirebaseDb();
+      const auth = getFirebaseAuth();
+      
+      const config = {
+        restaurantId,
+        serviceFeeFixed: feeConfig.serviceFeeFixed || 0, // Fixed amount like $2.00
+        serviceFeePercentage: feeConfig.serviceFeePercentage || 0, // Percentage like 3%
+        feeType: feeConfig.feeType || 'fixed', // 'fixed', 'percentage', or 'hybrid'
+        taxRate: feeConfig.taxRate || 0.085, // Default 8.5%
+        minimumOrderAmount: feeConfig.minimumOrderAmount || 0,
+        // Negotiated rates
+        isNegotiated: feeConfig.isNegotiated || false,
+        negotiatedBy: feeConfig.negotiatedBy || null, // Admin user ID
+        negotiatedDate: feeConfig.negotiatedDate || null,
+        notes: feeConfig.notes || '',
+        // Metadata
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: auth.currentUser?.uid
+      };
+      
+      // Use restaurant ID as document ID for easy lookup
+      await db.collection('feeConfigurations').doc(restaurantId).set(config, { merge: true });
+      
+      console.log('✅ Fee configuration saved for restaurant:', restaurantId);
+      return config;
+      
+    } catch (error) {
+      console.error('❌ Create/update fee config error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get fee configuration for a restaurant
+   * @param {string} restaurantId - Restaurant ID
+   * @returns {Promise<Object|null>} Fee configuration or default
+   */
+  getFeeConfig: withTracking('getFeeConfig', async function(restaurantId) {
+    try {
+      const db = getFirebaseDb();
+      
+      const doc = await db.collection('feeConfigurations').doc(restaurantId).get();
+      
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      
+      // Return default configuration if none exists
+      return {
+        restaurantId,
+        serviceFeeFixed: 2.00, // Default $2.00
+        serviceFeePercentage: 0,
+        feeType: 'fixed',
+        taxRate: 0.085, // Default 8.5%
+        minimumOrderAmount: 0,
+        isNegotiated: false,
+        isDefault: true
+      };
+      
+    } catch (error) {
+      console.error('❌ Get fee config error:', error);
+      // Return default on error
+      return {
+        restaurantId,
+        serviceFeeFixed: 2.00,
+        serviceFeePercentage: 0,
+        feeType: 'fixed',
+        taxRate: 0.085,
+        minimumOrderAmount: 0,
+        isDefault: true
+      };
+    }
+  }),
+
+  /**
+   * Get fee configuration for a venue (affects all restaurants in venue)
+   * @param {string} venueId - Venue ID
+   * @returns {Promise<Object|null>} Venue fee configuration
+   */
+  getVenueFeeConfig: withTracking('getVenueFeeConfig', async function(venueId) {
+    try {
+      const db = getFirebaseDb();
+      
+      const doc = await db.collection('venueFeeConfigurations').doc(venueId).get();
+      
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      
+      return null; // No venue-level configuration
+      
+    } catch (error) {
+      console.error('❌ Get venue fee config error:', error);
+      return null;
+    }
+  }),
+
+  /**
+   * Calculate fees for an order
+   * @param {string} restaurantId - Restaurant ID
+   * @param {number} subtotal - Order subtotal
+   * @returns {Promise<Object>} Calculated fees
+   */
+  calculateOrderFees: withTracking('calculateOrderFees', async function(restaurantId, subtotal) {
+    try {
+      const feeConfig = await this.getFeeConfig(restaurantId);
+      
+      let serviceFee = 0;
+      let taxAmount = 0;
+      
+      // Calculate service fee based on configuration
+      switch (feeConfig.feeType) {
+        case 'fixed':
+          serviceFee = feeConfig.serviceFeeFixed || 0;
+          break;
+        case 'percentage':
+          serviceFee = (subtotal * (feeConfig.serviceFeePercentage / 100));
+          break;
+        case 'hybrid':
+          serviceFee = feeConfig.serviceFeeFixed + (subtotal * (feeConfig.serviceFeePercentage / 100));
+          break;
+        default:
+          serviceFee = feeConfig.serviceFeeFixed || 2.00;
+      }
+      
+      // Apply minimum order amount logic
+      if (subtotal < feeConfig.minimumOrderAmount) {
+        const shortfall = feeConfig.minimumOrderAmount - subtotal;
+        serviceFee += shortfall; // Add shortfall to service fee
+      }
+      
+      // Calculate tax
+      taxAmount = subtotal * (feeConfig.taxRate || 0.085);
+      
+      const total = subtotal + serviceFee + taxAmount;
+      
+      return {
+        subtotal,
+        serviceFee: Math.round(serviceFee * 100) / 100, // Round to 2 decimals
+        taxAmount: Math.round(taxAmount * 100) / 100,
+        taxRate: feeConfig.taxRate || 0.085,
+        total: Math.round(total * 100) / 100,
+        feeConfig: feeConfig,
+        breakdown: {
+          serviceFeeType: feeConfig.feeType,
+          serviceFeeFixed: feeConfig.serviceFeeFixed,
+          serviceFeePercentage: feeConfig.serviceFeePercentage,
+          isNegotiated: feeConfig.isNegotiated
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Calculate order fees error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get all fee configurations (for admin dashboard)
+   * @param {Object} options - Query options
+   * @returns {Promise<Array>} Array of fee configurations
+   */
+  getAllFeeConfigs: withTracking('getAllFeeConfigs', async function(options = {}) {
+    try {
+      const db = getFirebaseDb();
+      
+      let query = db.collection('feeConfigurations');
+      
+      if (options.orderBy) {
+        query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
+      } else {
+        query = query.orderBy('updatedAt', 'desc');
+      }
+      
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      const querySnapshot = await query.get();
+      const configs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Enrich with restaurant data
+      const enrichedConfigs = await Promise.all(configs.map(async (config) => {
+        try {
+          const restaurant = await this.getRestaurant(config.restaurantId);
+          return {
+            ...config,
+            restaurantName: restaurant.name,
+            restaurantCurrency: restaurant.currency || 'USD'
+          };
+        } catch (error) {
+          return {
+            ...config,
+            restaurantName: 'Unknown Restaurant',
+            restaurantCurrency: 'USD'
+          };
+        }
+      }));
+      
+      console.log('✅ Retrieved fee configurations:', enrichedConfigs.length);
+      return enrichedConfigs;
+      
+    } catch (error) {
+      console.error('❌ Get all fee configs error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Delete fee configuration (revert to default)
+   * @param {string} restaurantId - Restaurant ID
+   */
+  deleteFeeConfig: withTracking('deleteFeeConfig', async function(restaurantId) {
+    try {
+      const db = getFirebaseDb();
+      
+      await db.collection('feeConfigurations').doc(restaurantId).delete();
+      console.log('✅ Fee configuration deleted for restaurant:', restaurantId);
+    } catch (error) {
+      console.error('❌ Delete fee config error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get fee analytics (revenue tracking)
+   * @param {string} timePeriod - Time period (today, week, month, year)
+   * @param {string} restaurantId - Optional restaurant filter
+   * @returns {Promise<Object>} Fee analytics
+   */
+  getFeeAnalytics: withTracking('getFeeAnalytics', async function(timePeriod = 'month', restaurantId = null) {
+    try {
+      const db = getFirebaseDb();
+      const startDate = this.getTimePeriodStart(timePeriod);
+      
+      let query = db.collection('orders');
+      
+      if (startDate) {
+        query = query.where('createdAt', '>=', startDate);
+      }
+      
+      if (restaurantId) {
+        query = query.where('restaurantId', '==', restaurantId);
+      }
+      
+      const ordersSnapshot = await query.get();
+      
+      let totalRevenue = 0;
+      let totalServiceFees = 0;
+      let totalTax = 0;
+      let orderCount = 0;
+      const revenueByRestaurant = {};
+      
+      ordersSnapshot.docs.forEach(doc => {
+        const order = doc.data();
+        if (order.status === 'completed') {
+          totalRevenue += order.total || 0;
+          totalServiceFees += order.serviceFee || 0;
+          totalTax += order.tax || 0;
+          orderCount++;
+          
+          const restId = order.restaurantId;
+          if (!revenueByRestaurant[restId]) {
+            revenueByRestaurant[restId] = {
+              revenue: 0,
+              serviceFees: 0,
+              orders: 0
+            };
+          }
+          
+          revenueByRestaurant[restId].revenue += order.total || 0;
+          revenueByRestaurant[restId].serviceFees += order.serviceFee || 0;
+          revenueByRestaurant[restId].orders++;
+        }
+      });
+      
+      return {
+        timePeriod,
+        totalRevenue,
+        totalServiceFees,
+        totalTax,
+        orderCount,
+        averageOrderValue: orderCount > 0 ? totalRevenue / orderCount : 0,
+        averageServiceFee: orderCount > 0 ? totalServiceFees / orderCount : 0,
+        revenueByRestaurant,
+        platformCommission: totalServiceFees // This is your revenue
+      };
+      
+    } catch (error) {
+      console.error('❌ Get fee analytics error:', error);
       throw error;
     }
   }),
@@ -1468,7 +1617,9 @@ const VediAPI = {
    */
   getAllVenues: withTracking('getAllVenues', async function(options = {}) {
     try {
-      let query = firebaseDb.collection('venues');
+      const db = getFirebaseDb();
+      
+      let query = db.collection('venues');
       
       if (options.orderBy) {
         query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
@@ -1503,6 +1654,8 @@ const VediAPI = {
    */
   createLossIncident: withTracking('createLossIncident', async function(incidentData) {
     try {
+      const db = getFirebaseDb();
+      
       // Remove undefined values from the incident data
       const cleanIncidentData = {};
       
@@ -1520,7 +1673,7 @@ const VediAPI = {
       
       console.log('📝 Creating incident with clean data:', incident);
       
-      const docRef = await firebaseDb.collection('lossIncidents').add(incident);
+      const docRef = await db.collection('lossIncidents').add(incident);
       const doc = await docRef.get();
       
       console.log('✅ Loss incident created:', docRef.id);
@@ -1540,7 +1693,9 @@ const VediAPI = {
    */
   getLossIncidents: withTracking('getLossIncidents', async function(restaurantId, options = {}) {
     try {
-      let query = firebaseDb.collection('lossIncidents')
+      const db = getFirebaseDb();
+      
+      let query = db.collection('lossIncidents')
         .where('restaurantId', '==', restaurantId);
       
       // Add type filter
@@ -1598,7 +1753,9 @@ const VediAPI = {
    */
   getLossIncidentsByVenue: withTracking('getLossIncidentsByVenue', async function(venueId, options = {}) {
     try {
-      let query = firebaseDb.collection('lossIncidents')
+      const db = getFirebaseDb();
+      
+      let query = db.collection('lossIncidents')
         .where('venueId', '==', venueId);
       
       // Add filters similar to getLossIncidents
@@ -1650,14 +1807,16 @@ const VediAPI = {
    */
   updateLossIncident: withTracking('updateLossIncident', async function(incidentId, updateData) {
     try {
+      const db = getFirebaseDb();
+      
       const data = {
         ...updateData,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
-      await firebaseDb.collection('lossIncidents').doc(incidentId).update(data);
+      await db.collection('lossIncidents').doc(incidentId).update(data);
       
-      const doc = await firebaseDb.collection('lossIncidents').doc(incidentId).get();
+      const doc = await db.collection('lossIncidents').doc(incidentId).get();
       
       console.log('✅ Loss incident updated:', incidentId);
       return { id: doc.id, ...doc.data() };
@@ -1674,7 +1833,9 @@ const VediAPI = {
    */
   deleteLossIncident: withTracking('deleteLossIncident', async function(incidentId) {
     try {
-      await firebaseDb.collection('lossIncidents').doc(incidentId).delete();
+      const db = getFirebaseDb();
+      
+      await db.collection('lossIncidents').doc(incidentId).delete();
       console.log('✅ Loss incident deleted:', incidentId);
     } catch (error) {
       console.error('❌ Delete loss incident error:', error);
@@ -1690,9 +1851,10 @@ const VediAPI = {
    */
   getLossAnalytics: withTracking('getLossAnalytics', async function(restaurantId, timePeriod = 'month') {
     try {
+      const db = getFirebaseDb();
       const startDate = this.getTimePeriodStart(timePeriod);
       
-      let query = firebaseDb.collection('lossIncidents')
+      let query = db.collection('lossIncidents')
         .where('restaurantId', '==', restaurantId);
       
       if (startDate) {
@@ -1722,9 +1884,10 @@ const VediAPI = {
    */
   getVenueLossAnalytics: withTracking('getVenueLossAnalytics', async function(venueId, timePeriod = 'month') {
     try {
+      const db = getFirebaseDb();
       const startDate = this.getTimePeriodStart(timePeriod);
       
-      let query = firebaseDb.collection('lossIncidents')
+      let query = db.collection('lossIncidents')
         .where('venueId', '==', venueId);
       
       if (startDate) {
@@ -1757,7 +1920,9 @@ const VediAPI = {
    * @returns {Function} Unsubscribe function
    */
   listenToOrders(restaurantId, callback) {
-    return firebaseDb.collection('orders')
+    const db = getFirebaseDb();
+    
+    return db.collection('orders')
       .where('restaurantId', '==', restaurantId)
       .orderBy('createdAt', 'desc')
       .onSnapshot(querySnapshot => {
@@ -1773,7 +1938,9 @@ const VediAPI = {
    * @returns {Function} Unsubscribe function
    */
   listenToOrder(orderId, callback) {
-    return firebaseDb.collection('orders').doc(orderId)
+    const db = getFirebaseDb();
+    
+    return db.collection('orders').doc(orderId)
       .onSnapshot(doc => {
         if (doc.exists) {
           callback({ id: doc.id, ...doc.data() });
@@ -1788,7 +1955,9 @@ const VediAPI = {
    * @returns {Function} Unsubscribe function
    */
   listenToCustomerOrders(customerPhone, callback) {
-    return firebaseDb.collection('orders')
+    const db = getFirebaseDb();
+    
+    return db.collection('orders')
       .where('customerPhone', '==', customerPhone)
       .orderBy('createdAt', 'desc')
       .onSnapshot(querySnapshot => {
@@ -1804,32 +1973,14 @@ const VediAPI = {
    * @returns {Function} Unsubscribe function
    */
   listenToCustomerOrdersByUID(customerUID, callback) {
-    return firebaseDb.collection('orders')
+    const db = getFirebaseDb();
+    
+    return db.collection('orders')
       .where('customerUID', '==', customerUID)
       .orderBy('createdAt', 'desc')
       .onSnapshot(querySnapshot => {
         const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(orders);
-      });
-  },
-
-  /**
-   * Listen to order updates by order number
-   * @param {string} orderNumber - Order number
-   * @param {Function} callback - Callback function for updates
-   * @returns {Function} Unsubscribe function
-   */
-  listenToOrderByNumber(orderNumber, callback) {
-    return firebaseDb.collection('orders')
-      .where('orderNumber', '==', orderNumber)
-      .limit(1)
-      .onSnapshot(querySnapshot => {
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          callback({ id: doc.id, ...doc.data() });
-        } else {
-          callback(null);
-        }
       });
   },
 
@@ -1892,7 +2043,9 @@ const VediAPI = {
    * @returns {Function} Unsubscribe function
    */
   listenToLossIncidents(restaurantId, callback) {
-    return firebaseDb.collection('lossIncidents')
+    const db = getFirebaseDb();
+    
+    return db.collection('lossIncidents')
       .where('restaurantId', '==', restaurantId)
       .orderBy('createdAt', 'desc')
       .onSnapshot(querySnapshot => {
@@ -1908,7 +2061,9 @@ const VediAPI = {
    * @returns {Function} Unsubscribe function
    */
   listenToVenueLossIncidents(venueId, callback) {
-    return firebaseDb.collection('lossIncidents')
+    const db = getFirebaseDb();
+    
+    return db.collection('lossIncidents')
       .where('venueId', '==', venueId)
       .orderBy('createdAt', 'desc')
       .onSnapshot(querySnapshot => {
@@ -2089,4 +2244,5 @@ console.log('   📈 Platform revenue analytics and tracking');
 console.log('   🏛️ Custom tax rates and minimum order amounts');
 console.log('🔥 Ready for production use with complete analytics, enhanced authentication, and dynamic fee management!');
 console.log('✅ FIXED: Loss incident creation now handles undefined values properly');
+console.log('🔧 FIXED: Firebase database references properly initialized');
 console.log('💡 NEW: Dynamic fee system allows complete control over platform revenue');
