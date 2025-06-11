@@ -554,17 +554,6 @@
                         <div class="phone-input-group">
                             <select class="country-select" id="socialCountryCode">
                                 <option value="+1">🇺🇸 +1</option>
-                                <option value="+44">🇬🇧 +44</option>
-                                <option value="+33">🇫🇷 +33</option>
-                                <option value="+49">🇩🇪 +49</option>
-                                <option value="+39">🇮🇹 +39</option>
-                                <option value="+34">🇪🇸 +34</option>
-                                <option value="+81">🇯🇵 +81</option>
-                                <option value="+86">🇨🇳 +86</option>
-                                <option value="+91">🇮🇳 +91</option>
-                                <option value="+61">🇦🇺 +61</option>
-                                <option value="+55">🇧🇷 +55</option>
-                                <option value="+52">🇲🇽 +52</option>
                             </select>
                             <input type="tel" id="socialUserPhone" class="phone-number-input" placeholder="123-456-7890">
                         </div>
@@ -610,17 +599,6 @@
                     <div class="phone-input-group">
                         <select class="country-select" id="countryCode">
                             <option value="+1">🇺🇸 +1</option>
-                            <option value="+44">🇬🇧 +44</option>
-                            <option value="+33">🇫🇷 +33</option>
-                            <option value="+49">🇩🇪 +49</option>
-                            <option value="+39">🇮🇹 +39</option>
-                            <option value="+34">🇪🇸 +34</option>
-                            <option value="+81">🇯🇵 +81</option>
-                            <option value="+86">🇨🇳 +86</option>
-                            <option value="+91">🇮🇳 +91</option>
-                            <option value="+61">🇦🇺 +61</option>
-                            <option value="+55">🇧🇷 +55</option>
-                            <option value="+52">🇲🇽 +52</option>
                         </select>
                         <input type="tel" id="phoneNumber" name="phoneNumber" class="phone-number-input" placeholder="123-456-7890" required>
                     </div>
@@ -1111,30 +1089,17 @@
                     console.log('📍 Country code changed to:', selectedCountryCode);
                 });
                 
-                // Format phone number input (without country code)
+                // Format phone number input - simplified for US format
                 phoneInput.addEventListener('input', function(e) {
                     let value = e.target.value.replace(/\D/g, '');
                     
-                    // Apply formatting based on country
-                    const countryCode = document.getElementById(country).value;
-                    
-                    if (countryCode === '+1') {
-                        // US formatting: (123) 456-7890
-                        if (value.length >= 7) {
-                            value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
-                        } else if (value.length >= 4) {
-                            value = `(${value.slice(0,3)}) ${value.slice(3)}`;
-                        } else if (value.length >= 1) {
-                            value = `(${value}`;
-                        }
-                    } else {
-                        // International formatting: add spaces every 3-4 digits
-                        if (value.length > 0) {
-                            value = value.match(/.{1,3}/g).join(' ');
-                            if (value.length > 15) {
-                                value = value.slice(0, 15);
-                            }
-                        }
+                    // US formatting: (123) 456-7890
+                    if (value.length >= 7) {
+                        value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
+                    } else if (value.length >= 4) {
+                        value = `(${value.slice(0,3)}) ${value.slice(3)}`;
+                    } else if (value.length >= 1) {
+                        value = `(${value}`;
                     }
                     
                     e.target.value = value;
@@ -1205,19 +1170,19 @@
             // Clean phone number (remove all non-digits)
             const cleanPhone = phoneNumber.replace(/\D/g, '');
             
-            // Enhanced validation based on country
-            let isValid = false;
+            // Enhanced validation - simplified for USA only
             if (countryCode === '+1') {
                 // US/Canada: exactly 10 digits
-                isValid = cleanPhone.length === 10;
+                if (cleanPhone.length !== 10) {
+                    showError('Please enter a valid 10-digit US phone number');
+                    return;
+                }
             } else {
-                // International: 7-15 digits (E.164 standard)
-                isValid = cleanPhone.length >= 7 && cleanPhone.length <= 15;
-            }
-            
-            if (!isValid) {
-                showError(`Please enter a valid phone number for ${countryCode}`);
-                return;
+                // Keep international validation for future use
+                if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+                    showError('Please enter a valid phone number');
+                    return;
+                }
             }
 
             // Construct full international phone number (E.164 format)
