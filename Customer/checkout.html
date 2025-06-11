@@ -688,13 +688,13 @@
                         <span>Subtotal:</span>
                         <span id="subtotal">$0.00</span>
                     </div>
-                    <div class="summary-row">
-                        <span>Tax (8.5%):</span>
+                    <div class="summary-row" id="taxRow">
+                        <span id="taxLabel">Tax:</span>
                         <span id="tax">$0.00</span>
                     </div>
-                    <div class="summary-row">
-                        <span>Service Fee:</span>
-                        <span id="serviceFee">$2.00</span>
+                    <div class="summary-row" id="serviceFeeRow">
+                        <span id="serviceFeeLabel">Service Fee:</span>
+                        <span id="serviceFee">$0.00</span>
                     </div>
                     <div class="summary-row total">
                         <span>Total:</span>
@@ -751,13 +751,12 @@
         let cart = {};
         let menuItems = {};
         let customerData = {};
-        let customerSession = {}; // NEW: Enhanced session management
-        let currentUser = null; // NEW: Firebase user object
+        let customerSession = {}; // Enhanced session management
+        let currentUser = null; // Firebase user object
         let customerAllergenInfo = null;
         
-        // Tax and fees
-        const TAX_RATE = 0.085; // 8.5%
-        const SERVICE_FEE = 2.00;
+        // REMOVED: Hardcoded fees and tax - now using dynamic system
+        let orderFees = null; // Will store calculated fees from VediAPI
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1226,8 +1225,8 @@
             }
         }
 
-        // Update order summary totals
-        function updateOrderSummary() {
+        // UPDATED: Dynamic order summary using VediAPI calculateOrderFees
+        async function updateOrderSummary() {
             let subtotal = 0;
             
             for (let itemId in cart) {
@@ -1236,15 +1235,59 @@
                 }
             }
 
-            const tax = subtotal * TAX_RATE;
-            const total = subtotal + tax + SERVICE_FEE;
+            try {
+                // DYNAMIC FEES: Use VediAPI to calculate fees for this restaurant
+                console.log('💰 Calculating dynamic fees for restaurant:', customerData.restaurantId);
+                orderFees = await VediAPI.calculateOrderFees(customerData.restaurantId, subtotal);
+                console.log('💰 Dynamic fees calculated:', orderFees);
 
-            document.getElementById('subtotal').textContent = formatPrice(subtotal);
-            document.getElementById('tax').textContent = formatPrice(tax);
-            document.getElementById('serviceFee').textContent = formatPrice(SERVICE_FEE);
-            document.getElementById('total').textContent = formatPrice(total);
+                // Update display with calculated values
+                document.getElementById('subtotal').textContent = formatPrice(orderFees.subtotal);
+                document.getElementById('tax').textContent = formatPrice(orderFees.taxAmount);
+                document.getElementById('serviceFee').textContent = formatPrice(orderFees.serviceFee);
+                document.getElementById('total').textContent = formatPrice(orderFees.total);
 
-            console.log('💰 Order summary updated for checkout - Total:', formatPrice(total));
+                // Update labels with dynamic rates
+                const taxRate = (orderFees.taxRate * 100).toFixed(1);
+                document.getElementById('taxLabel').textContent = `Tax (${taxRate}%):`;
+
+                // Update service fee label based on fee type
+                let serviceFeeLabel = 'Service Fee:';
+                if (orderFees.feeConfig.feeType === 'percentage') {
+                    serviceFeeLabel = `Service Fee (${orderFees.feeConfig.serviceFeePercentage}%):`;
+                } else if (orderFees.feeConfig.feeType === 'hybrid') {
+                    serviceFeeLabel = `Service Fee (${formatPrice(orderFees.feeConfig.serviceFeeFixed)} + ${orderFees.feeConfig.serviceFeePercentage}%):`;
+                }
+                document.getElementById('serviceFeeLabel').textContent = serviceFeeLabel;
+
+                console.log('💰 Dynamic order summary updated - Total:', formatPrice(orderFees.total));
+
+            } catch (error) {
+                console.error('❌ Error calculating dynamic fees, using fallback:', error);
+                
+                // Fallback to basic calculation if VediAPI fails
+                const defaultTaxRate = 0.085;
+                const defaultServiceFee = 2.00;
+                
+                const tax = subtotal * defaultTaxRate;
+                const total = subtotal + tax + defaultServiceFee;
+
+                orderFees = {
+                    subtotal: subtotal,
+                    taxAmount: tax,
+                    serviceFee: defaultServiceFee,
+                    total: total,
+                    taxRate: defaultTaxRate,
+                    feeConfig: { feeType: 'fixed' }
+                };
+
+                document.getElementById('subtotal').textContent = formatPrice(subtotal);
+                document.getElementById('tax').textContent = formatPrice(tax);
+                document.getElementById('serviceFee').textContent = formatPrice(defaultServiceFee);
+                document.getElementById('total').textContent = formatPrice(total);
+                
+                console.log('💰 Fallback order summary used - Total:', formatPrice(total));
+            }
         }
 
         // ENHANCED: Save cart with customer UID for security
@@ -1278,9 +1321,9 @@
             return phone; // Return original if format is unclear
         }
 
-        // ENHANCED: Place order function with enhanced authentication
+        // ENHANCED: Place order function with dynamic fees
         async function placeOrder() {
-            console.log('📝 Placing order with enhanced authentication...');
+            console.log('📝 Placing order with dynamic fees...');
             
             const placeOrderBtn = document.getElementById('placeOrderBtn');
             const orderBtnText = document.getElementById('orderBtnText');
@@ -1303,15 +1346,18 @@
                     throw new Error('Session mismatch. Please refresh and try again.');
                 }
 
+                // ENHANCED: Verify we have calculated fees
+                if (!orderFees) {
+                    throw new Error('Order fees not calculated. Please refresh the page.');
+                }
+
                 // Calculate order details
-                let subtotal = 0;
                 const orderItems = [];
 
                 for (let itemId in cart) {
                     if (cart[itemId] > 0 && menuItems[itemId]) {
                         const item = menuItems[itemId];
                         const quantity = cart[itemId];
-                        subtotal += item.price * quantity;
                         
                         orderItems.push({
                             id: itemId,
@@ -1327,14 +1373,11 @@
                     throw new Error('No items in cart to order');
                 }
 
-                const tax = subtotal * TAX_RATE;
-                const total = subtotal + tax + SERVICE_FEE;
-
                 // Generate order number
                 const orderNumber = VediAPI.generateOrderNumber();
                 console.log('🔢 Generated order number:', orderNumber);
 
-                // ENHANCED: Create order object with comprehensive customer data
+                // ENHANCED: Create order object with dynamic fees
                 const orderData = {
                     orderNumber: orderNumber,
                     restaurantId: customerData.restaurantId,
@@ -1348,25 +1391,26 @@
                     location: customerData.location || 'table',
                     items: orderItems,
                     specialInstructions: specialInstructions,
-                    subtotal: subtotal,
-                    tax: tax,
-                    serviceFee: SERVICE_FEE,
-                    total: total,
+                    // DYNAMIC FEES: Use calculated values instead of hardcoded
+                    subtotal: orderFees.subtotal,
+                    tax: orderFees.taxAmount,
+                    serviceFee: orderFees.serviceFee,
+                    total: orderFees.total,
+                    // ADDITIONAL FEE INFO: Store fee configuration details
+                    feeConfig: orderFees.feeConfig,
+                    taxRate: orderFees.taxRate,
+                    feeType: orderFees.breakdown?.serviceFeeType,
+                    isNegotiatedRate: orderFees.breakdown?.isNegotiated || false,
                     status: 'pending',
                     estimatedTime: '15-20 minutes',
                     createdAt: new Date().toISOString()
                 };
 
-                console.log('📋 Enhanced order prepared:', orderData);
+                console.log('📋 Enhanced order with dynamic fees prepared:', orderData);
 
                 // Create order in Firebase
                 const createdOrder = await VediAPI.createOrder(orderData);
-                console.log('✅ Order created successfully with enhanced data:', createdOrder);
-
-                // REMOVED: Order verification step that was causing the error
-                // console.log('🔍 Verifying order creation...');
-                // const verifyOrder = await VediAPI.getOrderByNumber(orderNumber);
-                // console.log('✅ Order verification:', verifyOrder ? 'Found' : 'Not found');
+                console.log('✅ Order created successfully with dynamic fees:', createdOrder);
 
                 // ENHANCED: Save customer profile if it doesn't exist
                 try {
@@ -1398,7 +1442,7 @@
                     customerUID: currentUser.uid,
                     customerEmail: currentUser.email,
                     authProvider: currentUser.providerData[0]?.providerId,
-                    total: total,
+                    total: orderFees.total, // Use dynamic total
                     createdAt: new Date().toISOString()
                 };
                 sessionStorage.setItem('lastOrderConfirmed', JSON.stringify(orderInfo));
@@ -1432,7 +1476,7 @@
                 }, 2000); // Reduced from 3000 to 2000
 
             } catch (error) {
-                console.error('❌ Error placing order with enhanced auth:', error);
+                console.error('❌ Error placing order with dynamic fees:', error);
                 showError('Failed to place order: ' + error.message);
                 
                 // Re-enable button
@@ -1516,7 +1560,7 @@
             monitorAuthenticationState();
         }, 1000);
 
-        console.log('🛒 Enhanced customer checkout with Firebase authentication and social login support loaded successfully');
+        console.log('🛒 Enhanced customer checkout with dynamic fee system loaded successfully');
     </script>
 </body>
 </html>
