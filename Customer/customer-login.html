@@ -3,16 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
     <title>Table Order - Login</title>
     
-    <!-- Firebase Scripts -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
-    <script src="../firebase-config.js"></script>
-    <script src="../firebase-api.js"></script>
+    <!-- Performance Optimizations: Preconnect to critical domains -->
+    <link rel="preconnect" href="https://www.googleapis.com">
+    <link rel="preconnect" href="https://accounts.google.com">
+    <link rel="preconnect" href="https://www.facebook.com">
+    <link rel="preconnect" href="https://appleid.apple.com">
+    <link rel="preconnect" href="https://www.gstatic.com">
     
+    <!-- DNS prefetch for faster domain resolution -->
+    <link rel="dns-prefetch" href="//www.googleapis.com">
+    <link rel="dns-prefetch" href="//accounts.google.com">
+    <link rel="dns-prefetch" href="//www.facebook.com">
+    
+    <!-- Firebase Scripts with optimized loading -->
+    <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Load analytics conditionally -->
+    <script>
+    // Only load analytics if supported
+    if (typeof Storage !== "undefined" && !window.navigator.webdriver) {
+        const analyticsScript = document.createElement('script');
+        analyticsScript.defer = true;
+        analyticsScript.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js';
+        analyticsScript.onerror = () => console.log('📊 Analytics blocked (normal with ad blockers)');
+        document.head.appendChild(analyticsScript);
+    }
+    </script>
+    
+    <script defer src="../firebase-config.js"></script>
+    <script defer src="../firebase-api.js"></script>
+    
+    <!-- Critical CSS inline for faster rendering -->
     <style>
         * {
             margin: 0;
@@ -38,6 +64,7 @@
             width: 100%;
             max-width: 400px;
             min-height: 500px;
+            position: relative;
         }
 
         .login-page {
@@ -167,16 +194,6 @@
 
         .social-btn.apple:hover:not(:disabled) {
             background: #000;
-            color: white;
-        }
-
-        .social-btn.twitter {
-            border-color: #1da1f2;
-            color: #1da1f2;
-        }
-
-        .social-btn.twitter:hover:not(:disabled) {
-            background: #1da1f2;
             color: white;
         }
 
@@ -455,6 +472,36 @@
             color: white;
         }
 
+        /* Initial loader */
+        .initial-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(102, 126, 234, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.3s ease;
+        }
+
+        .loader-content {
+            color: white;
+            text-align: center;
+        }
+
+        .loader-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
         @media (max-width: 480px) {
             .container {
                 margin: 10px;
@@ -490,6 +537,14 @@
     </style>
 </head>
 <body>
+    <!-- Initial Loading Screen -->
+    <div class="initial-loader" id="initialLoader">
+        <div class="loader-content">
+            <div class="loader-spinner"></div>
+            <div>Loading Vedi...</div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="login-page">
             <div class="logo">🍽️</div>
@@ -653,34 +708,92 @@
         let resendTimer = null;
         let resendCountdown = 60;
         let currentSocialUser = null;
+        let performanceStartTime = Date.now();
 
-        // Initialize page
+        // Performance monitoring
+        function addPerformanceMonitoring() {
+            const loadTime = Date.now() - performanceStartTime;
+            console.log(`📊 Page initialization: ${loadTime}ms`);
+            
+            // Monitor Firebase connection
+            performance.mark('firebase-start');
+        }
+
+        // Optimize button clicks with debouncing
+        function optimizeButtonClicks() {
+            const buttons = document.querySelectorAll('.social-btn, .btn');
+            
+            buttons.forEach(button => {
+                let lastClick = 0;
+                const originalHandler = button.onclick;
+                
+                button.onclick = function(e) {
+                    const now = Date.now();
+                    if (now - lastClick < 1000) {
+                        console.log('🚫 Click ignored - too fast');
+                        return false;
+                    }
+                    lastClick = now;
+                    
+                    if (originalHandler) {
+                        return originalHandler.call(this, e);
+                    }
+                };
+            });
+        }
+
+        // Hide initial loader
+        function hideInitialLoader() {
+            const loader = document.getElementById('initialLoader');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 300);
+            }
+        }
+
+        // Enhanced initialization with redirect result handling
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Enhanced customer login initializing...');
+            addPerformanceMonitoring();
             
             try {
-                // Parse URL parameters first
+                // Check for redirect result first (for social auth)
+                try {
+                    const redirectResult = await firebase.auth().getRedirectResult();
+                    if (redirectResult && redirectResult.user) {
+                        console.log('✅ Redirect sign-in successful:', redirectResult.user.displayName);
+                        hideInitialLoader();
+                        await handleSocialSignInSuccess(redirectResult.user, 'redirect');
+                        return;
+                    }
+                } catch (redirectError) {
+                    console.warn('⚠️ Redirect result error (normal if no redirect):', redirectError);
+                }
+
+                // Normal initialization
                 parseURLParameters();
-                
-                // Update table display
                 updateTableDisplay();
                 
-                // Load restaurant information
                 if (restaurantId) {
                     await loadRestaurantInfo();
                 } else {
                     showError('Restaurant not found. Please scan a valid QR code.');
+                    hideInitialLoader();
                     return;
                 }
 
-                // Setup phone formatting with country codes
                 setupPhoneFormatting();
+                optimizeButtonClicks();
+                
+                // Hide loader after successful initialization
+                setTimeout(hideInitialLoader, 500);
 
                 console.log('✅ Enhanced customer login loaded successfully');
 
             } catch (error) {
                 console.error('❌ Page initialization error:', error);
                 showError('Failed to load page');
+                hideInitialLoader();
             }
         });
 
@@ -731,10 +844,10 @@
         }
 
         // =============================================================================
-        // SOCIAL AUTHENTICATION METHODS
+        // ENHANCED SOCIAL AUTHENTICATION METHODS WITH REDIRECT FALLBACK
         // =============================================================================
 
-        // Google Sign-In
+        // Google Sign-In with redirect fallback
         async function signInWithGoogle() {
             try {
                 setLoading('google', true);
@@ -746,11 +859,27 @@
                 provider.addScope('profile');
                 provider.addScope('email');
                 
-                const result = await firebase.auth().signInWithPopup(provider);
-                const user = result.user;
-                
-                console.log('✅ Google sign-in successful:', user.displayName);
-                await handleSocialSignInSuccess(user, 'google');
+                try {
+                    // Try popup first
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    console.log('✅ Google popup sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'google');
+                    
+                } catch (popupError) {
+                    console.log('🔄 Popup failed, trying redirect:', popupError.code);
+                    
+                    if (popupError.code === 'auth/popup-blocked' || 
+                        popupError.code === 'auth/popup-closed-by-user' ||
+                        popupError.code === 'auth/cancelled-popup-request') {
+                        
+                        showInfo('Redirecting to Google sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
+                        // Redirect will handle the rest
+                        
+                    } else {
+                        throw popupError;
+                    }
+                }
                 
             } catch (error) {
                 console.error('❌ Google sign-in error:', error);
@@ -760,7 +889,7 @@
             }
         }
 
-        // Facebook Sign-In
+        // Facebook Sign-In with redirect fallback
         async function signInWithFacebook() {
             try {
                 setLoading('facebook', true);
@@ -771,11 +900,27 @@
                 const provider = new firebase.auth.FacebookAuthProvider();
                 provider.addScope('email');
                 
-                const result = await firebase.auth().signInWithPopup(provider);
-                const user = result.user;
-                
-                console.log('✅ Facebook sign-in successful:', user.displayName);
-                await handleSocialSignInSuccess(user, 'facebook');
+                try {
+                    // Try popup first
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    console.log('✅ Facebook popup sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'facebook');
+                    
+                } catch (popupError) {
+                    console.log('🔄 Popup failed, trying redirect:', popupError.code);
+                    
+                    if (popupError.code === 'auth/popup-blocked' || 
+                        popupError.code === 'auth/popup-closed-by-user' ||
+                        popupError.code === 'auth/cancelled-popup-request') {
+                        
+                        showInfo('Redirecting to Facebook sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
+                        // Redirect will handle the rest
+                        
+                    } else {
+                        throw popupError;
+                    }
+                }
                 
             } catch (error) {
                 console.error('❌ Facebook sign-in error:', error);
@@ -785,7 +930,7 @@
             }
         }
 
-        // Apple Sign-In
+        // Apple Sign-In with redirect fallback
         async function signInWithApple() {
             try {
                 setLoading('apple', true);
@@ -797,11 +942,27 @@
                 provider.addScope('email');
                 provider.addScope('name');
                 
-                const result = await firebase.auth().signInWithPopup(provider);
-                const user = result.user;
-                
-                console.log('✅ Apple sign-in successful:', user.displayName);
-                await handleSocialSignInSuccess(user, 'apple');
+                try {
+                    // Try popup first
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    console.log('✅ Apple popup sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'apple');
+                    
+                } catch (popupError) {
+                    console.log('🔄 Popup failed, trying redirect:', popupError.code);
+                    
+                    if (popupError.code === 'auth/popup-blocked' || 
+                        popupError.code === 'auth/popup-closed-by-user' ||
+                        popupError.code === 'auth/cancelled-popup-request') {
+                        
+                        showInfo('Redirecting to Apple sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
+                        // Redirect will handle the rest
+                        
+                    } else {
+                        throw popupError;
+                    }
+                }
                 
             } catch (error) {
                 console.error('❌ Apple sign-in error:', error);
@@ -846,6 +1007,8 @@
                 showError('Popup was blocked. Please allow popups and try again.');
             } else if (error.code === 'auth/account-exists-with-different-credential') {
                 showError('An account already exists with the same email. Please try signing in with a different method.');
+            } else if (error.code === 'auth/network-request-failed') {
+                showError('Network error. Please check your connection and try again.');
             } else {
                 showError(`${provider} sign-in failed. Please try again or use phone authentication.`);
             }
@@ -967,7 +1130,7 @@
         }
 
         // =============================================================================
-        // PHONE AUTHENTICATION METHODS (FIXED WITH COUNTRY CODES)
+        // PHONE AUTHENTICATION METHODS (OPTIMIZED)
         // =============================================================================
 
         // Switch to phone auth
@@ -992,15 +1155,14 @@
             hideMessages();
         }
 
-        // Initialize reCAPTCHA using Firebase v8 compat syntax
+        // Initialize reCAPTCHA with enhanced error handling
         function initializeRecaptcha() {
-            console.log('🔐 Initializing reCAPTCHA with Firebase v8 compat...');
+            console.log('🔐 Initializing reCAPTCHA...');
             
             try {
                 // Clear any existing reCAPTCHA first
                 if (recaptchaVerifier) {
                     try {
-                        console.log('🔄 Clearing existing reCAPTCHA verifier');
                         recaptchaVerifier.clear();
                     } catch (clearError) {
                         console.warn('⚠️ reCAPTCHA already cleared:', clearError);
@@ -1017,12 +1179,10 @@
                 // Wait before creating new verifier
                 setTimeout(() => {
                     try {
-                        console.log('🔐 Creating reCAPTCHA verifier with v8 compat syntax...');
-
                         recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
                             'size': 'normal',
                             'callback': function(response) {
-                                console.log('✅ reCAPTCHA solved successfully');
+                                console.log('✅ reCAPTCHA solved');
                                 const sendBtn = document.getElementById('sendCodeBtn');
                                 if (sendBtn) {
                                     sendBtn.disabled = false;
@@ -1045,7 +1205,7 @@
 
                         recaptchaVerifier.render().then(function(widgetId) {
                             window.recaptchaWidgetId = widgetId;
-                            console.log('✅ reCAPTCHA rendered successfully with widget ID:', widgetId);
+                            console.log('✅ reCAPTCHA rendered successfully');
                             
                             // Initially disable send button until solved
                             const sendBtn = document.getElementById('sendCodeBtn');
@@ -1157,7 +1317,7 @@
             hideMessages();
         }
 
-        // FIXED: Send verification code with proper country code handling
+        // Send verification code with enhanced error handling
         async function sendVerificationCode() {
             const countryCode = document.getElementById('countryCode').value;
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
@@ -1170,15 +1330,13 @@
             // Clean phone number (remove all non-digits)
             const cleanPhone = phoneNumber.replace(/\D/g, '');
             
-            // Enhanced validation - simplified for USA only
+            // Enhanced validation
             if (countryCode === '+1') {
-                // US/Canada: exactly 10 digits
                 if (cleanPhone.length !== 10) {
                     showError('Please enter a valid 10-digit US phone number');
                     return;
                 }
             } else {
-                // Keep international validation for future use
                 if (cleanPhone.length < 7 || cleanPhone.length > 15) {
                     showError('Please enter a valid phone number');
                     return;
@@ -1186,7 +1344,6 @@
             }
 
             // Construct full international phone number (E.164 format)
-            // CRITICAL: No spaces, no formatting, just countryCode + digits
             const fullPhoneNumber = countryCode + cleanPhone;
             customerPhone = fullPhoneNumber;
             
@@ -1197,42 +1354,20 @@
                 return;
             }
             
-            console.log('📱 Validating phone format:', {
-                countryCode,
-                cleanPhone,
-                fullPhoneNumber,
-                length: cleanPhone.length,
-                e164Valid: e164Regex.test(fullPhoneNumber)
-            });
-
-            // Log the exact format being sent to Firebase
-            console.log('🔥 Sending to Firebase:', {
-                phoneNumber: fullPhoneNumber,
-                isTestNumber: fullPhoneNumber.includes('555'),
-                formatCheck: 'E.164 compliant'
-            });
+            console.log('📱 Sending verification to:', fullPhoneNumber);
 
             try {
                 setLoading('phone', true);
                 hideMessages();
                 
-                console.log('📱 Sending verification code to:', fullPhoneNumber);
-                
                 if (!recaptchaVerifier) {
                     throw new Error('reCAPTCHA not initialized. Please refresh the page.');
                 }
                 
-                // DEBUGGING: Log Firebase Auth state
-                console.log('🔥 Firebase Auth Debug:', {
-                    currentUser: firebase.auth().currentUser,
-                    app: firebase.app().name,
-                    config: firebase.app().options.projectId
-                });
-                
-                // Send verification code using Firebase v8 compat syntax
+                // Send verification code
                 confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
                 
-                console.log('✅ Verification code sent successfully to:', fullPhoneNumber);
+                console.log('✅ Verification code sent successfully');
                 showInfo('Verification code sent! Please check your phone.');
                 
                 // Update steps
@@ -1249,30 +1384,22 @@
                 
             } catch (error) {
                 console.error('❌ Error sending verification code:', error);
-                console.error('❌ Error details:', {
-                    code: error.code,
-                    message: error.message,
-                    phoneNumber: fullPhoneNumber,
-                    projectId: firebase.app().options.projectId
-                });
                 
                 let errorMessage = 'Failed to send verification code. Please try again.';
                 
                 // Handle specific Firebase errors
-                if (error.code === 'auth/internal-error' || error.code === 'auth/internal-error-encountered') {
-                    errorMessage = 'SMS service error. This could be due to: quota exceeded, plan limitations, or number throttling. Try upgrading to Blaze plan or use a different number.';
+                if (error.code === 'auth/internal-error') {
+                    errorMessage = 'SMS service error. Please check your Firebase configuration or try again later.';
                 } else if (error.code === 'auth/too-many-requests') {
                     errorMessage = 'Too many SMS requests. Please wait 24 hours or try a different phone number.';
                 } else if (error.code === 'auth/invalid-phone-number') {
                     errorMessage = 'Invalid phone number format. Please check and try again.';
                 } else if (error.code === 'auth/quota-exceeded') {
-                    errorMessage = 'SMS quota exceeded. Please upgrade to Blaze plan or try tomorrow.';
+                    errorMessage = 'SMS quota exceeded. Please try again later.';
                 } else if (error.code === 'auth/captcha-check-failed') {
                     errorMessage = 'reCAPTCHA verification failed. Please try again.';
-                } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
-                    errorMessage = 'Firebase SMS service unavailable. Check your billing plan and try again later.';
-                } else if (error.code === 'auth/app-not-authorized') {
-                    errorMessage = 'App not authorized. Check your Firebase project configuration.';
+                } else if (error.code === 'auth/network-request-failed') {
+                    errorMessage = 'Network error. Please check your connection.';
                 }
                 
                 showError(errorMessage);
@@ -1295,7 +1422,7 @@
             }
         }
 
-        // Verify code using Firebase v8 compat syntax
+        // Verify code
         async function verifyCode() {
             const code = document.getElementById('verificationCode').value.trim();
             
@@ -1586,7 +1713,18 @@
             }
         });
 
-        console.log('📱🔍 Enhanced customer authentication system loaded with proper country codes');
+        // Global error handler for extension errors
+        window.addEventListener('error', function(event) {
+            // Ignore extension-related errors
+            if (event.message.includes('message channel closed') || 
+                event.message.includes('Extension context invalidated')) {
+                console.log('🔌 Browser extension error ignored (harmless)');
+                event.preventDefault();
+                return false;
+            }
+        });
+
+        console.log('📱🔍 Enhanced customer authentication system loaded with performance optimizations');
     </script>
 </body>
 </html>
