@@ -247,6 +247,34 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        /* Phone Input Group with Country Code */
+        .phone-input-group {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .country-select {
+            min-width: 100px;
+            padding: 15px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .country-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .phone-number-input {
+            flex: 1;
+        }
+
         .btn {
             width: 100%;
             padding: 15px;
@@ -446,6 +474,15 @@
                 font-size: 0.9rem;
             }
 
+            .phone-input-group {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .country-select {
+                min-width: unset;
+            }
+
             #recaptcha-container {
                 transform: scale(0.75);
             }
@@ -514,7 +551,23 @@
                     
                     <div class="form-group">
                         <label for="socialUserPhone">Phone Number</label>
-                        <input type="tel" id="socialUserPhone" placeholder="+1 (555) 123-4567">
+                        <div class="phone-input-group">
+                            <select class="country-select" id="socialCountryCode">
+                                <option value="+1">🇺🇸 +1</option>
+                                <option value="+44">🇬🇧 +44</option>
+                                <option value="+33">🇫🇷 +33</option>
+                                <option value="+49">🇩🇪 +49</option>
+                                <option value="+39">🇮🇹 +39</option>
+                                <option value="+34">🇪🇸 +34</option>
+                                <option value="+81">🇯🇵 +81</option>
+                                <option value="+86">🇨🇳 +86</option>
+                                <option value="+91">🇮🇳 +91</option>
+                                <option value="+61">🇦🇺 +61</option>
+                                <option value="+55">🇧🇷 +55</option>
+                                <option value="+52">🇲🇽 +52</option>
+                            </select>
+                            <input type="tel" id="socialUserPhone" class="phone-number-input" placeholder="123-456-7890">
+                        </div>
                     </div>
                     
                     <button class="btn" onclick="saveSocialUserPhone()">
@@ -554,7 +607,23 @@
             <div class="form-phase" id="phonePhase">
                 <div class="form-group">
                     <label for="phoneNumber">Phone Number</label>
-                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="+1 (555) 123-4567" required>
+                    <div class="phone-input-group">
+                        <select class="country-select" id="countryCode">
+                            <option value="+1">🇺🇸 +1</option>
+                            <option value="+44">🇬🇧 +44</option>
+                            <option value="+33">🇫🇷 +33</option>
+                            <option value="+49">🇩🇪 +49</option>
+                            <option value="+39">🇮🇹 +39</option>
+                            <option value="+34">🇪🇸 +34</option>
+                            <option value="+81">🇯🇵 +81</option>
+                            <option value="+86">🇨🇳 +86</option>
+                            <option value="+91">🇮🇳 +91</option>
+                            <option value="+61">🇦🇺 +61</option>
+                            <option value="+55">🇧🇷 +55</option>
+                            <option value="+52">🇲🇽 +52</option>
+                        </select>
+                        <input type="tel" id="phoneNumber" name="phoneNumber" class="phone-number-input" placeholder="123-456-7890" required>
+                    </div>
                 </div>
                 
                 <!-- reCAPTCHA container -->
@@ -602,6 +671,7 @@
         let confirmationResult = null;
         let customerName = '';
         let customerPhone = '';
+        let selectedCountryCode = '+1';
         let resendTimer = null;
         let resendCountdown = 60;
         let currentSocialUser = null;
@@ -625,7 +695,7 @@
                     return;
                 }
 
-                // Setup phone formatting
+                // Setup phone formatting with country codes
                 setupPhoneFormatting();
 
                 console.log('✅ Enhanced customer login loaded successfully');
@@ -805,9 +875,17 @@
 
         // Save phone number for social user
         async function saveSocialUserPhone() {
-            const phone = document.getElementById('socialUserPhone').value.trim();
+            const countryCode = document.getElementById('socialCountryCode').value;
+            const phoneNumber = document.getElementById('socialUserPhone').value.trim();
             
-            if (!phone || phone.length < 14) {
+            if (!phoneNumber) {
+                showError('Please enter your phone number');
+                return;
+            }
+
+            // Clean and validate phone number
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            if (cleanPhone.length < 7) {
                 showError('Please enter a valid phone number');
                 return;
             }
@@ -815,11 +893,11 @@
             try {
                 setLoading('phoneCollection', true);
                 
-                const cleanPhone = phone.replace(/\D/g, '');
+                const fullPhoneNumber = countryCode + cleanPhone;
                 const userName = currentSocialUser.displayName || 'Guest User';
                 const userEmail = currentSocialUser.email || '';
                 
-                await completeSocialSignIn(userName, cleanPhone, userEmail, 'social');
+                await completeSocialSignIn(userName, fullPhoneNumber, userEmail, 'social');
                 
             } catch (error) {
                 console.error('❌ Error saving phone number:', error);
@@ -911,7 +989,7 @@
         }
 
         // =============================================================================
-        // PHONE AUTHENTICATION METHODS (CORRECTED FOR FIREBASE V8)
+        // PHONE AUTHENTICATION METHODS (FIXED WITH COUNTRY CODES)
         // =============================================================================
 
         // Switch to phone auth
@@ -936,7 +1014,7 @@
             hideMessages();
         }
 
-        // CORRECTED: Initialize reCAPTCHA using Firebase v8 compat syntax
+        // Initialize reCAPTCHA using Firebase v8 compat syntax
         function initializeRecaptcha() {
             console.log('🔐 Initializing reCAPTCHA with Firebase v8 compat...');
             
@@ -963,7 +1041,6 @@
                     try {
                         console.log('🔐 Creating reCAPTCHA verifier with v8 compat syntax...');
 
-                        // CORRECTED: Use Firebase v8 compat syntax (no auth parameter)
                         recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
                             'size': 'normal',
                             'callback': function(response) {
@@ -988,7 +1065,6 @@
                             }
                         });
 
-                        // CORRECTED: Render using v8 compat syntax
                         recaptchaVerifier.render().then(function(widgetId) {
                             window.recaptchaWidgetId = widgetId;
                             console.log('✅ reCAPTCHA rendered successfully with widget ID:', widgetId);
@@ -1016,27 +1092,49 @@
             }
         }
 
-        // Setup phone formatting
+        // Setup phone formatting with country codes
         function setupPhoneFormatting() {
-            const phoneInputs = ['phoneNumber', 'socialUserPhone'];
+            const phoneInputs = [
+                { number: 'phoneNumber', country: 'countryCode' },
+                { number: 'socialUserPhone', country: 'socialCountryCode' }
+            ];
             
-            phoneInputs.forEach(inputId => {
-                const phoneInput = document.getElementById(inputId);
-                if (!phoneInput) return;
+            phoneInputs.forEach(({ number, country }) => {
+                const phoneInput = document.getElementById(number);
+                const countrySelect = document.getElementById(country);
                 
+                if (!phoneInput || !countrySelect) return;
+                
+                // Update selected country code when dropdown changes
+                countrySelect.addEventListener('change', function() {
+                    selectedCountryCode = this.value;
+                    console.log('📍 Country code changed to:', selectedCountryCode);
+                });
+                
+                // Format phone number input (without country code)
                 phoneInput.addEventListener('input', function(e) {
                     let value = e.target.value.replace(/\D/g, '');
                     
-                    if (value.length > 0 && !value.startsWith('1')) {
-                        value = '1' + value;
-                    }
+                    // Apply formatting based on country
+                    const countryCode = document.getElementById(country).value;
                     
-                    if (value.length >= 7) {
-                        value = `+${value.slice(0,1)} (${value.slice(1,4)}) ${value.slice(4,7)}-${value.slice(7,11)}`;
-                    } else if (value.length >= 4) {
-                        value = `+${value.slice(0,1)} (${value.slice(1,4)}) ${value.slice(4)}`;
-                    } else if (value.length >= 1) {
-                        value = `+${value}`;
+                    if (countryCode === '+1') {
+                        // US formatting: (123) 456-7890
+                        if (value.length >= 7) {
+                            value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
+                        } else if (value.length >= 4) {
+                            value = `(${value.slice(0,3)}) ${value.slice(3)}`;
+                        } else if (value.length >= 1) {
+                            value = `(${value}`;
+                        }
+                    } else {
+                        // International formatting: add spaces every 3-4 digits
+                        if (value.length > 0) {
+                            value = value.match(/.{1,3}/g).join(' ');
+                            if (value.length > 15) {
+                                value = value.slice(0, 15);
+                            }
+                        }
                     }
                     
                     e.target.value = value;
@@ -1094,41 +1192,43 @@
             hideMessages();
         }
 
-        // CORRECTED: Send verification code using Firebase v8 compat syntax
+        // FIXED: Send verification code with proper country code handling
         async function sendVerificationCode() {
-            const phoneInput = document.getElementById('phoneNumber');
-            const phone = phoneInput.value.trim();
+            const countryCode = document.getElementById('countryCode').value;
+            const phoneNumber = document.getElementById('phoneNumber').value.trim();
             
-            if (!phone || phone.length < 14) {
+            if (!phoneNumber) {
+                showError('Please enter your phone number');
+                return;
+            }
+
+            // Clean phone number (remove all non-digits)
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            
+            // Validate minimum length
+            if (cleanPhone.length < 7) {
                 showError('Please enter a valid phone number');
                 return;
             }
 
-            customerPhone = phone.replace(/\D/g, '');
-            
-            if (customerPhone.length !== 11 || !customerPhone.startsWith('1')) {
-                showError('Please enter a valid US phone number');
-                return;
-            }
+            // Construct full international phone number
+            const fullPhoneNumber = countryCode + cleanPhone;
+            customerPhone = fullPhoneNumber;
 
             try {
                 setLoading('phone', true);
                 hideMessages();
                 
-                console.log('📱 Sending verification code to:', phone);
+                console.log('📱 Sending verification code to:', fullPhoneNumber);
                 
                 if (!recaptchaVerifier) {
                     throw new Error('reCAPTCHA not initialized. Please refresh the page.');
                 }
                 
-                // CORRECTED: Format phone number properly for Firebase
-                const formattedPhone = phone.startsWith('+') ? phone : `+${customerPhone}`;
-                console.log('📱 Using formatted phone:', formattedPhone);
+                // Send verification code using Firebase v8 compat syntax
+                confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
                 
-                // CORRECTED: Use Firebase v8 compat syntax
-                confirmationResult = await firebase.auth().signInWithPhoneNumber(formattedPhone, recaptchaVerifier);
-                
-                console.log('✅ Verification code sent successfully');
+                console.log('✅ Verification code sent successfully to:', fullPhoneNumber);
                 showInfo('Verification code sent! Please check your phone.');
                 
                 // Update steps
@@ -1163,14 +1263,13 @@
                 
                 showError(errorMessage);
                 
-                // CORRECTED: Reset reCAPTCHA using v8 compat syntax
+                // Reset reCAPTCHA
                 if (recaptchaVerifier && window.recaptchaWidgetId) {
                     try {
                         grecaptcha.reset(window.recaptchaWidgetId);
                         console.log('🔄 reCAPTCHA reset for retry');
                     } catch (resetError) {
                         console.warn('⚠️ Could not reset reCAPTCHA:', resetError);
-                        // Reinitialize if reset fails
                         setTimeout(() => {
                             initializeRecaptcha();
                         }, 1000);
@@ -1182,7 +1281,7 @@
             }
         }
 
-        // CORRECTED: Verify code using Firebase v8 compat syntax
+        // Verify code using Firebase v8 compat syntax
         async function verifyCode() {
             const code = document.getElementById('verificationCode').value.trim();
             
@@ -1206,7 +1305,6 @@
                     throw new Error('No verification in progress. Please request a new code.');
                 }
                 
-                // CORRECTED: Use confirmationResult.confirm() - this is correct for v8
                 const result = await confirmationResult.confirm(code);
                 const user = result.user;
                 
@@ -1239,7 +1337,7 @@
             const customerSession = {
                 name: customerName,
                 phone: customerPhone,
-                phoneFormatted: document.getElementById('phoneNumber').value,
+                phoneFormatted: formatPhoneForDisplay(customerPhone),
                 restaurantId: restaurantId,
                 restaurantName: restaurantData?.name || 'Restaurant',
                 tableNumber: tableNumber,
@@ -1258,7 +1356,7 @@
                     await firebaseDb.collection('customerProfiles').doc(user.uid).set({
                         name: customerName,
                         phone: customerPhone,
-                        phoneFormatted: document.getElementById('phoneNumber').value,
+                        phoneFormatted: formatPhoneForDisplay(customerPhone),
                         authProvider: 'phone',
                         lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1441,10 +1539,19 @@
         // Format phone for display
         function formatPhoneForDisplay(phoneNumber) {
             if (!phoneNumber) return '';
-            const digits = phoneNumber.replace(/\D/g, '');
-            if (digits.length === 11 && digits.startsWith('1')) {
-                return `+${digits.slice(0,1)} (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7,11)}`;
+            
+            // Extract country code and number
+            if (phoneNumber.startsWith('+1') && phoneNumber.length === 12) {
+                // US number: +1 (123) 456-7890
+                const number = phoneNumber.slice(2);
+                return `+1 (${number.slice(0,3)}) ${number.slice(3,6)}-${number.slice(6,10)}`;
+            } else if (phoneNumber.startsWith('+')) {
+                // International number: +XX XXX XXX XXXX
+                const code = phoneNumber.slice(0, phoneNumber.length >= 12 ? 3 : 2);
+                const number = phoneNumber.slice(code.length);
+                return `${code} ${number.match(/.{1,3}/g)?.join(' ') || number}`;
             }
+            
             return phoneNumber;
         }
 
@@ -1465,7 +1572,7 @@
             }
         });
 
-        console.log('📱🔍 Enhanced customer authentication system loaded (Social + SMS) with Firebase v8 compat');
+        console.log('📱🔍 Enhanced customer authentication system loaded with proper country codes');
     </script>
 </body>
 </html>
