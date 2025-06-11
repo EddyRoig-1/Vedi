@@ -531,7 +531,7 @@
             color: #667eea;
         }
 
-        /* Order Summary */
+        /* ENHANCED: Order Summary with Dynamic Fee Display */
         .order-summary {
             background: #f7fafc;
             border-radius: 12px;
@@ -553,6 +553,54 @@
             font-weight: 700;
             font-size: 1rem;
             color: #2d3748;
+        }
+
+        /* NEW: Fee info badges for transparency */
+        .fee-info-badge {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            display: inline-block;
+        }
+
+        .fee-info-badge.negotiated {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border-color: rgba(245, 158, 11, 0.2);
+        }
+
+        .fee-info-badge.dynamic {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        /* NEW: Fee calculation loading indicator */
+        .fee-calculating {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #718096;
+            font-size: 0.8rem;
+        }
+
+        .fee-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #e2e8f0;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         /* Empty State */
@@ -620,11 +668,6 @@
             margin: 0 auto 20px;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         .error-message {
             background: #ffe6e6;
             color: #d63031;
@@ -688,6 +731,13 @@
                 margin: 0 10px !important;
                 font-size: 1.1rem;
                 padding: 18px 24px;
+            }
+
+            .fee-info-badge {
+                display: block;
+                margin-top: 4px;
+                margin-left: 0;
+                width: fit-content;
             }
         }
     </style>
@@ -792,10 +842,12 @@
         let customerOrders = [];
         let orderUpdateListener = null;
         let restaurantData = null;
+        // NEW: Fee configuration cache for performance
+        let restaurantFeeConfigs = new Map();
 
         // ENHANCED: Initialize page with authentication check
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Customer orders page loaded');
+            console.log('🚀 Enhanced customer orders page loaded');
             
             try {
                 // Check authentication first
@@ -953,6 +1005,117 @@
             }
         }
 
+        // NEW: Get or load fee configuration for a restaurant
+        async function getRestaurantFeeConfig(restaurantId) {
+            if (!restaurantId) {
+                console.warn('⚠️ No restaurant ID provided for fee config');
+                return getDefaultFeeConfig();
+            }
+
+            // Check cache first
+            if (restaurantFeeConfigs.has(restaurantId)) {
+                return restaurantFeeConfigs.get(restaurantId);
+            }
+
+            try {
+                console.log('💰 Loading fee configuration for restaurant:', restaurantId);
+                
+                if (typeof VediAPI !== 'undefined' && VediAPI.getFeeConfig) {
+                    const feeConfig = await VediAPI.getFeeConfig(restaurantId);
+                    
+                    // Cache the config
+                    restaurantFeeConfigs.set(restaurantId, feeConfig);
+                    
+                    console.log('✅ Fee config loaded:', feeConfig);
+                    return feeConfig;
+                } else {
+                    console.warn('⚠️ VediAPI not available, using default fee config');
+                    const defaultConfig = getDefaultFeeConfig();
+                    restaurantFeeConfigs.set(restaurantId, defaultConfig);
+                    return defaultConfig;
+                }
+            } catch (error) {
+                console.error('❌ Error loading fee config:', error);
+                const defaultConfig = getDefaultFeeConfig();
+                restaurantFeeConfigs.set(restaurantId, defaultConfig);
+                return defaultConfig;
+            }
+        }
+
+        // NEW: Get default fee configuration
+        function getDefaultFeeConfig() {
+            return {
+                serviceFeeFixed: 2.00,
+                serviceFeePercentage: 0,
+                feeType: 'fixed',
+                taxRate: 0.085,
+                minimumOrderAmount: 0,
+                isNegotiated: false,
+                isDefault: true
+            };
+        }
+
+        // NEW: Recalculate order fees with current fee configuration
+        async function recalculateOrderFees(order) {
+            if (!order.subtotal && !order.total) {
+                console.warn('⚠️ Order missing financial data for recalculation');
+                return order;
+            }
+
+            try {
+                const feeConfig = await getRestaurantFeeConfig(order.restaurantId);
+                
+                // If order already has correct fee configuration, don't recalculate
+                if (order.feeConfig && 
+                    order.feeConfig.feeType === feeConfig.feeType &&
+                    order.feeConfig.serviceFeeFixed === feeConfig.serviceFeeFixed &&
+                    order.feeConfig.serviceFeePercentage === feeConfig.serviceFeePercentage &&
+                    order.feeConfig.taxRate === feeConfig.taxRate) {
+                    
+                    console.log('💰 Order fees already match current configuration');
+                    return order;
+                }
+
+                // Calculate fees using VediAPI if available
+                if (typeof VediAPI !== 'undefined' && VediAPI.calculateOrderFees && order.subtotal) {
+                    console.log('🧮 Recalculating fees for order:', order.orderNumber);
+                    
+                    const calculatedFees = await VediAPI.calculateOrderFees(order.restaurantId, order.subtotal);
+                    
+                    // Update order with recalculated fees
+                    const updatedOrder = {
+                        ...order,
+                        tax: calculatedFees.taxAmount,
+                        serviceFee: calculatedFees.serviceFee,
+                        total: calculatedFees.total,
+                        taxRate: calculatedFees.taxRate,
+                        feeConfig: calculatedFees.feeConfig,
+                        feeType: calculatedFees.breakdown?.serviceFeeType,
+                        isNegotiatedRate: calculatedFees.breakdown?.isNegotiated || false,
+                        feesRecalculated: true,
+                        originalOrder: {
+                            tax: order.tax,
+                            serviceFee: order.serviceFee,
+                            total: order.total
+                        }
+                    };
+                    
+                    console.log('✅ Fees recalculated:', {
+                        original: { tax: order.tax, serviceFee: order.serviceFee, total: order.total },
+                        updated: { tax: updatedOrder.tax, serviceFee: updatedOrder.serviceFee, total: updatedOrder.total }
+                    });
+                    
+                    return updatedOrder;
+                } else {
+                    console.log('ℹ️ VediAPI not available or missing subtotal, keeping original fees');
+                    return order;
+                }
+            } catch (error) {
+                console.error('❌ Error recalculating fees:', error);
+                return order;
+            }
+        }
+
         // ENHANCED: Load order history with robust Firebase queries (index-free fallback)
         async function loadOrderHistory() {
             console.log('📚 Loading order history from Firebase...');
@@ -1013,6 +1176,21 @@
                 
                 customerOrders = orders || [];
                 
+                // NEW: Recalculate fees for all orders with current fee configurations
+                console.log('💰 Recalculating fees for orders with current configurations...');
+                const ordersWithUpdatedFees = await Promise.all(
+                    customerOrders.map(async (order) => {
+                        try {
+                            return await recalculateOrderFees(order);
+                        } catch (error) {
+                            console.warn('⚠️ Failed to recalculate fees for order:', order.orderNumber, error.message);
+                            return order;
+                        }
+                    })
+                );
+                
+                customerOrders = ordersWithUpdatedFees;
+                
                 // Sort by creation date (newest first) - redundant sorting for safety
                 customerOrders.sort((a, b) => {
                     const dateA = parseOrderDate(a.createdAt || a.timestamp);
@@ -1020,7 +1198,7 @@
                     return dateB - dateA;
                 });
                 
-                console.log('📊 Final order count:', customerOrders.length);
+                console.log('📊 Final order count with updated fees:', customerOrders.length);
                 updateDisplay();
                 
             } catch (error) {
@@ -1153,10 +1331,22 @@
             // Try VediAPI real-time listener first
             if (typeof VediAPI !== 'undefined' && VediAPI.listenToCustomerOrdersByUID) {
                 console.log('🔐 Setting up UID-based real-time updates via VediAPI');
-                orderUpdateListener = VediAPI.listenToCustomerOrdersByUID(authenticatedUser.uid, (updatedOrders) => {
+                orderUpdateListener = VediAPI.listenToCustomerOrdersByUID(authenticatedUser.uid, async (updatedOrders) => {
                     console.log('🔄 Real-time UID order update received:', updatedOrders.length, 'orders');
                     
-                    customerOrders = updatedOrders || [];
+                    // NEW: Recalculate fees for updated orders
+                    const ordersWithUpdatedFees = await Promise.all(
+                        (updatedOrders || []).map(async (order) => {
+                            try {
+                                return await recalculateOrderFees(order);
+                            } catch (error) {
+                                console.warn('⚠️ Failed to recalculate fees for updated order:', order.orderNumber);
+                                return order;
+                            }
+                        })
+                    );
+                    
+                    customerOrders = ordersWithUpdatedFees;
                     
                     // Sort by creation date (newest first)
                     customerOrders.sort((a, b) => {
@@ -1181,7 +1371,7 @@
                 orderUpdateListener = firebase.firestore()
                     .collection('orders')
                     .where('customerUID', '==', authenticatedUser.uid)
-                    .onSnapshot((snapshot) => {
+                    .onSnapshot(async (snapshot) => {
                         console.log('📡 Firestore snapshot received, docs:', snapshot.docs.length);
                         
                         const updatedOrders = snapshot.docs.map(doc => ({
@@ -1189,7 +1379,19 @@
                             ...doc.data()
                         }));
                         
-                        customerOrders = updatedOrders;
+                        // NEW: Recalculate fees for real-time updates
+                        const ordersWithUpdatedFees = await Promise.all(
+                            updatedOrders.map(async (order) => {
+                                try {
+                                    return await recalculateOrderFees(order);
+                                } catch (error) {
+                                    console.warn('⚠️ Failed to recalculate fees for real-time order:', order.orderNumber);
+                                    return order;
+                                }
+                            })
+                        );
+                        
+                        customerOrders = ordersWithUpdatedFees;
                         
                         // Sort by creation date (newest first)
                         customerOrders.sort((a, b) => {
@@ -1240,7 +1442,18 @@
                     }
                     
                     if (orders && orders.length !== customerOrders.length) {
-                        customerOrders = orders;
+                        // NEW: Recalculate fees for polled orders
+                        const ordersWithUpdatedFees = await Promise.all(
+                            orders.map(async (order) => {
+                                try {
+                                    return await recalculateOrderFees(order);
+                                } catch (error) {
+                                    return order;
+                                }
+                            })
+                        );
+                        
+                        customerOrders = ordersWithUpdatedFees;
                         customerOrders.sort((a, b) => {
                             const dateA = parseOrderDate(a.createdAt || a.timestamp);
                             const dateB = parseOrderDate(b.createdAt || b.timestamp);
@@ -1363,7 +1576,7 @@
             `;
         }
 
-        // Display order history
+        // ENHANCED: Display order history with dynamic fee transparency
         function displayOrderHistory(pastOrders) {
             const orderHistoryList = document.getElementById('orderHistoryList');
             
@@ -1388,6 +1601,11 @@
                             <div class="order-total">
                                 <div class="total-amount">${formatPrice(order.total)}</div>
                                 <div class="total-items">${order.items?.length || 0} item${(order.items?.length || 0) !== 1 ? 's' : ''}</div>
+                                ${order.feesRecalculated ? `
+                                    <div style="font-size: 0.7rem; color: #10b981; margin-top: 2px;">
+                                        📊 Updated Fees
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                         
@@ -1412,13 +1630,13 @@
                                     </div>
                                     ${order.tax ? `
                                         <div class="summary-row">
-                                            <span>Tax:</span>
+                                            <span>${getTaxLabel(order)}:</span>
                                             <span>${formatPrice(order.tax)}</span>
                                         </div>
                                     ` : ''}
                                     ${order.serviceFee ? `
                                         <div class="summary-row">
-                                            <span>Service Fee:</span>
+                                            <span>${getServiceFeeLabel(order)}:</span>
                                             <span>${formatPrice(order.serviceFee)}</span>
                                         </div>
                                     ` : ''}
@@ -1427,6 +1645,21 @@
                                         <span>${formatPrice(order.total)}</span>
                                     </div>
                                 </div>
+                                
+                                ${order.feesRecalculated ? `
+                                    <div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 12px; margin-top: 16px;">
+                                        <div style="font-weight: 600; color: #065f46; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                            📊 <span>Updated with Current Fees</span>
+                                        </div>
+                                        <div style="font-size: 0.85rem; color: #047857; line-height: 1.4;">
+                                            This order's fees have been recalculated using the restaurant's current fee structure. 
+                                            ${order.originalOrder ? `
+                                                <br><strong>Original:</strong> ${formatPrice(order.originalOrder.total)} 
+                                                → <strong>Current:</strong> ${formatPrice(order.total)}
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                ` : ''}
                             ` : ''}
                             
                             ${order.specialInstructions ? `
@@ -1439,6 +1672,40 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        // NEW: Get tax label with dynamic rate display
+        function getTaxLabel(order) {
+            if (order.taxRate) {
+                const taxRate = (order.taxRate * 100).toFixed(1);
+                return `Tax (${taxRate}%)`;
+            }
+            return 'Tax';
+        }
+
+        // NEW: Get service fee label with fee structure info
+        function getServiceFeeLabel(order) {
+            let label = 'Service Fee';
+            let badge = '';
+            
+            if (order.feeConfig) {
+                const config = order.feeConfig;
+                
+                if (config.feeType === 'percentage') {
+                    label = `Service Fee (${config.serviceFeePercentage}%)`;
+                } else if (config.feeType === 'hybrid') {
+                    label = `Service Fee (${formatPrice(config.serviceFeeFixed)} + ${config.serviceFeePercentage}%)`;
+                }
+                
+                // Add badge for special fee types
+                if (config.isNegotiated) {
+                    badge = '<span class="fee-info-badge negotiated">Negotiated Rate</span>';
+                } else if (config.feeType !== 'fixed') {
+                    badge = '<span class="fee-info-badge dynamic">Dynamic</span>';
+                }
+            }
+            
+            return label + badge;
         }
 
         // Utility functions
@@ -1471,7 +1738,7 @@
         function formatPrice(amount) {
             if (!amount && amount !== 0) return '$0.00';
             const currency = restaurantData?.currency || 'USD';
-            const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '$';
+            const symbol = currency === 'USD' ? ' : currency === 'EUR' ? '€' : ';
             return `${symbol}${Number(amount).toFixed(2)}`;
         }
 
@@ -1580,8 +1847,42 @@
             goBackToApp();
         }
 
-        // Cleanup on page unload
+        // NEW: Session monitoring for enhanced security
+        function monitorAuthenticationState() {
+            firebase.auth().onAuthStateChanged(function(user) {
+                if (!user && authenticatedUser) {
+                    // User was signed out unexpectedly
+                    console.warn('⚠️ User signed out unexpectedly during order viewing');
+                    showSessionWarning();
+                    authenticatedUser = null;
+                    updateAuthenticationIndicator();
+                } else if (user && !authenticatedUser) {
+                    // User signed in during session
+                    console.log('✅ User signed in during session');
+                    authenticatedUser = user;
+                    updateAuthenticationIndicator();
+                    hideSessionWarning();
+                }
+            });
+        }
+
+        // NEW: Hide session warning
+        function hideSessionWarning() {
+            const warning = document.getElementById('sessionWarning');
+            if (warning) {
+                warning.classList.remove('show');
+            }
+        }
+
+        // Start monitoring authentication state
+        setTimeout(() => {
+            monitorAuthenticationState();
+        }, 1000);
+
+        // Enhanced cleanup on page unload
         window.addEventListener('beforeunload', function() {
+            console.log('🧹 Cleaning up order listeners and fee config cache');
+            
             if (orderUpdateListener) {
                 if (typeof orderUpdateListener === 'function') {
                     orderUpdateListener(); // VediAPI unsubscribe
@@ -1589,7 +1890,13 @@
                     orderUpdateListener.unsubscribe(); // Firestore unsubscribe
                 }
             }
+            
+            // Clear fee config cache to free memory
+            restaurantFeeConfigs.clear();
         });
+
+        console.log('🛒 Enhanced customer orders with dynamic fee transparency loaded successfully');
+        console.log('💰 Features: Real-time fee recalculation, fee transparency badges, negotiated rate tracking');
     </script>
 </body>
 </html>
