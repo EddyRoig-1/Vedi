@@ -98,7 +98,7 @@
         .header-content {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
             text-align: center;
         }
 
@@ -125,6 +125,7 @@
 
         .header-info {
             flex: 1;
+            margin-left: 16px;
         }
 
         .restaurant-title {
@@ -728,6 +729,9 @@
         <div class="progress-header">
             <div class="real-time-indicator">● LIVE</div>
             <div class="header-content">
+                <button class="back-btn" onclick="goBackToPrevious()">
+                    ←
+                </button>
                 <div class="header-info">
                     <h1 class="restaurant-title" id="restaurantName">Restaurant</h1>
                     <div class="customer-info">
@@ -839,10 +843,10 @@
         <!-- Action Buttons -->
         <div class="action-buttons" id="actionButtons">
             <button class="btn btn-orders" onclick="goToCustomerOrders()">
-                View All Orders
+                📋 View All Orders
             </button>
             <button class="btn btn-new-order" id="newOrderBtn" onclick="createNewOrder()">
-                Create New Order
+                🆕 Create New Order
             </button>
         </div>
     </div>
@@ -871,7 +875,7 @@
                 // Method 1: Direct document access if we have the document ID stored
                 if (orderData && orderData.id) {
                     try {
-                        const doc = await firebaseDb.collection('orders').doc(orderData.id).get();
+                        const doc = await firebase.firestore().collection('orders').doc(orderData.id).get();
                         if (doc.exists) {
                             const data = doc.data();
                             if (data.customerUID === currentUser.uid && 
@@ -886,7 +890,7 @@
 
                 // Method 2: UID-based query (most reliable)
                 try {
-                    const userOrdersSnapshot = await firebaseDb.collection('orders')
+                    const userOrdersSnapshot = await firebase.firestore().collection('orders')
                         .where('customerUID', '==', currentUser.uid)
                         .where('orderNumber', '==', orderNumber)
                         .limit(1)
@@ -902,7 +906,7 @@
 
                 // Method 3: Get all user orders and search in memory (fallback)
                 try {
-                    const allUserOrdersSnapshot = await firebaseDb.collection('orders')
+                    const allUserOrdersSnapshot = await firebase.firestore().collection('orders')
                         .where('customerUID', '==', currentUser.uid)
                         .get();
 
@@ -922,7 +926,7 @@
                 if (currentUser.phoneNumber) {
                     try {
                         // Try E.164 format
-                        const phoneOrdersSnapshot = await firebaseDb.collection('orders')
+                        const phoneOrdersSnapshot = await firebase.firestore().collection('orders')
                             .where('customerPhone', '==', currentUser.phoneNumber)
                             .where('orderNumber', '==', orderNumber)
                             .limit(1)
@@ -935,7 +939,7 @@
 
                         // Try digits-only format
                         const phoneDigits = currentUser.phoneNumber.replace(/\D/g, '');
-                        const phoneDigitsSnapshot = await firebaseDb.collection('orders')
+                        const phoneDigitsSnapshot = await firebase.firestore().collection('orders')
                             .where('customerPhone', '==', phoneDigits)
                             .where('orderNumber', '==', orderNumber)
                             .limit(1)
@@ -1708,8 +1712,8 @@
                 <button class="error-btn" onclick="location.reload()">
                     🔄 Refresh Page
                 </button>
-                <button class="error-btn secondary" onclick="goBackToMenu()">
-                    🍽️ Back to Menu
+                <button class="error-btn secondary" onclick="goToCustomerOrders()">
+                    📋 View All Orders
                 </button>
             `;
             errorDiv.style.display = 'block';
@@ -1759,24 +1763,19 @@
             window.location.href = `customer-orders.html?${params.toString()}`;
         }
 
-        // Add this function for the error button
-        function goBackToMenu() {
-            console.log('🔙 Going back to menu');
-            const params = new URLSearchParams();
-            if (customerSession.restaurantId) {
-                params.set('restaurant', customerSession.restaurantId);
-            }
-            if (customerSession.tableNumber) {
-                params.set('table', customerSession.tableNumber);
-            }
-            if (customerSession.name) {
-                params.set('name', customerSession.name);
-            }
-            if (customerSession.phone) {
-                params.set('phone', customerSession.phone);
+        // ENHANCED: Smart back navigation
+        function goBackToPrevious() {
+            console.log('🔙 Going back to previous page...');
+            
+            // Check if we came from customer orders page
+            const referrer = document.referrer;
+            if (referrer && referrer.includes('customer-orders.html')) {
+                window.history.back();
+                return;
             }
             
-            window.location.href = `menu.html?${params.toString()}`;
+            // Otherwise go to customer orders (most logical)
+            goToCustomerOrders();
         }
 
         // Audio notification functions
