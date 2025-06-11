@@ -723,27 +723,9 @@
                 </div>
             </div>
 
-            <!-- Additional Charts -->
-            <div class="analytics-grid">
-                <!-- Order Status Distribution -->
-                <div class="chart-section">
-                    <div class="section-header">
-                        <h3 class="section-title">📋 Order Status Distribution</h3>
-                    </div>
-                    <div class="chart-container chart-small">
-                        <canvas id="orderStatusChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Loss Incidents -->
-                <div class="chart-section">
-                    <div class="section-header">
-                        <h3 class="section-title">📉 Loss Breakdown</h3>
-                    </div>
-                    <div class="chart-container chart-small">
-                        <canvas id="lossChart"></canvas>
-                    </div>
-                </div>
+            <!-- Additional Charts - REMOVED Order Status and Loss Breakdown -->
+            <div class="analytics-grid" style="display: none;">
+                <!-- Sections removed per user request -->
             </div>
         </div>
     </div>
@@ -1016,29 +998,8 @@
                 
             console.log('🍽️ Popular items calculated:', popularItems);
 
-            // Time-based data for charts
-            const timeData = generateTimeSeriesData(orders, data.timePeriod);
+            // Removed status and loss breakdown calculations per user request
             console.log('📈 Time series data:', timeData);
-            
-            // Order status distribution
-            const statusData = {
-                pending: orders.filter(o => o.status === 'pending').length,
-                preparing: orders.filter(o => o.status === 'preparing').length,
-                ready: orders.filter(o => o.status === 'ready').length,
-                completed: orders.filter(o => o.status === 'completed').length,
-                cancelled: orders.filter(o => o.status === 'cancelled').length
-            };
-            
-            console.log('📋 Status distribution:', statusData);
-
-            // Loss breakdown
-            const lossBreakdown = {};
-            lossIncidents.forEach(incident => {
-                const type = incident.type || 'other';
-                lossBreakdown[type] = (lossBreakdown[type] || 0) + (incident.amount || 0);
-            });
-            
-            console.log('📉 Loss breakdown:', lossBreakdown);
 
             // Calculate customer metrics
             const customerMetrics = calculateRealCustomerMetrics(orders);
@@ -1055,8 +1016,6 @@
                 },
                 popularItems,
                 timeData,
-                statusData,
-                lossBreakdown,
                 customerMetrics,
                 insights: generateInsights({ orders, lossIncidents, menuItems })
             };
@@ -1417,14 +1376,8 @@
         }
 
         function updateCharts(analytics) {
-            // Revenue Chart
+            // Only Revenue Chart - removed order status and loss charts
             updateRevenueChart(analytics.timeData);
-            
-            // Order Status Chart
-            updateOrderStatusChart(analytics.statusData);
-            
-            // Loss Chart
-            updateLossChart(analytics.lossBreakdown);
         }
 
         function updateRevenueChart(timeData) {
@@ -1522,102 +1475,7 @@
             });
         }
 
-        function updateOrderStatusChart(statusData) {
-            const ctx = document.getElementById('orderStatusChart').getContext('2d');
-            
-            if (charts.orderStatus) {
-                charts.orderStatus.destroy();
-            }
-
-            charts.orderStatus = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Pending', 'Preparing', 'Ready', 'Completed', 'Cancelled'],
-                    datasets: [{
-                        data: [
-                            statusData.pending,
-                            statusData.preparing,
-                            statusData.ready,
-                            statusData.completed,
-                            statusData.cancelled
-                        ],
-                        backgroundColor: [
-                            '#fbbf24',
-                            '#3b82f6',
-                            '#10b981',
-                            '#6b7280',
-                            '#ef4444'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateLossChart(lossBreakdown) {
-            const ctx = document.getElementById('lossChart').getContext('2d');
-            
-            if (charts.loss) {
-                charts.loss.destroy();
-            }
-
-            const labels = Object.keys(lossBreakdown);
-            const data = Object.values(lossBreakdown);
-
-            if (labels.length === 0) {
-                // Show empty state
-                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                ctx.font = '16px sans-serif';
-                ctx.fillStyle = '#6b7280';
-                ctx.textAlign = 'center';
-                ctx.fillText('No loss incidents in this period', ctx.canvas.width / 2, ctx.canvas.height / 2);
-                return;
-            }
-
-            charts.loss = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels.map(label => label.charAt(0).toUpperCase() + label.slice(1)),
-                    datasets: [{
-                        label: 'Loss Amount',
-                        data: data,
-                        backgroundColor: [
-                            '#ef4444',
-                            '#f59e0b',
-                            '#8b5cf6',
-                            '#06b6d4',
-                            '#10b981'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Loss Amount ($)'
-                            }
-                        }
-                    }
-                }
-            });
-        }
+        // Removed updateOrderStatusChart and updateLossChart functions per user request
 
         function updateInsights(analytics) {
             const container = document.getElementById('insightsContainer');
