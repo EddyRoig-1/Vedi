@@ -352,7 +352,6 @@
                 <h3 class="section-title">QR Codes</h3>
                 <div class="table-controls">
                     <div class="table-count-display" id="tableCountInfo">0 tables</div>
-                    <button class="btn" onclick="generateTableQRCodes()" id="generateTablesBtn">Generate Table QR Codes</button>
                 </div>
             </div>
             <div class="qr-grid" id="qrGrid">
@@ -415,14 +414,11 @@
                 // Set up base URL - this points to customer login page first
                 baseMenuUrl = `${window.location.origin}/Customer/customer-login.html`;
                 
-                // Update restaurant display
+                // Update restaurant display and auto-generate QR codes
                 updateRestaurantDisplay();
                 
-                // Generate counter QR code automatically
-                await generateCounterQR();
-                
                 hideLoading();
-                showSuccess('QR generator loaded successfully!');
+                showSuccess('QR codes generated successfully!');
                 
             } catch (error) {
                 console.error('QR generator initialization error:', error);
@@ -432,103 +428,23 @@
         }
 
         function updateRestaurantDisplay() {
-            document.getElementById('tableCountInfo').textContent = `${currentRestaurant.tableCount || 0} tables`;
-            
-            // Update generate button state
             const tableCount = parseInt(currentRestaurant.tableCount) || 0;
-            const generateBtn = document.getElementById('generateTablesBtn');
-            if (tableCount === 0) {
-                generateBtn.disabled = true;
-                generateBtn.textContent = 'No Tables Set';
-                generateBtn.style.opacity = '0.5';
-            } else {
-                generateBtn.disabled = false;
-                generateBtn.textContent = `Generate ${tableCount} Table QR Codes`;
-                generateBtn.style.opacity = '1';
-            }
-        }
-
-        // FIXED: Generate counter QR with all required parameters
-        async function generateCounterQR() {
-            const qrGrid = document.getElementById('qrGrid');
+            document.getElementById('tableCountInfo').textContent = `${tableCount} tables + counter`;
             
-            try {
-                // Generate counter URL with all required parameters
-                const counterUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=counter&location=counter`;
-                
-                const counterHTML = `
-                    <div class="qr-card counter-qr">
-                        <div class="table-number">🏪 Counter</div>
-                        <div class="table-subtitle">For counter orders & takeout</div>
-                        <div class="qr-code-container" id="qr-container-counter">
-                            <canvas id="qr-counter"></canvas>
-                        </div>
-                        <div class="qr-url">${counterUrl}</div>
-                        <div class="qr-actions">
-                            <button class="btn btn-small btn-success" onclick="downloadQR('counter')">💾 Download</button>
-                            <button class="btn btn-small btn-secondary" onclick="copyURL('${counterUrl}')">📋 Copy URL</button>
-                        </div>
-                    </div>
-                `;
-                
-                qrGrid.innerHTML = counterHTML;
-                
-                // Generate the actual QR code
-                setTimeout(() => {
-                    generateSingleQR('counter', counterUrl);
-                }, 100);
-                
-                // Add to currentQRCodes for bulk operations
-                currentQRCodes = [{
-                    table: 'counter',
-                    url: counterUrl,
-                    restaurantName: currentRestaurant.name,
-                    location: 'Counter'
-                }];
-                
-            } catch (error) {
-                console.error('Error generating counter QR:', error);
-                qrGrid.innerHTML = `
-                    <div class="empty-state" style="color: #dc3545;">
-                        Error generating counter QR code: ${error.message}
-                    </div>
-                `;
-            }
+            // Automatically generate all QR codes
+            generateAllQRCodes();
         }
 
-        async function generateTableQRCodes() {
+        // Generate all QR codes automatically (counter + tables)
+        function generateAllQRCodes() {
             const qrGrid = document.getElementById('qrGrid');
             const tableCount = parseInt(currentRestaurant?.tableCount) || 0;
-            
-            if (tableCount === 0) {
-                showError('No tables configured. Please update your restaurant settings first.');
-                return;
-            }
-
-            try {
-                // Show loading
-                qrGrid.innerHTML = '<div class="loading">Generating QR codes...</div>';
-                
-                // Generate QR codes (counter + tables)
-                setTimeout(() => {
-                    createAllQRCodes(tableCount);
-                }, 100);
-                
-            } catch (error) {
-                console.error('Error generating QR codes:', error);
-                showError('Failed to generate QR codes: ' + error.message);
-            }
-        }
-
-        // Create both counter and table QR codes
-        function createAllQRCodes(tableCount) {
-            const qrGrid = document.getElementById('qrGrid');
             
             try {
                 let gridHTML = '';
                 currentQRCodes = [];
 
-                // Counter QR
+                // Counter QR - always generated
                 const counterUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=counter&location=counter`;
                 currentQRCodes.push({
                     table: 'counter',
@@ -552,7 +468,7 @@
                     </div>
                 `;
 
-                // Table QRs
+                // Table QRs - generate based on table count
                 for (let i = 1; i <= tableCount; i++) {
                     const tableUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
                     
@@ -579,8 +495,24 @@
                     `;
                 }
 
+                // Show empty state if no tables
+                if (tableCount === 0) {
+                    gridHTML += `
+                        <div class="qr-card">
+                            <div class="empty-state">
+                                No tables configured.<br>
+                                Update your restaurant settings to add tables.
+                            </div>
+                        </div>
+                    `;
+                }
+
                 qrGrid.innerHTML = gridHTML;
-                document.getElementById('bulkActions').style.display = 'block';
+
+                // Show bulk actions if we have QR codes
+                if (currentQRCodes.length > 0) {
+                    document.getElementById('bulkActions').style.display = 'block';
+                }
 
                 // Generate actual QR codes
                 setTimeout(() => {
@@ -593,16 +525,14 @@
                     }
                 }, 100);
                 
-                showSuccess(`Generated QR codes for counter + ${tableCount} tables!`);
-                
             } catch (error) {
-                console.error('Error creating QR codes:', error);
+                console.error('Error generating QR codes:', error);
                 qrGrid.innerHTML = `
                     <div class="empty-state" style="color: #dc3545;">
-                        Error creating QR codes: ${error.message}
+                        Error generating QR codes: ${error.message}
                     </div>
                 `;
-                showError('Failed to create QR codes');
+                showError('Failed to generate QR codes');
             }
         }
 
