@@ -223,6 +223,40 @@
             color: #48bb78;
         }
 
+        /* NEW: Fee recalculation indicator */
+        .fee-update-indicator {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            border: 1px solid #10b981;
+            color: #065f46;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .fee-update-indicator.show {
+            display: flex;
+            animation: slideInDown 0.3s ease;
+        }
+
+        .fee-update-icon {
+            font-size: 1.1rem;
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         /* Order Tracker */
         .order-tracker {
             background: white;
@@ -386,7 +420,7 @@
             font-size: 1rem;
         }
 
-        /* Order Summary */
+        /* ENHANCED: Order Summary with Dynamic Fee Display */
         .order-summary {
             background: white;
             border-radius: 0 0 20px 20px;
@@ -424,6 +458,54 @@
             font-weight: 700;
         }
 
+        /* NEW: Fee info badges for transparency */
+        .fee-info-badge {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            display: inline-block;
+        }
+
+        .fee-info-badge.negotiated {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border-color: rgba(245, 158, 11, 0.2);
+        }
+
+        .fee-info-badge.dynamic {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        /* NEW: Fee calculation loading indicator */
+        .fee-calculating {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #718096;
+            font-size: 0.8rem;
+        }
+
+        .fee-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #e2e8f0;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         /* Completion Message */
         .completion-message {
             background: linear-gradient(135deg, #d4edda, #c3e6cb);
@@ -438,17 +520,6 @@
         .completion-message.show {
             display: block;
             animation: slideInDown 0.5s ease;
-        }
-
-        @keyframes slideInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .completion-icon {
@@ -554,11 +625,6 @@
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
 
         .error-message {
@@ -711,6 +777,13 @@
                 font-size: 0.7rem;
                 padding: 2px 6px;
             }
+
+            .fee-info-badge {
+                display: block;
+                margin-top: 4px;
+                margin-left: 0;
+                width: fit-content;
+            }
         }
     </style>
 </head>
@@ -756,6 +829,14 @@
 
             <!-- Error Message -->
             <div class="error-message" id="errorMessage"></div>
+
+            <!-- NEW: Fee Update Indicator -->
+            <div class="fee-update-indicator" id="feeUpdateIndicator">
+                <div class="fee-update-icon">💰</div>
+                <div>
+                    <strong>Fees Updated:</strong> This order's pricing has been recalculated with current fee rates for transparency.
+                </div>
+            </div>
 
             <!-- Completion Message -->
             <div class="completion-message" id="completionMessage">
@@ -825,11 +906,11 @@
                         <span id="orderSubtotal">$0.00</span>
                     </div>
                     <div class="summary-row">
-                        <span>Tax:</span>
+                        <span id="taxLabel">Tax:</span>
                         <span id="orderTax">$0.00</span>
                     </div>
                     <div class="summary-row">
-                        <span>Service Fee:</span>
+                        <span id="serviceFeeLabel">Service Fee:</span>
                         <span id="orderServiceFee">$2.00</span>
                     </div>
                     <div class="summary-row total">
@@ -861,6 +942,9 @@
         let hasPlayedReadyNotification = false;
         let audioContext = null;
         let vibrationInterval = null;
+        // NEW: Fee configuration cache for performance
+        let restaurantFeeConfig = null;
+        let feesRecalculated = false;
 
         // ENHANCED: Fixed getOrderByNumber function for better authentication support
         async function getOrderByNumberFixed(orderNumber) {
@@ -960,6 +1044,154 @@
                 console.error('❌ getOrderByNumberFixed error:', error);
                 throw error;
             }
+        }
+
+        // NEW: Get or load fee configuration for the restaurant
+        async function getRestaurantFeeConfig(restaurantId) {
+            if (!restaurantId) {
+                console.warn('⚠️ No restaurant ID provided for fee config');
+                return getDefaultFeeConfig();
+            }
+
+            // Check if already loaded
+            if (restaurantFeeConfig && restaurantFeeConfig.restaurantId === restaurantId) {
+                return restaurantFeeConfig;
+            }
+
+            try {
+                console.log('💰 Loading fee configuration for restaurant:', restaurantId);
+                
+                if (typeof VediAPI !== 'undefined' && VediAPI.getFeeConfig) {
+                    const feeConfig = await VediAPI.getFeeConfig(restaurantId);
+                    
+                    // Cache the config
+                    restaurantFeeConfig = feeConfig;
+                    
+                    console.log('✅ Fee config loaded:', feeConfig);
+                    return feeConfig;
+                } else {
+                    console.warn('⚠️ VediAPI not available, using default fee config');
+                    const defaultConfig = getDefaultFeeConfig();
+                    restaurantFeeConfig = defaultConfig;
+                    return defaultConfig;
+                }
+            } catch (error) {
+                console.error('❌ Error loading fee config:', error);
+                const defaultConfig = getDefaultFeeConfig();
+                restaurantFeeConfig = defaultConfig;
+                return defaultConfig;
+            }
+        }
+
+        // NEW: Get default fee configuration
+        function getDefaultFeeConfig() {
+            return {
+                serviceFeeFixed: 2.00,
+                serviceFeePercentage: 0,
+                feeType: 'fixed',
+                taxRate: 0.085,
+                minimumOrderAmount: 0,
+                isNegotiated: false,
+                isDefault: true
+            };
+        }
+
+        // NEW: Recalculate order fees with current fee configuration
+        async function recalculateOrderFees(order) {
+            if (!order.subtotal && !order.total) {
+                console.warn('⚠️ Order missing financial data for recalculation');
+                return order;
+            }
+
+            try {
+                const feeConfig = await getRestaurantFeeConfig(order.restaurantId);
+                
+                // If order already has correct fee configuration, don't recalculate
+                if (order.feeConfig && 
+                    order.feeConfig.feeType === feeConfig.feeType &&
+                    order.feeConfig.serviceFeeFixed === feeConfig.serviceFeeFixed &&
+                    order.feeConfig.serviceFeePercentage === feeConfig.serviceFeePercentage &&
+                    order.feeConfig.taxRate === feeConfig.taxRate) {
+                    
+                    console.log('💰 Order fees already match current configuration');
+                    return order;
+                }
+
+                // Calculate fees using VediAPI if available
+                if (typeof VediAPI !== 'undefined' && VediAPI.calculateOrderFees && order.subtotal) {
+                    console.log('🧮 Recalculating fees for order:', order.orderNumber);
+                    
+                    const calculatedFees = await VediAPI.calculateOrderFees(order.restaurantId, order.subtotal);
+                    
+                    // Update order with recalculated fees
+                    const updatedOrder = {
+                        ...order,
+                        tax: calculatedFees.taxAmount,
+                        serviceFee: calculatedFees.serviceFee,
+                        total: calculatedFees.total,
+                        taxRate: calculatedFees.taxRate,
+                        feeConfig: calculatedFees.feeConfig,
+                        feeType: calculatedFees.breakdown?.serviceFeeType,
+                        isNegotiatedRate: calculatedFees.breakdown?.isNegotiated || false,
+                        feesRecalculated: true,
+                        originalOrder: {
+                            tax: order.tax,
+                            serviceFee: order.serviceFee,
+                            total: order.total
+                        }
+                    };
+                    
+                    console.log('✅ Fees recalculated:', {
+                        original: { tax: order.tax, serviceFee: order.serviceFee, total: order.total },
+                        updated: { tax: updatedOrder.tax, serviceFee: updatedOrder.serviceFee, total: updatedOrder.total }
+                    });
+                    
+                    // Set global flag to show fee update indicator
+                    feesRecalculated = updatedOrder.feesRecalculated;
+                    
+                    return updatedOrder;
+                } else {
+                    console.log('ℹ️ VediAPI not available or missing subtotal, keeping original fees');
+                    return order;
+                }
+            } catch (error) {
+                console.error('❌ Error recalculating fees:', error);
+                return order;
+            }
+        }
+
+        // NEW: Get tax label with dynamic rate display
+        function getTaxLabel(order) {
+            if (order.taxRate) {
+                const taxRate = (order.taxRate * 100).toFixed(1);
+                return `Tax (${taxRate}%)`;
+            }
+            return 'Tax';
+        }
+
+        // NEW: Get service fee label with fee structure info
+        function getServiceFeeLabel(order) {
+            let label = 'Service Fee';
+            let badge = '';
+            
+            if (order.feeConfig) {
+                const config = order.feeConfig;
+                
+                if (config.feeType === 'percentage') {
+                    label = `Service Fee (${config.serviceFeePercentage}%)`;
+                } else if (config.feeType === 'hybrid') {
+                    label = `Service Fee (${formatPrice(config.serviceFeeFixed)} + ${config.serviceFeePercentage}%)`;
+                }
+                
+                // Add badge for special fee types
+                if (config.isNegotiated) {
+                    badge = '<span class="fee-info-badge negotiated">Negotiated Rate</span>';
+                } else if (config.feeType !== 'fixed') {
+                    badge = '<span class="fee-info-badge dynamic">Dynamic</span>';
+                }
+            }
+            
+            return label + badge;
         }
 
         // ENHANCED: Initialize page with authentication check
@@ -1140,6 +1372,9 @@
                             return;
                         }
                         
+                        // NEW: Recalculate fees with current configuration
+                        orderData = await recalculateOrderFees(orderData);
+                        
                         displayOrderInfo();
                     } else {
                         // If not found immediately, wait and retry
@@ -1153,6 +1388,9 @@
                                         return;
                                     }
                                     
+                                    // NEW: Recalculate fees on retry
+                                    orderData = await recalculateOrderFees(orderData);
+                                    
                                     displayOrderInfo();
                                 } else {
                                     // Final attempt after another delay
@@ -1165,6 +1403,9 @@
                                                     showError('This order does not belong to your account. Please check your order details.');
                                                     return;
                                                 }
+                                                
+                                                // NEW: Final fee recalculation
+                                                orderData = await recalculateOrderFees(orderData);
                                                 
                                                 displayOrderInfo();
                                             } else {
@@ -1193,6 +1434,8 @@
                             orderData = await VediAPI.getMostRecentActiveOrderByUID(currentUser.uid);
                             
                             if (orderData) {
+                                // NEW: Recalculate fees for most recent order
+                                orderData = await recalculateOrderFees(orderData);
                                 displayOrderInfo();
                                 return;
                             }
@@ -1205,6 +1448,8 @@
                             orderData = await VediAPI.getMostRecentActiveOrder(customerSession.phone);
                             
                             if (orderData) {
+                                // NEW: Recalculate fees for phone-based order
+                                orderData = await recalculateOrderFees(orderData);
                                 displayOrderInfo();
                             } else {
                                 // Try getting all orders by UID first, then phone
@@ -1221,6 +1466,8 @@
                                 if (allOrders && allOrders.length > 0) {
                                     // Get the most recent order
                                     orderData = allOrders[0];
+                                    // NEW: Recalculate fees for fallback order
+                                    orderData = await recalculateOrderFees(orderData);
                                     displayOrderInfo();
                                 } else {
                                     showError('No orders found. Please place an order first.');
@@ -1251,7 +1498,7 @@
             if (false && typeof VediAPI !== 'undefined' && typeof VediAPI.listenToOrderByNumber === 'function') {
                 console.log('📡 Using VediAPI real-time listener');
                 
-                orderUpdateListener = VediAPI.listenToOrderByNumber(orderData.orderNumber, (updatedOrder) => {
+                orderUpdateListener = VediAPI.listenToOrderByNumber(orderData.orderNumber, async (updatedOrder) => {
                     if (updatedOrder) {
                         console.log('📲 Real-time update received:', updatedOrder.status);
                         
@@ -1263,6 +1510,9 @@
                         }
                         
                         const previousStatus = orderData.status;
+                        
+                        // NEW: Recalculate fees for real-time updates
+                        updatedOrder = await recalculateOrderFees(updatedOrder);
                         orderData = updatedOrder;
                         
                         // Check for status changes that require notifications
@@ -1308,7 +1558,7 @@
                     orderUpdateListener = firebase.firestore()
                         .collection('orders')
                         .doc(orderData.id)
-                        .onSnapshot((doc) => {
+                        .onSnapshot(async (doc) => {
                             if (doc.exists) {
                                 const updatedOrder = { id: doc.id, ...doc.data() };
                                 console.log('📲 Single doc update:', updatedOrder.status);
@@ -1321,7 +1571,10 @@
                                 }
                                 
                                 const previousStatus = orderData.status;
-                                orderData = updatedOrder;
+                                
+                                // NEW: Recalculate fees for document updates
+                                const recalculatedOrder = await recalculateOrderFees(updatedOrder);
+                                orderData = recalculatedOrder;
                                 
                                 if (previousStatus !== updatedOrder.status) {
                                     console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
@@ -1357,115 +1610,10 @@
                 // Pattern 1: customerUID + orderNumber (most secure)
                 let query = firebase.firestore()
                     .collection('orders')
-                    .where('customerUID', '==', currentUser.uid)
-                    .where('orderNumber', '==', orderData.orderNumber);
-
-                console.log('🔗 Trying UID + orderNumber query');
-                
-                orderUpdateListener = query.onSnapshot((snapshot) => {
-                    console.log('📡 Query snapshot received, docs:', snapshot.docs.length);
-                    
-                    if (!snapshot.empty) {
-                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-                        console.log('📲 Query-based order update:', updatedOrder.status);
-                        
-                        const previousStatus = orderData.status;
-                        orderData = updatedOrder;
-                        
-                        if (previousStatus !== updatedOrder.status) {
-                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
-                            handleStatusChange(previousStatus, updatedOrder.status);
-                        }
-                        
-                        updateOrderProgress();
-                    } else {
-                        console.warn('⚠️ No matching order found in UID query');
-                        // Try phone-based query for phone auth users
-                        setupPhoneBasedListener();
-                    }
-                }, (error) => {
-                    console.error('❌ UID query listener error:', error);
-                    
-                    // Try phone-based query as fallback
-                    if (currentUser.phoneNumber && error.code === 'permission-denied') {
-                        console.log('🔄 Trying phone-based listener');
-                        setupPhoneBasedListener();
-                    } else {
-                        setupPollingTracking();
-                    }
-                });
-                        
-            } catch (error) {
-                console.error('❌ Query setup failed:', error);
-                setupPollingTracking();
-            }
-        }
-
-        // FIXED: Phone-based listener that matches security rules
-        function setupPhoneBasedListener() {
-            if (!currentUser.phoneNumber) {
-                setupPollingTracking();
-                return;
-            }
-
-            try {
-                console.log('📱 Setting up phone-based Firestore listener');
-                
-                // CRITICAL: Query must match security rules pattern for phone auth
-                let query = firebase.firestore()
-                    .collection('orders')
-                    .where('customerPhone', '==', currentUser.phoneNumber)
-                    .where('orderNumber', '==', orderData.orderNumber);
-
-                orderUpdateListener = query.onSnapshot((snapshot) => {
-                    console.log('📡 Phone-based snapshot received, docs:', snapshot.docs.length);
-                    
-                    if (!snapshot.empty) {
-                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-                        console.log('📲 Phone-based order update:', updatedOrder.status);
-                        
-                        const previousStatus = orderData.status;
-                        orderData = updatedOrder;
-                        
-                        if (previousStatus !== updatedOrder.status) {
-                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
-                            handleStatusChange(previousStatus, updatedOrder.status);
-                        }
-                        
-                        updateOrderProgress();
-                    } else {
-                        console.warn('⚠️ No phone-based match, trying digits-only format');
-                        setupPhoneDigitsListener();
-                    }
-                }, (error) => {
-                    console.error('❌ Phone-based listener error:', error);
-                    setupPhoneDigitsListener();
-                });
-                        
-            } catch (error) {
-                console.error('❌ Failed to setup phone-based listener:', error);
-                setupPollingTracking();
-            }
-        }
-
-        // FIXED: Phone digits-only format listener
-        function setupPhoneDigitsListener() {
-            if (!currentUser.phoneNumber) {
-                setupPollingTracking();
-                return;
-            }
-
-            try {
-                // Try with digits-only format
-                const phoneDigits = currentUser.phoneNumber.replace(/\D/g, '');
-                console.log('🔢 Trying phone digits format:', phoneDigits);
-                
-                let query = firebase.firestore()
-                    .collection('orders')
                     .where('customerPhone', '==', phoneDigits)
                     .where('orderNumber', '==', orderData.orderNumber);
 
-                orderUpdateListener = query.onSnapshot((snapshot) => {
+                orderUpdateListener = query.onSnapshot(async (snapshot) => {
                     console.log('📡 Phone digits snapshot received, docs:', snapshot.docs.length);
                     
                     if (!snapshot.empty) {
@@ -1473,7 +1621,10 @@
                         console.log('📲 Phone digits order update:', updatedOrder.status);
                         
                         const previousStatus = orderData.status;
-                        orderData = updatedOrder;
+                        
+                        // NEW: Recalculate fees for phone digits updates
+                        const recalculatedOrder = await recalculateOrderFees(updatedOrder);
+                        orderData = recalculatedOrder;
                         
                         if (previousStatus !== updatedOrder.status) {
                             console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
@@ -1519,7 +1670,11 @@
                         }
                         
                         const previousStatus = orderData.status;
-                        orderData = updatedOrder;
+                        
+                        // NEW: Recalculate fees for polling updates
+                        const recalculatedOrder = await recalculateOrderFees(updatedOrder);
+                        orderData = recalculatedOrder;
+                        
                         handleStatusChange(previousStatus, updatedOrder.status);
                         updateOrderProgress();
                     }
@@ -1554,10 +1709,16 @@
             }
         }
 
-        // Display order information
+        // ENHANCED: Display order information with dynamic fees
         function displayOrderInfo() {
             // Hide loading
             document.getElementById('loadingMessage').style.display = 'none';
+
+            // NEW: Show fee update indicator if fees were recalculated
+            if (feesRecalculated) {
+                const feeUpdateIndicator = document.getElementById('feeUpdateIndicator');
+                feeUpdateIndicator.classList.add('show');
+            }
 
             // Show order info
             document.getElementById('orderNumber').textContent = `Order #${orderData.orderNumber}`;
@@ -1585,11 +1746,15 @@
                 document.getElementById('specialInstructionsText').textContent = orderData.specialInstructions;
             }
 
-            // Show order summary with proper formatting
+            // ENHANCED: Show order summary with dynamic fee labels
             document.getElementById('orderSubtotal').textContent = formatPrice(orderData.subtotal || orderData.total);
             document.getElementById('orderTax').textContent = formatPrice(orderData.tax || 0);
             document.getElementById('orderServiceFee').textContent = formatPrice(orderData.serviceFee || 0);
             document.getElementById('orderTotal').textContent = formatPrice(orderData.total);
+
+            // NEW: Update fee labels with dynamic information
+            document.getElementById('taxLabel').innerHTML = getTaxLabel(orderData);
+            document.getElementById('serviceFeeLabel').innerHTML = getServiceFeeLabel(orderData);
 
             // Update progress
             updateOrderProgress();
@@ -1776,7 +1941,229 @@
         function formatPrice(amount) {
             if (!amount && amount !== 0) return '$0.00';
             const currency = restaurantData?.currency || 'USD';
-            const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '$';
+            const symbol = currency === 'USD' ? '
+                    .where('customerUID', '==', currentUser.uid)
+                    .where('orderNumber', '==', orderData.orderNumber);
+
+                console.log('🔗 Trying UID + orderNumber query');
+                
+                orderUpdateListener = query.onSnapshot(async (snapshot) => {
+                    console.log('📡 Query snapshot received, docs:', snapshot.docs.length);
+                    
+                    if (!snapshot.empty) {
+                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                        console.log('📲 Query-based order update:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        
+                        // NEW: Recalculate fees for query updates
+                        const recalculatedOrder = await recalculateOrderFees(updatedOrder);
+                        orderData = recalculatedOrder;
+                        
+                        if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    } else {
+                        console.warn('⚠️ No matching order found in UID query');
+                        // Try phone-based query for phone auth users
+                        setupPhoneBasedListener();
+                    }
+                }, (error) => {
+                    console.error('❌ UID query listener error:', error);
+                    
+                    // Try phone-based query as fallback
+                    if (currentUser.phoneNumber && error.code === 'permission-denied') {
+                        console.log('🔄 Trying phone-based listener');
+                        setupPhoneBasedListener();
+                    } else {
+                        setupPollingTracking();
+                    }
+                });
+                        
+            } catch (error) {
+                console.error('❌ Query setup failed:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // FIXED: Phone-based listener that matches security rules
+        function setupPhoneBasedListener() {
+            if (!currentUser.phoneNumber) {
+                setupPollingTracking();
+                return;
+            }
+
+            try {
+                console.log('📱 Setting up phone-based Firestore listener');
+                
+                // CRITICAL: Query must match security rules pattern for phone auth
+                let query = firebase.firestore()
+                    .collection('orders')
+                    .where('customerPhone', '==', currentUser.phoneNumber)
+                    .where('orderNumber', '==', orderData.orderNumber);
+
+                orderUpdateListener = query.onSnapshot(async (snapshot) => {
+                    console.log('📡 Phone-based snapshot received, docs:', snapshot.docs.length);
+                    
+                    if (!snapshot.empty) {
+                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                        console.log('📲 Phone-based order update:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        
+                        // NEW: Recalculate fees for phone updates
+                        const recalculatedOrder = await recalculateOrderFees(updatedOrder);
+                        orderData = recalculatedOrder;
+                        
+                        if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    } else {
+                        console.warn('⚠️ No phone-based match, trying digits-only format');
+                        setupPhoneDigitsListener();
+                    }
+                }, (error) => {
+                    console.error('❌ Phone-based listener error:', error);
+                    setupPhoneDigitsListener();
+                });
+                        
+            } catch (error) {
+                console.error('❌ Failed to setup phone-based listener:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // FIXED: Phone digits-only format listener
+        function setupPhoneDigitsListener() {
+            if (!currentUser.phoneNumber) {
+                setupPollingTracking();
+                return;
+            }
+
+            try {
+                // Try with digits-only format
+                const phoneDigits = currentUser.phoneNumber.replace(/\D/g, '');
+                console.log('🔢 Trying phone digits format:', phoneDigits);
+                
+                let query = firebase.firestore()
+                    .collection('orders') : (currency === 'EUR' ? '€' : '
+                    .where('customerUID', '==', currentUser.uid)
+                    .where('orderNumber', '==', orderData.orderNumber);
+
+                console.log('🔗 Trying UID + orderNumber query');
+                
+                orderUpdateListener = query.onSnapshot(async (snapshot) => {
+                    console.log('📡 Query snapshot received, docs:', snapshot.docs.length);
+                    
+                    if (!snapshot.empty) {
+                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                        console.log('📲 Query-based order update:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        
+                        // NEW: Recalculate fees for query updates
+                        const recalculatedOrder = await recalculateOrderFees(updatedOrder);
+                        orderData = recalculatedOrder;
+                        
+                        if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    } else {
+                        console.warn('⚠️ No matching order found in UID query');
+                        // Try phone-based query for phone auth users
+                        setupPhoneBasedListener();
+                    }
+                }, (error) => {
+                    console.error('❌ UID query listener error:', error);
+                    
+                    // Try phone-based query as fallback
+                    if (currentUser.phoneNumber && error.code === 'permission-denied') {
+                        console.log('🔄 Trying phone-based listener');
+                        setupPhoneBasedListener();
+                    } else {
+                        setupPollingTracking();
+                    }
+                });
+                        
+            } catch (error) {
+                console.error('❌ Query setup failed:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // FIXED: Phone-based listener that matches security rules
+        function setupPhoneBasedListener() {
+            if (!currentUser.phoneNumber) {
+                setupPollingTracking();
+                return;
+            }
+
+            try {
+                console.log('📱 Setting up phone-based Firestore listener');
+                
+                // CRITICAL: Query must match security rules pattern for phone auth
+                let query = firebase.firestore()
+                    .collection('orders')
+                    .where('customerPhone', '==', currentUser.phoneNumber)
+                    .where('orderNumber', '==', orderData.orderNumber);
+
+                orderUpdateListener = query.onSnapshot(async (snapshot) => {
+                    console.log('📡 Phone-based snapshot received, docs:', snapshot.docs.length);
+                    
+                    if (!snapshot.empty) {
+                        const updatedOrder = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+                        console.log('📲 Phone-based order update:', updatedOrder.status);
+                        
+                        const previousStatus = orderData.status;
+                        
+                        // NEW: Recalculate fees for phone updates
+                        const recalculatedOrder = await recalculateOrderFees(updatedOrder);
+                        orderData = recalculatedOrder;
+                        
+                        if (previousStatus !== updatedOrder.status) {
+                            console.log('📈 Status changed:', previousStatus, '→', updatedOrder.status);
+                            handleStatusChange(previousStatus, updatedOrder.status);
+                        }
+                        
+                        updateOrderProgress();
+                    } else {
+                        console.warn('⚠️ No phone-based match, trying digits-only format');
+                        setupPhoneDigitsListener();
+                    }
+                }, (error) => {
+                    console.error('❌ Phone-based listener error:', error);
+                    setupPhoneDigitsListener();
+                });
+                        
+            } catch (error) {
+                console.error('❌ Failed to setup phone-based listener:', error);
+                setupPollingTracking();
+            }
+        }
+
+        // FIXED: Phone digits-only format listener
+        function setupPhoneDigitsListener() {
+            if (!currentUser.phoneNumber) {
+                setupPollingTracking();
+                return;
+            }
+
+            try {
+                // Try with digits-only format
+                const phoneDigits = currentUser.phoneNumber.replace(/\D/g, '');
+                console.log('🔢 Trying phone digits format:', phoneDigits);
+                
+                let query = firebase.firestore()
+                    .collection('orders'));
             return `${symbol}${Number(amount).toFixed(2)}`;
         }
 
@@ -1994,7 +2381,7 @@
             firebase.auth().onAuthStateChanged(function(user) {
                 if (!user && currentUser) {
                     // User was signed out unexpectedly
-                    console.warn('⚠️ User signed out unexpectedly');
+                    console.warn('⚠️ User signed out unexpectedly during order tracking');
                     showSessionWarning();
                     currentUser = null;
                     updateAuthenticationIndicator();
@@ -2023,7 +2410,7 @@
 
         // Enhanced cleanup on page unload
         window.addEventListener('beforeunload', function() {
-            console.log('🧹 Cleaning up tracking listeners');
+            console.log('🧹 Cleaning up tracking listeners and fee config cache');
             
             if (orderUpdateListener) {
                 if (typeof orderUpdateListener === 'function') {
@@ -2042,7 +2429,13 @@
             if (vibrationInterval) {
                 clearInterval(vibrationInterval);
             }
+            
+            // Clear fee config cache to free memory
+            restaurantFeeConfig = null;
         });
+
+        console.log('Enhanced order progress with dynamic fee transparency loaded successfully');
+        console.log('Features: Real-time fee recalculation, fee transparency badges, negotiated rate tracking');
     </script>
 </body>
 </html>
