@@ -27,17 +27,6 @@
             padding: 20px;
         }
 
-        .page-title {
-            margin-bottom: 30px;
-        }
-
-        .page-title h1 {
-            font-size: 2.5rem;
-            color: #333;
-            font-weight: 700;
-            margin: 0;
-        }
-
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -333,10 +322,6 @@
     </div>
 
     <div class="container">
-        <div class="page-title">
-            <h1>QR Codes</h1>
-        </div>
-
         <div class="bulk-actions" id="bulkActions" style="display: none;">
             <h3>Bulk Actions</h3>
             <div class="bulk-buttons">
@@ -372,6 +357,7 @@
         let currentRestaurant = null;
         let currentQRCodes = [];
         let baseMenuUrl = '';
+        let existingTableCount = 0; // Track previously generated table count
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
@@ -438,92 +424,26 @@
         // Generate all QR codes automatically (counter + tables)
         function generateAllQRCodes() {
             const qrGrid = document.getElementById('qrGrid');
-            const tableCount = parseInt(currentRestaurant?.tableCount) || 0;
+            const newTableCount = parseInt(currentRestaurant?.tableCount) || 0;
             
             try {
-                let gridHTML = '';
-                currentQRCodes = [];
-
-                // Counter QR - always generated
-                const counterUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=counter&location=counter`;
-                currentQRCodes.push({
-                    table: 'counter',
-                    url: counterUrl,
-                    restaurantName: currentRestaurant.name,
-                    location: 'Counter'
-                });
-
-                gridHTML += `
-                    <div class="qr-card counter-qr">
-                        <div class="table-number">🏪 Counter</div>
-                        <div class="table-subtitle">For counter orders & takeout</div>
-                        <div class="qr-code-container" id="qr-container-counter">
-                            <canvas id="qr-counter"></canvas>
-                        </div>
-                        <div class="qr-url">${counterUrl}</div>
-                        <div class="qr-actions">
-                            <button class="btn btn-small btn-success" onclick="downloadQR('counter')">💾 Download</button>
-                            <button class="btn btn-small btn-secondary" onclick="copyURL('${counterUrl}')">📋 Copy URL</button>
-                        </div>
-                    </div>
-                `;
-
-                // Table QRs - generate based on table count
-                for (let i = 1; i <= tableCount; i++) {
-                    const tableUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
-                    
-                    currentQRCodes.push({
-                        table: i,
-                        url: tableUrl,
-                        restaurantName: currentRestaurant.name,
-                        location: `Table ${i}`
-                    });
-
-                    gridHTML += `
-                        <div class="qr-card">
-                            <div class="table-number">Table ${i}</div>
-                            <div class="table-subtitle">Dine-in orders</div>
-                            <div class="qr-code-container" id="qr-container-${i}">
-                                <canvas id="qr-${i}"></canvas>
-                            </div>
-                            <div class="qr-url">${tableUrl}</div>
-                            <div class="qr-actions">
-                                <button class="btn btn-small" onclick="downloadQR(${i})">💾 Download</button>
-                                <button class="btn btn-small btn-secondary" onclick="copyURL('${tableUrl}')">📋 Copy URL</button>
-                            </div>
-                        </div>
-                    `;
+                // If this is the first time or we're adding tables, generate accordingly
+                if (currentQRCodes.length === 0) {
+                    // First time generation - create all QR codes
+                    generateInitialQRCodes(newTableCount);
+                } else if (newTableCount > existingTableCount) {
+                    // Adding tables - only add new ones
+                    addNewTableQRCodes(existingTableCount + 1, newTableCount);
+                } else if (newTableCount < existingTableCount) {
+                    // Removing tables - remove excess ones
+                    removeExcessTableQRCodes(newTableCount);
+                } else {
+                    // Same count - do nothing, keep existing QR codes
+                    console.log('Table count unchanged - keeping existing QR codes');
+                    return;
                 }
-
-                // Show empty state if no tables
-                if (tableCount === 0) {
-                    gridHTML += `
-                        <div class="qr-card">
-                            <div class="empty-state">
-                                No tables configured.<br>
-                                Update your restaurant settings to add tables.
-                            </div>
-                        </div>
-                    `;
-                }
-
-                qrGrid.innerHTML = gridHTML;
-
-                // Show bulk actions if we have QR codes
-                if (currentQRCodes.length > 0) {
-                    document.getElementById('bulkActions').style.display = 'block';
-                }
-
-                // Generate actual QR codes
-                setTimeout(() => {
-                    generateSingleQR('counter', counterUrl);
-                    for (let i = 1; i <= tableCount; i++) {
-                        const qrData = currentQRCodes.find(qr => qr.table === i);
-                        if (qrData) {
-                            generateSingleQR(i, qrData.url);
-                        }
-                    }
-                }, 100);
+                
+                existingTableCount = newTableCount;
                 
             } catch (error) {
                 console.error('Error generating QR codes:', error);
@@ -534,6 +454,147 @@
                 `;
                 showError('Failed to generate QR codes');
             }
+        }
+
+        // Generate all QR codes for the first time
+        function generateInitialQRCodes(tableCount) {
+            const qrGrid = document.getElementById('qrGrid');
+            
+            let gridHTML = '';
+            currentQRCodes = [];
+
+            // Counter QR - always generated first
+            const counterUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=counter&location=counter`;
+            currentQRCodes.push({
+                table: 'counter',
+                url: counterUrl,
+                restaurantName: currentRestaurant.name,
+                location: 'Counter'
+            });
+
+            gridHTML += createQRCardHTML('counter', '🏪 Counter', 'For counter orders & takeout', counterUrl, true);
+
+            // Table QRs - generate based on table count
+            for (let i = 1; i <= tableCount; i++) {
+                const tableUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
+                
+                currentQRCodes.push({
+                    table: i,
+                    url: tableUrl,
+                    restaurantName: currentRestaurant.name,
+                    location: `Table ${i}`
+                });
+
+                gridHTML += createQRCardHTML(i, `Table ${i}`, 'Dine-in orders', tableUrl, false);
+            }
+
+            // Show empty state if no tables
+            if (tableCount === 0) {
+                gridHTML += `
+                    <div class="qr-card">
+                        <div class="empty-state">
+                            No tables configured.<br>
+                            Update your restaurant settings to add tables.
+                        </div>
+                    </div>
+                `;
+            }
+
+            qrGrid.innerHTML = gridHTML;
+
+            // Show bulk actions if we have QR codes
+            if (currentQRCodes.length > 0) {
+                document.getElementById('bulkActions').style.display = 'block';
+            }
+
+            // Generate actual QR codes
+            setTimeout(() => {
+                generateSingleQR('counter', counterUrl);
+                for (let i = 1; i <= tableCount; i++) {
+                    const qrData = currentQRCodes.find(qr => qr.table === i);
+                    if (qrData) {
+                        generateSingleQR(i, qrData.url);
+                    }
+                }
+            }, 100);
+        }
+
+        // Add new table QR codes (when restaurant increases table count)
+        function addNewTableQRCodes(startTable, endTable) {
+            console.log(`Adding new tables ${startTable} to ${endTable}`);
+            
+            const qrGrid = document.getElementById('qrGrid');
+            let additionalHTML = '';
+
+            // Add new table QR codes to the data structure
+            for (let i = startTable; i <= endTable; i++) {
+                const tableUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
+                
+                currentQRCodes.push({
+                    table: i,
+                    url: tableUrl,
+                    restaurantName: currentRestaurant.name,
+                    location: `Table ${i}`
+                });
+
+                additionalHTML += createQRCardHTML(i, `Table ${i}`, 'Dine-in orders', tableUrl, false);
+            }
+
+            // Append new QR cards to existing grid
+            qrGrid.innerHTML += additionalHTML;
+
+            // Generate QR codes for new tables only
+            setTimeout(() => {
+                for (let i = startTable; i <= endTable; i++) {
+                    const qrData = currentQRCodes.find(qr => qr.table === i);
+                    if (qrData) {
+                        generateSingleQR(i, qrData.url);
+                    }
+                }
+            }, 100);
+
+            showSuccess(`Added ${endTable - startTable + 1} new table QR codes!`);
+        }
+
+        // Remove excess table QR codes (when restaurant decreases table count)
+        function removeExcessTableQRCodes(newTableCount) {
+            console.log(`Removing tables beyond ${newTableCount}`);
+            
+            // Remove QR codes from data structure
+            currentQRCodes = currentQRCodes.filter(qr => {
+                return qr.table === 'counter' || qr.table <= newTableCount;
+            });
+
+            // Remove HTML elements for excess tables
+            for (let i = newTableCount + 1; i <= existingTableCount; i++) {
+                const cardElement = document.querySelector(`#qr-container-${i}`)?.closest('.qr-card');
+                if (cardElement) {
+                    cardElement.remove();
+                }
+            }
+
+            showSuccess(`Removed excess table QR codes. Now showing ${newTableCount} tables.`);
+        }
+
+        // Helper function to create QR card HTML
+        function createQRCardHTML(tableId, title, subtitle, url, isCounter) {
+            const counterClass = isCounter ? 'counter-qr' : '';
+            const downloadClass = isCounter ? 'btn-success' : '';
+            
+            return `
+                <div class="qr-card ${counterClass}">
+                    <div class="table-number">${title}</div>
+                    <div class="table-subtitle">${subtitle}</div>
+                    <div class="qr-code-container" id="qr-container-${tableId}">
+                        <canvas id="qr-${tableId}"></canvas>
+                    </div>
+                    <div class="qr-url">${url}</div>
+                    <div class="qr-actions">
+                        <button class="btn btn-small ${downloadClass}" onclick="downloadQR('${tableId}')">💾 Download</button>
+                        <button class="btn btn-small btn-secondary" onclick="copyURL('${url}')">📋 Copy URL</button>
+                    </div>
+                </div>
+            `;
         }
 
         function generateSingleQR(tableNumber, url) {
