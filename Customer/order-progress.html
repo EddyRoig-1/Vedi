@@ -1547,6 +1547,11 @@
             if (newStatus === 'completed') {
                 handleOrderCompletion();
             }
+            
+            // Handle cancellation
+            if (newStatus === 'cancelled') {
+                handleOrderCancellation();
+            }
         }
 
         // Display order information
@@ -1595,18 +1600,55 @@
             if (!orderData) return;
 
             const steps = ['pending', 'preparing', 'ready', 'completed'];
-            const currentStepIndex = steps.indexOf(orderData.status);
+            let currentStepIndex = steps.indexOf(orderData.status);
 
+            // Handle cancelled status (show as failed at pending step)
+            if (orderData.status === 'cancelled') {
+                currentStepIndex = 0; // Stay at pending step but mark as failed
+                
+                // Update progress line to show red
+                const progressFill = document.getElementById('progressLineFill');
+                progressFill.style.background = 'linear-gradient(90deg, #e53e3e, #c53030)';
+                progressFill.style.width = '25%'; // Small amount to show cancellation
+                
+                // Update step circles for cancellation
+                steps.forEach((step, index) => {
+                    const stepElement = document.getElementById(`step-${step}`);
+                    if (stepElement) {
+                        stepElement.classList.remove('active', 'completed');
+                        
+                        if (index === 0) {
+                            // Mark pending step as cancelled
+                            stepElement.style.background = 'linear-gradient(135deg, #e53e3e, #c53030)';
+                            stepElement.style.color = 'white';
+                            stepElement.innerHTML = '<div class="step-icon">❌</div>';
+                        }
+                    }
+                });
+                
+                // Update status text and description
+                updateStatusText();
+                return;
+            }
+
+            // Normal flow for non-cancelled orders
             // Update progress line
             const progressFill = document.getElementById('progressLineFill');
             const progressPercentage = (currentStepIndex / (steps.length - 1)) * 100;
             progressFill.style.width = `${progressPercentage}%`;
+            progressFill.style.background = 'linear-gradient(90deg, #667eea, #764ba2)'; // Reset to normal color
 
             // Update step circles
             steps.forEach((step, index) => {
                 const stepElement = document.getElementById(`step-${step}`);
                 if (stepElement) {
                     stepElement.classList.remove('active', 'completed');
+                    stepElement.style.background = ''; // Reset custom styles
+                    stepElement.style.color = '';
+                    
+                    // Reset icon
+                    const icons = ['📝', '👨‍🍳', '🔔', '✅'];
+                    stepElement.innerHTML = `<div class="step-icon">${icons[index]}</div>`;
                     
                     if (index < currentStepIndex) {
                         stepElement.classList.add('completed');
@@ -1650,6 +1692,15 @@
                     progressDescription.textContent = 'Your order has been delivered. Thank you for dining with us!';
                     orderNumber.classList.add('completed');
                     break;
+                case 'cancelled':
+                    statusText.textContent = 'Order cancelled';
+                    estimatedTime.textContent = 'No charge applied';
+                    estimatedTime.style.color = '#e53e3e';
+                    progressDescription.textContent = 'We\'re sorry, but your order has been cancelled. You will not be charged.';
+                    orderNumber.style.background = 'linear-gradient(135deg, #e53e3e, #c53030)';
+                    // Show cancellation message
+                    showCancellationMessage();
+                    break;
                 default:
                     statusText.textContent = 'Checking status...';
                     estimatedTime.textContent = '--';
@@ -1674,6 +1725,38 @@
             progressContent.classList.add('both-buttons-visible');
             
             // Stop real-time tracking when completed
+            stopOrderTracking();
+        }
+
+        // Handle order cancellation
+        function handleOrderCancellation() {
+            console.log('❌ Order cancelled!');
+            
+            // Show cancellation message
+            showCancellationMessage();
+            
+            // Show the "Create New Order" button
+            const newOrderBtn = document.getElementById('newOrderBtn');
+            newOrderBtn.classList.add('show');
+            
+            // Add class to progress content to increase bottom padding
+            const progressContent = document.getElementById('progressContent');
+            progressContent.classList.add('both-buttons-visible');
+            
+            // Stop real-time tracking when cancelled
+            stopOrderTracking();
+        }
+
+        // Show cancellation message
+        function showCancellationMessage() {
+            const cancellationMessage = document.getElementById('cancellationMessage');
+            if (cancellationMessage) {
+                cancellationMessage.classList.add('show');
+            }
+        }
+
+        // Stop order tracking (shared function)
+        function stopOrderTracking() {
             if (orderUpdateListener) {
                 if (typeof orderUpdateListener === 'function') {
                     orderUpdateListener(); // VediAPI unsubscribe
