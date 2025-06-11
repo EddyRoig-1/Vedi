@@ -38,6 +38,51 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        /* Session Warning */
+        .session-warning {
+            background: linear-gradient(135deg, #fef5e7, #fed7aa);
+            border: 1px solid #f6ad55;
+            color: #c05621;
+            padding: 16px 20px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(246, 173, 85, 0.2);
+        }
+
+        .session-warning.show {
+            display: flex;
+        }
+
+        .session-warning-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .session-warning-text {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .reauth-btn {
+            background: #c05621;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .reauth-btn:hover {
+            background: #9c4221;
+            transform: translateY(-1px);
+        }
+
         /* Header Styles */
         .orders-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -53,7 +98,7 @@
         .header-content {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
             text-align: center;
         }
 
@@ -80,6 +125,7 @@
 
         .header-info {
             flex: 1;
+            margin-left: 16px;
         }
 
         .page-title {
@@ -96,17 +142,32 @@
             font-size: 0.9rem;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .order-restaurant {
-            font-weight: 600;
-            color: #667eea;
-            font-size: 0.9rem;
-            margin-bottom: 6px;
-            display: flex;
+        .auth-indicator {
+            display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
+            background: rgba(46, 204, 113, 0.2);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .auth-indicator.social {
+            background: rgba(52, 152, 219, 0.2);
+            border-color: rgba(52, 152, 219, 0.3);
+        }
+
+        .auth-indicator.phone {
+            background: rgba(155, 89, 182, 0.2);
+            border-color: rgba(155, 89, 182, 0.3);
         }
 
         /* Content Styles */
@@ -598,18 +659,45 @@
             .active-order-actions {
                 justify-content: center;
             }
+
+            .customer-info {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+
+            .auth-indicator {
+                font-size: 0.7rem;
+                padding: 2px 6px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Session Warning -->
+        <div class="session-warning" id="sessionWarning">
+            <div class="session-warning-icon">⚠️</div>
+            <div class="session-warning-text">
+                Your session has expired. Please sign in again to view your orders.
+            </div>
+            <button class="reauth-btn" onclick="redirectToLogin()">Sign In</button>
+        </div>
+
         <!-- Header -->
         <div class="orders-header">
             <div class="header-content">
+                <button class="back-btn" onclick="goBackToPrevious()">
+                    ←
+                </button>
                 <div class="header-info">
                     <h1 class="page-title">Order History</h1>
                     <div class="customer-info">
-                        <strong id="customerName">Customer</strong>
+                        <span><strong id="customerName">Customer</strong></span>
+                        <div class="auth-indicator" id="authIndicator">
+                            <span id="authIcon">🔐</span>
+                            <span id="authText">Secured</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -681,17 +769,17 @@
     <script>
         // Global variables
         let customerSession = {};
+        let authenticatedUser = null;
         let customerOrders = [];
         let orderUpdateListener = null;
         let restaurantData = null;
-        let authenticatedUser = null;
 
-        // UPDATED: Initialize page with authentication check
+        // ENHANCED: Initialize page with authentication check
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Customer orders page loaded');
             
             try {
-                // ADDED: Check authentication first
+                // Check authentication first
                 authenticatedUser = await checkAuthentication();
                 
                 await loadCustomerSession();
@@ -704,58 +792,139 @@
             }
         });
 
-        // ADDED: Authentication check function
+        // ENHANCED: Authentication check function
         async function checkAuthentication() {
             return new Promise((resolve, reject) => {
                 firebase.auth().onAuthStateChanged(function(user) {
                     if (user) {
                         console.log('✅ User is authenticated:', user.uid);
+                        updateAuthenticationIndicator(user);
                         resolve(user);
                     } else {
-                        console.log('❌ User not authenticated, redirecting to login');
-                        // Redirect back to customer login with current parameters
-                        const currentParams = new URLSearchParams(window.location.search);
-                        const loginUrl = `customer-login.html?${currentParams.toString()}`;
-                        window.location.href = loginUrl;
+                        console.log('❌ User not authenticated, showing session warning');
+                        showSessionWarning();
+                        setTimeout(() => {
+                            redirectToLogin();
+                        }, 3000);
                         reject(new Error('User not authenticated'));
                     }
                 });
             });
         }
 
-        // Load customer session data
+        // NEW: Show session warning
+        function showSessionWarning() {
+            const warning = document.getElementById('sessionWarning');
+            if (warning) {
+                warning.classList.add('show');
+            }
+        }
+
+        // NEW: Redirect to login with current parameters
+        function redirectToLogin() {
+            const currentParams = new URLSearchParams(window.location.search);
+            const loginUrl = `customer-login.html?${currentParams.toString()}`;
+            window.location.href = loginUrl;
+        }
+
+        // NEW: Update authentication indicator
+        function updateAuthenticationIndicator(user) {
+            const authIndicator = document.getElementById('authIndicator');
+            const authIcon = document.getElementById('authIcon');
+            const authText = document.getElementById('authText');
+            
+            if (!user) {
+                authIndicator.className = 'auth-indicator';
+                authIcon.textContent = '❌';
+                authText.textContent = 'Not Signed In';
+                return;
+            }
+            
+            // Determine auth method and display appropriate indicator
+            const providerId = user.providerData[0]?.providerId;
+            
+            if (providerId === 'phone') {
+                authIndicator.className = 'auth-indicator phone';
+                authIcon.textContent = '📱';
+                authText.textContent = 'Phone';
+            } else if (providerId === 'google.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '🔍';
+                authText.textContent = 'Google';
+            } else if (providerId === 'facebook.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '📘';
+                authText.textContent = 'Facebook';
+            } else if (providerId === 'apple.com') {
+                authIndicator.className = 'auth-indicator social';
+                authIcon.textContent = '🍎';
+                authText.textContent = 'Apple';
+            } else {
+                authIndicator.className = 'auth-indicator';
+                authIcon.textContent = '🔐';
+                authText.textContent = 'Secured';
+            }
+        }
+
+        // ENHANCED: Load customer session data with authentication support
         async function loadCustomerSession() {
             // Try to get from sessionStorage first (from login)
             const sessionData = sessionStorage.getItem('customerSession');
             if (sessionData) {
                 customerSession = JSON.parse(sessionData);
-                console.log('👤 Customer session loaded:', customerSession);
-            } else {
-                // Fallback to URL parameters
-                const urlParams = new URLSearchParams(window.location.search);
-                customerSession = {
-                    name: urlParams.get('name') || 'Guest',
-                    phone: urlParams.get('phone') || '',
-                    restaurantId: urlParams.get('r') || urlParams.get('restaurant'),
-                    tableNumber: urlParams.get('table')
-                };
+                
+                // Verify session belongs to current user
+                if (customerSession.firebaseUID !== authenticatedUser.uid) {
+                    console.warn('⚠️ Session UID mismatch, clearing session');
+                    customerSession = {};
+                    sessionStorage.removeItem('customerSession');
+                }
             }
 
-            // UPDATED: Use both phone and UID for order queries
-            if (!customerSession.phone && !authenticatedUser) {
-                throw new Error('Customer identification not found');
+            // If no valid session, create from URL params and user data
+            if (!customerSession.firebaseUID) {
+                const urlParams = new URLSearchParams(window.location.search);
+                customerSession = {
+                    name: urlParams.get('name') || authenticatedUser?.displayName || 'Guest',
+                    phone: urlParams.get('phone') || authenticatedUser?.phoneNumber || '',
+                    restaurantId: urlParams.get('r') || urlParams.get('restaurant'),
+                    tableNumber: urlParams.get('table'),
+                    firebaseUID: authenticatedUser.uid
+                };
+
+                // Try to load customer profile from Firestore
+                try {
+                    if (typeof VediAPI !== 'undefined' && VediAPI.getCustomerProfile) {
+                        const profile = await VediAPI.getCustomerProfile(authenticatedUser.uid);
+                        if (profile) {
+                            customerSession = { ...customerSession, ...profile };
+                        }
+                    }
+                } catch (profileError) {
+                    console.log('📝 No customer profile found, using session data');
+                }
+
+                // Save the session
+                sessionStorage.setItem('customerSession', JSON.stringify(customerSession));
             }
 
             // Update display
-            document.getElementById('customerName').textContent = customerSession.name?.split(' ')[0] || 'Customer';
+            const displayName = customerSession.name?.split(' ')[0] || 
+                              authenticatedUser?.displayName?.split(' ')[0] || 
+                              'Customer';
+            document.getElementById('customerName').textContent = displayName;
         }
 
         // Load restaurant data
         async function loadRestaurantData() {
             if (customerSession.restaurantId) {
                 try {
-                    restaurantData = await VediAPI.getRestaurant(customerSession.restaurantId);
-                    console.log('🏪 Restaurant data loaded:', restaurantData.name);
+                    if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurant) {
+                        restaurantData = await VediAPI.getRestaurant(customerSession.restaurantId);
+                        console.log('🏪 Restaurant data loaded:', restaurantData.name);
+                    } else {
+                        restaurantData = { name: 'Restaurant', currency: 'USD' };
+                    }
                 } catch (error) {
                     console.error('❌ Failed to load restaurant data:', error);
                     restaurantData = { name: 'Restaurant', currency: 'USD' };
@@ -765,37 +934,63 @@
             }
         }
 
-        // UPDATED: Load order history with authentication support
+        // ENHANCED: Load order history with robust Firebase queries
         async function loadOrderHistory() {
             console.log('📚 Loading order history from Firebase...');
             
             try {
                 let orders = [];
                 
-                // UPDATED: Try loading orders by customer UID first (for authenticated users)
+                // Method 1: Load orders by customer UID (most secure)
                 if (authenticatedUser && authenticatedUser.uid) {
                     console.log('🔐 Loading orders by customer UID:', authenticatedUser.uid);
+                    
                     try {
-                        orders = await VediAPI.getOrdersByCustomerUID(authenticatedUser.uid);
-                        console.log('📋 Orders loaded by UID:', orders.length, 'orders');
-                    } catch (error) {
-                        console.warn('⚠️ Failed to load orders by UID, falling back to phone number');
+                        // Try VediAPI first if available
+                        if (typeof VediAPI !== 'undefined' && VediAPI.getOrdersByCustomerUID) {
+                            orders = await VediAPI.getOrdersByCustomerUID(authenticatedUser.uid);
+                            console.log('📋 Orders loaded by UID via VediAPI:', orders.length, 'orders');
+                        } else {
+                            // Fall back to direct Firestore query
+                            orders = await getOrdersByUIDDirect(authenticatedUser.uid);
+                            console.log('📋 Orders loaded by UID via direct query:', orders.length, 'orders');
+                        }
+                    } catch (uidError) {
+                        console.warn('⚠️ UID-based query failed:', uidError.message);
                     }
                 }
                 
-                // Fallback to phone-based lookup if UID method fails or returns no orders
-                if (orders.length === 0 && customerSession.phone) {
-                    console.log('📞 Loading orders by customer phone:', customerSession.phone);
-                    orders = await VediAPI.getOrdersByCustomer(customerSession.phone);
-                    console.log('📋 Orders loaded by phone:', orders.length, 'orders');
+                // Method 2: Fallback to phone-based lookup if UID method fails or returns no orders
+                if (orders.length === 0 && authenticatedUser?.phoneNumber) {
+                    console.log('📞 Trying phone-based query as fallback');
+                    
+                    try {
+                        if (typeof VediAPI !== 'undefined' && VediAPI.getOrdersByCustomer) {
+                            // Try E.164 format first
+                            orders = await VediAPI.getOrdersByCustomer(authenticatedUser.phoneNumber);
+                            
+                            // If no results, try digits-only format
+                            if (orders.length === 0) {
+                                const phoneDigits = authenticatedUser.phoneNumber.replace(/\D/g, '');
+                                orders = await VediAPI.getOrdersByCustomer(phoneDigits);
+                            }
+                        } else {
+                            // Direct Firestore queries for phone
+                            orders = await getOrdersByPhoneDirect(authenticatedUser.phoneNumber);
+                        }
+                        
+                        console.log('📋 Orders loaded by phone:', orders.length, 'orders');
+                    } catch (phoneError) {
+                        console.warn('⚠️ Phone-based query failed:', phoneError.message);
+                    }
                 }
                 
                 customerOrders = orders || [];
                 
                 // Sort by creation date (newest first)
                 customerOrders.sort((a, b) => {
-                    const dateA = VediAPI.timestampToDate(a.createdAt || a.timestamp);
-                    const dateB = VediAPI.timestampToDate(b.createdAt || b.timestamp);
+                    const dateA = parseOrderDate(a.createdAt || a.timestamp);
+                    const dateB = parseOrderDate(b.createdAt || b.timestamp);
                     return dateB - dateA;
                 });
                 
@@ -809,13 +1004,94 @@
             }
         }
 
-        // UPDATED: Setup real-time order updates with UID support
+        // ENHANCED: Direct Firestore query for orders by UID
+        async function getOrdersByUIDDirect(uid) {
+            try {
+                const ordersSnapshot = await firebase.firestore()
+                    .collection('orders')
+                    .where('customerUID', '==', uid)
+                    .orderBy('createdAt', 'desc')
+                    .get();
+
+                return ordersSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+            } catch (error) {
+                console.error('❌ Direct UID query error:', error);
+                throw error;
+            }
+        }
+
+        // ENHANCED: Direct Firestore query for orders by phone
+        async function getOrdersByPhoneDirect(phoneNumber) {
+            try {
+                let orders = [];
+                
+                // Try E.164 format
+                const e164Snapshot = await firebase.firestore()
+                    .collection('orders')
+                    .where('customerPhone', '==', phoneNumber)
+                    .orderBy('createdAt', 'desc')
+                    .get();
+
+                orders = e164Snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                // If no results, try digits-only format
+                if (orders.length === 0) {
+                    const phoneDigits = phoneNumber.replace(/\D/g, '');
+                    const digitsSnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('customerPhone', '==', phoneDigits)
+                        .orderBy('createdAt', 'desc')
+                        .get();
+
+                    orders = digitsSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                }
+
+                return orders;
+            } catch (error) {
+                console.error('❌ Direct phone query error:', error);
+                throw error;
+            }
+        }
+
+        // ENHANCED: Parse order date from various formats
+        function parseOrderDate(timestamp) {
+            if (!timestamp) return new Date(0);
+            
+            // Handle Firestore Timestamp
+            if (timestamp && typeof timestamp.toDate === 'function') {
+                return timestamp.toDate();
+            }
+            
+            // Handle VediAPI timestamp conversion
+            if (typeof VediAPI !== 'undefined' && VediAPI.timestampToDate) {
+                return VediAPI.timestampToDate(timestamp);
+            }
+            
+            // Handle regular date string or number
+            return new Date(timestamp);
+        }
+
+        // ENHANCED: Setup real-time order updates
         function setupRealtimeUpdates() {
             console.log('🔄 Setting up real-time order updates...');
             
-            // Prioritize UID-based listener for authenticated users
-            if (authenticatedUser && authenticatedUser.uid && typeof VediAPI.listenToCustomerOrdersByUID === 'function') {
-                console.log('🔐 Setting up UID-based real-time updates for:', authenticatedUser.uid);
+            if (!authenticatedUser) {
+                console.warn('⚠️ No authenticated user for real-time updates');
+                return;
+            }
+            
+            // Try VediAPI real-time listener first
+            if (typeof VediAPI !== 'undefined' && VediAPI.listenToCustomerOrdersByUID) {
+                console.log('🔐 Setting up UID-based real-time updates via VediAPI');
                 orderUpdateListener = VediAPI.listenToCustomerOrdersByUID(authenticatedUser.uid, (updatedOrders) => {
                     console.log('🔄 Real-time UID order update received:', updatedOrders.length, 'orders');
                     
@@ -823,64 +1099,98 @@
                     
                     // Sort by creation date (newest first)
                     customerOrders.sort((a, b) => {
-                        const dateA = VediAPI.timestampToDate(a.createdAt || a.timestamp);
-                        const dateB = VediAPI.timestampToDate(b.createdAt || b.timestamp);
-                        return dateB - dateA;
-                    });
-                    
-                    updateDisplay();
-                });
-            } else if (customerSession.phone && typeof VediAPI.listenToCustomerOrders === 'function') {
-                console.log('📞 Setting up phone-based real-time updates for:', customerSession.phone);
-                orderUpdateListener = VediAPI.listenToCustomerOrders(customerSession.phone, (updatedOrders) => {
-                    console.log('🔄 Real-time phone order update received:', updatedOrders.length, 'orders');
-                    
-                    customerOrders = updatedOrders || [];
-                    
-                    // Sort by creation date (newest first)
-                    customerOrders.sort((a, b) => {
-                        const dateA = VediAPI.timestampToDate(a.createdAt || a.timestamp);
-                        const dateB = VediAPI.timestampToDate(b.createdAt || b.timestamp);
+                        const dateA = parseOrderDate(a.createdAt || a.timestamp);
+                        const dateB = parseOrderDate(b.createdAt || b.timestamp);
                         return dateB - dateA;
                     });
                     
                     updateDisplay();
                 });
             } else {
-                console.warn('⚠️ Real-time updates not available - using polling fallback');
-                // Fallback to periodic refresh
-                setInterval(async () => {
-                    try {
-                        let orders = [];
+                console.log('📊 VediAPI listener not available, setting up direct Firestore listener');
+                setupDirectFirestoreListener();
+            }
+        }
+
+        // ENHANCED: Direct Firestore real-time listener
+        function setupDirectFirestoreListener() {
+            try {
+                console.log('🔥 Setting up direct Firestore real-time listener');
+                
+                orderUpdateListener = firebase.firestore()
+                    .collection('orders')
+                    .where('customerUID', '==', authenticatedUser.uid)
+                    .onSnapshot((snapshot) => {
+                        console.log('📡 Firestore snapshot received, docs:', snapshot.docs.length);
                         
-                        // Try UID first, then phone
-                        if (authenticatedUser && authenticatedUser.uid) {
-                            try {
+                        const updatedOrders = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        
+                        customerOrders = updatedOrders;
+                        
+                        // Sort by creation date (newest first)
+                        customerOrders.sort((a, b) => {
+                            const dateA = parseOrderDate(a.createdAt || a.timestamp);
+                            const dateB = parseOrderDate(b.createdAt || b.timestamp);
+                            return dateB - dateA;
+                        });
+                        
+                        updateDisplay();
+                    }, (error) => {
+                        console.error('❌ Firestore listener error:', error);
+                        // Fall back to polling
+                        setupPollingFallback();
+                    });
+                        
+            } catch (error) {
+                console.error('❌ Failed to setup Firestore listener:', error);
+                setupPollingFallback();
+            }
+        }
+
+        // ENHANCED: Polling fallback
+        function setupPollingFallback() {
+            console.log('⏰ Setting up polling fallback');
+            
+            setInterval(async () => {
+                try {
+                    let orders = [];
+                    
+                    // Try UID first, then phone
+                    if (authenticatedUser?.uid) {
+                        try {
+                            if (typeof VediAPI !== 'undefined' && VediAPI.getOrdersByCustomerUID) {
                                 orders = await VediAPI.getOrdersByCustomerUID(authenticatedUser.uid);
-                            } catch (error) {
-                                // Fallback to phone
-                                if (customerSession.phone) {
-                                    orders = await VediAPI.getOrdersByCustomer(customerSession.phone);
+                            } else {
+                                orders = await getOrdersByUIDDirect(authenticatedUser.uid);
+                            }
+                        } catch (error) {
+                            // Fallback to phone
+                            if (authenticatedUser.phoneNumber) {
+                                if (typeof VediAPI !== 'undefined' && VediAPI.getOrdersByCustomer) {
+                                    orders = await VediAPI.getOrdersByCustomer(authenticatedUser.phoneNumber);
+                                } else {
+                                    orders = await getOrdersByPhoneDirect(authenticatedUser.phoneNumber);
                                 }
                             }
-                        } else if (customerSession.phone) {
-                            orders = await VediAPI.getOrdersByCustomer(customerSession.phone);
                         }
-                        
-                        if (orders && orders.length !== customerOrders.length) {
-                            customerOrders = orders;
-                            customerOrders.sort((a, b) => {
-                                const dateA = VediAPI.timestampToDate(a.createdAt || a.timestamp);
-                                const dateB = VediAPI.timestampToDate(b.createdAt || b.timestamp);
-                                return dateB - dateA;
-                            });
-                            updateDisplay();
-                        }
-                    } catch (error) {
-                        console.error('❌ Error in periodic order refresh:', error);
                     }
-                }, 30000); // Check every 30 seconds
-            }
+                    
+                    if (orders && orders.length !== customerOrders.length) {
+                        customerOrders = orders;
+                        customerOrders.sort((a, b) => {
+                            const dateA = parseOrderDate(a.createdAt || a.timestamp);
+                            const dateB = parseOrderDate(b.createdAt || b.timestamp);
+                            return dateB - dateA;
+                        });
+                        updateDisplay();
+                    }
+                } catch (error) {
+                    console.error('❌ Error in periodic order refresh:', error);
+                }
+            }, 30000); // Check every 30 seconds
         }
 
         // Update page display
@@ -1000,7 +1310,7 @@
             const orderHistoryList = document.getElementById('orderHistoryList');
             
             orderHistoryList.innerHTML = pastOrders.map((order, index) => {
-                const orderDate = VediAPI.timestampToDate(order.createdAt || order.timestamp);
+                const orderDate = parseOrderDate(order.createdAt || order.timestamp);
                 const dateDisplay = formatOrderDate(orderDate);
                 
                 const statusClass = getStatusClass(order.status);
@@ -1137,7 +1447,7 @@
             }, 5000);
         }
 
-        // Action handlers
+        // ENHANCED: Action handlers with proper session management
         function trackActiveOrder() {
             console.log('📊 Tracking active order...');
             
@@ -1149,29 +1459,23 @@
             
             if (currentOrders.length > 0) {
                 const mostRecentOrder = currentOrders[0];
-                const params = new URLSearchParams({
-                    orderNumber: mostRecentOrder.orderNumber,
-                    restaurant: customerSession.restaurantId || ''
-                });
-                
-                // Add customer info for seamless tracking
-                if (customerSession.name) params.set('name', customerSession.name);
-                if (customerSession.phone) params.set('phone', customerSession.phone);
-                if (customerSession.tableNumber) params.set('table', customerSession.tableNumber);
-                
-                window.location.href = `order-progress.html?${params.toString()}`;
+                navigateToOrderProgress(mostRecentOrder.orderNumber);
             }
         }
 
         function trackSpecificOrder(orderNumber) {
             console.log('📊 Tracking specific order:', orderNumber);
-            
+            navigateToOrderProgress(orderNumber);
+        }
+
+        // ENHANCED: Navigate to order progress with proper session data
+        function navigateToOrderProgress(orderNumber) {
             const params = new URLSearchParams({
-                orderNumber: orderNumber,
-                restaurant: customerSession.restaurantId || ''
+                orderNumber: orderNumber
             });
             
-            // Add customer info for seamless tracking
+            // Add session info for seamless tracking
+            if (customerSession.restaurantId) params.set('restaurant', customerSession.restaurantId);
             if (customerSession.name) params.set('name', customerSession.name);
             if (customerSession.phone) params.set('phone', customerSession.phone);
             if (customerSession.tableNumber) params.set('table', customerSession.tableNumber);
@@ -1183,18 +1487,10 @@
             console.log('🆕 Creating new order...');
             
             const params = new URLSearchParams();
-            if (customerSession.restaurantId) {
-                params.set('restaurant', customerSession.restaurantId);
-            }
-            if (customerSession.tableNumber) {
-                params.set('table', customerSession.tableNumber);
-            }
-            if (customerSession.name) {
-                params.set('name', customerSession.name);
-            }
-            if (customerSession.phone) {
-                params.set('phone', customerSession.phone);
-            }
+            if (customerSession.restaurantId) params.set('restaurant', customerSession.restaurantId);
+            if (customerSession.tableNumber) params.set('table', customerSession.tableNumber);
+            if (customerSession.name) params.set('name', customerSession.name);
+            if (customerSession.phone) params.set('phone', customerSession.phone);
             
             window.location.href = `menu.html?${params.toString()}`;
         }
@@ -1203,26 +1499,37 @@
             console.log('🔙 Going back to main app...');
             
             const params = new URLSearchParams();
-            if (customerSession.restaurantId) {
-                params.set('restaurant', customerSession.restaurantId);
-            }
-            if (customerSession.tableNumber) {
-                params.set('table', customerSession.tableNumber);
-            }
-            if (customerSession.name) {
-                params.set('name', customerSession.name);
-            }
-            if (customerSession.phone) {
-                params.set('phone', customerSession.phone);
-            }
+            if (customerSession.restaurantId) params.set('restaurant', customerSession.restaurantId);
+            if (customerSession.tableNumber) params.set('table', customerSession.tableNumber);
+            if (customerSession.name) params.set('name', customerSession.name);
+            if (customerSession.phone) params.set('phone', customerSession.phone);
             
             window.location.href = `menu.html?${params.toString()}`;
+        }
+
+        // ENHANCED: Smart back navigation
+        function goBackToPrevious() {
+            console.log('🔙 Going back to previous page...');
+            
+            // Check if we came from order progress page
+            const referrer = document.referrer;
+            if (referrer && referrer.includes('order-progress.html')) {
+                window.history.back();
+                return;
+            }
+            
+            // Otherwise go to menu
+            goBackToApp();
         }
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
             if (orderUpdateListener) {
-                orderUpdateListener();
+                if (typeof orderUpdateListener === 'function') {
+                    orderUpdateListener(); // VediAPI unsubscribe
+                } else if (orderUpdateListener.unsubscribe) {
+                    orderUpdateListener.unsubscribe(); // Firestore unsubscribe
+                }
             }
         });
     </script>
