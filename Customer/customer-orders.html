@@ -170,10 +170,10 @@
             border-color: rgba(155, 89, 182, 0.3);
         }
 
-        /* Content Styles */
+        /* Content Styles - Always account for fixed button */
         .orders-content {
             padding: 24px 20px;
-            padding-bottom: 100px;
+            padding-bottom: 120px; /* Always leave space for fixed button */
         }
 
         .section {
@@ -540,35 +540,48 @@
             font-size: 1.1rem;
         }
 
-        /* Action Buttons */
+        /* Action Buttons - Always Fixed/Visible */
         .bottom-actions {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
             text-align: center;
-            background: white;
-            padding: 10px 0;
-            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 16px 0 20px 0;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
             z-index: 1000;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
         }
 
         .bottom-actions .btn-primary {
             max-width: 380px;
             width: calc(100% - 40px);
             margin: 0 20px;
-            padding: 12px;
-            background: #667eea;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: #fff;
             border: none;
-            border-radius: 8px;
+            border-radius: 14px;
             font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
         .bottom-actions .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .bottom-actions .btn-primary:active {
+            transform: translateY(0);
         }
 
         .btn-primary {
@@ -641,7 +654,7 @@
 
             .orders-content {
                 padding: 20px 16px;
-                padding-bottom: 100px;
+                padding-bottom: 140px; /* Extra space for fixed button on mobile */
             }
 
             .order-card {
@@ -758,10 +771,10 @@
             </div>
         </div>
 
-        <!-- Bottom Actions -->
-        <div class="bottom-actions" id="bottomActions" style="display: none;">
+        <!-- Bottom Actions - Always Visible -->
+        <div class="bottom-actions" id="bottomActions">
             <button class="btn-primary" onclick="createNewOrder()">
-                Create New Order
+                🍽️ Create New Order
             </button>
         </div>
     </div>
@@ -934,7 +947,7 @@
             }
         }
 
-        // ENHANCED: Load order history with robust Firebase queries
+        // ENHANCED: Load order history with robust Firebase queries (index-free fallback)
         async function loadOrderHistory() {
             console.log('📚 Loading order history from Firebase...');
             
@@ -948,8 +961,15 @@
                     try {
                         // Try VediAPI first if available
                         if (typeof VediAPI !== 'undefined' && VediAPI.getOrdersByCustomerUID) {
-                            orders = await VediAPI.getOrdersByCustomerUID(authenticatedUser.uid);
-                            console.log('📋 Orders loaded by UID via VediAPI:', orders.length, 'orders');
+                            try {
+                                orders = await VediAPI.getOrdersByCustomerUID(authenticatedUser.uid);
+                                console.log('📋 Orders loaded by UID via VediAPI:', orders.length, 'orders');
+                            } catch (vediError) {
+                                console.log('🔄 VediAPI failed, trying direct query:', vediError.message);
+                                // Fall back to direct Firestore query
+                                orders = await getOrdersByUIDDirect(authenticatedUser.uid);
+                                console.log('📋 Orders loaded by UID via direct query:', orders.length, 'orders');
+                            }
                         } else {
                             // Fall back to direct Firestore query
                             orders = await getOrdersByUIDDirect(authenticatedUser.uid);
@@ -987,13 +1007,14 @@
                 
                 customerOrders = orders || [];
                 
-                // Sort by creation date (newest first)
+                // Sort by creation date (newest first) - redundant sorting for safety
                 customerOrders.sort((a, b) => {
                     const dateA = parseOrderDate(a.createdAt || a.timestamp);
                     const dateB = parseOrderDate(b.createdAt || b.timestamp);
                     return dateB - dateA;
                 });
                 
+                console.log('📊 Final order count:', customerOrders.length);
                 updateDisplay();
                 
             } catch (error) {
@@ -1004,58 +1025,92 @@
             }
         }
 
-        // ENHANCED: Direct Firestore query for orders by UID
+        // ENHANCED: Direct Firestore query for orders by UID (index-free version)
         async function getOrdersByUIDDirect(uid) {
             try {
-                const ordersSnapshot = await firebase.firestore()
-                    .collection('orders')
-                    .where('customerUID', '==', uid)
-                    .orderBy('createdAt', 'desc')
-                    .get();
+                // First try with orderBy (requires index)
+                try {
+                    const ordersSnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('customerUID', '==', uid)
+                        .orderBy('createdAt', 'desc')
+                        .get();
 
-                return ordersSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+                    return ordersSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                } catch (indexError) {
+                    console.log('📋 Index not available, fetching without orderBy');
+                    
+                    // Fallback: Query without orderBy, then sort in memory
+                    const ordersSnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('customerUID', '==', uid)
+                        .get();
+
+                    const orders = ordersSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+
+                    // Sort in memory by createdAt (newest first)
+                    return orders.sort((a, b) => {
+                        const dateA = parseOrderDate(a.createdAt || a.timestamp);
+                        const dateB = parseOrderDate(b.createdAt || b.timestamp);
+                        return dateB - dateA;
+                    });
+                }
             } catch (error) {
                 console.error('❌ Direct UID query error:', error);
                 throw error;
             }
         }
 
-        // ENHANCED: Direct Firestore query for orders by phone
+        // ENHANCED: Direct Firestore query for orders by phone (index-free version)
         async function getOrdersByPhoneDirect(phoneNumber) {
             try {
                 let orders = [];
                 
-                // Try E.164 format
-                const e164Snapshot = await firebase.firestore()
-                    .collection('orders')
-                    .where('customerPhone', '==', phoneNumber)
-                    .orderBy('createdAt', 'desc')
-                    .get();
-
-                orders = e164Snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-
-                // If no results, try digits-only format
-                if (orders.length === 0) {
-                    const phoneDigits = phoneNumber.replace(/\D/g, '');
-                    const digitsSnapshot = await firebase.firestore()
+                // Try E.164 format (without orderBy to avoid index requirement)
+                try {
+                    const e164Snapshot = await firebase.firestore()
                         .collection('orders')
-                        .where('customerPhone', '==', phoneDigits)
-                        .orderBy('createdAt', 'desc')
+                        .where('customerPhone', '==', phoneNumber)
                         .get();
 
-                    orders = digitsSnapshot.docs.map(doc => ({
+                    orders = e164Snapshot.docs.map(doc => ({
                         id: doc.id,
                         ...doc.data()
                     }));
+                } catch (e164Error) {
+                    console.log('📱 E.164 query failed, trying without orderBy');
                 }
 
-                return orders;
+                // If no results, try digits-only format
+                if (orders.length === 0) {
+                    try {
+                        const phoneDigits = phoneNumber.replace(/\D/g, '');
+                        const digitsSnapshot = await firebase.firestore()
+                            .collection('orders')
+                            .where('customerPhone', '==', phoneDigits)
+                            .get();
+
+                        orders = digitsSnapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                    } catch (digitsError) {
+                        console.log('🔢 Digits query failed');
+                    }
+                }
+
+                // Sort in memory by createdAt (newest first)
+                return orders.sort((a, b) => {
+                    const dateA = parseOrderDate(a.createdAt || a.timestamp);
+                    const dateB = parseOrderDate(b.createdAt || b.timestamp);
+                    return dateB - dateA;
+                });
             } catch (error) {
                 console.error('❌ Direct phone query error:', error);
                 throw error;
@@ -1206,7 +1261,8 @@
                 document.getElementById('emptyState').style.display = 'block';
                 document.getElementById('activeOrderSection').style.display = 'none';
                 document.getElementById('orderHistorySection').style.display = 'none';
-                document.getElementById('bottomActions').style.display = 'none';
+                // Keep bottom actions visible even in empty state
+                document.getElementById('bottomActions').style.display = 'block';
                 return;
             }
 
@@ -1240,7 +1296,7 @@
                 document.getElementById('orderHistorySection').style.display = 'none';
             }
             
-            // Show bottom actions if there are any orders
+            // Always show bottom actions - button is always visible
             document.getElementById('bottomActions').style.display = 'block';
             document.getElementById('emptyState').style.display = 'none';
         }
@@ -1388,7 +1444,7 @@
             switch (status) {
                 case 'pending': return 'Order received and being processed...';
                 case 'preparing': return 'Your order is being prepared by our chefs!';
-                case 'ready': return 'Order is ready! Enjoy your meal.';
+                case 'ready': return 'Order is ready! We\'ll bring it to your table.';
                 case 'completed': return 'Completed';
                 case 'cancelled': return 'Cancelled';
                 default: return 'Order is being processed...';
