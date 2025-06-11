@@ -1205,15 +1205,47 @@
             // Clean phone number (remove all non-digits)
             const cleanPhone = phoneNumber.replace(/\D/g, '');
             
-            // Validate minimum length
-            if (cleanPhone.length < 7) {
-                showError('Please enter a valid phone number');
+            // Enhanced validation based on country
+            let isValid = false;
+            if (countryCode === '+1') {
+                // US/Canada: exactly 10 digits
+                isValid = cleanPhone.length === 10;
+            } else {
+                // International: 7-15 digits (E.164 standard)
+                isValid = cleanPhone.length >= 7 && cleanPhone.length <= 15;
+            }
+            
+            if (!isValid) {
+                showError(`Please enter a valid phone number for ${countryCode}`);
                 return;
             }
 
-            // Construct full international phone number
+            // Construct full international phone number (E.164 format)
+            // CRITICAL: No spaces, no formatting, just countryCode + digits
             const fullPhoneNumber = countryCode + cleanPhone;
             customerPhone = fullPhoneNumber;
+            
+            // Additional validation for E.164 format
+            const e164Regex = /^\+[1-9]\d{1,14}$/;
+            if (!e164Regex.test(fullPhoneNumber)) {
+                showError('Invalid phone number format. Please check your number.');
+                return;
+            }
+            
+            console.log('📱 Validating phone format:', {
+                countryCode,
+                cleanPhone,
+                fullPhoneNumber,
+                length: cleanPhone.length,
+                e164Valid: e164Regex.test(fullPhoneNumber)
+            });
+
+            // Log the exact format being sent to Firebase
+            console.log('🔥 Sending to Firebase:', {
+                phoneNumber: fullPhoneNumber,
+                isTestNumber: fullPhoneNumber.includes('555'),
+                formatCheck: 'E.164 compliant'
+            });
 
             try {
                 setLoading('phone', true);
@@ -1224,6 +1256,13 @@
                 if (!recaptchaVerifier) {
                     throw new Error('reCAPTCHA not initialized. Please refresh the page.');
                 }
+                
+                // DEBUGGING: Log Firebase Auth state
+                console.log('🔥 Firebase Auth Debug:', {
+                    currentUser: firebase.auth().currentUser,
+                    app: firebase.app().name,
+                    config: firebase.app().options.projectId
+                });
                 
                 // Send verification code using Firebase v8 compat syntax
                 confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
@@ -1245,20 +1284,30 @@
                 
             } catch (error) {
                 console.error('❌ Error sending verification code:', error);
+                console.error('❌ Error details:', {
+                    code: error.code,
+                    message: error.message,
+                    phoneNumber: fullPhoneNumber,
+                    projectId: firebase.app().options.projectId
+                });
                 
                 let errorMessage = 'Failed to send verification code. Please try again.';
                 
                 // Handle specific Firebase errors
                 if (error.code === 'auth/internal-error' || error.code === 'auth/internal-error-encountered') {
-                    errorMessage = 'Service temporarily unavailable. Please wait and try again.';
+                    errorMessage = 'SMS service error. This could be due to: quota exceeded, plan limitations, or number throttling. Try upgrading to Blaze plan or use a different number.';
                 } else if (error.code === 'auth/too-many-requests') {
-                    errorMessage = 'Too many attempts. Please wait before trying again.';
+                    errorMessage = 'Too many SMS requests. Please wait 24 hours or try a different phone number.';
                 } else if (error.code === 'auth/invalid-phone-number') {
-                    errorMessage = 'Invalid phone number. Please check the format.';
+                    errorMessage = 'Invalid phone number format. Please check and try again.';
                 } else if (error.code === 'auth/quota-exceeded') {
-                    errorMessage = 'SMS quota exceeded. Please try again later.';
+                    errorMessage = 'SMS quota exceeded. Please upgrade to Blaze plan or try tomorrow.';
                 } else if (error.code === 'auth/captcha-check-failed') {
                     errorMessage = 'reCAPTCHA verification failed. Please try again.';
+                } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+                    errorMessage = 'Firebase SMS service unavailable. Check your billing plan and try again later.';
+                } else if (error.code === 'auth/app-not-authorized') {
+                    errorMessage = 'App not authorized. Check your Firebase project configuration.';
                 }
                 
                 showError(errorMessage);
