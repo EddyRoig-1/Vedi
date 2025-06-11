@@ -14,7 +14,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
     <!-- Your Vedi API -->
-    <script src="firebase-api (12).js"></script>
+    <script src="firebase-api.js"></script>
     
     <style>
         * {
@@ -736,6 +736,149 @@
         let restaurants = [];
         let feeConfigs = [];
 
+        // Tab functionality
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Add active class to clicked tab
+            const clickedTab = document.querySelector(`[onclick*="${tabName}"]`);
+            if (clickedTab) {
+                clickedTab.classList.add('active');
+            }
+            
+            // Load tab-specific data
+            if (tabName === 'analytics') {
+                loadAnalytics();
+            }
+        }
+
+        // Modal functions
+        function showCreateFeeModal() {
+            document.getElementById('modalTitle').textContent = 'Create Restaurant Fee';
+            document.getElementById('editingRestaurantId').value = '';
+            document.getElementById('restaurantFeeForm').reset();
+            document.getElementById('restaurantSelect').disabled = false;
+            updateFeePreview();
+            document.getElementById('feeModal').classList.add('active');
+        }
+
+        function editRestaurantFee(restaurantId) {
+            const config = feeConfigs.find(c => c.restaurantId === restaurantId);
+            if (!config) return;
+            
+            document.getElementById('modalTitle').textContent = 'Edit Restaurant Fee';
+            document.getElementById('editingRestaurantId').value = restaurantId;
+            document.getElementById('restaurantSelect').value = restaurantId;
+            document.getElementById('restaurantSelect').disabled = true;
+            document.getElementById('feeType').value = config.feeType || 'fixed';
+            document.getElementById('fixedFee').value = config.serviceFeeFixed || 0;
+            document.getElementById('percentageFee').value = config.serviceFeePercentage || 0;
+            document.getElementById('taxRate').value = ((config.taxRate || 0) * 100);
+            document.getElementById('minOrder').value = config.minimumOrderAmount || 0;
+            document.getElementById('isNegotiated').checked = config.isNegotiated || false;
+            document.getElementById('negotiatedBy').value = config.negotiatedBy || '';
+            document.getElementById('notes').value = config.notes || '';
+            
+            toggleNegotiatedFields();
+            updateFeePreview();
+            document.getElementById('feeModal').classList.add('active');
+        }
+
+        function closeFeeModal() {
+            document.getElementById('feeModal').classList.remove('active');
+        }
+
+        function toggleNegotiatedFields() {
+            const isNegotiated = document.getElementById('isNegotiated').checked;
+            document.getElementById('negotiatedFields').style.display = isNegotiated ? 'block' : 'none';
+        }
+
+        // Fee type change handlers
+        function updateDefaultFeePreview() {
+            const feeType = document.getElementById('defaultFeeType').value;
+            const fixedFee = parseFloat(document.getElementById('defaultFixedFee').value) || 0;
+            const percentageFee = parseFloat(document.getElementById('defaultPercentageFee').value) || 0;
+            const taxRate = parseFloat(document.getElementById('defaultTaxRate').value) || 0;
+            
+            // Show/hide fee input fields
+            const fixedGroup = document.getElementById('defaultFixedFeeGroup');
+            const percentageGroup = document.getElementById('defaultPercentageFeeGroup');
+            
+            if (feeType === 'fixed') {
+                fixedGroup.style.display = 'block';
+                percentageGroup.style.display = 'none';
+            } else if (feeType === 'percentage') {
+                fixedGroup.style.display = 'none';
+                percentageGroup.style.display = 'block';
+            } else {
+                fixedGroup.style.display = 'block';
+                percentageGroup.style.display = 'block';
+            }
+            
+            // Calculate preview
+            calculateFeePreview(25, feeType, fixedFee, percentageFee, taxRate, 'preview');
+        }
+
+        function updateFeePreview() {
+            const feeType = document.getElementById('feeType').value;
+            const fixedFee = parseFloat(document.getElementById('fixedFee').value) || 0;
+            const percentageFee = parseFloat(document.getElementById('percentageFee').value) || 0;
+            const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
+            
+            // Show/hide fee input fields
+            const fixedGroup = document.getElementById('fixedFeeGroup');
+            const percentageGroup = document.getElementById('percentageFeeGroup');
+            
+            if (feeType === 'fixed') {
+                fixedGroup.style.display = 'block';
+                percentageGroup.style.display = 'none';
+            } else if (feeType === 'percentage') {
+                fixedGroup.style.display = 'none';
+                percentageGroup.style.display = 'block';
+            } else {
+                fixedGroup.style.display = 'block';
+                percentageGroup.style.display = 'block';
+            }
+            
+            // Calculate preview
+            calculateFeePreview(25, feeType, fixedFee, percentageFee, taxRate, 'modalPreview');
+        }
+
+        // Calculate fee preview
+        function calculateFeePreview(subtotal, feeType, fixedFee, percentageFee, taxRate, prefix) {
+            let serviceFee = 0;
+            
+            switch (feeType) {
+                case 'fixed':
+                    serviceFee = fixedFee;
+                    break;
+                case 'percentage':
+                    serviceFee = subtotal * (percentageFee / 100);
+                    break;
+                case 'hybrid':
+                    serviceFee = fixedFee + (subtotal * (percentageFee / 100));
+                    break;
+            }
+            
+            const tax = subtotal * (taxRate / 100);
+            const total = subtotal + serviceFee + tax;
+            
+            document.getElementById(prefix + 'ServiceFee').textContent = formatCurrency(serviceFee);
+            document.getElementById(prefix + 'Tax').textContent = formatCurrency(tax);
+            document.getElementById(prefix + 'Total').textContent = formatCurrency(total);
+        }
+
         // Initialize the application
         document.addEventListener('DOMContentLoaded', async function() {
             await loadInitialData();
@@ -999,7 +1142,7 @@
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return ' + value;
+                                    return '$' + value;
                                 }
                             }
                         }
@@ -1080,146 +1223,6 @@
             // Initialize fee previews
             updateDefaultFeePreview();
             updateFeePreview();
-        }
-
-        // Tab functionality
-        function showTab(tabName) {
-            // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            // Remove active class from all tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected tab content
-            document.getElementById(tabName + '-tab').classList.add('active');
-            
-            // Add active class to clicked tab
-            event.target.classList.add('active');
-            
-            // Load tab-specific data
-            if (tabName === 'analytics') {
-                loadAnalytics();
-            }
-        }
-
-        // Fee type change handlers
-        function updateDefaultFeePreview() {
-            const feeType = document.getElementById('defaultFeeType').value;
-            const fixedFee = parseFloat(document.getElementById('defaultFixedFee').value) || 0;
-            const percentageFee = parseFloat(document.getElementById('defaultPercentageFee').value) || 0;
-            const taxRate = parseFloat(document.getElementById('defaultTaxRate').value) || 0;
-            
-            // Show/hide fee input fields
-            const fixedGroup = document.getElementById('defaultFixedFeeGroup');
-            const percentageGroup = document.getElementById('defaultPercentageFeeGroup');
-            
-            if (feeType === 'fixed') {
-                fixedGroup.style.display = 'block';
-                percentageGroup.style.display = 'none';
-            } else if (feeType === 'percentage') {
-                fixedGroup.style.display = 'none';
-                percentageGroup.style.display = 'block';
-            } else {
-                fixedGroup.style.display = 'block';
-                percentageGroup.style.display = 'block';
-            }
-            
-            // Calculate preview
-            calculateFeePreview(25, feeType, fixedFee, percentageFee, taxRate, 'preview');
-        }
-
-        function updateFeePreview() {
-            const feeType = document.getElementById('feeType').value;
-            const fixedFee = parseFloat(document.getElementById('fixedFee').value) || 0;
-            const percentageFee = parseFloat(document.getElementById('percentageFee').value) || 0;
-            const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
-            
-            // Show/hide fee input fields
-            const fixedGroup = document.getElementById('fixedFeeGroup');
-            const percentageGroup = document.getElementById('percentageFeeGroup');
-            
-            if (feeType === 'fixed') {
-                fixedGroup.style.display = 'block';
-                percentageGroup.style.display = 'none';
-            } else if (feeType === 'percentage') {
-                fixedGroup.style.display = 'none';
-                percentageGroup.style.display = 'block';
-            } else {
-                fixedGroup.style.display = 'block';
-                percentageGroup.style.display = 'block';
-            }
-            
-            // Calculate preview
-            calculateFeePreview(25, feeType, fixedFee, percentageFee, taxRate, 'modalPreview');
-        }
-
-        // Calculate fee preview
-        function calculateFeePreview(subtotal, feeType, fixedFee, percentageFee, taxRate, prefix) {
-            let serviceFee = 0;
-            
-            switch (feeType) {
-                case 'fixed':
-                    serviceFee = fixedFee;
-                    break;
-                case 'percentage':
-                    serviceFee = subtotal * (percentageFee / 100);
-                    break;
-                case 'hybrid':
-                    serviceFee = fixedFee + (subtotal * (percentageFee / 100));
-                    break;
-            }
-            
-            const tax = subtotal * (taxRate / 100);
-            const total = subtotal + serviceFee + tax;
-            
-            document.getElementById(prefix + 'ServiceFee').textContent = formatCurrency(serviceFee);
-            document.getElementById(prefix + 'Tax').textContent = formatCurrency(tax);
-            document.getElementById(prefix + 'Total').textContent = formatCurrency(total);
-        }
-
-        // Modal functions
-        function showCreateFeeModal() {
-            document.getElementById('modalTitle').textContent = 'Create Restaurant Fee';
-            document.getElementById('editingRestaurantId').value = '';
-            document.getElementById('restaurantFeeForm').reset();
-            document.getElementById('restaurantSelect').disabled = false;
-            updateFeePreview();
-            document.getElementById('feeModal').classList.add('active');
-        }
-
-        function editRestaurantFee(restaurantId) {
-            const config = feeConfigs.find(c => c.restaurantId === restaurantId);
-            if (!config) return;
-            
-            document.getElementById('modalTitle').textContent = 'Edit Restaurant Fee';
-            document.getElementById('editingRestaurantId').value = restaurantId;
-            document.getElementById('restaurantSelect').value = restaurantId;
-            document.getElementById('restaurantSelect').disabled = true;
-            document.getElementById('feeType').value = config.feeType || 'fixed';
-            document.getElementById('fixedFee').value = config.serviceFeeFixed || 0;
-            document.getElementById('percentageFee').value = config.serviceFeePercentage || 0;
-            document.getElementById('taxRate').value = ((config.taxRate || 0) * 100);
-            document.getElementById('minOrder').value = config.minimumOrderAmount || 0;
-            document.getElementById('isNegotiated').checked = config.isNegotiated || false;
-            document.getElementById('negotiatedBy').value = config.negotiatedBy || '';
-            document.getElementById('notes').value = config.notes || '';
-            
-            toggleNegotiatedFields();
-            updateFeePreview();
-            document.getElementById('feeModal').classList.add('active');
-        }
-
-        function closeFeeModal() {
-            document.getElementById('feeModal').classList.remove('active');
-        }
-
-        function toggleNegotiatedFields() {
-            const isNegotiated = document.getElementById('isNegotiated').checked;
-            document.getElementById('negotiatedFields').style.display = isNegotiated ? 'block' : 'none';
         }
 
         // Save functions
@@ -1331,6 +1334,17 @@
                 closeFeeModal();
             }
         });
+
+        // Make functions globally available for onclick handlers
+        window.showTab = showTab;
+        window.showCreateFeeModal = showCreateFeeModal;
+        window.editRestaurantFee = editRestaurantFee;
+        window.closeFeeModal = closeFeeModal;
+        window.toggleNegotiatedFields = toggleNegotiatedFields;
+        window.updateDefaultFeePreview = updateDefaultFeePreview;
+        window.updateFeePreview = updateFeePreview;
+        window.deleteRestaurantFee = deleteRestaurantFee;
+        window.loadAnalytics = loadAnalytics;
     </script>
 </body>
 </html>
