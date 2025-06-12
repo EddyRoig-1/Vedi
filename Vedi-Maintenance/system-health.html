@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Health Monitor</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Chart.js for analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #1a202c;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+            min-height: calc(100vh - 2rem);
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid #f8fafc;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: #64748b;
+            font-size: 1.125rem;
+            font-weight: 500;
+        }
+
+        .system-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .status-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease;
+        }
+
+        .status-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--status-color);
+        }
+
+        .status-card.healthy::before { --status-color: linear-gradient(90deg, #10b981, #059669); }
+        .status-card.warning::before { --status-color: linear-gradient(90deg, #f59e0b, #d97706); }
+        .status-card.error::before { --status-color: linear-gradient(90deg, #ef4444, #dc2626); }
+
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .status-title {
+            font-size: 1rem;
+            color: #374151;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 50px;
+            height: 50px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: var(--indicator-bg);
+            color: white;
+        }
+
+        .status-card.healthy .status-indicator { --indicator-bg: linear-gradient(135deg, #10b981, #059669); }
+        .status-card.warning .status-indicator { --indicator-bg: linear-gradient(135deg, #f59e0b, #d97706); }
+        .status-card.error .status-indicator { --indicator-bg: linear-gradient(135deg, #ef4444, #dc2626); }
+
+        .status-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1a202c;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-description {
+            font-size: 0.875rem;
+            color: #64748b;
+            line-height: 1.5;
+        }
+
+        .status-details {
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            color: #64748b;
+        }
+
+        .status-metric {
+            font-weight: 600;
+            color: #1a202c;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f8fafc;
+        }
+
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .service-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .service-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .service-status {
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .service-online {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+
+        .service-offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+
+        .service-maintenance {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+
+        .service-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .metric-item {
+            text-align: center;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .alerts-section {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f8fafc;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .alerts-filter {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #64748b;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .alerts-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 0.75rem;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+
+        .alert-item:hover {
+            background: #f8fafc;
+        }
+
+        .alert-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .alert-info { background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; }
+        .alert-warning { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+        .alert-error { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+        .alert-success { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 0.25rem;
+        }
+
+        .alert-message {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .alert-time {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        .realtime-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #059669;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin-right: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #64748b;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .charts-grid, .services-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .alerts-filter {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">💻 System Health Monitor</h1>
+            <p class="page-subtitle">Real-time monitoring of system performance and infrastructure health</p>
+        </div>
+
+        <!-- System Status Overview -->
+        <div class="system-status">
+            <div class="status-card healthy">
+                <div class="status-header">
+                    <div class="status-title">Overall System Health</div>
+                    <div class="status-indicator">✅</div>
+                </div>
+                <div class="status-value">Healthy</div>
+                <div class="status-description">All systems operational</div>
+                <div class="status-details">
+                    <div class="status-item">
+                        <span class="status-label">Uptime</span>
+                        <span class="status-metric" id="systemUptime">99.9%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Last Incident</span>
+                        <span class="status-metric">12 days ago</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-card healthy">
+                <div class="status-header">
+                    <div class="status-title">Database Performance</div>
+                    <div class="status-indicator">🔥</div>
+                </div>
+                <div class="status-value" id="dbResponseTime">45ms</div>
+                <div class="status-description">Average response time</div>
+                <div class="status-details">
+                    <div class="status-item">
+                        <span class="status-label">Connections</span>
+                        <span class="status-metric" id="dbConnections">24/100</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Queries/sec</span>
+                        <span class="status-metric" id="dbQueries">156</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-card healthy">
+                <div class="status-header">
+                    <div class="status-title">API Performance</div>
+                    <div class="status-indicator">⚡</div>
+                </div>
+                <div class="status-value" id="apiResponseTime">120ms</div>
+                <div class="status-description">Average API response time</div>
+                <div class="status-details">
+                    <div class="status-item">
+                        <span class="status-label">Success Rate</span>
+                        <span class="status-metric" id="apiSuccessRate">99.8%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Requests/min</span>
+                        <span class="status-metric" id="apiRequests">1,247</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-card healthy">
+                <div class="status-header">
+                    <div class="status-title">Server Resources</div>
+                    <div class="status-indicator">📊</div>
+                </div>
+                <div class="status-value" id="serverLoad">12%</div>
+                <div class="status-description">CPU utilization</div>
+                <div class="status-details">
+                    <div class="status-item">
+                        <span class="status-label">Memory Usage</span>
+                        <span class="status-metric" id="memoryUsage">34%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Disk Usage</span>
+                        <span class="status-metric" id="diskUsage">67%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Response Time Trends</h3>
+                    <div class="realtime-indicator">
+                        <div class="pulse-dot"></div>
+                        <span>Live</span>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="responseTimeChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">System Load</h3>
+                    <div class="realtime-indicator">
+                        <div class="pulse-dot"></div>
+                        <span>Live</span>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="systemLoadChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Services Status -->
+        <div class="services-grid">
+            <div class="service-card">
+                <div class="service-header">
+                    <h3 class="service-name">🔥 Firebase Services</h3>
+                    <span class="service-status service-online">Online</span>
+                </div>
+                <div class="service-metrics">
+                    <div class="metric-item">
+                        <div class="metric-value" id="firestoreUptime">100%</div>
+                        <div class="metric-label">Firestore Uptime</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="authUptime">100%</div>
+                        <div class="metric-label">Auth Uptime</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="storageUptime">100%</div>
+                        <div class="metric-label">Storage Uptime</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="functionsUptime">100%</div>
+                        <div class="metric-label">Functions Uptime</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <h3 class="service-name">🌐 CDN & Assets</h3>
+                    <span class="service-status service-online">Online</span>
+                </div>
+                <div class="service-metrics">
+                    <div class="metric-item">
+                        <div class="metric-value" id="cdnLatency">23ms</div>
+                        <div class="metric-label">Global Latency</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="cdnHitRate">94%</div>
+                        <div class="metric-label">Cache Hit Rate</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="cdnBandwidth">45GB</div>
+                        <div class="metric-label">Bandwidth Used</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="cdnRequests">2.3M</div>
+                        <div class="metric-label">Requests Today</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <h3 class="service-name">📧 Email Services</h3>
+                    <span class="service-status service-online">Online</span>
+                </div>
+                <div class="service-metrics">
+                    <div class="metric-item">
+                        <div class="metric-value" id="emailDelivery">99.2%</div>
+                        <div class="metric-label">Delivery Rate</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="emailSent">1,247</div>
+                        <div class="metric-label">Sent Today</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="emailQueue">3</div>
+                        <div class="metric-label">Queue Length</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="emailBounce">0.3%</div>
+                        <div class="metric-label">Bounce Rate</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <h3 class="service-name">🔒 Security & Monitoring</h3>
+                    <span class="service-status service-online">Online</span>
+                </div>
+                <div class="service-metrics">
+                    <div class="metric-item">
+                        <div class="metric-value" id="securityScans">847</div>
+                        <div class="metric-label">Scans Today</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="threats">0</div>
+                        <div class="metric-label">Threats Blocked</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="ssl">A+</div>
+                        <div class="metric-label">SSL Rating</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value" id="monitoring">24/7</div>
+                        <div class="metric-label">Monitoring</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts & Notifications -->
+        <div class="alerts-section">
+            <div class="section-header">
+                <h3 class="section-title">🚨 System Alerts</h3>
+                <div class="alerts-filter">
+                    <button class="filter-btn active" onclick="filterAlerts('all')">All</button>
+                    <button class="filter-btn" onclick="filterAlerts('error')">Errors</button>
+                    <button class="filter-btn" onclick="filterAlerts('warning')">Warnings</button>
+                    <button class="filter-btn" onclick="filterAlerts('info')">Info</button>
+                </div>
+            </div>
+            <div class="alerts-list" id="alertsList">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading system alerts...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
+            authDomain: "vedi00.firebaseapp.com",
+            projectId: "vedi00",
+            storageBucket: "vedi00.firebasestorage.app",
+            messagingSenderId: "136867441640",
+            appId: "1:136867441640:web:9ec709b63f5690f628125d",
+            measurementId: "G-ZS0FKPTEY2"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Chart instances
+        let responseTimeChart, systemLoadChart;
+        let currentAlertFilter = 'all';
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadSystemMetrics();
+            loadSystemAlerts();
+            
+            // Set up real-time updates
+            setInterval(updateMetrics, 30000); // Update every 30 seconds
+            setInterval(updateCharts, 10000); // Update charts every 10 seconds
+        });
+
+        // Initialize charts
+        function initializeCharts() {
+            // Response Time Chart
+            const responseCtx = document.getElementById('responseTimeChart').getContext('2d');
+            responseTimeChart = new Chart(responseCtx, {
+                type: 'line',
+                data: {
+                    labels: getLast24Hours(),
+                    datasets: [{
+                        label: 'API Response Time',
+                        data: [120, 135, 110, 125, 140, 115, 130, 125, 118, 142, 138, 122],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }, {
+                        label: 'DB Response Time',
+                        data: [45, 52, 38, 48, 55, 42, 49, 46, 41, 53, 51, 44],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f1f5f9'
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                callback: function(value) {
+                                    return value + 'ms';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#64748b'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // System Load Chart
+            const loadCtx = document.getElementById('systemLoadChart').getContext('2d');
+            systemLoadChart = new Chart(loadCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['CPU Usage', 'Memory Usage', 'Disk Usage', 'Available'],
+                    datasets: [{
+                        data: [12, 34, 67, 87],
+                        backgroundColor: [
+                            '#667eea',
+                            '#fa709a',
+                            '#fee140',
+                            '#e5e7eb'
+                        ],
+                        borderWidth: 0,
+                        cutout: '70%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load system metrics
+        async function loadSystemMetrics() {
+            try {
+                // Simulate real-time metrics (in a real app, this would come from monitoring APIs)
+                updateMetrics();
+                
+            } catch (error) {
+                console.error('Error loading system metrics:', error);
+            }
+        }
+
+        // Update metrics with simulated data
+        function updateMetrics() {
+            // Simulate fluctuating metrics
+            const cpuUsage = Math.floor(Math.random() * 20) + 5; // 5-25%
+            const memoryUsage = Math.floor(Math.random() * 30) + 25; // 25-55%
+            const diskUsage = Math.floor(Math.random() * 20) + 60; // 60-80%
+            
+            const apiResponseTime = Math.floor(Math.random() * 50) + 100; // 100-150ms
+            const dbResponseTime = Math.floor(Math.random() * 20) + 35; // 35-55ms
+            
+            const apiSuccessRate = (99.5 + Math.random() * 0.5).toFixed(1); // 99.5-100%
+            const apiRequests = Math.floor(Math.random() * 500) + 1000; // 1000-1500
+            
+            const dbConnections = Math.floor(Math.random() * 30) + 15; // 15-45
+            const dbQueries = Math.floor(Math.random() * 100) + 100; // 100-200
+            
+            // Update DOM elements
+            document.getElementById('serverLoad').textContent = cpuUsage + '%';
+            document.getElementById('memoryUsage').textContent = memoryUsage + '%';
+            document.getElementById('diskUsage').textContent = diskUsage + '%';
+            
+            document.getElementById('apiResponseTime').textContent = apiResponseTime + 'ms';
+            document.getElementById('dbResponseTime').textContent = dbResponseTime + 'ms';
+            
+            document.getElementById('apiSuccessRate').textContent = apiSuccessRate + '%';
+            document.getElementById('apiRequests').textContent = apiRequests.toLocaleString();
+            
+            document.getElementById('dbConnections').textContent = dbConnections + '/100';
+            document.getElementById('dbQueries').textContent = dbQueries;
+            
+            // Update status card classes based on metrics
+            updateStatusCards(cpuUsage, memoryUsage, apiResponseTime, parseFloat(apiSuccessRate));
+        }
+
+        // Update status cards based on metrics
+        function updateStatusCards(cpu, memory, apiTime, successRate) {
+            const statusCards = document.querySelectorAll('.status-card');
+            
+            // Overall health
+            const overallHealth = (cpu < 70 && memory < 80 && apiTime < 200 && successRate > 99) ? 'healthy' : 
+                                 (cpu < 85 && memory < 90 && apiTime < 300 && successRate > 98) ? 'warning' : 'error';
+            
+            statusCards[0].className = `status-card ${overallHealth}`;
+            
+            // Update health indicator
+            const healthText = overallHealth === 'healthy' ? 'Healthy' : 
+                              overallHealth === 'warning' ? 'Warning' : 'Critical';
+            statusCards[0].querySelector('.status-value').textContent = healthText;
+        }
+
+        // Update charts with new data
+        function updateCharts() {
+            // Add new data point to response time chart
+            const newApiTime = Math.floor(Math.random() * 50) + 100;
+            const newDbTime = Math.floor(Math.random() * 20) + 35;
+            
+            responseTimeChart.data.datasets[0].data.push(newApiTime);
+            responseTimeChart.data.datasets[1].data.push(newDbTime);
+            
+            // Remove oldest data point if we have too many
+            if (responseTimeChart.data.datasets[0].data.length > 12) {
+                responseTimeChart.data.datasets[0].data.shift();
+                responseTimeChart.data.datasets[1].data.shift();
+                responseTimeChart.data.labels.shift();
+                responseTimeChart.data.labels.push(getCurrentTime());
+            }
+            
+            responseTimeChart.update('none');
+            
+            // Update system load chart
+            const cpu = Math.floor(Math.random() * 20) + 5;
+            const memory = Math.floor(Math.random() * 30) + 25;
+            const disk = Math.floor(Math.random() * 20) + 60;
+            const available = 100 - Math.max(cpu, memory, disk);
+            
+            systemLoadChart.data.datasets[0].data = [cpu, memory, disk, available];
+            systemLoadChart.update('none');
+        }
+
+        // Load system alerts
+        function loadSystemAlerts() {
+            const alertsList = document.getElementById('alertsList');
+            
+            // Generate sample alerts
+            const alerts = [
+                {
+                    type: 'success',
+                    icon: '✅',
+                    title: 'System Backup Completed',
+                    message: 'Daily automated backup completed successfully. All data secured.',
+                    time: '2 minutes ago'
+                },
+                {
+                    type: 'info',
+                    icon: 'ℹ️',
+                    title: 'Scheduled Maintenance',
+                    message: 'Database optimization scheduled for tonight 2:00 AM - 2:30 AM.',
+                    time: '1 hour ago'
+                },
+                {
+                    type: 'warning',
+                    icon: '⚠️',
+                    title: 'High Memory Usage Detected',
+                    message: 'Memory usage peaked at 78% during peak hours. Consider scaling resources.',
+                    time: '3 hours ago'
+                },
+                {
+                    type: 'success',
+                    icon: '🔒',
+                    title: 'Security Scan Completed',
+                    message: 'Weekly security vulnerability scan completed. No threats detected.',
+                    time: '6 hours ago'
+                },
+                {
+                    type: 'info',
+                    icon: '📊',
+                    title: 'Performance Report Generated',
+                    message: 'Weekly performance report is ready for review in the admin panel.',
+                    time: '1 day ago'
+                }
+            ];
+            
+            displayAlerts(alerts);
+        }
+
+        // Display alerts
+        function displayAlerts(alerts) {
+            const alertsList = document.getElementById('alertsList');
+            
+            if (alerts.length === 0) {
+                alertsList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔔</div>
+                        <h3>No Alerts</h3>
+                        <p>All systems are running smoothly</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            alerts.forEach(alert => {
+                html += `
+                    <div class="alert-item">
+                        <div class="alert-icon alert-${alert.type}">
+                            ${alert.icon}
+                        </div>
+                        <div class="alert-content">
+                            <div class="alert-title">${alert.title}</div>
+                            <div class="alert-message">${alert.message}</div>
+                            <div class="alert-time">${alert.time}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            alertsList.innerHTML = html;
+        }
+
+        // Filter alerts
+        function filterAlerts(type) {
+            // Update active filter button
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            currentAlertFilter = type;
+            
+            // Re-load alerts with filter (in a real app, this would filter the data)
+            loadSystemAlerts();
+        }
+
+        // Utility functions
+        function getLast24Hours() {
+            const hours = [];
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date();
+                date.setHours(date.getHours() - (i * 2));
+                hours.push(date.getHours().toString().padStart(2, '0') + ':00');
+            }
+            return hours;
+        }
+
+        function getCurrentTime() {
+            const now = new Date();
+            return now.getHours().toString().padStart(2, '0') + ':' + 
+                   now.getMinutes().toString().padStart(2, '0');
+        }
+    </script>
+</body>
+</html>
