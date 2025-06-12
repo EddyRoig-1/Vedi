@@ -221,6 +221,59 @@ const VediAPI = {
       throw new Error(this.getAuthErrorMessage(error.code));
     }
   },
+
+  /**
+   * Send SMS verification code for phone authentication
+   * @param {string} phoneNumber - Phone number in E.164 format
+   * @returns {Promise<Object>} Confirmation result for verification
+   */
+  sendPhoneVerification: withTracking('sendPhoneVerification', async function(phoneNumber) {
+    try {
+      console.log('📱 Sending phone verification to:', phoneNumber);
+      
+      // Get reCAPTCHA verifier
+      const recaptchaVerifier = window.recaptchaVerifier;
+      if (!recaptchaVerifier) {
+        throw new Error('reCAPTCHA verifier not initialized');
+      }
+      
+      // Send verification code
+      const confirmationResult = await firebase.auth().signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
+      
+      console.log('✅ SMS verification code sent successfully');
+      return confirmationResult;
+      
+    } catch (error) {
+      console.error('❌ Phone verification error:', error);
+      throw this.handlePhoneAuthError(error);
+    }
+  }),
+
+  /**
+   * Verify SMS code and complete phone authentication
+   * @param {Object} confirmationResult - Result from sendPhoneVerification
+   * @param {string} code - 6-digit verification code
+   * @returns {Promise<Object>} Firebase user credential
+   */
+  verifyPhoneCode: withTracking('verifyPhoneCode', async function(confirmationResult, code) {
+    try {
+      console.log('🔐 Verifying phone code...');
+      
+      if (!confirmationResult) {
+        throw new Error('No verification in progress');
+      }
+      
+      const result = await confirmationResult.confirm(code);
+      
+      console.log('✅ Phone verification successful, UID:', result.user.uid);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Phone code verification error:', error);
+      throw this.handlePhoneAuthError(error);
+    }
+  }),
+
   /**
    * Sign in with Google (social authentication)
    * @returns {Promise<Object>} User credential result
@@ -342,6 +395,28 @@ const VediAPI = {
       throw error;
     }
   }),
+
+  /**
+   * Handle phone authentication errors
+   * @param {Object} error - Firebase error object
+   * @returns {Error} Formatted error
+   */
+  handlePhoneAuthError(error) {
+    const phoneErrorMessages = {
+      'auth/invalid-phone-number': 'Please enter a valid phone number.',
+      'auth/too-many-requests': 'Too many attempts. Please try again later.',
+      'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
+      'auth/code-expired': 'Verification code has expired. Please request a new one.',
+      'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
+      'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
+      'auth/operation-not-allowed': 'Phone authentication is not enabled.',
+      'auth/missing-verification-code': 'Please enter the verification code.',
+      'auth/invalid-verification-id': 'Invalid verification session. Please start over.'
+    };
+    
+    const message = phoneErrorMessages[error.code] || 'Phone authentication failed. Please try again.';
+    return new Error(message);
+  },
 
   /**
    * Handle social authentication errors
@@ -2145,415 +2220,6 @@ const VediAPI = {
   }
 };
 
-/**
- * Send SMS verification code for phone authentication
- * @param {string} phoneNumber - Phone number in E.164 format
- * @param {Object} recaptchaVerifier - reCAPTCHA verifier instance (optional, will use global if not provided)
- * @returns {Promise<Object>} Confirmation result for verification
- */
-sendPhoneVerification: async function(phoneNumber, recaptchaVerifier = null) {
-  const startTime = Date.now();
-  try {
-    console.log('📱 Sending phone verification to:', phoneNumber);
-    
-    // Use provided verifier or get from global
-    const verifier = recaptchaVerifier || window.recaptchaVerifier;
-    if (!verifier) {
-      throw new Error('reCAPTCHA verifier not initialized');
-    }
-    
-    // Validate phone number format (E.164)
-    const e164Regex = /^\+[1-9]\d{1,14}$/;
-    if (!e164Regex.test(phoneNumber)) {
-      throw new Error('Invalid phone number format. Please use E.164 format (+1234567890)');
-    }
-    
-    const auth = getFirebaseAuth();
-    
-    // Send verification code
-    const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, verifier);
-    
-    // Track successful API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('sendPhoneVerification', responseTime, true, {
-      phoneNumber: phoneNumber.substring(0, 5) + '****' // Partial phone for privacy
-    });
-    
-    console.log('✅ SMS verification code sent successfully');
-    return confirmationResult;
-    
-  } catch (error) {
-    // Track failed API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('sendPhoneVerification', responseTime, false, {
-      error: error.code || error.message,
-      phoneNumber: phoneNumber ? phoneNumber.substring(0, 5) + '****' : 'undefined'
-    });
-    
-    console.error('❌ Phone verification error:', error);
-    throw this.handlePhoneAuthError(error);
-  }
-},
-
-/**
- * Verify SMS code and complete phone authentication
- * @param {Object} confirmationResult - Result from sendPhoneVerification
- * @param {string} code - 6-digit verification code
- * @returns {Promise<Object>} Firebase user credential
- */
-verifyPhoneCode: async function(confirmationResult, code) {
-  const startTime = Date.now();
-  try {
-    console.log('🔐 Verifying phone code...');
-    
-    if (!confirmationResult) {
-      throw new Error('No verification in progress');
-    }
-    
-    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      throw new Error('Please enter a valid 6-digit verification code');
-    }
-    
-    const result = await confirmationResult.confirm(code);
-    
-    // Track successful API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('verifyPhoneCode', responseTime, true, {
-      userId: result.user.uid
-    });
-    
-    console.log('✅ Phone verification successful, UID:', result.user.uid);
-    return result;
-    
-  } catch (error) {
-    // Track failed API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('verifyPhoneCode', responseTime, false, {
-      error: error.code || error.message
-    });
-    
-    console.error('❌ Phone code verification error:', error);
-    throw this.handlePhoneAuthError(error);
-  }
-},
-
-/**
- * Initialize reCAPTCHA verifier for phone authentication
- * @param {string} containerId - ID of the container element for reCAPTCHA
- * @param {Object} options - reCAPTCHA options
- * @returns {Promise<Object>} reCAPTCHA verifier instance
- */
-initializeRecaptcha: async function(containerId = 'recaptcha-container', options = {}) {
-  try {
-    console.log('🔐 Initializing reCAPTCHA verifier...');
-    
-    // Clear any existing verifier
-    if (window.recaptchaVerifier) {
-      try {
-        window.recaptchaVerifier.clear();
-      } catch (clearError) {
-        console.warn('⚠️ Error clearing existing reCAPTCHA:', clearError);
-      }
-      window.recaptchaVerifier = null;
-    }
-
-    // Clear the container
-    const container = document.getElementById(containerId);
-    if (!container) {
-      throw new Error(`reCAPTCHA container with ID '${containerId}' not found`);
-    }
-    container.innerHTML = '';
-
-    // Default options
-    const defaultOptions = {
-      'size': 'normal',
-      'callback': function(response) {
-        console.log('✅ reCAPTCHA solved');
-      },
-      'expired-callback': function() {
-        console.log('⏰ reCAPTCHA expired');
-      },
-      'error-callback': function(error) {
-        console.error('❌ reCAPTCHA error:', error);
-      }
-    };
-
-    const finalOptions = { ...defaultOptions, ...options };
-
-    // Create new verifier
-    const verifier = new firebase.auth.RecaptchaVerifier(containerId, finalOptions);
-    
-    // Render the reCAPTCHA
-    const widgetId = await verifier.render();
-    
-    // Store globally for easy access
-    window.recaptchaVerifier = verifier;
-    window.recaptchaWidgetId = widgetId;
-    
-    console.log('✅ reCAPTCHA initialized and rendered successfully');
-    return verifier;
-    
-  } catch (error) {
-    console.error('❌ reCAPTCHA initialization failed:', error);
-    throw new Error('Failed to initialize reCAPTCHA. Please refresh the page and try again.');
-  }
-},
-
-/**
- * Reset reCAPTCHA verifier
- * @returns {Promise<boolean>} Success status
- */
-resetRecaptcha: async function() {
-  try {
-    if (window.recaptchaVerifier && window.recaptchaWidgetId) {
-      if (typeof grecaptcha !== 'undefined') {
-        grecaptcha.reset(window.recaptchaWidgetId);
-        console.log('✅ reCAPTCHA reset successfully');
-        return true;
-      } else {
-        console.warn('⚠️ grecaptcha not available for reset');
-        return false;
-      }
-    } else {
-      console.warn('⚠️ No reCAPTCHA to reset');
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Error resetting reCAPTCHA:', error);
-    return false;
-  }
-},
-
-/**
- * Handle phone authentication errors
- * @param {Object} error - Firebase error object
- * @returns {Error} Formatted error
- */
-handlePhoneAuthError(error) {
-  const phoneErrorMessages = {
-    'auth/invalid-phone-number': 'Please enter a valid phone number.',
-    'auth/too-many-requests': 'Too many attempts. Please try again later.',
-    'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
-    'auth/code-expired': 'Verification code has expired. Please request a new one.',
-    'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
-    'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
-    'auth/operation-not-allowed': 'Phone authentication is not enabled.',
-    'auth/missing-verification-code': 'Please enter the verification code.',
-    'auth/invalid-verification-id': 'Invalid verification session. Please start over.',
-    'auth/internal-error': 'SMS service error. Please check your Firebase configuration or try again later.',
-    'auth/network-request-failed': 'Network error. Please check your connection and try again.'
-  };
-  
-  const message = phoneErrorMessages[error.code] || error.message || 'Phone authentication failed. Please try again.';
-  const newError = new Error(message);
-  newError.code = error.code;
-  return newError;
-}
-
-/**
- * Send SMS verification code for phone authentication
- * @param {string} phoneNumber - Phone number in E.164 format
- * @param {Object} recaptchaVerifier - reCAPTCHA verifier instance (optional, will use global if not provided)
- * @returns {Promise<Object>} Confirmation result for verification
- */
-sendPhoneVerification: async function(phoneNumber, recaptchaVerifier = null) {
-  const startTime = Date.now();
-  try {
-    console.log('📱 Sending phone verification to:', phoneNumber);
-    
-    // Use provided verifier or get from global
-    const verifier = recaptchaVerifier || window.recaptchaVerifier;
-    if (!verifier) {
-      throw new Error('reCAPTCHA verifier not initialized');
-    }
-    
-    // Validate phone number format (E.164)
-    const e164Regex = /^\+[1-9]\d{1,14}$/;
-    if (!e164Regex.test(phoneNumber)) {
-      throw new Error('Invalid phone number format. Please use E.164 format (+1234567890)');
-    }
-    
-    const auth = getFirebaseAuth();
-    
-    // Send verification code
-    const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, verifier);
-    
-    // Track successful API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('sendPhoneVerification', responseTime, true, {
-      phoneNumber: phoneNumber.substring(0, 5) + '****' // Partial phone for privacy
-    });
-    
-    console.log('✅ SMS verification code sent successfully');
-    return confirmationResult;
-    
-  } catch (error) {
-    // Track failed API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('sendPhoneVerification', responseTime, false, {
-      error: error.code || error.message,
-      phoneNumber: phoneNumber ? phoneNumber.substring(0, 5) + '****' : 'undefined'
-    });
-    
-    console.error('❌ Phone verification error:', error);
-    throw this.handlePhoneAuthError(error);
-  }
-},
-
-/**
- * Verify SMS code and complete phone authentication
- * @param {Object} confirmationResult - Result from sendPhoneVerification
- * @param {string} code - 6-digit verification code
- * @returns {Promise<Object>} Firebase user credential
- */
-verifyPhoneCode: async function(confirmationResult, code) {
-  const startTime = Date.now();
-  try {
-    console.log('🔐 Verifying phone code...');
-    
-    if (!confirmationResult) {
-      throw new Error('No verification in progress');
-    }
-    
-    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      throw new Error('Please enter a valid 6-digit verification code');
-    }
-    
-    const result = await confirmationResult.confirm(code);
-    
-    // Track successful API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('verifyPhoneCode', responseTime, true, {
-      userId: result.user.uid
-    });
-    
-    console.log('✅ Phone verification successful, UID:', result.user.uid);
-    return result;
-    
-  } catch (error) {
-    // Track failed API call
-    const responseTime = Date.now() - startTime;
-    await trackAPICall('verifyPhoneCode', responseTime, false, {
-      error: error.code || error.message
-    });
-    
-    console.error('❌ Phone code verification error:', error);
-    throw this.handlePhoneAuthError(error);
-  }
-},
-
-/**
- * Initialize reCAPTCHA verifier for phone authentication
- * @param {string} containerId - ID of the container element for reCAPTCHA
- * @param {Object} options - reCAPTCHA options
- * @returns {Promise<Object>} reCAPTCHA verifier instance
- */
-initializeRecaptcha: async function(containerId = 'recaptcha-container', options = {}) {
-  try {
-    console.log('🔐 Initializing reCAPTCHA verifier...');
-    
-    // Clear any existing verifier
-    if (window.recaptchaVerifier) {
-      try {
-        window.recaptchaVerifier.clear();
-      } catch (clearError) {
-        console.warn('⚠️ Error clearing existing reCAPTCHA:', clearError);
-      }
-      window.recaptchaVerifier = null;
-    }
-
-    // Clear the container
-    const container = document.getElementById(containerId);
-    if (!container) {
-      throw new Error(`reCAPTCHA container with ID '${containerId}' not found`);
-    }
-    container.innerHTML = '';
-
-    // Default options
-    const defaultOptions = {
-      'size': 'normal',
-      'callback': function(response) {
-        console.log('✅ reCAPTCHA solved');
-      },
-      'expired-callback': function() {
-        console.log('⏰ reCAPTCHA expired');
-      },
-      'error-callback': function(error) {
-        console.error('❌ reCAPTCHA error:', error);
-      }
-    };
-
-    const finalOptions = { ...defaultOptions, ...options };
-
-    // Create new verifier
-    const verifier = new firebase.auth.RecaptchaVerifier(containerId, finalOptions);
-    
-    // Render the reCAPTCHA
-    const widgetId = await verifier.render();
-    
-    // Store globally for easy access
-    window.recaptchaVerifier = verifier;
-    window.recaptchaWidgetId = widgetId;
-    
-    console.log('✅ reCAPTCHA initialized and rendered successfully');
-    return verifier;
-    
-  } catch (error) {
-    console.error('❌ reCAPTCHA initialization failed:', error);
-    throw new Error('Failed to initialize reCAPTCHA. Please refresh the page and try again.');
-  }
-},
-
-/**
- * Reset reCAPTCHA verifier
- * @returns {Promise<boolean>} Success status
- */
-resetRecaptcha: async function() {
-  try {
-    if (window.recaptchaVerifier && window.recaptchaWidgetId) {
-      if (typeof grecaptcha !== 'undefined') {
-        grecaptcha.reset(window.recaptchaWidgetId);
-        console.log('✅ reCAPTCHA reset successfully');
-        return true;
-      } else {
-        console.warn('⚠️ grecaptcha not available for reset');
-        return false;
-      }
-    } else {
-      console.warn('⚠️ No reCAPTCHA to reset');
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Error resetting reCAPTCHA:', error);
-    return false;
-  }
-},
-
-/**
- * Handle phone authentication errors
- * @param {Object} error - Firebase error object
- * @returns {Error} Formatted error
- */
-handlePhoneAuthError(error) {
-  const phoneErrorMessages = {
-    'auth/invalid-phone-number': 'Please enter a valid phone number.',
-    'auth/too-many-requests': 'Too many attempts. Please try again later.',
-    'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
-    'auth/code-expired': 'Verification code has expired. Please request a new one.',
-    'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
-    'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
-    'auth/operation-not-allowed': 'Phone authentication is not enabled.',
-    'auth/missing-verification-code': 'Please enter the verification code.',
-    'auth/invalid-verification-id': 'Invalid verification session. Please start over.',
-    'auth/internal-error': 'SMS service error. Please check your Firebase configuration or try again later.',
-    'auth/network-request-failed': 'Network error. Please check your connection and try again.'
-  };
-  
-  const message = phoneErrorMessages[error.code] || error.message || 'Phone authentication failed. Please try again.';
-  const newError = new Error(message);
-  newError.code = error.code;
-  return newError;
-}
 // Make VediAPI available globally
 window.VediAPI = VediAPI;
 
