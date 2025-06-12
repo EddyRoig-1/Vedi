@@ -1,4 +1,5 @@
 // firebase-api.js - Complete Vedi Firebase API Implementation with Firebase Reference Initialization
+// UPDATED: Removed phone authentication, SMS verification, and reCAPTCHA functionality
 
 // ============================================================================
 // FIREBASE REFERENCE INITIALIZATION (CRITICAL FIX)
@@ -223,58 +224,6 @@ const VediAPI = {
   },
 
   /**
-   * Send SMS verification code for phone authentication
-   * @param {string} phoneNumber - Phone number in E.164 format
-   * @returns {Promise<Object>} Confirmation result for verification
-   */
-  sendPhoneVerification: withTracking('sendPhoneVerification', async function(phoneNumber) {
-    try {
-      console.log('📱 Sending phone verification to:', phoneNumber);
-      
-      // Get reCAPTCHA verifier
-      const recaptchaVerifier = window.recaptchaVerifier;
-      if (!recaptchaVerifier) {
-        throw new Error('reCAPTCHA verifier not initialized');
-      }
-      
-      // Send verification code
-      const confirmationResult = await firebase.auth().signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
-      
-      console.log('✅ SMS verification code sent successfully');
-      return confirmationResult;
-      
-    } catch (error) {
-      console.error('❌ Phone verification error:', error);
-      throw this.handlePhoneAuthError(error);
-    }
-  }),
-
-  /**
-   * Verify SMS code and complete phone authentication
-   * @param {Object} confirmationResult - Result from sendPhoneVerification
-   * @param {string} code - 6-digit verification code
-   * @returns {Promise<Object>} Firebase user credential
-   */
-  verifyPhoneCode: withTracking('verifyPhoneCode', async function(confirmationResult, code) {
-    try {
-      console.log('🔐 Verifying phone code...');
-      
-      if (!confirmationResult) {
-        throw new Error('No verification in progress');
-      }
-      
-      const result = await confirmationResult.confirm(code);
-      
-      console.log('✅ Phone verification successful, UID:', result.user.uid);
-      return result;
-      
-    } catch (error) {
-      console.error('❌ Phone code verification error:', error);
-      throw this.handlePhoneAuthError(error);
-    }
-  }),
-
-  /**
    * Sign in with Google (social authentication)
    * @returns {Promise<Object>} User credential result
    */
@@ -395,28 +344,6 @@ const VediAPI = {
       throw error;
     }
   }),
-
-  /**
-   * Handle phone authentication errors
-   * @param {Object} error - Firebase error object
-   * @returns {Error} Formatted error
-   */
-  handlePhoneAuthError(error) {
-    const phoneErrorMessages = {
-      'auth/invalid-phone-number': 'Please enter a valid phone number.',
-      'auth/too-many-requests': 'Too many attempts. Please try again later.',
-      'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
-      'auth/code-expired': 'Verification code has expired. Please request a new one.',
-      'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
-      'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
-      'auth/operation-not-allowed': 'Phone authentication is not enabled.',
-      'auth/missing-verification-code': 'Please enter the verification code.',
-      'auth/invalid-verification-id': 'Invalid verification session. Please start over.'
-    };
-    
-    const message = phoneErrorMessages[error.code] || 'Phone authentication failed. Please try again.';
-    return new Error(message);
-  },
 
   /**
    * Handle social authentication errors
@@ -2230,12 +2157,15 @@ console.log('🍽️ Enhanced Vedi Firebase API loaded successfully');
 console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
 console.log('📊 API tracking: ENABLED for all methods');
 console.log('🔐 Enhanced authentication support:');
-console.log('   📱 Phone authentication with SMS verification');
+console.log('   ✅ Email/password authentication');
 console.log('   🔍 Google social authentication');
 console.log('   📘 Facebook social authentication');
 console.log('   🍎 Apple social authentication');
 console.log('   👤 Customer profile management');
 console.log('   🔒 UID-based order security');
+console.log('   ❌ Phone authentication REMOVED');
+console.log('   ❌ SMS verification REMOVED');
+console.log('   ❌ reCAPTCHA REMOVED');
 console.log('💰 Dynamic Fee Management System:');
 console.log('   ⚙️ Custom fee configurations per restaurant');
 console.log('   📊 Fixed, percentage, and hybrid fee structures');
@@ -2246,3 +2176,4 @@ console.log('🔥 Ready for production use with complete analytics, enhanced aut
 console.log('✅ FIXED: Loss incident creation now handles undefined values properly');
 console.log('🔧 FIXED: Firebase database references properly initialized');
 console.log('💡 NEW: Dynamic fee system allows complete control over platform revenue');
+console.log('🧹 CLEANED: Removed phone auth, SMS verification, and reCAPTCHA functionality');
