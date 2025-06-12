@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management Dashboard</title>
     
-    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs - FIXED: Added Auth SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
     <!-- Chart.js for analytics -->
@@ -63,6 +64,20 @@
             color: #64748b;
             font-size: 1.125rem;
             font-weight: 500;
+        }
+
+        .auth-warning {
+            background: #fef3cd;
+            border: 1px solid #f6e05e;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            color: #975a16;
+            display: none;
+        }
+
+        .auth-warning.show {
+            display: block;
         }
 
         .user-overview {
@@ -517,6 +532,11 @@
             <p class="page-subtitle">Manage users, track registrations, and monitor account activity</p>
         </div>
 
+        <!-- Authentication Warning -->
+        <div class="auth-warning" id="authWarning">
+            ⚠️ <strong>Admin Access Required:</strong> Please ensure you're logged in as an admin to access user management features.
+        </div>
+
         <!-- User Overview Cards -->
         <div class="user-overview">
             <div class="overview-card total">
@@ -524,7 +544,7 @@
                     <div class="card-title">Total Users</div>
                     <div class="card-icon">👥</div>
                 </div>
-                <div class="card-value" id="totalUsers">0</div>
+                <div class="card-value" id="totalUsers">Loading...</div>
                 <div class="card-change">All registered users</div>
             </div>
 
@@ -533,7 +553,7 @@
                     <div class="card-title">Restaurant Owners</div>
                     <div class="card-icon">🏪</div>
                 </div>
-                <div class="card-value" id="restaurantUsers">0</div>
+                <div class="card-value" id="restaurantUsers">Loading...</div>
                 <div class="card-change">Business accounts</div>
             </div>
 
@@ -542,7 +562,7 @@
                     <div class="card-title">Venue Managers</div>
                     <div class="card-icon">🏢</div>
                 </div>
-                <div class="card-value" id="venueUsers">0</div>
+                <div class="card-value" id="venueUsers">Loading...</div>
                 <div class="card-change">Event venues</div>
             </div>
 
@@ -551,7 +571,7 @@
                     <div class="card-title">Active Today</div>
                     <div class="card-icon">⚡</div>
                 </div>
-                <div class="card-value" id="activeUsers">0</div>
+                <div class="card-value" id="activeUsers">Loading...</div>
                 <div class="card-change">Last 24 hours</div>
             </div>
         </div>
@@ -625,6 +645,7 @@
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+        const auth = firebase.auth();
 
         // Global variables
         let allUsers = [];
@@ -632,20 +653,81 @@
         let currentPage = 1;
         const usersPerPage = 10;
         let registrationChart;
+        let isAdmin = false;
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', function() {
             initializeChart();
-            loadUserData();
-            loadRecentActivity();
+            
+            // Wait for auth state and then load data
+            auth.onAuthStateChanged(function(user) {
+                if (user) {
+                    console.log('✅ User authenticated:', user.uid);
+                    checkAdminAccess(user.uid);
+                } else {
+                    console.log('❌ User not authenticated');
+                    showAuthRequired();
+                }
+            });
             
             // Set up search and filter listeners
             document.getElementById('searchInput').addEventListener('input', filterUsers);
             document.getElementById('typeFilter').addEventListener('change', filterUsers);
             
             // Set up real-time updates
-            setInterval(loadUserData, 60000); // Update every minute
+            setInterval(() => {
+                if (auth.currentUser && isAdmin) {
+                    loadUserData();
+                }
+            }, 60000); // Update every minute
         });
+
+        // Check if user has admin access
+        async function checkAdminAccess(userId) {
+            try {
+                const adminDoc = await db.collection('adminUsers').doc(userId).get();
+                isAdmin = adminDoc.exists;
+                
+                if (isAdmin) {
+                    console.log('✅ Admin access confirmed');
+                    document.getElementById('authWarning').classList.remove('show');
+                    loadUserData();
+                    loadRecentActivity();
+                } else {
+                    console.log('❌ Admin access denied');
+                    showAuthRequired();
+                    document.getElementById('authWarning').classList.add('show');
+                }
+            } catch (error) {
+                console.error('❌ Error checking admin access:', error);
+                showAuthRequired();
+                document.getElementById('authWarning').classList.add('show');
+            }
+        }
+
+        // Show authentication required state
+        function showAuthRequired() {
+            document.getElementById('totalUsers').textContent = 'Login Required';
+            document.getElementById('restaurantUsers').textContent = 'Login Required';
+            document.getElementById('venueUsers').textContent = 'Login Required';
+            document.getElementById('activeUsers').textContent = 'Login Required';
+            
+            document.getElementById('usersTableContainer').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔐</div>
+                    <h3>Admin Access Required</h3>
+                    <p>Please log in as an admin to access user management features</p>
+                </div>
+            `;
+            
+            document.getElementById('activityList').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔐</div>
+                    <h3>Admin Access Required</h3>
+                    <p>Recent activity requires admin privileges</p>
+                </div>
+            `;
+        }
 
         // Initialize registration chart
         function initializeChart() {
@@ -711,23 +793,22 @@
         // Load user data
         async function loadUserData() {
             try {
-                if (!window.VediAPI) {
-                    document.getElementById('usersTableContainer').innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">⚠️</div>
-                            <h3>VediAPI Not Loaded</h3>
-                            <p>Please ensure firebase-api.js is loaded properly</p>
-                        </div>
-                    `;
+                if (!isAdmin) {
+                    console.log('❌ Not admin, cannot load user data');
+                    showAuthRequired();
                     return;
                 }
 
-                // Get all users
+                console.log('🔄 Loading user data...');
+
+                // Get all users directly from Firestore
                 const usersSnapshot = await db.collection('users').get();
                 allUsers = usersSnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
+
+                console.log('✅ Users loaded:', allUsers.length);
 
                 // Update overview cards
                 updateOverviewCards();
@@ -740,14 +821,20 @@
                 displayUsers();
 
             } catch (error) {
-                console.error('Error loading user data:', error);
-                document.getElementById('usersTableContainer').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <h3>Error Loading Users</h3>
-                        <p>Error: ${error.message}</p>
-                    </div>
-                `;
+                console.error('❌ Error loading user data:', error);
+                
+                if (error.code === 'permission-denied') {
+                    document.getElementById('authWarning').classList.add('show');
+                    showAuthRequired();
+                } else {
+                    document.getElementById('usersTableContainer').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⚠️</div>
+                            <h3>Error Loading Users</h3>
+                            <p>Error: ${error.message}</p>
+                        </div>
+                    `;
+                }
             }
         }
 
@@ -794,10 +881,11 @@
                 if (registrationData.some(val => val > 0)) {
                     registrationChart.data.datasets[0].data = registrationData;
                     registrationChart.update();
+                    console.log('📈 Registration chart updated');
                 }
 
             } catch (error) {
-                console.error('Error updating registration chart:', error);
+                console.error('❌ Error updating registration chart:', error);
             }
         }
 
@@ -954,8 +1042,15 @@
         // Load recent activity
         async function loadRecentActivity() {
             try {
+                if (!isAdmin) {
+                    console.log('❌ Not admin, cannot load activity');
+                    return;
+                }
+
                 const activityList = document.getElementById('activityList');
                 const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+                
+                console.log('🔄 Loading recent activity...');
                 
                 // Get recent user signups
                 const usersSnapshot = await db.collection('users')
@@ -1008,16 +1103,28 @@
                 });
                 
                 activityList.innerHTML = html;
+                console.log('✅ Recent activity loaded');
                 
             } catch (error) {
-                console.error('Error loading recent activity:', error);
-                document.getElementById('activityList').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <h3>Error Loading Activity</h3>
-                        <p>Unable to load recent user activity</p>
-                    </div>
-                `;
+                console.error('❌ Error loading recent activity:', error);
+                
+                if (error.code === 'permission-denied') {
+                    document.getElementById('activityList').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔐</div>
+                            <h3>Admin Access Required</h3>
+                            <p>Recent activity requires admin privileges</p>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('activityList').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⚠️</div>
+                            <h3>Error Loading Activity</h3>
+                            <p>Unable to load recent user activity</p>
+                        </div>
+                    `;
+                }
             }
         }
 
