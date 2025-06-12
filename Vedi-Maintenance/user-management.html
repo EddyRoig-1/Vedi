@@ -12,6 +12,11 @@
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
+    <!-- Your Vedi API -->
+    <script src="../firebase-api.js"></script>
+    <!-- Vedi Maintenance API -->
+    <script src="maintenance-api.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -651,7 +656,7 @@
                     labels: getLast7Days(),
                     datasets: [{
                         label: 'New Registrations',
-                        data: [5, 12, 8, 15, 22, 13, 17],
+                        data: [0, 0, 0, 0, 0, 0, 0], // Will be filled with real data
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 3,
@@ -706,6 +711,17 @@
         // Load user data
         async function loadUserData() {
             try {
+                if (!window.VediAPI) {
+                    document.getElementById('usersTableContainer').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⚠️</div>
+                            <h3>VediAPI Not Loaded</h3>
+                            <p>Please ensure firebase-api.js is loaded properly</p>
+                        </div>
+                    `;
+                    return;
+                }
+
                 // Get all users
                 const usersSnapshot = await db.collection('users').get();
                 allUsers = usersSnapshot.docs.map(doc => ({
@@ -729,7 +745,7 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">⚠️</div>
                         <h3>Error Loading Users</h3>
-                        <p>Unable to load user data</p>
+                        <p>Error: ${error.message}</p>
                     </div>
                 `;
             }
