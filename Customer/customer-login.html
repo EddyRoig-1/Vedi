@@ -700,6 +700,7 @@
         let tableNumber = null;
         let restaurantId = null;
         let tableLocation = null;
+        let recaptchaVerifier = null;
         let confirmationResult = null;
         let customerName = '';
         let customerPhone = '';
@@ -713,6 +714,9 @@
         function addPerformanceMonitoring() {
             const loadTime = Date.now() - performanceStartTime;
             console.log(`📊 Page initialization: ${loadTime}ms`);
+            
+            // Monitor Firebase connection
+            performance.mark('firebase-start');
         }
 
         // Optimize button clicks with debouncing
@@ -747,51 +751,20 @@
             }
         }
 
-        // Wait for Firebase and VediAPI to be ready
-        function waitForFirebaseAndAPI() {
-            return new Promise((resolve) => {
-                let attempts = 0;
-                const maxAttempts = 50; // 5 seconds max wait
-                
-                const checkReady = () => {
-                    attempts++;
-                    
-                    if (typeof firebase !== 'undefined' && 
-                        typeof VediAPI !== 'undefined' && 
-                        firebase.apps.length > 0) {
-                        console.log('✅ Firebase and VediAPI ready');
-                        resolve();
-                    } else if (attempts < maxAttempts) {
-                        setTimeout(checkReady, 100);
-                    } else {
-                        console.warn('⚠️ Timeout waiting for Firebase/VediAPI');
-                        resolve(); // Proceed anyway
-                    }
-                };
-                
-                checkReady();
-            });
-        }
-
-        // Enhanced initialization with proper Firebase/API waiting
+        // Enhanced initialization with redirect result handling
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Enhanced customer login initializing...');
             addPerformanceMonitoring();
             
             try {
-                // Wait for Firebase and VediAPI to be ready
-                await waitForFirebaseAndAPI();
-                
                 // Check for redirect result first (for social auth)
                 try {
-                    if (typeof firebase !== 'undefined' && firebase.auth) {
-                        const redirectResult = await firebase.auth().getRedirectResult();
-                        if (redirectResult && redirectResult.user) {
-                            console.log('✅ Redirect sign-in successful:', redirectResult.user.displayName);
-                            hideInitialLoader();
-                            await handleSocialSignInSuccess(redirectResult.user, 'redirect');
-                            return;
-                        }
+                    const redirectResult = await firebase.auth().getRedirectResult();
+                    if (redirectResult && redirectResult.user) {
+                        console.log('✅ Redirect sign-in successful:', redirectResult.user.displayName);
+                        hideInitialLoader();
+                        await handleSocialSignInSuccess(redirectResult.user, 'redirect');
+                        return;
                     }
                 } catch (redirectError) {
                     console.warn('⚠️ Redirect result error (normal if no redirect):', redirectError);
@@ -838,37 +811,22 @@
             });
         }
 
-        // Load restaurant information with better error handling
+        // Load restaurant information
         async function loadRestaurantInfo() {
             try {
                 console.log('🏪 Loading restaurant data for ID:', restaurantId);
                 document.getElementById('restaurantName').textContent = 'Loading...';
                 
-                // Try VediAPI first, then fallback to direct Firebase
-                if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurant) {
+                if (typeof VediAPI !== 'undefined') {
                     restaurantData = await VediAPI.getRestaurant(restaurantId);
                     document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
-                    console.log('✅ Restaurant loaded via VediAPI:', restaurantData.name);
-                } else if (typeof firebase !== 'undefined' && firebase.firestore) {
-                    // Fallback to direct Firebase call
-                    const db = firebase.firestore();
-                    const doc = await db.collection('restaurants').doc(restaurantId).get();
-                    if (doc.exists) {
-                        restaurantData = { id: doc.id, ...doc.data() };
-                        document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
-                        console.log('✅ Restaurant loaded via Firebase:', restaurantData.name);
-                    } else {
-                        throw new Error('Restaurant not found');
-                    }
+                    console.log('✅ Restaurant loaded:', restaurantData.name);
                 } else {
-                    // Last fallback - show generic name
                     document.getElementById('restaurantName').textContent = 'Restaurant';
-                    console.warn('⚠️ Neither VediAPI nor Firebase available, using generic name');
                 }
             } catch (error) {
                 console.error('❌ Failed to load restaurant:', error);
                 document.getElementById('restaurantName').textContent = 'Restaurant';
-                // Don't throw error, just use generic name
             }
         }
 
@@ -886,10 +844,10 @@
         }
 
         // =============================================================================
-        // SOCIAL AUTHENTICATION METHODS WITH FALLBACKS
+        // ENHANCED SOCIAL AUTHENTICATION METHODS WITH REDIRECT FALLBACK
         // =============================================================================
 
-        // Google Sign-In with fallback handling
+        // Google Sign-In with redirect fallback
         async function signInWithGoogle() {
             try {
                 setLoading('google', true);
@@ -897,53 +855,41 @@
                 
                 console.log('🔍 Initiating Google sign-in...');
                 
-                // Try VediAPI first, then fallback to direct Firebase
-                let result;
-                if (typeof VediAPI !== 'undefined' && VediAPI.signInWithGoogle) {
-                    try {
-                        result = await VediAPI.signInWithGoogle();
-                    } catch (vediError) {
-                        console.log('VediAPI Google sign-in failed, trying direct Firebase:', vediError);
-                        throw vediError;
-                    }
-                } else {
-                    // Direct Firebase fallback
-                    const provider = new firebase.auth.GoogleAuthProvider();
-                    provider.addScope('profile');
-                    provider.addScope('email');
-                    result = await firebase.auth().signInWithPopup(provider);
-                }
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.addScope('profile');
+                provider.addScope('email');
                 
-                console.log('✅ Google sign-in successful:', result.user.displayName);
-                await handleSocialSignInSuccess(result.user, 'google');
+                try {
+                    // Try popup first
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    console.log('✅ Google popup sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'google');
+                    
+                } catch (popupError) {
+                    console.log('🔄 Popup failed, trying redirect:', popupError.code);
+                    
+                    if (popupError.code === 'auth/popup-blocked' || 
+                        popupError.code === 'auth/popup-closed-by-user' ||
+                        popupError.code === 'auth/cancelled-popup-request') {
+                        
+                        showInfo('Redirecting to Google sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
+                        // Redirect will handle the rest
+                        
+                    } else {
+                        throw popupError;
+                    }
+                }
                 
             } catch (error) {
                 console.error('❌ Google sign-in error:', error);
-                
-                if (error.code === 'auth/popup-blocked' || 
-                    error.code === 'auth/popup-closed-by-user' ||
-                    error.code === 'auth/cancelled-popup-request') {
-                    
-                    try {
-                        showInfo('Redirecting to Google sign-in...');
-                        const provider = new firebase.auth.GoogleAuthProvider();
-                        provider.addScope('profile');
-                        provider.addScope('email');
-                        await firebase.auth().signInWithRedirect(provider);
-                        // Redirect will handle the rest
-                    } catch (redirectError) {
-                        console.error('❌ Google redirect error:', redirectError);
-                        handleSocialSignInError(redirectError, 'Google');
-                    }
-                } else {
-                    handleSocialSignInError(error, 'Google');
-                }
+                handleSocialSignInError(error, 'Google');
             } finally {
                 setLoading('google', false);
             }
         }
 
-        // Facebook Sign-In with fallback handling
+        // Facebook Sign-In with redirect fallback
         async function signInWithFacebook() {
             try {
                 setLoading('facebook', true);
@@ -951,51 +897,40 @@
                 
                 console.log('📘 Initiating Facebook sign-in...');
                 
-                // Try VediAPI first, then fallback to direct Firebase
-                let result;
-                if (typeof VediAPI !== 'undefined' && VediAPI.signInWithFacebook) {
-                    try {
-                        result = await VediAPI.signInWithFacebook();
-                    } catch (vediError) {
-                        console.log('VediAPI Facebook sign-in failed, trying direct Firebase:', vediError);
-                        throw vediError;
-                    }
-                } else {
-                    // Direct Firebase fallback
-                    const provider = new firebase.auth.FacebookAuthProvider();
-                    provider.addScope('email');
-                    result = await firebase.auth().signInWithPopup(provider);
-                }
+                const provider = new firebase.auth.FacebookAuthProvider();
+                provider.addScope('email');
                 
-                console.log('✅ Facebook sign-in successful:', result.user.displayName);
-                await handleSocialSignInSuccess(result.user, 'facebook');
+                try {
+                    // Try popup first
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    console.log('✅ Facebook popup sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'facebook');
+                    
+                } catch (popupError) {
+                    console.log('🔄 Popup failed, trying redirect:', popupError.code);
+                    
+                    if (popupError.code === 'auth/popup-blocked' || 
+                        popupError.code === 'auth/popup-closed-by-user' ||
+                        popupError.code === 'auth/cancelled-popup-request') {
+                        
+                        showInfo('Redirecting to Facebook sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
+                        // Redirect will handle the rest
+                        
+                    } else {
+                        throw popupError;
+                    }
+                }
                 
             } catch (error) {
                 console.error('❌ Facebook sign-in error:', error);
-                
-                if (error.code === 'auth/popup-blocked' || 
-                    error.code === 'auth/popup-closed-by-user' ||
-                    error.code === 'auth/cancelled-popup-request') {
-                    
-                    try {
-                        showInfo('Redirecting to Facebook sign-in...');
-                        const provider = new firebase.auth.FacebookAuthProvider();
-                        provider.addScope('email');
-                        await firebase.auth().signInWithRedirect(provider);
-                        // Redirect will handle the rest
-                    } catch (redirectError) {
-                        console.error('❌ Facebook redirect error:', redirectError);
-                        handleSocialSignInError(redirectError, 'Facebook');
-                    }
-                } else {
-                    handleSocialSignInError(error, 'Facebook');
-                }
+                handleSocialSignInError(error, 'Facebook');
             } finally {
                 setLoading('facebook', false);
             }
         }
 
-        // Apple Sign-In with fallback handling
+        // Apple Sign-In with redirect fallback
         async function signInWithApple() {
             try {
                 setLoading('apple', true);
@@ -1003,47 +938,35 @@
                 
                 console.log('🍎 Initiating Apple sign-in...');
                 
-                // Try VediAPI first, then fallback to direct Firebase
-                let result;
-                if (typeof VediAPI !== 'undefined' && VediAPI.signInWithApple) {
-                    try {
-                        result = await VediAPI.signInWithApple();
-                    } catch (vediError) {
-                        console.log('VediAPI Apple sign-in failed, trying direct Firebase:', vediError);
-                        throw vediError;
-                    }
-                } else {
-                    // Direct Firebase fallback
-                    const provider = new firebase.auth.OAuthProvider('apple.com');
-                    provider.addScope('email');
-                    provider.addScope('name');
-                    result = await firebase.auth().signInWithPopup(provider);
-                }
+                const provider = new firebase.auth.OAuthProvider('apple.com');
+                provider.addScope('email');
+                provider.addScope('name');
                 
-                console.log('✅ Apple sign-in successful:', result.user.displayName);
-                await handleSocialSignInSuccess(result.user, 'apple');
+                try {
+                    // Try popup first
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    console.log('✅ Apple popup sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'apple');
+                    
+                } catch (popupError) {
+                    console.log('🔄 Popup failed, trying redirect:', popupError.code);
+                    
+                    if (popupError.code === 'auth/popup-blocked' || 
+                        popupError.code === 'auth/popup-closed-by-user' ||
+                        popupError.code === 'auth/cancelled-popup-request') {
+                        
+                        showInfo('Redirecting to Apple sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
+                        // Redirect will handle the rest
+                        
+                    } else {
+                        throw popupError;
+                    }
+                }
                 
             } catch (error) {
                 console.error('❌ Apple sign-in error:', error);
-                
-                if (error.code === 'auth/popup-blocked' || 
-                    error.code === 'auth/popup-closed-by-user' ||
-                    error.code === 'auth/cancelled-popup-request') {
-                    
-                    try {
-                        showInfo('Redirecting to Apple sign-in...');
-                        const provider = new firebase.auth.OAuthProvider('apple.com');
-                        provider.addScope('email');
-                        provider.addScope('name');
-                        await firebase.auth().signInWithRedirect(provider);
-                        // Redirect will handle the rest
-                    } catch (redirectError) {
-                        console.error('❌ Apple redirect error:', redirectError);
-                        handleSocialSignInError(redirectError, 'Apple');
-                    }
-                } else {
-                    handleSocialSignInError(error, 'Apple');
-                }
+                handleSocialSignInError(error, 'Apple');
             } finally {
                 setLoading('apple', false);
             }
@@ -1164,19 +1087,8 @@
                 
                 // Store customer profile in Firestore
                 try {
-                    if (typeof VediAPI !== 'undefined' && VediAPI.saveCustomerProfile) {
-                        await VediAPI.saveCustomerProfile(currentSocialUser.uid, {
-                            name: userName,
-                            email: userEmail,
-                            phone: userPhone,
-                            phoneFormatted: customerSession.phoneFormatted,
-                            authProvider: provider
-                        });
-                        console.log('✅ Customer profile saved to Firestore via VediAPI');
-                    } else if (typeof firebase !== 'undefined' && firebase.firestore) {
-                        // Fallback to direct Firebase
-                        const db = firebase.firestore();
-                        await db.collection('customerProfiles').doc(currentSocialUser.uid).set({
+                    if (typeof firebaseDb !== 'undefined') {
+                        await firebaseDb.collection('customerProfiles').doc(currentSocialUser.uid).set({
                             name: userName,
                             email: userEmail,
                             phone: userPhone,
@@ -1185,7 +1097,7 @@
                             lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
                             createdAt: firebase.firestore.FieldValue.serverTimestamp()
                         }, { merge: true });
-                        console.log('✅ Customer profile saved to Firestore directly');
+                        console.log('✅ Customer profile saved to Firestore');
                     }
                 } catch (profileError) {
                     console.warn('⚠️ Could not save customer profile:', profileError);
@@ -1218,7 +1130,7 @@
         }
 
         // =============================================================================
-        // PHONE AUTHENTICATION METHODS (IMPROVED WITH API INTEGRATION)
+        // PHONE AUTHENTICATION METHODS (OPTIMIZED)
         // =============================================================================
 
         // Switch to phone auth
@@ -1243,128 +1155,78 @@
             hideMessages();
         }
 
-        // Phone auth step navigation
-        function proceedToPhone() {
-            const name = document.getElementById('customerName').value.trim();
-            
-            if (!name) {
-                showError('Please enter your name');
-                return;
-            }
-
-            if (name.length < 2) {
-                showError('Please enter a valid name');
-                return;
-            }
-
-            customerName = name;
-            
-            // Update steps
-            document.getElementById('step1').classList.remove('active');
-            document.getElementById('step1').classList.add('completed');
-            document.getElementById('step2').classList.add('active');
-            
-            // Switch phases
-            switchToPhase('phonePhase');
-            
-            // Initialize reCAPTCHA using VediAPI
-            setTimeout(async () => {
-                await initializeRecaptchaWithAPI();
-            }, 100);
-            
-            console.log('📱 Proceeding to phone verification');
-        }
-
-        function goBackToName() {
-            // Clear reCAPTCHA using VediAPI
-            if (typeof VediAPI !== 'undefined' && VediAPI.resetRecaptcha) {
-                VediAPI.resetRecaptcha();
-            }
-
-            document.getElementById('step2').classList.remove('active');
-            document.getElementById('step1').classList.remove('completed');
-            document.getElementById('step1').classList.add('active');
-            
-            switchToPhase('namePhase');
-            hideMessages();
-        }
-
-        // Initialize reCAPTCHA using VediAPI with enhanced error handling
-        async function initializeRecaptchaWithAPI() {
-            console.log('🔐 Initializing reCAPTCHA with VediAPI...');
+        // Initialize reCAPTCHA with enhanced error handling
+        function initializeRecaptcha() {
+            console.log('🔐 Initializing reCAPTCHA...');
             
             try {
-                if (typeof VediAPI !== 'undefined' && VediAPI.initializeRecaptcha) {
-                    // Custom options for our use case
-                    const options = {
-                        'size': 'normal',
-                        'callback': function(response) {
-                            console.log('✅ reCAPTCHA solved');
-                            const sendBtn = document.getElementById('sendCodeBtn');
-                            if (sendBtn) {
-                                sendBtn.disabled = false;
-                            }
-                            hideMessages();
-                        },
-                        'expired-callback': function() {
-                            console.log('⏰ reCAPTCHA expired');
-                            showError('reCAPTCHA expired. Please solve it again.');
-                            const sendBtn = document.getElementById('sendCodeBtn');
-                            if (sendBtn) {
-                                sendBtn.disabled = true;
-                            }
-                        },
-                        'error-callback': function(error) {
-                            console.error('❌ reCAPTCHA error:', error);
-                            showError('reCAPTCHA failed. Please refresh and try again.');
-                        }
-                    };
-
-                    // Initialize using VediAPI
-                    await VediAPI.initializeRecaptcha('recaptcha-container', options);
-                    
-                    // Initially disable send button until solved
-                    const sendBtn = document.getElementById('sendCodeBtn');
-                    if (sendBtn) {
-                        sendBtn.disabled = true;
+                // Clear any existing reCAPTCHA first
+                if (recaptchaVerifier) {
+                    try {
+                        recaptchaVerifier.clear();
+                    } catch (clearError) {
+                        console.warn('⚠️ reCAPTCHA already cleared:', clearError);
                     }
-                    
-                    console.log('✅ reCAPTCHA initialized successfully with VediAPI');
-                } else {
-                    // Fallback to direct Firebase initialization
-                    console.log('VediAPI not available, using direct Firebase reCAPTCHA');
-                    window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-                        'size': 'normal',
-                        'callback': function(response) {
-                            console.log('✅ reCAPTCHA solved (direct Firebase)');
-                            const sendBtn = document.getElementById('sendCodeBtn');
-                            if (sendBtn) {
-                                sendBtn.disabled = false;
-                            }
-                            hideMessages();
-                        },
-                        'expired-callback': function() {
-                            console.log('⏰ reCAPTCHA expired (direct Firebase)');
-                            showError('reCAPTCHA expired. Please solve it again.');
-                            const sendBtn = document.getElementById('sendCodeBtn');
-                            if (sendBtn) {
-                                sendBtn.disabled = true;
-                            }
-                        }
-                    });
-                    
-                    await window.recaptchaVerifier.render();
-                    
-                    // Initially disable send button until solved
-                    const sendBtn = document.getElementById('sendCodeBtn');
-                    if (sendBtn) {
-                        sendBtn.disabled = true;
-                    }
+                    recaptchaVerifier = null;
                 }
+
+                // Clear the container
+                const container = document.getElementById('recaptcha-container');
+                if (container) {
+                    container.innerHTML = '';
+                }
+
+                // Wait before creating new verifier
+                setTimeout(() => {
+                    try {
+                        recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                            'size': 'normal',
+                            'callback': function(response) {
+                                console.log('✅ reCAPTCHA solved');
+                                const sendBtn = document.getElementById('sendCodeBtn');
+                                if (sendBtn) {
+                                    sendBtn.disabled = false;
+                                }
+                                hideMessages();
+                            },
+                            'expired-callback': function() {
+                                console.log('⏰ reCAPTCHA expired');
+                                showError('reCAPTCHA expired. Please solve it again.');
+                                const sendBtn = document.getElementById('sendCodeBtn');
+                                if (sendBtn) {
+                                    sendBtn.disabled = true;
+                                }
+                            },
+                            'error-callback': function(error) {
+                                console.error('❌ reCAPTCHA error:', error);
+                                showError('reCAPTCHA failed. Please refresh and try again.');
+                            }
+                        });
+
+                        recaptchaVerifier.render().then(function(widgetId) {
+                            window.recaptchaWidgetId = widgetId;
+                            console.log('✅ reCAPTCHA rendered successfully');
+                            
+                            // Initially disable send button until solved
+                            const sendBtn = document.getElementById('sendCodeBtn');
+                            if (sendBtn) {
+                                sendBtn.disabled = true;
+                            }
+                            
+                        }).catch(function(error) {
+                            console.error('❌ reCAPTCHA render error:', error);
+                            showError('Failed to load reCAPTCHA. Please refresh the page.');
+                        });
+                        
+                    } catch (error) {
+                        console.error('❌ reCAPTCHA initialization failed:', error);
+                        showError('Failed to initialize phone verification. Please refresh the page.');
+                    }
+                }, 500);
                 
             } catch (error) {
-                console.error('❌ reCAPTCHA initialization failed:', error);
-                showError('Failed to initialize phone verification. Please refresh the page.');
+                console.error('❌ reCAPTCHA setup failed:', error);
+                showError('Phone verification setup failed. Please refresh the page.');
             }
         }
 
@@ -1405,7 +1267,57 @@
             });
         }
 
-        // Send verification code using VediAPI with enhanced error handling
+        // Phone auth step navigation
+        function proceedToPhone() {
+            const name = document.getElementById('customerName').value.trim();
+            
+            if (!name) {
+                showError('Please enter your name');
+                return;
+            }
+
+            if (name.length < 2) {
+                showError('Please enter a valid name');
+                return;
+            }
+
+            customerName = name;
+            
+            // Update steps
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+            
+            // Switch phases
+            switchToPhase('phonePhase');
+            
+            // Initialize reCAPTCHA
+            setTimeout(() => {
+                initializeRecaptcha();
+            }, 100);
+            
+            console.log('📱 Proceeding to phone verification');
+        }
+
+        function goBackToName() {
+            if (recaptchaVerifier) {
+                try {
+                    recaptchaVerifier.clear();
+                } catch (error) {
+                    console.warn('⚠️ Error clearing reCAPTCHA on back:', error);
+                }
+                recaptchaVerifier = null;
+            }
+
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step1').classList.remove('completed');
+            document.getElementById('step1').classList.add('active');
+            
+            switchToPhase('namePhase');
+            hideMessages();
+        }
+
+        // Send verification code with enhanced error handling
         async function sendVerificationCode() {
             const countryCode = document.getElementById('countryCode').value;
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
@@ -1435,22 +1347,25 @@
             const fullPhoneNumber = countryCode + cleanPhone;
             customerPhone = fullPhoneNumber;
             
+            // Additional validation for E.164 format
+            const e164Regex = /^\+[1-9]\d{1,14}$/;
+            if (!e164Regex.test(fullPhoneNumber)) {
+                showError('Invalid phone number format. Please check your number.');
+                return;
+            }
+            
             console.log('📱 Sending verification to:', fullPhoneNumber);
 
             try {
                 setLoading('phone', true);
                 hideMessages();
                 
-                // Try VediAPI first, then fallback to direct Firebase
-                if (typeof VediAPI !== 'undefined' && VediAPI.sendPhoneVerification) {
-                    confirmationResult = await VediAPI.sendPhoneVerification(fullPhoneNumber);
-                } else {
-                    // Fallback to direct Firebase
-                    if (!window.recaptchaVerifier) {
-                        throw new Error('reCAPTCHA not initialized. Please refresh the page.');
-                    }
-                    confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhoneNumber, window.recaptchaVerifier);
+                if (!recaptchaVerifier) {
+                    throw new Error('reCAPTCHA not initialized. Please refresh the page.');
                 }
+                
+                // Send verification code
+                confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
                 
                 console.log('✅ Verification code sent successfully');
                 showInfo('Verification code sent! Please check your phone.');
@@ -1485,29 +1400,19 @@
                     errorMessage = 'reCAPTCHA verification failed. Please try again.';
                 } else if (error.code === 'auth/network-request-failed') {
                     errorMessage = 'Network error. Please check your connection.';
-                } else if (error.message) {
-                    errorMessage = error.message;
                 }
                 
                 showError(errorMessage);
                 
                 // Reset reCAPTCHA
-                if (typeof VediAPI !== 'undefined' && VediAPI.resetRecaptcha) {
-                    const resetSuccess = await VediAPI.resetRecaptcha();
-                    if (!resetSuccess) {
-                        // If reset failed, reinitialize
-                        setTimeout(() => {
-                            initializeRecaptchaWithAPI();
-                        }, 1000);
-                    }
-                } else if (window.recaptchaVerifier && typeof grecaptcha !== 'undefined') {
+                if (recaptchaVerifier && window.recaptchaWidgetId) {
                     try {
-                        grecaptcha.reset();
+                        grecaptcha.reset(window.recaptchaWidgetId);
                         console.log('🔄 reCAPTCHA reset for retry');
                     } catch (resetError) {
                         console.warn('⚠️ Could not reset reCAPTCHA:', resetError);
                         setTimeout(() => {
-                            initializeRecaptchaWithAPI();
+                            initializeRecaptcha();
                         }, 1000);
                     }
                 }
@@ -1517,7 +1422,7 @@
             }
         }
 
-        // Verify code using VediAPI
+        // Verify code
         async function verifyCode() {
             const code = document.getElementById('verificationCode').value.trim();
             
@@ -1541,15 +1446,7 @@
                     throw new Error('No verification in progress. Please request a new code.');
                 }
                 
-                // Try VediAPI first, then fallback to direct Firebase
-                let result;
-                if (typeof VediAPI !== 'undefined' && VediAPI.verifyPhoneCode) {
-                    result = await VediAPI.verifyPhoneCode(confirmationResult, code);
-                } else {
-                    // Fallback to direct Firebase
-                    result = await confirmationResult.confirm(code);
-                }
-                
+                const result = await confirmationResult.confirm(code);
                 const user = result.user;
                 
                 console.log('✅ Phone verified! User UID:', user.uid);
@@ -1560,17 +1457,13 @@
             } catch (error) {
                 console.error('❌ Error verifying code:', error);
                 
-                let errorMessage = 'Failed to verify code. Please try again.';
-                
                 if (error.code === 'auth/invalid-verification-code') {
-                    errorMessage = 'Invalid verification code. Please check and try again.';
+                    showError('Invalid verification code. Please check and try again.');
                 } else if (error.code === 'auth/code-expired') {
-                    errorMessage = 'Verification code has expired. Please request a new one.';
-                } else if (error.message) {
-                    errorMessage = error.message;
+                    showError('Verification code has expired. Please request a new one.');
+                } else {
+                    showError('Failed to verify code. Please try again.');
                 }
-                
-                showError(errorMessage);
                 
                 document.getElementById('verificationCode').value = '';
                 document.getElementById('verificationCode').focus();
@@ -1600,18 +1493,8 @@
             sessionStorage.setItem('customerSession', JSON.stringify(customerSession));
             
             try {
-                if (typeof VediAPI !== 'undefined' && VediAPI.saveCustomerProfile) {
-                    await VediAPI.saveCustomerProfile(user.uid, {
-                        name: customerName,
-                        phone: customerPhone,
-                        phoneFormatted: formatPhoneForDisplay(customerPhone),
-                        authProvider: 'phone'
-                    });
-                    console.log('✅ Customer profile saved to Firestore via VediAPI');
-                } else if (typeof firebase !== 'undefined' && firebase.firestore) {
-                    // Fallback to direct Firebase
-                    const db = firebase.firestore();
-                    await db.collection('customerProfiles').doc(user.uid).set({
+                if (typeof firebaseDb !== 'undefined') {
+                    await firebaseDb.collection('customerProfiles').doc(user.uid).set({
                         name: customerName,
                         phone: customerPhone,
                         phoneFormatted: formatPhoneForDisplay(customerPhone),
@@ -1619,7 +1502,7 @@
                         lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
-                    console.log('✅ Customer profile saved to Firestore directly');
+                    console.log('✅ Customer profile saved to Firestore');
                 }
             } catch (profileError) {
                 console.warn('⚠️ Could not save customer profile:', profileError);
@@ -1662,19 +1545,16 @@
                     clearInterval(resendTimer);
                 }
                 
-                // Reset reCAPTCHA
-                if (typeof VediAPI !== 'undefined' && VediAPI.resetRecaptcha) {
-                    await VediAPI.resetRecaptcha();
-                } else if (window.recaptchaVerifier && typeof grecaptcha !== 'undefined') {
+                if (recaptchaVerifier) {
                     try {
-                        grecaptcha.reset();
-                    } catch (resetError) {
-                        console.warn('⚠️ Error resetting reCAPTCHA on resend:', resetError);
+                        recaptchaVerifier.clear();
+                    } catch (error) {
+                        console.warn('⚠️ Error clearing reCAPTCHA on resend:', error);
                     }
                 }
                 
                 setTimeout(() => {
-                    initializeRecaptchaWithAPI();
+                    initializeRecaptcha();
                 }, 500);
                 
                 showInfo('Please solve the reCAPTCHA and send the code again.');
@@ -1844,7 +1724,7 @@
             }
         });
 
-        console.log('📱🔍 Enhanced customer authentication system loaded with Firebase/VediAPI fallbacks');
+        console.log('📱🔍 Enhanced customer authentication system loaded with performance optimizations');
     </script>
 </body>
 </html>
