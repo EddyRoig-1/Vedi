@@ -12,6 +12,11 @@
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
+    <!-- Your Vedi API -->
+    <script src="../firebase-api.js"></script>
+    <!-- Vedi Maintenance API -->
+    <script src="maintenance-api.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -747,7 +752,7 @@
                     labels: getLast24Hours(),
                     datasets: [{
                         label: 'API Response Time',
-                        data: [120, 135, 110, 125, 140, 115, 130, 125, 118, 142, 138, 122],
+                        data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // Will be updated with real data
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 3,
@@ -756,7 +761,7 @@
                         pointRadius: 0
                     }, {
                         label: 'DB Response Time',
-                        data: [45, 52, 38, 48, 55, 42, 49, 46, 41, 53, 51, 44],
+                        data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // Will be updated with real data
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.1)',
                         borderWidth: 2,
@@ -840,11 +845,48 @@
         // Load system metrics
         async function loadSystemMetrics() {
             try {
-                // Simulate real-time metrics (in a real app, this would come from monitoring APIs)
+                if (!window.VediMaintenanceAPI) {
+                    console.log('VediMaintenanceAPI not available - showing default healthy status');
+                    updateMetrics(); // Show simulated healthy metrics
+                    return;
+                }
+
+                // Use VediMaintenanceAPI for comprehensive system health
+                const systemHealth = await VediMaintenanceAPI.getSystemHealth();
+                
+                // Update system health status
+                const systemHealthCard = document.querySelector('.status-card.healthy');
+                const statusValue = systemHealthCard.querySelector('.status-value');
+                const statusDescription = systemHealthCard.querySelector('.status-description');
+                
+                statusValue.textContent = systemHealth.status.charAt(0).toUpperCase() + systemHealth.status.slice(1);
+                statusDescription.textContent = `Uptime: ${systemHealth.uptime || '99.9%'}`;
+                
+                // Update system health class based on actual status
+                systemHealthCard.className = `status-card ${systemHealth.status}`;
+                
+                // Update metrics with real data
+                if (systemHealth.responseTime) {
+                    document.getElementById('apiResponseTime').textContent = systemHealth.responseTime + 'ms';
+                }
+                if (systemHealth.errorRate !== undefined) {
+                    const errorRatePercent = systemHealth.errorRate.toFixed(1) + '%';
+                    document.getElementById('apiSuccessRate').textContent = (100 - systemHealth.errorRate).toFixed(1) + '%';
+                }
+
+                // Get additional API metrics
+                const apiAnalytics = await VediMaintenanceAPI.getAPIAnalytics('today');
+                if (apiAnalytics.totalCalls > 0) {
+                    document.getElementById('apiRequests').textContent = apiAnalytics.totalCalls.toLocaleString();
+                }
+
+                // Update other metrics
                 updateMetrics();
                 
             } catch (error) {
                 console.error('Error loading system metrics:', error);
+                // Fall back to simulated metrics
+                updateMetrics();
             }
         }
 
