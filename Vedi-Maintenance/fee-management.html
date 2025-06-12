@@ -15,6 +15,8 @@
     
     <!-- Your Vedi API -->
     <script src="../firebase-api.js"></script>
+    <!-- Vedi Maintenance API -->
+    <script src="maintenance-api.js"></script>
     
     <style>
         * {
@@ -1142,6 +1144,9 @@
             try {
                 if (!window.VediAPI) {
                     console.error('VediAPI not loaded');
+                    document.getElementById('totalRevenue').textContent = '$0';
+                    document.getElementById('totalFees').textContent = '$0';
+                    document.getElementById('avgFeePercent').textContent = '0%';
                     return;
                 }
 
@@ -1150,7 +1155,7 @@
                 document.getElementById('totalRevenue').textContent = formatCurrency(analytics.totalRevenue || 0);
                 document.getElementById('totalFees').textContent = formatCurrency(analytics.totalServiceFees || 0);
                 
-                const avgFeePercent = analytics.orderCount > 0 ? 
+                const avgFeePercent = analytics.totalRevenue > 0 ? 
                     ((analytics.totalServiceFees / analytics.totalRevenue) * 100).toFixed(1) : 0;
                 document.getElementById('avgFeePercent').textContent = avgFeePercent + '%';
                 
@@ -1458,15 +1463,39 @@
                 ];
                 feeTypeChart.update();
 
-                // For revenue chart, we'll show dummy data for now
-                // In production, you'd load actual daily revenue data
+                // For revenue chart, load real data from orders
                 const last30Days = [];
                 const revenueData = [];
+                
                 for (let i = 29; i >= 0; i--) {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
+                    const dateStr = date.toISOString().split('T')[0];
                     last30Days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-                    revenueData.push(Math.random() * 1000 + 500); // Replace with real data
+                    
+                    // Get orders for this day
+                    const dayStart = new Date(date);
+                    dayStart.setHours(0, 0, 0, 0);
+                    const dayEnd = new Date(date);
+                    dayEnd.setHours(23, 59, 59, 999);
+                    
+                    try {
+                        const ordersSnapshot = await firebaseDb.collection('orders')
+                            .where('createdAt', '>=', dayStart)
+                            .where('createdAt', '<=', dayEnd)
+                            .where('status', '==', 'completed')
+                            .get();
+                        
+                        let dayRevenue = 0;
+                        ordersSnapshot.docs.forEach(doc => {
+                            const order = doc.data();
+                            dayRevenue += (order.total || 0);
+                        });
+                        
+                        revenueData.push(dayRevenue);
+                    } catch (error) {
+                        revenueData.push(0);
+                    }
                 }
 
                 revenueChart.data.labels = last30Days;
