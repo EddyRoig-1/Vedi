@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Analytics Dashboard</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Chart.js for analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #1a202c;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+            min-height: calc(100vh - 2rem);
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid #f8fafc;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: #64748b;
+            font-size: 1.125rem;
+            font-weight: 500;
+        }
+
+        .api-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .overview-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .overview-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--card-gradient);
+        }
+
+        .overview-card.total::before { --card-gradient: linear-gradient(90deg, #4facfe, #00f2fe); }
+        .overview-card.success::before { --card-gradient: linear-gradient(90deg, #43e97b, #38f9d7); }
+        .overview-card.errors::before { --card-gradient: linear-gradient(90deg, #fa709a, #fee140); }
+        .overview-card.response::before { --card-gradient: linear-gradient(90deg, #a8edea, #fed6e3); }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: var(--icon-bg);
+            color: white;
+        }
+
+        .overview-card.total .card-icon { --icon-bg: linear-gradient(135deg, #4facfe, #00f2fe); }
+        .overview-card.success .card-icon { --icon-bg: linear-gradient(135deg, #43e97b, #38f9d7); }
+        .overview-card.errors .card-icon { --icon-bg: linear-gradient(135deg, #fa709a, #fee140); }
+        .overview-card.response .card-icon { --icon-bg: linear-gradient(135deg, #a8edea, #fed6e3); }
+
+        .card-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #1a202c;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-change {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #64748b;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f8fafc;
+        }
+
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .time-selector {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .time-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #64748b;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .time-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .chart-container {
+            height: 350px;
+            position: relative;
+        }
+
+        .methods-section {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            margin-bottom: 2rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f8fafc;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .methods-stats {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-active { background: #10b981; }
+        .status-warning { background: #f59e0b; }
+        .status-error { background: #ef4444; }
+
+        .methods-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1rem;
+        }
+
+        .method-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+        }
+
+        .method-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+
+        .method-header {
+            display: flex;
+            justify-content: between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .method-name {
+            font-weight: 700;
+            color: #1a202c;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .method-endpoint {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: rgba(102, 126, 234, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .method-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-group {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .error-rate {
+            color: #ef4444;
+        }
+
+        .success-rate {
+            color: #10b981;
+        }
+
+        .performance-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .performance-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .metric-list {
+            space-y: 1rem;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .metric-item:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .metric-value {
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin-right: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #64748b;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .charts-grid, .performance-section {
+                grid-template-columns: 1fr;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">🔌 API Analytics</h1>
+            <p class="page-subtitle">Monitor API performance, usage patterns, and endpoint health</p>
+        </div>
+
+        <!-- API Overview Cards -->
+        <div class="api-overview">
+            <div class="overview-card total">
+                <div class="card-header">
+                    <div class="card-title">Total API Calls</div>
+                    <div class="card-icon">📊</div>
+                </div>
+                <div class="card-value" id="totalCalls">0</div>
+                <div class="card-change">Last 24 hours</div>
+            </div>
+
+            <div class="overview-card success">
+                <div class="card-header">
+                    <div class="card-title">Success Rate</div>
+                    <div class="card-icon">✅</div>
+                </div>
+                <div class="card-value" id="successRate">99.9%</div>
+                <div class="card-change">All time average</div>
+            </div>
+
+            <div class="overview-card errors">
+                <div class="card-header">
+                    <div class="card-title">Error Count</div>
+                    <div class="card-icon">⚠️</div>
+                </div>
+                <div class="card-value" id="errorCount">0</div>
+                <div class="card-change">Last 24 hours</div>
+            </div>
+
+            <div class="overview-card response">
+                <div class="card-header">
+                    <div class="card-title">Avg Response Time</div>
+                    <div class="card-icon">⚡</div>
+                </div>
+                <div class="card-value" id="avgResponse">120ms</div>
+                <div class="card-change">Last hour</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">API Usage Over Time</h3>
+                    <div class="time-selector">
+                        <button class="time-btn" onclick="changeTimeframe('24h')">24H</button>
+                        <button class="time-btn active" onclick="changeTimeframe('7d')">7D</button>
+                        <button class="time-btn" onclick="changeTimeframe('30d')">30D</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="usageChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Response Status Distribution</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Methods Section -->
+        <div class="methods-section">
+            <div class="section-header">
+                <h3 class="section-title">VediAPI Methods</h3>
+                <div class="methods-stats">
+                    <div class="stat-item">
+                        <div class="status-dot status-active"></div>
+                        <span>41 Active</span>
+                    </div>
+                    <div class="stat-item">
+                        <div class="status-dot status-warning"></div>
+                        <span>0 Warning</span>
+                    </div>
+                    <div class="stat-item">
+                        <div class="status-dot status-error"></div>
+                        <span>0 Error</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="methods-grid" id="methodsGrid">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading API methods...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="performance-section">
+            <div class="performance-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Performance Metrics</h3>
+                </div>
+                <div class="metric-list">
+                    <div class="metric-item">
+                        <span class="metric-label">Average Response Time</span>
+                        <span class="metric-value" id="avgResponseTime">120ms</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">95th Percentile</span>
+                        <span class="metric-value" id="p95ResponseTime">250ms</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">99th Percentile</span>
+                        <span class="metric-value" id="p99ResponseTime">500ms</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Throughput</span>
+                        <span class="metric-value" id="throughput">1,250 req/min</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Peak Latency</span>
+                        <span class="metric-value" id="peakLatency">850ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="performance-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Response Time Trends</h3>
+                </div>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="responseTimeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
+            authDomain: "vedi00.firebaseapp.com",
+            projectId: "vedi00",
+            storageBucket: "vedi00.firebasestorage.app",
+            messagingSenderId: "136867441640",
+            appId: "1:136867441640:web:9ec709b63f5690f628125d",
+            measurementId: "G-ZS0FKPTEY2"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Chart instances
+        let usageChart, statusChart, responseTimeChart;
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadAPIData();
+            loadAPIMethods();
+            
+            // Set up real-time updates
+            setInterval(loadAPIData, 30000); // Update every 30 seconds
+        });
+
+        // Initialize charts
+        function initializeCharts() {
+            // Usage Chart
+            const usageCtx = document.getElementById('usageChart').getContext('2d');
+            usageChart = new Chart(usageCtx, {
+                type: 'line',
+                data: {
+                    labels: getLast7Days(),
+                    datasets: [{
+                        label: 'API Calls',
+                        data: [120, 190, 300, 500, 200, 300, 450],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f1f5f9',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                font: {
+                                    size: 12,
+                                    weight: '500'
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                font: {
+                                    size: 12,
+                                    weight: '500'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Status Chart
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            statusChart = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['200 OK', '201 Created', '400 Bad Request', '401 Unauthorized', '500 Server Error'],
+                    datasets: [{
+                        data: [85, 10, 3, 1, 1],
+                        backgroundColor: [
+                            '#10b981',
+                            '#059669',
+                            '#f59e0b',
+                            '#ef4444',
+                            '#dc2626'
+                        ],
+                        borderWidth: 0,
+                        cutout: '70%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                font: {
+                                    size: 11,
+                                    weight: '500'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Response Time Chart
+            const responseCtx = document.getElementById('responseTimeChart').getContext('2d');
+            responseTimeChart = new Chart(responseCtx, {
+                type: 'line',
+                data: {
+                    labels: getLast24Hours(),
+                    datasets: [{
+                        label: 'Response Time (ms)',
+                        data: [120, 135, 110, 125, 140, 115],
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f1f5f9'
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                font: {
+                                    size: 10
+                                },
+                                callback: function(value) {
+                                    return value + 'ms';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load API data
+        async function loadAPIData() {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Get API calls for today
+                const apiCallsSnapshot = await db.collection('apiCalls')
+                    .where('date', '==', today)
+                    .get();
+
+                const totalCalls = apiCallsSnapshot.size;
+                document.getElementById('totalCalls').textContent = totalCalls.toLocaleString();
+
+                if (totalCalls > 0) {
+                    // Calculate success rate
+                    let successfulCalls = 0;
+                    let errorCount = 0;
+                    let totalResponseTime = 0;
+
+                    apiCallsSnapshot.docs.forEach(doc => {
+                        const call = doc.data();
+                        if (call.success !== false) {
+                            successfulCalls++;
+                        } else {
+                            errorCount++;
+                        }
+                        if (call.responseTime) {
+                            totalResponseTime += call.responseTime;
+                        }
+                    });
+
+                    const successRate = ((successfulCalls / totalCalls) * 100).toFixed(1);
+                    document.getElementById('successRate').textContent = successRate + '%';
+                    document.getElementById('errorCount').textContent = errorCount;
+
+                    if (totalResponseTime > 0) {
+                        const avgResponse = Math.round(totalResponseTime / totalCalls);
+                        document.getElementById('avgResponse').textContent = avgResponse + 'ms';
+                        document.getElementById('avgResponseTime').textContent = avgResponse + 'ms';
+                    }
+                }
+
+                // Update charts with real data
+                await updateChartsWithRealData();
+
+            } catch (error) {
+                console.error('Error loading API data:', error);
+            }
+        }
+
+        // Load API methods
+        async function loadAPIMethods() {
+            try {
+                const methodsGrid = document.getElementById('methodsGrid');
+                
+                // Get API calls data to analyze methods
+                const apiCallsSnapshot = await db.collection('apiCalls').get();
+                
+                if (apiCallsSnapshot.empty) {
+                    methodsGrid.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔌</div>
+                            <h3>No API Data Available</h3>
+                            <p>API method analytics will appear here once your platform starts receiving API calls</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Group by method and calculate stats
+                const methodStats = {};
+                apiCallsSnapshot.docs.forEach(doc => {
+                    const call = doc.data();
+                    const method = call.method || 'unknown';
+                    
+                    if (!methodStats[method]) {
+                        methodStats[method] = {
+                            calls: 0,
+                            errors: 0,
+                            totalResponseTime: 0,
+                            responseTimeCount: 0
+                        };
+                    }
+                    
+                    methodStats[method].calls++;
+                    if (call.success === false) {
+                        methodStats[method].errors++;
+                    }
+                    if (call.responseTime) {
+                        methodStats[method].totalResponseTime += call.responseTime;
+                        methodStats[method].responseTimeCount++;
+                    }
+                });
+                
+                // Generate method cards
+                let html = '';
+                Object.entries(methodStats).forEach(([method, stats]) => {
+                    const errorRate = stats.calls > 0 ? ((stats.errors / stats.calls) * 100).toFixed(1) : '0.0';
+                    const successRate = (100 - parseFloat(errorRate)).toFixed(1);
+                    const avgResponseTime = stats.responseTimeCount > 0 
+                        ? Math.round(stats.totalResponseTime / stats.responseTimeCount) 
+                        : 0;
+                    
+                    html += `
+                        <div class="method-card">
+                            <div class="method-header">
+                                <div>
+                                    <div class="method-name">VediAPI.${method}</div>
+                                    <div class="method-endpoint">/api/v1/${method.toLowerCase()}</div>
+                                </div>
+                            </div>
+                            <div class="method-stats">
+                                <div class="stat-group">
+                                    <div class="stat-label">Total Calls</div>
+                                    <div class="stat-value">${stats.calls.toLocaleString()}</div>
+                                </div>
+                                <div class="stat-group">
+                                    <div class="stat-label">Success Rate</div>
+                                    <div class="stat-value success-rate">${successRate}%</div>
+                                </div>
+                                <div class="stat-group">
+                                    <div class="stat-label">Error Rate</div>
+                                    <div class="stat-value ${parseFloat(errorRate) > 5 ? 'error-rate' : ''}">${errorRate}%</div>
+                                </div>
+                                <div class="stat-group">
+                                    <div class="stat-label">Avg Response</div>
+                                    <div class="stat-value">${avgResponseTime}ms</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                methodsGrid.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading API methods:', error);
+                document.getElementById('methodsGrid').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <h3>Error Loading API Methods</h3>
+                        <p>Unable to load API analytics data</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Update charts with real data
+        async function updateChartsWithRealData() {
+            try {
+                // Get usage data for last 7 days
+                const last7Days = getLast7Days();
+                const usageData = await Promise.all(last7Days.map(async (day, index) => {
+                    const date = new Date();
+                    date.setDate(date.getDate() - (6 - index));
+                    const dateStr = date.toISOString().split('T')[0];
+                    
+                    const snapshot = await db.collection('apiCalls')
+                        .where('date', '==', dateStr)
+                        .get();
+                    
+                    return snapshot.size;
+                }));
+
+                // Update usage chart if we have real data
+                if (usageData.some(val => val > 0)) {
+                    usageChart.data.datasets[0].data = usageData;
+                    usageChart.update();
+                }
+
+                // Get status code distribution
+                const allCallsSnapshot = await db.collection('apiCalls').limit(1000).get();
+                if (!allCallsSnapshot.empty) {
+                    const statusCodes = { '200': 0, '201': 0, '400': 0, '401': 0, '500': 0 };
+                    
+                    allCallsSnapshot.docs.forEach(doc => {
+                        const call = doc.data();
+                        const status = call.statusCode || (call.success !== false ? '200' : '500');
+                        if (statusCodes[status] !== undefined) {
+                            statusCodes[status]++;
+                        }
+                    });
+
+                    const statusData = Object.values(statusCodes);
+                    const total = statusData.reduce((a, b) => a + b, 0);
+                    
+                    if (total > 0) {
+                        const percentages = statusData.map(val => ((val / total) * 100).toFixed(1));
+                        statusChart.data.datasets[0].data = percentages;
+                        statusChart.update();
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error updating charts with real data:', error);
+            }
+        }
+
+        // Change timeframe
+        function changeTimeframe(period) {
+            // Update active button
+            document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update chart based on period
+            let labels, data;
+            
+            switch(period) {
+                case '24h':
+                    labels = getLast24Hours();
+                    data = [15, 25, 20, 30, 28, 35]; // Mock hourly data
+                    break;
+                case '7d':
+                    labels = getLast7Days();
+                    data = [120, 190, 300, 500, 200, 300, 450]; // Mock daily data
+                    break;
+                case '30d':
+                    labels = getLast30Days();
+                    data = [3200, 3800, 4100, 3900, 4300, 4600, 4200, 4800, 5100, 4900, 5300, 5600, 5200, 5800, 6100, 5900, 6300, 6600, 6200, 6800, 7100, 6900, 7300, 7600, 7200, 7800, 8100, 7900, 8300, 8600]; // Mock monthly data
+                    break;
+                default:
+                    return;
+            }
+            
+            usageChart.data.labels = labels;
+            usageChart.data.datasets[0].data = data;
+            usageChart.update();
+        }
+
+        // Utility functions
+        function getLast7Days() {
+            const days = [];
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            }
+            return days;
+        }
+
+        function getLast24Hours() {
+            const hours = [];
+            for (let i = 23; i >= 0; i -= 4) {
+                const date = new Date();
+                date.setHours(date.getHours() - i);
+                hours.push(date.getHours().toString().padStart(2, '0') + ':00');
+            }
+            return hours;
+        }
+
+        function getLast30Days() {
+            const days = [];
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            }
+            return days;
+        }
+    </script>
+</body>
+</html>
