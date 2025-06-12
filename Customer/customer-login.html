@@ -697,15 +697,12 @@
     </div>
 
     <script>
-        // =============================================================================
-        // ENHANCED PROMISE HANDLING AND STATE MANAGEMENT
-        // =============================================================================
-
         // Global variables
         let restaurantData = null;
         let tableNumber = null;
         let restaurantId = null;
         let tableLocation = null;
+        let confirmationResult = null;
         let customerName = '';
         let customerPhone = '';
         let selectedCountryCode = '+1';
@@ -713,91 +710,6 @@
         let resendCountdown = 60;
         let currentSocialUser = null;
         let performanceStartTime = Date.now();
-
-        // Promise state management
-        class PromiseStateManager {
-            constructor() {
-                this.pendingOperations = new Set();
-                this.verificationState = {
-                    verificationId: null,
-                    confirmationResult: null,
-                    isInProgress: false
-                };
-            }
-
-            async execute(operationId, promise) {
-                if (this.pendingOperations.has(operationId)) {
-                    throw new Error(`Operation ${operationId} already in progress`);
-                }
-
-                this.pendingOperations.add(operationId);
-                
-                try {
-                    const result = await promise;
-                    return result;
-                } finally {
-                    this.pendingOperations.delete(operationId);
-                }
-            }
-
-            isOperationPending(operationId) {
-                return this.pendingOperations.has(operationId);
-            }
-
-            setVerificationState(verificationId, confirmationResult) {
-                this.verificationState = {
-                    verificationId,
-                    confirmationResult,
-                    isInProgress: true
-                };
-            }
-
-            clearVerificationState() {
-                this.verificationState = {
-                    verificationId: null,
-                    confirmationResult: null,
-                    isInProgress: false
-                };
-            }
-
-            getVerificationState() {
-                return this.verificationState;
-            }
-
-            cancelAllOperations() {
-                this.pendingOperations.clear();
-                this.clearVerificationState();
-            }
-        }
-
-        // Initialize global promise manager
-        const promiseManager = new PromiseStateManager();
-
-        // Promise timeout wrapper
-        function withTimeout(promise, timeoutMs, errorMessage) {
-            return Promise.race([
-                promise,
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
-                )
-            ]);
-        }
-
-        // Enhanced error handler
-        function handleError(error, context = 'Unknown operation') {
-            console.error(`❌ Error in ${context}:`, error);
-            
-            // Handle specific error types
-            if (error.message.includes('timeout') || error.message.includes('timed out')) {
-                showError('Operation timed out. Please check your connection and try again.');
-            } else if (error.code && error.code.startsWith('auth/')) {
-                showError(error.message || 'Authentication error. Please try again.');
-            } else if (error.message.includes('Network')) {
-                showError('Network error. Please check your connection and try again.');
-            } else {
-                showError(error.message || 'An unexpected error occurred. Please try again.');
-            }
-        }
 
         // Performance monitoring
         function addPerformanceMonitoring() {
@@ -831,34 +743,19 @@
             });
         }
 
-        // Hide initial loader with promise
+        // Hide initial loader
         function hideInitialLoader() {
-            return new Promise((resolve) => {
-                const loader = document.getElementById('initialLoader');
-                if (loader) {
-                    loader.style.opacity = '0';
-                    setTimeout(() => {
-                        loader.remove();
-                        resolve();
-                    }, 300);
-                } else {
-                    resolve();
-                }
-            });
+            const loader = document.getElementById('initialLoader');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 300);
+            }
         }
 
-        // Enhanced wait for APIs with timeout
+        // Wait for APIs to load
         function waitForAPIs() {
-            return new Promise((resolve, reject) => {
-                const maxWait = 15000; // 15 second timeout
-                const startTime = Date.now();
-                
+            return new Promise((resolve) => {
                 const checkAPIs = () => {
-                    if (Date.now() - startTime > maxWait) {
-                        reject(new Error('Timeout waiting for APIs to load. Please refresh the page.'));
-                        return;
-                    }
-                    
                     if (typeof VediAPI !== 'undefined' && typeof CustomerAuthAPI !== 'undefined') {
                         console.log('✅ Both APIs loaded successfully');
                         resolve();
@@ -867,127 +764,56 @@
                         setTimeout(checkAPIs, 100);
                     }
                 };
-                
                 checkAPIs();
             });
         }
 
-        // Enhanced redirect result handling with timeout
-        async function handleRedirectResult() {
+        // Enhanced initialization with redirect result handling
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Enhanced customer login initializing...');
+            addPerformanceMonitoring();
+            
             try {
-                console.log('🔄 Checking for redirect authentication result...');
+                // Wait for APIs to load
+                await waitForAPIs();
                 
-                const redirectResult = await withTimeout(
-                    firebase.auth().getRedirectResult(),
-                    15000,
-                    'Redirect authentication timed out'
-                );
-                
-                if (redirectResult && redirectResult.user) {
-                    console.log('✅ Redirect sign-in successful:', redirectResult.user.displayName);
-                    await hideInitialLoader();
-                    await handleSocialSignInSuccess(redirectResult.user, 'redirect');
-                    return true;
+                // Check for redirect result first (for social auth)
+                try {
+                    const redirectResult = await firebase.auth().getRedirectResult();
+                    if (redirectResult && redirectResult.user) {
+                        console.log('✅ Redirect sign-in successful:', redirectResult.user.displayName);
+                        hideInitialLoader();
+                        await handleSocialSignInSuccess(redirectResult.user, 'redirect');
+                        return;
+                    }
+                } catch (redirectError) {
+                    console.warn('⚠️ Redirect result error (normal if no redirect):', redirectError);
                 }
-                
-                return false;
-                
-            } catch (redirectError) {
-                console.warn('⚠️ Redirect result error (normal if no redirect):', redirectError);
-                // Don't throw - this is expected if no redirect occurred
-                return false;
-            }
-        }
 
-        // Enhanced initialization with comprehensive error handling
-        async function initializeApp() {
-            try {
-                // Parse URL parameters
+                // Normal initialization
                 parseURLParameters();
                 updateTableDisplay();
                 
                 if (restaurantId) {
                     await loadRestaurantInfo();
                 } else {
-                    throw new Error('Restaurant not found. Please scan a valid QR code.');
+                    showError('Restaurant not found. Please scan a valid QR code.');
+                    hideInitialLoader();
+                    return;
                 }
 
-                // Setup phone formatting and optimizations
                 setupPhoneFormatting();
                 optimizeButtonClicks();
                 
-                // Debug: Add click listener to send code button for debugging
-                const sendCodeBtn = document.getElementById('sendCodeBtn');
-                if (sendCodeBtn) {
-                    console.log('✅ Send code button found:', {
-                        disabled: sendCodeBtn.disabled,
-                        style: sendCodeBtn.style.cssText,
-                        onclick: !!sendCodeBtn.onclick,
-                        hasEventListener: sendCodeBtn.hasAttribute('onclick')
-                    });
-                    
-                    // Make sure button is clickable
-                    sendCodeBtn.disabled = false;
-                    sendCodeBtn.style.pointerEvents = 'auto';
-                    sendCodeBtn.style.opacity = '1';
-                    
-                    // Add multiple event listeners for debugging
-                    sendCodeBtn.addEventListener('click', function(e) {
-                        console.log('🔄 Send code button clicked via addEventListener');
-                        e.preventDefault();
-                        e.stopPropagation();
-                        sendVerificationCode();
-                    });
-                    
-                    // Test if button responds to clicks
-                    sendCodeBtn.addEventListener('mousedown', function() {
-                        console.log('🖱️ Send code button mousedown detected');
-                    });
-                    
-                    sendCodeBtn.addEventListener('mouseup', function() {
-                        console.log('🖱️ Send code button mouseup detected');
-                    });
-                    
-                    console.log('✅ Send code button event listeners attached');
-                } else {
-                    console.error('❌ Send code button not found!');
-                }
-                
-                console.log('✅ Enhanced customer login loaded successfully');
-                
-            } catch (error) {
-                console.error('❌ App initialization error:', error);
-                showError(error.message || 'Failed to load application');
-                throw error;
-            }
-        }
-
-        // Enhanced initialization with error boundaries
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Enhanced customer login initializing...');
-            addPerformanceMonitoring();
-            
-            try {
-                // Wait for APIs to load with timeout
-                await promiseManager.execute('waitForAPIs', waitForAPIs());
-                
-                // Check for redirect result first (for social auth)
-                const hasRedirectResult = await handleRedirectResult();
-                if (hasRedirectResult) return;
-
-                // Normal initialization
-                await promiseManager.execute('initializeApp', initializeApp());
-                
                 // Hide loader after successful initialization
-                await hideInitialLoader();
+                setTimeout(hideInitialLoader, 500);
+
+                console.log('✅ Enhanced customer login loaded successfully');
 
             } catch (error) {
                 console.error('❌ Page initialization error:', error);
-                handleError(error, 'Page initialization');
-                await hideInitialLoader();
-                
-                // Show fallback UI or retry option
-                showError('Failed to load page. Please refresh to try again.');
+                showError('Failed to load page');
+                hideInitialLoader();
             }
         });
 
@@ -1005,18 +831,14 @@
             });
         }
 
-        // Load restaurant information using VediAPI with error handling
+        // Load restaurant information using VediAPI
         async function loadRestaurantInfo() {
             try {
                 console.log('🏪 Loading restaurant data for ID:', restaurantId);
                 document.getElementById('restaurantName').textContent = 'Loading...';
                 
                 if (typeof VediAPI !== 'undefined') {
-                    restaurantData = await withTimeout(
-                        VediAPI.getRestaurant(restaurantId),
-                        10000,
-                        'Failed to load restaurant information'
-                    );
+                    restaurantData = await VediAPI.getRestaurant(restaurantId);
                     document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
                     console.log('✅ Restaurant loaded:', restaurantData.name);
                 } else {
@@ -1026,7 +848,6 @@
             } catch (error) {
                 console.error('❌ Failed to load restaurant:', error);
                 document.getElementById('restaurantName').textContent = 'Restaurant';
-                // Don't throw - this is not critical for the auth flow
             }
         }
 
@@ -1044,72 +865,39 @@
         }
 
         // =============================================================================
-        // ENHANCED SOCIAL AUTHENTICATION WITH PROMISE HANDLING
+        // ENHANCED SOCIAL AUTHENTICATION USING VEDIAPI
         // =============================================================================
 
-        // Google Sign-In using firebase-api.js (primary) with fallbacks
+        // Google Sign-In using VediAPI
         async function signInWithGoogle() {
             try {
-                if (promiseManager.isOperationPending('googleSignIn')) {
-                    console.log('🚫 Google sign-in already in progress');
-                    return;
-                }
-
-                await promiseManager.execute('googleSignIn', async () => {
-                    setLoading('google', true);
-                    hideMessages();
+                setLoading('google', true);
+                hideMessages();
+                
+                console.log('🔍 Initiating Google sign-in via VediAPI...');
+                
+                try {
+                    // Use VediAPI for Google sign-in
+                    const result = await VediAPI.signInWithGoogle();
+                    console.log('✅ Google sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'google');
                     
-                    console.log('🔍 Initiating Google sign-in via firebase-api.js...');
+                } catch (error) {
+                    console.log('🔄 VediAPI popup failed, trying direct Firebase:', error.code);
                     
-                    try {
-                        // PRIMARY: Use firebase-api.js signInWithGoogle function
-                        if (typeof window.signInWithGoogle === 'function') {
-                            console.log('✅ Using firebase-api.js signInWithGoogle method');
-                            const result = await withTimeout(
-                                window.signInWithGoogle(),
-                                30000,
-                                'Google sign-in timed out. Please try again.'
-                            );
-                            console.log('✅ Google sign-in successful via firebase-api.js:', result.user.displayName);
-                            await handleSocialSignInSuccess(result.user, 'google');
-                            return;
-                        }
+                    if (error.message.includes('popup') || error.message.includes('blocked')) {
+                        // Fallback to direct Firebase redirect
+                        const provider = new firebase.auth.GoogleAuthProvider();
+                        provider.addScope('profile');
+                        provider.addScope('email');
                         
-                        // FALLBACK 1: Use VediAPI if available
-                        if (typeof VediAPI !== 'undefined' && VediAPI.signInWithGoogle) {
-                            console.log('🔄 firebase-api.js not available, trying VediAPI...');
-                            const result = await withTimeout(
-                                VediAPI.signInWithGoogle(),
-                                30000,
-                                'Google sign-in timed out. Please try again.'
-                            );
-                            console.log('✅ Google sign-in successful via VediAPI:', result.user.displayName);
-                            await handleSocialSignInSuccess(result.user, 'google');
-                            return;
-                        }
+                        showInfo('Redirecting to Google sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
                         
-                        // FALLBACK 2: Direct Firebase
-                        console.log('🔄 No API methods available, using direct Firebase...');
-                        throw new Error('No Google sign-in method available, will use redirect');
-                        
-                    } catch (error) {
-                        console.log('🔄 Primary methods failed, trying direct Firebase redirect:', error.message);
-                        
-                        if (error.message.includes('popup') || error.message.includes('blocked') || 
-                            error.message.includes('timeout') || error.message.includes('No Google sign-in method')) {
-                            // Fallback to direct Firebase redirect
-                            const provider = new firebase.auth.GoogleAuthProvider();
-                            provider.addScope('profile');
-                            provider.addScope('email');
-                            
-                            showInfo('Redirecting to Google sign-in...');
-                            await firebase.auth().signInWithRedirect(provider);
-                            
-                        } else {
-                            throw error;
-                        }
+                    } else {
+                        throw error;
                     }
-                });
+                }
                 
             } catch (error) {
                 console.error('❌ Google sign-in error:', error);
@@ -1119,68 +907,35 @@
             }
         }
 
-        // Facebook Sign-In using firebase-api.js (primary) with fallbacks
+        // Facebook Sign-In using VediAPI
         async function signInWithFacebook() {
             try {
-                if (promiseManager.isOperationPending('facebookSignIn')) {
-                    console.log('🚫 Facebook sign-in already in progress');
-                    return;
-                }
-
-                await promiseManager.execute('facebookSignIn', async () => {
-                    setLoading('facebook', true);
-                    hideMessages();
+                setLoading('facebook', true);
+                hideMessages();
+                
+                console.log('📘 Initiating Facebook sign-in via VediAPI...');
+                
+                try {
+                    // Use VediAPI for Facebook sign-in
+                    const result = await VediAPI.signInWithFacebook();
+                    console.log('✅ Facebook sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'facebook');
                     
-                    console.log('📘 Initiating Facebook sign-in via firebase-api.js...');
+                } catch (error) {
+                    console.log('🔄 VediAPI popup failed, trying direct Firebase:', error.code);
                     
-                    try {
-                        // PRIMARY: Use firebase-api.js signInWithFacebook function
-                        if (typeof window.signInWithFacebook === 'function') {
-                            console.log('✅ Using firebase-api.js signInWithFacebook method');
-                            const result = await withTimeout(
-                                window.signInWithFacebook(),
-                                30000,
-                                'Facebook sign-in timed out. Please try again.'
-                            );
-                            console.log('✅ Facebook sign-in successful via firebase-api.js:', result.user.displayName);
-                            await handleSocialSignInSuccess(result.user, 'facebook');
-                            return;
-                        }
+                    if (error.message.includes('popup') || error.message.includes('blocked')) {
+                        // Fallback to direct Firebase redirect
+                        const provider = new firebase.auth.FacebookAuthProvider();
+                        provider.addScope('email');
                         
-                        // FALLBACK 1: Use VediAPI if available
-                        if (typeof VediAPI !== 'undefined' && VediAPI.signInWithFacebook) {
-                            console.log('🔄 firebase-api.js not available, trying VediAPI...');
-                            const result = await withTimeout(
-                                VediAPI.signInWithFacebook(),
-                                30000,
-                                'Facebook sign-in timed out. Please try again.'
-                            );
-                            console.log('✅ Facebook sign-in successful via VediAPI:', result.user.displayName);
-                            await handleSocialSignInSuccess(result.user, 'facebook');
-                            return;
-                        }
+                        showInfo('Redirecting to Facebook sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
                         
-                        // FALLBACK 2: Direct Firebase
-                        console.log('🔄 No API methods available, using direct Firebase...');
-                        throw new Error('No Facebook sign-in method available, will use redirect');
-                        
-                    } catch (error) {
-                        console.log('🔄 Primary methods failed, trying direct Firebase redirect:', error.message);
-                        
-                        if (error.message.includes('popup') || error.message.includes('blocked') || 
-                            error.message.includes('timeout') || error.message.includes('No Facebook sign-in method')) {
-                            // Fallback to direct Firebase redirect
-                            const provider = new firebase.auth.FacebookAuthProvider();
-                            provider.addScope('email');
-                            
-                            showInfo('Redirecting to Facebook sign-in...');
-                            await firebase.auth().signInWithRedirect(provider);
-                            
-                        } else {
-                            throw error;
-                        }
+                    } else {
+                        throw error;
                     }
-                });
+                }
                 
             } catch (error) {
                 console.error('❌ Facebook sign-in error:', error);
@@ -1190,69 +945,36 @@
             }
         }
 
-        // Apple Sign-In using firebase-api.js (primary) with fallbacks
+        // Apple Sign-In using VediAPI
         async function signInWithApple() {
             try {
-                if (promiseManager.isOperationPending('appleSignIn')) {
-                    console.log('🚫 Apple sign-in already in progress');
-                    return;
-                }
-
-                await promiseManager.execute('appleSignIn', async () => {
-                    setLoading('apple', true);
-                    hideMessages();
+                setLoading('apple', true);
+                hideMessages();
+                
+                console.log('🍎 Initiating Apple sign-in via VediAPI...');
+                
+                try {
+                    // Use VediAPI for Apple sign-in
+                    const result = await VediAPI.signInWithApple();
+                    console.log('✅ Apple sign-in successful:', result.user.displayName);
+                    await handleSocialSignInSuccess(result.user, 'apple');
                     
-                    console.log('🍎 Initiating Apple sign-in via firebase-api.js...');
+                } catch (error) {
+                    console.log('🔄 VediAPI popup failed, trying direct Firebase:', error.code);
                     
-                    try {
-                        // PRIMARY: Use firebase-api.js signInWithApple function
-                        if (typeof window.signInWithApple === 'function') {
-                            console.log('✅ Using firebase-api.js signInWithApple method');
-                            const result = await withTimeout(
-                                window.signInWithApple(),
-                                30000,
-                                'Apple sign-in timed out. Please try again.'
-                            );
-                            console.log('✅ Apple sign-in successful via firebase-api.js:', result.user.displayName);
-                            await handleSocialSignInSuccess(result.user, 'apple');
-                            return;
-                        }
+                    if (error.message.includes('popup') || error.message.includes('blocked')) {
+                        // Fallback to direct Firebase redirect
+                        const provider = new firebase.auth.OAuthProvider('apple.com');
+                        provider.addScope('email');
+                        provider.addScope('name');
                         
-                        // FALLBACK 1: Use VediAPI if available
-                        if (typeof VediAPI !== 'undefined' && VediAPI.signInWithApple) {
-                            console.log('🔄 firebase-api.js not available, trying VediAPI...');
-                            const result = await withTimeout(
-                                VediAPI.signInWithApple(),
-                                30000,
-                                'Apple sign-in timed out. Please try again.'
-                            );
-                            console.log('✅ Apple sign-in successful via VediAPI:', result.user.displayName);
-                            await handleSocialSignInSuccess(result.user, 'apple');
-                            return;
-                        }
+                        showInfo('Redirecting to Apple sign-in...');
+                        await firebase.auth().signInWithRedirect(provider);
                         
-                        // FALLBACK 2: Direct Firebase
-                        console.log('🔄 No API methods available, using direct Firebase...');
-                        throw new Error('No Apple sign-in method available, will use redirect');
-                        
-                    } catch (error) {
-                        console.log('🔄 Primary methods failed, trying direct Firebase redirect:', error.message);
-                        
-                        if (error.message.includes('popup') || error.message.includes('blocked') || 
-                            error.message.includes('timeout') || error.message.includes('No Apple sign-in method')) {
-                            // Fallback to direct Firebase redirect
-                            const provider = new firebase.auth.OAuthProvider('apple.com');
-                            provider.addScope('email');
-                            provider.addScope('name');
-                            
-                            showInfo('Redirecting to Apple sign-in...');
-                            await firebase.auth().signInWithRedirect(provider);
-                            
-                        } else {
-                            throw error;
-                        }
+                    } else {
+                        throw error;
                     }
-                });
+                }
                 
             } catch (error) {
                 console.error('❌ Apple sign-in error:', error);
@@ -1262,39 +984,31 @@
             }
         }
 
-        // Handle successful social sign-in with error handling
+        // Handle successful social sign-in
         async function handleSocialSignInSuccess(user, provider) {
-            try {
-                currentSocialUser = user;
-                
-                // Extract user information
-                const userName = user.displayName || 'Guest User';
-                const userEmail = user.email || '';
-                const userPhone = user.phoneNumber || '';
-                
-                console.log('👤 Social user info:', {
-                    name: userName,
-                    email: userEmail,
-                    phone: userPhone,
-                    provider: provider
-                });
+            currentSocialUser = user;
+            
+            // Extract user information
+            const userName = user.displayName || 'Guest User';
+            const userEmail = user.email || '';
+            const userPhone = user.phoneNumber || '';
+            
+            console.log('👤 Social user info:', {
+                name: userName,
+                email: userEmail,
+                phone: userPhone,
+                provider: provider
+            });
 
-                // Check if user has a phone number
-                if (!userPhone) {
-                    // Show phone collection phase
-                    switchToPhase('phoneCollectionPhase');
-                    return;
-                }
-
-                // Proceed directly to menu if phone number exists
-                await completeSocialSignIn(userName, userPhone, userEmail, provider);
-                
-            } catch (error) {
-                console.error('❌ Social sign-in completion error:', error);
-                handleError(error, 'Social sign-in completion');
-                // Reset to safe state
-                switchToPhase('socialPhase');
+            // Check if user has a phone number
+            if (!userPhone) {
+                // Show phone collection phase
+                switchToPhase('phoneCollectionPhase');
+                return;
             }
+
+            // Proceed directly to menu if phone number exists
+            await completeSocialSignIn(userName, userPhone, userEmail, provider);
         }
 
         // Handle social sign-in errors
@@ -1305,61 +1019,54 @@
                 showError('Popup was blocked. Please allow popups and try again.');
             } else if (error.message.includes('account already exists')) {
                 showError('An account already exists with the same email. Please try signing in with a different method.');
-            } else if (error.message.includes('network') || error.message.includes('timeout')) {
-                showError('Network error or timeout. Please check your connection and try again.');
+            } else if (error.message.includes('network')) {
+                showError('Network error. Please check your connection and try again.');
             } else {
                 showError(`${provider} sign-in failed. Please try again or use phone authentication.`);
             }
         }
 
-        // Save phone number for social user with error handling
+        // Save phone number for social user
         async function saveSocialUserPhone() {
+            const countryCode = document.getElementById('socialCountryCode').value;
+            const phoneNumber = document.getElementById('socialUserPhone').value.trim();
+            
+            if (!phoneNumber) {
+                showError('Please enter your phone number');
+                return;
+            }
+
+            // Use CustomerAuthAPI to format and validate phone number
+            let fullPhoneNumber;
             try {
-                if (promiseManager.isOperationPending('savePhoneNumber')) {
-                    console.log('🚫 Phone number save already in progress');
+                fullPhoneNumber = CustomerAuthAPI.formatPhoneNumber(phoneNumber, 'US');
+                
+                if (!CustomerAuthAPI.validatePhoneNumber(fullPhoneNumber)) {
+                    showError('Please enter a valid phone number');
                     return;
                 }
+            } catch (error) {
+                showError('Invalid phone number format');
+                return;
+            }
 
-                await promiseManager.execute('savePhoneNumber', async () => {
-                    const countryCode = document.getElementById('socialCountryCode').value;
-                    const phoneNumber = document.getElementById('socialUserPhone').value.trim();
-                    
-                    if (!phoneNumber) {
-                        showError('Please enter your phone number');
-                        return;
-                    }
-
-                    // Use CustomerAuthAPI to format and validate phone number
-                    let fullPhoneNumber;
-                    try {
-                        fullPhoneNumber = CustomerAuthAPI.formatPhoneNumber(phoneNumber, 'US');
-                        
-                        if (!CustomerAuthAPI.validatePhoneNumber(fullPhoneNumber)) {
-                            showError('Please enter a valid phone number');
-                            return;
-                        }
-                    } catch (error) {
-                        showError('Invalid phone number format');
-                        return;
-                    }
-
-                    setLoading('phoneCollection', true);
-                    
-                    const userName = currentSocialUser.displayName || 'Guest User';
-                    const userEmail = currentSocialUser.email || '';
-                    
-                    await completeSocialSignIn(userName, fullPhoneNumber, userEmail, 'social');
-                });
+            try {
+                setLoading('phoneCollection', true);
+                
+                const userName = currentSocialUser.displayName || 'Guest User';
+                const userEmail = currentSocialUser.email || '';
+                
+                await completeSocialSignIn(userName, fullPhoneNumber, userEmail, 'social');
                 
             } catch (error) {
                 console.error('❌ Error saving phone number:', error);
-                handleError(error, 'Phone number save');
+                showError('Failed to save phone number. Please try again.');
             } finally {
                 setLoading('phoneCollection', false);
             }
         }
 
-        // Skip phone collection with error handling
+        // Skip phone collection
         async function skipPhoneCollection() {
             try {
                 const userName = currentSocialUser.displayName || 'Guest User';
@@ -1369,35 +1076,30 @@
                 
             } catch (error) {
                 console.error('❌ Error completing sign-in without phone:', error);
-                handleError(error, 'Skip phone collection');
+                showError('Failed to complete sign-in. Please try again.');
             }
         }
 
-        // Complete social sign-in process with comprehensive error handling
+        // Complete social sign-in process using VediAPI
         async function completeSocialSignIn(userName, userPhone, userEmail, provider) {
             try {
                 // Save customer profile using VediAPI if available
                 try {
                     if (typeof VediAPI !== 'undefined' && currentSocialUser) {
-                        await withTimeout(
-                            VediAPI.saveCustomerProfile(currentSocialUser.uid, {
-                                name: userName,
-                                email: userEmail,
-                                phone: userPhone,
-                                phoneFormatted: userPhone ? CustomerAuthAPI.maskPhoneNumber(userPhone) : '',
-                                authProvider: provider,
-                                restaurantId: restaurantId,
-                                tableNumber: tableNumber,
-                                location: tableLocation
-                            }),
-                            10000,
-                            'Failed to save customer profile'
-                        );
+                        await VediAPI.saveCustomerProfile(currentSocialUser.uid, {
+                            name: userName,
+                            email: userEmail,
+                            phone: userPhone,
+                            phoneFormatted: userPhone ? CustomerAuthAPI.maskPhoneNumber(userPhone) : '',
+                            authProvider: provider,
+                            restaurantId: restaurantId,
+                            tableNumber: tableNumber,
+                            location: tableLocation
+                        });
                         console.log('✅ Customer profile saved via VediAPI');
                     }
                 } catch (profileError) {
                     console.warn('⚠️ Could not save customer profile via VediAPI:', profileError);
-                    // Continue anyway - profile save is not critical
                 }
 
                 // Create customer session data
@@ -1435,528 +1137,270 @@
                 
                 console.log('🔄 Redirecting to menu:', redirectUrl);
                 
-                // Redirect after a short delay with error handling
+                // Redirect after a short delay
                 setTimeout(() => {
-                    try {
-                        window.location.href = redirectUrl;
-                    } catch (redirectError) {
-                        console.error('❌ Redirect error:', redirectError);
-                        showError('Failed to redirect to menu. Please try manually refreshing the page.');
-                    }
+                    window.location.href = redirectUrl;
                 }, 1500);
                 
             } catch (error) {
                 console.error('❌ Error completing social sign-in:', error);
-                handleError(error, 'Complete social sign-in');
+                showError('Failed to complete sign-in. Please try again.');
             }
         }
 
         // =============================================================================
-        // ENHANCED PHONE AUTHENTICATION WITH PROMISE HANDLING
+        // PHONE AUTHENTICATION USING CUSTOMERAUTHAPI
         // =============================================================================
 
         // Switch to phone auth
         function switchToPhoneAuth() {
-            try {
-                document.getElementById('stepIndicator').style.display = 'flex';
-                switchToPhase('namePhase');
-                
-                // Update step indicator
-                document.getElementById('step1').classList.add('active');
-            } catch (error) {
-                console.error('❌ Error switching to phone auth:', error);
-                handleError(error, 'Switch to phone auth');
-            }
+            document.getElementById('stepIndicator').style.display = 'flex';
+            switchToPhase('namePhase');
+            
+            // Update step indicator
+            document.getElementById('step1').classList.add('active');
         }
 
-        // Go back to social options with cleanup
+        // Go back to social options
         function goBackToSocial() {
-            try {
-                document.getElementById('stepIndicator').style.display = 'none';
-                switchToPhase('socialPhase');
-                
-                // Clear any reCAPTCHA
-                if (CustomerAuthAPI) {
-                    CustomerAuthAPI.clearRecaptcha();
-                }
-                
-                // Clear verification state
-                promiseManager.clearVerificationState();
-                
-                // Reset step indicator
-                document.querySelectorAll('.step').forEach(step => {
-                    step.classList.remove('active', 'completed');
-                });
-                
-                hideMessages();
-            } catch (error) {
-                console.error('❌ Error going back to social:', error);
-                handleError(error, 'Go back to social');
+            document.getElementById('stepIndicator').style.display = 'none';
+            switchToPhase('socialPhase');
+            
+            // Clear any reCAPTCHA
+            if (CustomerAuthAPI) {
+                CustomerAuthAPI.clearRecaptcha();
             }
+            
+            // Reset step indicator
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active', 'completed');
+            });
+            
+            hideMessages();
         }
 
-        // Setup phone formatting with error handling
+        // Setup phone formatting using CustomerAuthAPI utilities
         function setupPhoneFormatting() {
-            try {
-                const phoneInputs = [
-                    { number: 'phoneNumber', country: 'countryCode' },
-                    { number: 'socialUserPhone', country: 'socialCountryCode' }
-                ];
+            const phoneInputs = [
+                { number: 'phoneNumber', country: 'countryCode' },
+                { number: 'socialUserPhone', country: 'socialCountryCode' }
+            ];
+            
+            phoneInputs.forEach(({ number, country }) => {
+                const phoneInput = document.getElementById(number);
+                const countrySelect = document.getElementById(country);
                 
-                phoneInputs.forEach(({ number, country }) => {
-                    const phoneInput = document.getElementById(number);
-                    const countrySelect = document.getElementById(country);
-                    
-                    if (!phoneInput || !countrySelect) return;
-                    
-                    // Update selected country code when dropdown changes
-                    countrySelect.addEventListener('change', function() {
-                        selectedCountryCode = this.value;
-                        console.log('📍 Country code changed to:', selectedCountryCode);
-                    });
-                    
-                    // Format phone number input using CustomerAuthAPI
-                    phoneInput.addEventListener('input', function(e) {
-                        try {
-                            let value = e.target.value.replace(/\D/g, '');
-                            
-                            // US formatting: (123) 456-7890
-                            if (value.length >= 7) {
-                                value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
-                            } else if (value.length >= 4) {
-                                value = `(${value.slice(0,3)}) ${value.slice(3)}`;
-                            } else if (value.length >= 1) {
-                                value = `(${value}`;
-                            }
-                            
-                            e.target.value = value;
-                        } catch (formatError) {
-                            console.warn('⚠️ Phone formatting error:', formatError);
-                        }
-                    });
+                if (!phoneInput || !countrySelect) return;
+                
+                // Update selected country code when dropdown changes
+                countrySelect.addEventListener('change', function() {
+                    selectedCountryCode = this.value;
+                    console.log('📍 Country code changed to:', selectedCountryCode);
                 });
-            } catch (error) {
-                console.error('❌ Error setting up phone formatting:', error);
-                // Non-critical error, continue
-            }
+                
+                // Format phone number input using CustomerAuthAPI
+                phoneInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    
+                    // US formatting: (123) 456-7890
+                    if (value.length >= 7) {
+                        value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
+                    } else if (value.length >= 4) {
+                        value = `(${value.slice(0,3)}) ${value.slice(3)}`;
+                    } else if (value.length >= 1) {
+                        value = `(${value}`;
+                    }
+                    
+                    e.target.value = value;
+                });
+            });
         }
 
-        // Phone auth step navigation with error handling
-        async function proceedToPhone() {
-            try {
-                const name = document.getElementById('customerName').value.trim();
-                
-                if (!name) {
-                    showError('Please enter your name');
-                    return;
-                }
-
-                if (name.length < 2) {
-                    showError('Please enter a valid name');
-                    return;
-                }
-
-                customerName = name;
-                
-                // Update steps
-                document.getElementById('step1').classList.remove('active');
-                document.getElementById('step1').classList.add('completed');
-                document.getElementById('step2').classList.add('active');
-                
-                // Switch phases
-                switchToPhase('phonePhase');
-                
-                console.log('📱 Proceeding to phone verification, initializing reCAPTCHA...');
-                
-                // Initialize reCAPTCHA using CustomerAuthAPI with timeout and debugging
-                setTimeout(async () => {
-                    try {
-                        console.log('🔐 Starting reCAPTCHA initialization...');
-                        
-                        // Check if container exists
-                        const container = document.getElementById('recaptcha-container');
-                        if (!container) {
-                            throw new Error('reCAPTCHA container not found');
-                        }
-                        console.log('✅ reCAPTCHA container found');
-                        
-                        // Initialize with debugging
-                        const verifier = await withTimeout(
-                            CustomerAuthAPI.initializeRecaptcha('recaptcha-container'),
-                            20000,
-                            'reCAPTCHA initialization timed out'
-                        );
-                        
-                        console.log('✅ reCAPTCHA initialized successfully via CustomerAuthAPI');
-                        console.log('🔧 Verifier details:', {
-                            hasVerifier: !!verifier,
-                            hasGlobalVerifier: !!window.recaptchaVerifier,
-                            hasWidgetId: !!window.recaptchaWidgetId
-                        });
-                        
-                        // Enable the send button
-                        const sendBtn = document.getElementById('sendCodeBtn');
-                        if (sendBtn) {
-                            sendBtn.disabled = false;
-                            sendBtn.style.pointerEvents = 'auto';
-                            sendBtn.style.opacity = '1';
-                            console.log('✅ Send code button enabled and made clickable');
-                        }
-                        
-                    } catch (error) {
-                        console.error('❌ reCAPTCHA initialization failed:', error);
-                        showError('Failed to initialize phone verification. Please refresh the page and try again.');
-                        
-                        // Try alternative initialization
-                        console.log('🔄 Attempting alternative reCAPTCHA initialization...');
-                        try {
-                            // Clear any existing
-                            if (window.recaptchaVerifier) {
-                                window.recaptchaVerifier.clear();
-                                window.recaptchaVerifier = null;
-                            }
-                            
-                            // Try direct Firebase initialization
-                            const container = document.getElementById('recaptcha-container');
-                            if (container) {
-                                container.innerHTML = '';
-                                
-                                window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-                                    'size': 'normal',
-                                    'callback': function(response) {
-                                        console.log('✅ reCAPTCHA solved (direct method)');
-                                        const sendBtn = document.getElementById('sendCodeBtn');
-                                        if (sendBtn) sendBtn.disabled = false;
-                                    },
-                                    'expired-callback': function() {
-                                        console.log('⏰ reCAPTCHA expired (direct method)');
-                                        const sendBtn = document.getElementById('sendCodeBtn');
-                                        if (sendBtn) sendBtn.disabled = true;
-                                    }
-                                });
-                                
-                                await window.recaptchaVerifier.render();
-                                console.log('✅ reCAPTCHA initialized using direct Firebase method');
-                            }
-                        } catch (fallbackError) {
-                            console.error('❌ Fallback reCAPTCHA initialization also failed:', fallbackError);
-                            showError('Unable to initialize phone verification. Please refresh the page.');
-                        }
-                    }
-                }, 100);
-                
-                console.log('📱 Proceeding to phone verification');
-                
-            } catch (error) {
-                console.error('❌ Error proceeding to phone:', error);
-                handleError(error, 'Proceed to phone');
+        // Phone auth step navigation
+        function proceedToPhone() {
+            const name = document.getElementById('customerName').value.trim();
+            
+            if (!name) {
+                showError('Please enter your name');
+                return;
             }
+
+            if (name.length < 2) {
+                showError('Please enter a valid name');
+                return;
+            }
+
+            customerName = name;
+            
+            // Update steps
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+            
+            // Switch phases
+            switchToPhase('phonePhase');
+            
+            // Initialize reCAPTCHA using CustomerAuthAPI
+            setTimeout(async () => {
+                try {
+                    await CustomerAuthAPI.initializeRecaptcha('recaptcha-container');
+                    console.log('✅ reCAPTCHA initialized via CustomerAuthAPI');
+                } catch (error) {
+                    console.error('❌ reCAPTCHA initialization failed:', error);
+                    showError('Failed to initialize phone verification. Please refresh the page.');
+                }
+            }, 100);
+            
+            console.log('📱 Proceeding to phone verification');
         }
 
         function goBackToName() {
-            try {
-                // Clear reCAPTCHA using CustomerAuthAPI
-                if (CustomerAuthAPI) {
-                    CustomerAuthAPI.clearRecaptcha();
-                }
-
-                // Clear verification state
-                promiseManager.clearVerificationState();
-
-                document.getElementById('step2').classList.remove('active');
-                document.getElementById('step1').classList.remove('completed');
-                document.getElementById('step1').classList.add('active');
-                
-                switchToPhase('namePhase');
-                hideMessages();
-            } catch (error) {
-                console.error('❌ Error going back to name:', error);
-                handleError(error, 'Go back to name');
+            // Clear reCAPTCHA using CustomerAuthAPI
+            if (CustomerAuthAPI) {
+                CustomerAuthAPI.clearRecaptcha();
             }
+
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step1').classList.remove('completed');
+            document.getElementById('step1').classList.add('active');
+            
+            switchToPhase('namePhase');
+            hideMessages();
         }
 
-        // Send verification code with comprehensive error handling and debugging
+        // Send verification code using CustomerAuthAPI with Firebase's recommended approach
         async function sendVerificationCode() {
-            console.log('🔄 sendVerificationCode() called - ENTRY POINT');
+            const countryCode = document.getElementById('countryCode').value;
+            const phoneNumber = document.getElementById('phoneNumber').value.trim();
             
+            if (!phoneNumber) {
+                showError('Please enter your phone number');
+                return;
+            }
+
+            // Format and validate using CustomerAuthAPI
+            let fullPhoneNumber;
             try {
-                // Check if operation is already pending
-                if (promiseManager.isOperationPending('sendVerificationCode')) {
-                    console.log('🚫 Verification code send already in progress');
-                    showInfo('Verification code already being sent. Please wait.');
+                fullPhoneNumber = CustomerAuthAPI.formatPhoneNumber(phoneNumber, 'US');
+                
+                if (!CustomerAuthAPI.validatePhoneNumber(fullPhoneNumber)) {
+                    showError('Please enter a valid phone number');
                     return;
                 }
-                console.log('✅ No pending operation, proceeding...');
+            } catch (error) {
+                showError('Invalid phone number format. Please check your number.');
+                return;
+            }
+            
+            customerPhone = fullPhoneNumber;
+            console.log('📱 Sending verification to:', CustomerAuthAPI.maskPhoneNumber(fullPhoneNumber));
 
-                const result = await promiseManager.execute('sendVerificationCode', async () => {
-                    console.log('🚀 Inside promise manager execute block');
-                    
-                    const countryCode = document.getElementById('countryCode').value;
-                    const phoneNumber = document.getElementById('phoneNumber').value.trim();
-                    
-                    console.log('📱 Phone verification details:', {
-                        countryCode,
-                        phoneNumber: phoneNumber ? phoneNumber.substring(0, 5) + '****' : 'empty',
-                        hasRecaptcha: !!window.recaptchaVerifier,
-                        hasCustomerAuthAPI: typeof CustomerAuthAPI !== 'undefined',
-                        hasFirebase: typeof firebase !== 'undefined'
-                    });
-                    
-                    if (!phoneNumber) {
-                        console.log('❌ Phone number is empty');
-                        showError('Please enter your phone number');
-                        return false; // Return false instead of return to continue execution
-                    }
-                    console.log('✅ Phone number provided');
-
-                    // Format and validate using CustomerAuthAPI
-                    let fullPhoneNumber;
-                    try {
-                        console.log('🔧 Formatting phone number...');
-                        fullPhoneNumber = CustomerAuthAPI.formatPhoneNumber(phoneNumber, 'US');
-                        console.log('✅ Phone formatted to:', CustomerAuthAPI.maskPhoneNumber(fullPhoneNumber));
-                        
-                        if (!CustomerAuthAPI.validatePhoneNumber(fullPhoneNumber)) {
-                            console.log('❌ Phone validation failed');
-                            showError('Please enter a valid phone number');
-                            return false;
-                        }
-                        console.log('✅ Phone validation passed');
-                    } catch (error) {
-                        console.error('❌ Phone formatting error:', error);
-                        showError('Invalid phone number format. Please check your number.');
-                        return false;
-                    }
-                    
-                    customerPhone = fullPhoneNumber;
-                    console.log('📱 Ready to send verification to:', CustomerAuthAPI.maskPhoneNumber(fullPhoneNumber));
-
-                    // Check reCAPTCHA status before proceeding
-                    console.log('🔐 Checking reCAPTCHA status...');
-                    if (!window.recaptchaVerifier) {
-                        console.warn('⚠️ reCAPTCHA verifier not found, attempting to initialize...');
-                        try {
-                            await CustomerAuthAPI.initializeRecaptcha('recaptcha-container');
-                            console.log('✅ reCAPTCHA initialized successfully');
-                        } catch (recaptchaError) {
-                            console.error('❌ Failed to initialize reCAPTCHA:', recaptchaError);
-                            showError('Failed to initialize phone verification. Please refresh the page and try again.');
-                            return false;
-                        }
-                    } else {
-                        console.log('✅ reCAPTCHA verifier ready');
-                    }
-
-                    // Set loading state and show progress
-                    console.log('🔄 Setting loading state and sending verification...');
-                    setLoading('phone', true);
-                    hideMessages();
-                    showInfo('Sending verification code...');
-                    
-                    try {
-                        console.log('📤 Calling CustomerAuthAPI.sendPhoneVerification...');
-                        console.log('🔧 Parameters:', {
-                            phone: CustomerAuthAPI.maskPhoneNumber(fullPhoneNumber),
-                            hasVerifier: !!window.recaptchaVerifier,
-                            verifierType: window.recaptchaVerifier?.constructor?.name
-                        });
-                        
-                        // Send verification using CustomerAuthAPI with timeout
-                        const confirmationResult = await withTimeout(
-                            CustomerAuthAPI.sendPhoneVerification(fullPhoneNumber, window.recaptchaVerifier),
-                            30000,
-                            'Phone verification timed out. Please try again.'
-                        );
-                        
-                        console.log('✅ CustomerAuthAPI.sendPhoneVerification completed successfully');
-                        console.log('🔑 Confirmation result:', {
-                            hasVerificationId: !!confirmationResult.verificationId,
-                            hasConfirm: typeof confirmationResult.confirm === 'function',
-                            resultKeys: Object.keys(confirmationResult)
-                        });
-                        
-                        // Store verification state
-                        promiseManager.setVerificationState(confirmationResult.verificationId, confirmationResult);
-                        console.log('💾 Verification state stored in promise manager');
-                        
-                        console.log('✅ Verification code sent successfully');
-                        showSuccess('Verification code sent! Please check your phone.');
-                        
-                        // Update steps
-                        console.log('🔄 Updating UI steps...');
-                        document.getElementById('step2').classList.remove('active');
-                        document.getElementById('step2').classList.add('completed');
-                        document.getElementById('step3').classList.add('active');
-                        
-                        switchToPhase('codePhase');
-                        startResendTimer();
-                        console.log('✅ UI updated, switched to code verification phase');
-                        
-                        setTimeout(() => {
-                            const codeInput = document.getElementById('verificationCode');
-                            if (codeInput) {
-                                codeInput.focus();
-                                console.log('✅ Code input focused');
-                            }
-                        }, 100);
-                        
-                        return true; // Success
-                        
-                    } catch (verificationError) {
-                        console.error('❌ Verification send error:', verificationError);
-                        console.error('🔍 Error details:', {
-                            code: verificationError.code,
-                            message: verificationError.message,
-                            stack: verificationError.stack,
-                            name: verificationError.name
-                        });
-                        
-                        // Show specific error messages
-                        if (verificationError.code === 'auth/captcha-check-failed') {
-                            showError('reCAPTCHA verification failed. Please solve the reCAPTCHA and try again.');
-                        } else if (verificationError.code === 'auth/too-many-requests') {
-                            showError('Too many verification attempts. Please wait 24 hours or try a different phone number.');
-                        } else if (verificationError.code === 'auth/invalid-phone-number') {
-                            showError('Invalid phone number. Please check the format and try again.');
-                        } else if (verificationError.code === 'auth/quota-exceeded') {
-                            showError('SMS quota exceeded. Please try again later or contact support.');
-                        } else if (verificationError.message.includes('timeout')) {
-                            showError('Request timed out. Please check your internet connection and try again.');
-                        } else if (verificationError.message.includes('network')) {
-                            showError('Network error. Please check your internet connection and try again.');
-                        } else {
-                            showError(verificationError.message || 'Failed to send verification code. Please try again.');
-                        }
-                        
-                        // Reset reCAPTCHA for retry
-                        console.log('🔄 Resetting reCAPTCHA for retry...');
-                        setTimeout(async () => {
-                            try {
-                                if (CustomerAuthAPI.resetRecaptcha) {
-                                    await CustomerAuthAPI.resetRecaptcha();
-                                    console.log('✅ reCAPTCHA reset successfully');
-                                } else {
-                                    // Fallback - reinitialize
-                                    await CustomerAuthAPI.initializeRecaptcha('recaptcha-container');
-                                    console.log('✅ reCAPTCHA reinitialized');
-                                }
-                            } catch (resetError) {
-                                console.warn('⚠️ Could not reset reCAPTCHA:', resetError);
-                                // Try full reinitialize as last resort
-                                setTimeout(async () => {
-                                    try {
-                                        CustomerAuthAPI.clearRecaptcha();
-                                        await CustomerAuthAPI.initializeRecaptcha('recaptcha-container');
-                                        console.log('✅ reCAPTCHA fully reinitialized');
-                                    } catch (reinitError) {
-                                        console.error('❌ Full reCAPTCHA reinit failed:', reinitError);
-                                        showError('Please refresh the page to reset phone verification.');
-                                    }
-                                }, 1000);
-                            }
-                        }, 500);
-                        
-                        return false; // Error occurred
-                    }
-                });
+            try {
+                setLoading('phone', true);
+                hideMessages();
                 
-                console.log('✅ sendVerificationCode completed with result:', result);
+                // Send verification using CustomerAuthAPI with Firebase's recommended approach
+                const confirmationResult = await CustomerAuthAPI.sendPhoneVerification(fullPhoneNumber);
+                
+                // Store both the confirmationResult and verificationId for flexibility
+                window.confirmationResult = confirmationResult;
+                window.verificationId = confirmationResult.verificationId;
+                
+                console.log('✅ Verification code sent successfully');
+                console.log('🔑 Verification ID:', !!window.verificationId);
+                showInfo('Verification code sent! Please check your phone.');
+                
+                // Update steps
+                document.getElementById('step2').classList.remove('active');
+                document.getElementById('step2').classList.add('completed');
+                document.getElementById('step3').classList.add('active');
+                
+                switchToPhase('codePhase');
+                startResendTimer();
+                
+                setTimeout(() => {
+                    document.getElementById('verificationCode').focus();
+                }, 100);
                 
             } catch (error) {
-                console.error('❌ Outer error in sendVerificationCode:', error);
-                console.error('🔍 Outer error details:', {
-                    code: error.code,
-                    message: error.message,
-                    stack: error.stack,
-                    name: error.name
-                });
-                handleError(error, 'Send verification code');
+                console.error('❌ Error sending verification code:', error);
+                showError(error.message || 'Failed to send verification code. Please try again.');
+                
+                // Reset reCAPTCHA using CustomerAuthAPI
+                setTimeout(async () => {
+                    try {
+                        await CustomerAuthAPI.resetRecaptcha();
+                        console.log('🔄 reCAPTCHA reset for retry');
+                    } catch (resetError) {
+                        console.warn('⚠️ Could not reset reCAPTCHA:', resetError);
+                        setTimeout(async () => {
+                            await CustomerAuthAPI.initializeRecaptcha('recaptcha-container');
+                        }, 1000);
+                    }
+                }, 500);
+                
             } finally {
-                console.log('🏁 sendVerificationCode finally block - cleaning up');
                 setLoading('phone', false);
             }
         }
 
-        // Verify code with enhanced error handling and multiple methods
+        // Verify code using Firebase's recommended PhoneAuthProvider.credential approach
         async function verifyCode() {
+            const code = document.getElementById('verificationCode').value.trim();
+            
+            if (!code) {
+                showError('Please enter the verification code');
+                return;
+            }
+
+            if (code.length !== 6 || !/^\d+$/.test(code)) {
+                showError('Please enter the 6-digit verification code');
+                return;
+            }
+
             try {
-                if (promiseManager.isOperationPending('verifyCode')) {
-                    console.log('🚫 Code verification already in progress');
-                    return;
-                }
-
-                await promiseManager.execute('verifyCode', async () => {
-                    const code = document.getElementById('verificationCode').value.trim();
-                    
-                    if (!code) {
-                        showError('Please enter the verification code');
-                        return;
-                    }
-
-                    if (code.length !== 6 || !/^\d+$/.test(code)) {
-                        showError('Please enter the 6-digit verification code');
-                        return;
-                    }
-
-                    setLoading('code', true);
-                    hideMessages();
-                    
-                    console.log('🔐 Verifying code using Firebase recommended approach...');
-                    
-                    const verificationState = promiseManager.getVerificationState();
-                    let result;
-                    
-                    // Try Firebase's recommended PhoneAuthProvider.credential approach first
-                    if (verificationState.verificationId) {
-                        try {
-                            console.log('🔑 Using PhoneAuthProvider.credential method...');
-                            result = await withTimeout(
-                                CustomerAuthAPI.verifyPhoneCode(verificationState.verificationId, code),
-                                20000,
-                                'Code verification timed out. Please try again.'
-                            );
-                            console.log('✅ Phone verified using credential method!');
-                        } catch (credentialError) {
-                            console.warn('⚠️ Credential method failed, trying legacy confirm method:', credentialError);
-                            
-                            // Fallback to legacy confirmationResult.confirm method
-                            if (verificationState.confirmationResult) {
-                                result = await withTimeout(
-                                    CustomerAuthAPI.verifyPhoneCodeLegacy(verificationState.confirmationResult, code),
-                                    20000,
-                                    'Code verification timed out. Please try again.'
-                                );
-                                console.log('✅ Phone verified using legacy confirm method!');
-                            } else {
-                                throw credentialError;
-                            }
+                setLoading('code', true);
+                hideMessages();
+                
+                console.log('🔐 Verifying code using Firebase recommended approach...');
+                
+                let result;
+                
+                // Try Firebase's recommended PhoneAuthProvider.credential approach first
+                if (window.verificationId) {
+                    try {
+                        console.log('🔑 Using PhoneAuthProvider.credential method...');
+                        result = await CustomerAuthAPI.verifyPhoneCode(window.verificationId, code);
+                        console.log('✅ Phone verified using credential method!');
+                    } catch (credentialError) {
+                        console.warn('⚠️ Credential method failed, trying legacy confirm method:', credentialError);
+                        
+                        // Fallback to legacy confirmationResult.confirm method
+                        if (window.confirmationResult) {
+                            result = await CustomerAuthAPI.verifyPhoneCodeLegacy(window.confirmationResult, code);
+                            console.log('✅ Phone verified using legacy confirm method!');
+                        } else {
+                            throw credentialError;
                         }
-                    } else if (verificationState.confirmationResult) {
-                        // Use legacy method if no verificationId
-                        console.log('🔄 Using legacy confirmationResult.confirm method...');
-                        result = await withTimeout(
-                            CustomerAuthAPI.verifyPhoneCodeLegacy(verificationState.confirmationResult, code),
-                            20000,
-                            'Code verification timed out. Please try again.'
-                        );
-                        console.log('✅ Phone verified using legacy method!');
-                    } else {
-                        throw new Error('No verification in progress. Please request a new code.');
                     }
-                    
-                    const user = result.user;
-                    console.log('✅ Phone verified! User UID:', user.uid);
-                    
-                    // Clear verification state
-                    promiseManager.clearVerificationState();
-                    
-                    // Complete phone auth sign-in
-                    await completePhoneSignIn(user);
-                });
+                } else if (window.confirmationResult) {
+                    // Use legacy method if no verificationId
+                    console.log('🔄 Using legacy confirmationResult.confirm method...');
+                    result = await CustomerAuthAPI.verifyPhoneCodeLegacy(window.confirmationResult, code);
+                    console.log('✅ Phone verified using legacy method!');
+                } else {
+                    throw new Error('No verification in progress. Please request a new code.');
+                }
+                
+                const user = result.user;
+                console.log('✅ Phone verified! User UID:', user.uid);
+                
+                // Complete phone auth sign-in
+                await completePhoneSignIn(user);
                 
             } catch (error) {
                 console.error('❌ Error verifying code:', error);
-                handleError(error, 'Code verification');
+                showError(error.message || 'Failed to verify code. Please try again.');
                 
                 document.getElementById('verificationCode').value = '';
                 document.getElementById('verificationCode').focus();
@@ -1966,30 +1410,25 @@
             }
         }
 
-        // Complete phone sign-in with comprehensive error handling
+        // Complete phone sign-in using VediAPI
         async function completePhoneSignIn(user) {
             try {
                 // Save customer profile using VediAPI
                 try {
                     if (typeof VediAPI !== 'undefined') {
-                        await withTimeout(
-                            VediAPI.saveCustomerProfile(user.uid, {
-                                name: customerName,
-                                phone: customerPhone,
-                                phoneFormatted: CustomerAuthAPI.maskPhoneNumber(customerPhone),
-                                authProvider: 'phone',
-                                restaurantId: restaurantId,
-                                tableNumber: tableNumber,
-                                location: tableLocation
-                            }),
-                            10000,
-                            'Failed to save customer profile'
-                        );
+                        await VediAPI.saveCustomerProfile(user.uid, {
+                            name: customerName,
+                            phone: customerPhone,
+                            phoneFormatted: CustomerAuthAPI.maskPhoneNumber(customerPhone),
+                            authProvider: 'phone',
+                            restaurantId: restaurantId,
+                            tableNumber: tableNumber,
+                            location: tableLocation
+                        });
                         console.log('✅ Customer profile saved via VediAPI');
                     }
                 } catch (profileError) {
                     console.warn('⚠️ Could not save customer profile via VediAPI:', profileError);
-                    // Continue anyway - profile save is not critical
                 }
 
                 const customerSession = {
@@ -2024,271 +1463,186 @@
                 console.log('🔄 Redirecting to menu:', redirectUrl);
                 
                 setTimeout(() => {
-                    try {
-                        window.location.href = redirectUrl;
-                    } catch (redirectError) {
-                        console.error('❌ Redirect error:', redirectError);
-                        showError('Failed to redirect to menu. Please try manually refreshing the page.');
-                    }
+                    window.location.href = redirectUrl;
                 }, 1500);
 
             } catch (error) {
                 console.error('❌ Error completing phone sign-in:', error);
-                handleError(error, 'Complete phone sign-in');
+                showError('Failed to complete sign-in. Please try again.');
             }
         }
 
-        // Resend code with comprehensive error handling
+        // Resend code function using Firebase's recommended approach
         async function resendCode() {
             try {
-                if (promiseManager.isOperationPending('resendCode')) {
-                    console.log('🚫 Resend code already in progress');
-                    return;
+                setLoading('code', true);
+                hideMessages();
+                
+                console.log('🔄 Resending verification code...');
+                
+                // Clear stored verification data
+                window.confirmationResult = null;
+                window.verificationId = null;
+                
+                document.getElementById('step3').classList.remove('active');
+                document.getElementById('step2').classList.remove('completed');
+                document.getElementById('step2').classList.add('active');
+                
+                switchToPhase('phonePhase');
+                
+                if (resendTimer) {
+                    clearInterval(resendTimer);
                 }
-
-                await promiseManager.execute('resendCode', async () => {
-                    setLoading('code', true);
-                    hideMessages();
-                    
-                    console.log('🔄 Resending verification code...');
-                    
-                    // Clear stored verification data
-                    promiseManager.clearVerificationState();
-                    
-                    document.getElementById('step3').classList.remove('active');
-                    document.getElementById('step2').classList.remove('completed');
-                    document.getElementById('step2').classList.add('active');
-                    
-                    switchToPhase('phonePhase');
-                    
-                    if (resendTimer) {
-                        clearInterval(resendTimer);
+                
+                // Clear and reinitialize reCAPTCHA using CustomerAuthAPI
+                CustomerAuthAPI.clearRecaptcha();
+                
+                setTimeout(async () => {
+                    try {
+                        await CustomerAuthAPI.initializeRecaptcha('recaptcha-container');
+                        showInfo('Please solve the reCAPTCHA and send the code again.');
+                    } catch (error) {
+                        console.error('❌ reCAPTCHA reinitialization failed:', error);
+                        showError('Failed to reset verification. Please refresh the page.');
                     }
-                    
-                    // Clear and reinitialize reCAPTCHA using CustomerAuthAPI
-                    CustomerAuthAPI.clearRecaptcha();
-                    
-                    setTimeout(async () => {
-                        try {
-                            await withTimeout(
-                                CustomerAuthAPI.initializeRecaptcha('recaptcha-container'),
-                                15000,
-                                'reCAPTCHA reinitialization timed out'
-                            );
-                            showInfo('Please solve the reCAPTCHA and send the code again.');
-                        } catch (error) {
-                            console.error('❌ reCAPTCHA reinitialization failed:', error);
-                            showError('Failed to reset verification. Please refresh the page.');
-                        }
-                    }, 500);
-                });
+                }, 500);
                 
             } catch (error) {
                 console.error('❌ Error resending code:', error);
-                handleError(error, 'Resend code');
+                showError('Failed to reset verification. Please refresh the page.');
             } finally {
                 setLoading('code', false);
             }
         }
 
-        // Timer functions with error handling
+        // Timer functions
         function startResendTimer() {
-            try {
-                resendCountdown = 60;
-                const resendBtn = document.getElementById('resendBtn');
-                const timerElement = document.getElementById('resendTimer');
+            resendCountdown = 60;
+            const resendBtn = document.getElementById('resendBtn');
+            const timerElement = document.getElementById('resendTimer');
+            
+            resendBtn.disabled = true;
+            
+            resendTimer = setInterval(() => {
+                resendCountdown--;
+                timerElement.textContent = `You can request a new code in ${resendCountdown} seconds`;
                 
-                if (!resendBtn || !timerElement) {
-                    console.warn('⚠️ Resend timer elements not found');
-                    return;
+                if (resendCountdown <= 0) {
+                    clearInterval(resendTimer);
+                    resendBtn.disabled = false;
+                    timerElement.textContent = 'Didn\'t receive a code? Click resend below.';
                 }
-                
-                resendBtn.disabled = true;
-                
-                resendTimer = setInterval(() => {
-                    try {
-                        resendCountdown--;
-                        timerElement.textContent = `You can request a new code in ${resendCountdown} seconds`;
-                        
-                        if (resendCountdown <= 0) {
-                            clearInterval(resendTimer);
-                            resendBtn.disabled = false;
-                            timerElement.textContent = 'Didn\'t receive a code? Click resend below.';
-                        }
-                    } catch (timerError) {
-                        console.error('❌ Timer error:', timerError);
-                        clearInterval(resendTimer);
-                    }
-                }, 1000);
-            } catch (error) {
-                console.error('❌ Error starting resend timer:', error);
-            }
+            }, 1000);
         }
 
         // =============================================================================
-        // UTILITY FUNCTIONS WITH ERROR HANDLING
+        // UTILITY FUNCTIONS
         // =============================================================================
 
-        // Phase switching with error handling
+        // Phase switching
         function switchToPhase(phaseId) {
-            try {
-                document.querySelectorAll('.form-phase').forEach(phase => {
-                    phase.classList.remove('active');
-                });
-                
-                const targetPhase = document.getElementById(phaseId);
-                if (targetPhase) {
-                    targetPhase.classList.add('active');
-                } else {
-                    console.error('❌ Phase not found:', phaseId);
-                }
-            } catch (error) {
-                console.error('❌ Error switching phase:', error);
-            }
+            document.querySelectorAll('.form-phase').forEach(phase => {
+                phase.classList.remove('active');
+            });
+            document.getElementById(phaseId).classList.add('active');
         }
 
-        // Loading states with error handling
+        // Loading states
         function setLoading(type, loading) {
-            try {
-                const spinners = {
-                    name: 'nameSpinner',
-                    phone: 'phoneSpinner',
-                    code: 'codeSpinner',
-                    google: 'googleSpinner',
-                    facebook: 'facebookSpinner',
-                    apple: 'appleSpinner',
-                    phoneCollection: 'phoneCollectionSpinner'
-                };
-                
-                const buttons = {
-                    name: 'nameNextBtn',
-                    phone: 'sendCodeBtn',
-                    code: 'verifyCodeBtn',
-                    google: 'googleSignInBtn',
-                    facebook: 'facebookSignInBtn',
-                    apple: 'appleSignInBtn'
-                };
-                
-                if (spinners[type]) {
-                    const spinner = document.getElementById(spinners[type]);
-                    if (spinner) {
-                        spinner.style.display = loading ? 'inline-block' : 'none';
-                    }
-                }
-                
-                if (buttons[type]) {
-                    const button = document.getElementById(buttons[type]);
-                    if (button) {
-                        button.disabled = loading;
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error setting loading state:', error);
+            const spinners = {
+                name: 'nameSpinner',
+                phone: 'phoneSpinner',
+                code: 'codeSpinner',
+                google: 'googleSpinner',
+                facebook: 'facebookSpinner',
+                apple: 'appleSpinner',
+                phoneCollection: 'phoneCollectionSpinner'
+            };
+            
+            const buttons = {
+                name: 'nameNextBtn',
+                phone: 'sendCodeBtn',
+                code: 'verifyCodeBtn',
+                google: 'googleSignInBtn',
+                facebook: 'facebookSignInBtn',
+                apple: 'appleSignInBtn'
+            };
+            
+            if (spinners[type]) {
+                const spinner = document.getElementById(spinners[type]);
+                if (spinner) spinner.style.display = loading ? 'inline-block' : 'none';
+            }
+            
+            if (buttons[type]) {
+                const button = document.getElementById(buttons[type]);
+                if (button) button.disabled = loading;
             }
         }
 
-        // Message functions with error handling
+        // Message functions
         function showError(message) {
-            try {
-                hideMessages();
-                const errorDiv = document.getElementById('errorMessage');
-                if (errorDiv) {
-                    errorDiv.textContent = message;
-                    errorDiv.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        if (errorDiv.style.display === 'block') {
-                            errorDiv.style.display = 'none';
-                        }
-                    }, 8000);
+            hideMessages();
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                if (errorDiv.style.display === 'block') {
+                    errorDiv.style.display = 'none';
                 }
-            } catch (error) {
-                console.error('❌ Error showing error message:', error);
-            }
+            }, 8000);
         }
 
         function showSuccess(message) {
-            try {
-                hideMessages();
-                const successDiv = document.getElementById('successMessage');
-                if (successDiv) {
-                    successDiv.textContent = message;
-                    successDiv.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        if (successDiv.style.display === 'block') {
-                            successDiv.style.display = 'none';
-                        }
-                    }, 5000);
+            hideMessages();
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                if (successDiv.style.display === 'block') {
+                    successDiv.style.display = 'none';
                 }
-            } catch (error) {
-                console.error('❌ Error showing success message:', error);
-            }
+            }, 5000);
         }
 
         function showInfo(message) {
-            try {
-                hideMessages();
-                const infoDiv = document.getElementById('infoMessage');
-                if (infoDiv) {
-                    infoDiv.textContent = message;
-                    infoDiv.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        if (infoDiv.style.display === 'block') {
-                            infoDiv.style.display = 'none';
-                        }
-                    }, 5000);
+            hideMessages();
+            const infoDiv = document.getElementById('infoMessage');
+            infoDiv.textContent = message;
+            infoDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                if (infoDiv.style.display === 'block') {
+                    infoDiv.style.display = 'none';
                 }
-            } catch (error) {
-                console.error('❌ Error showing info message:', error);
-            }
+            }, 5000);
         }
 
         function hideMessages() {
-            try {
-                const messages = ['errorMessage', 'successMessage', 'infoMessage'];
-                messages.forEach(messageId => {
-                    const element = document.getElementById(messageId);
-                    if (element) {
-                        element.style.display = 'none';
-                    }
-                });
-            } catch (error) {
-                console.error('❌ Error hiding messages:', error);
-            }
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+            document.getElementById('infoMessage').style.display = 'none';
         }
 
-        // =============================================================================
-        // ENHANCED EVENT LISTENERS AND ERROR BOUNDARIES
-        // =============================================================================
-
-        // Auto-submit code when 6 digits entered with error handling
+        // Auto-submit code when 6 digits entered
         document.addEventListener('DOMContentLoaded', function() {
-            try {
-                const codeInput = document.getElementById('verificationCode');
-                if (codeInput) {
-                    codeInput.addEventListener('input', function(e) {
-                        try {
-                            const value = e.target.value.replace(/\D/g, '');
-                            e.target.value = value;
-                            
-                            if (value.length === 6) {
-                                setTimeout(() => {
-                                    verifyCode();
-                                }, 500);
-                            }
-                        } catch (inputError) {
-                            console.error('❌ Code input error:', inputError);
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('❌ Error setting up code input listener:', error);
+            const codeInput = document.getElementById('verificationCode');
+            if (codeInput) {
+                codeInput.addEventListener('input', function(e) {
+                    const value = e.target.value.replace(/\D/g, '');
+                    e.target.value = value;
+                    
+                    if (value.length === 6) {
+                        setTimeout(() => {
+                            verifyCode();
+                        }, 500);
+                    }
+                });
             }
         });
 
-        // Global error handlers
+        // Global error handler for extension errors
         window.addEventListener('error', function(event) {
             // Ignore extension-related errors
             if (event.message.includes('message channel closed') || 
@@ -2297,152 +1651,11 @@
                 event.preventDefault();
                 return false;
             }
-            
-            console.error('🚨 Global error:', event.error);
         });
 
-        // Unhandled promise rejection handler
-        window.addEventListener('unhandledrejection', function(event) {
-            console.error('🚨 Unhandled promise rejection:', event.reason);
-            
-            // Filter out extension errors
-            if (event.reason?.message?.includes('Extension context invalidated')) {
-                event.preventDefault();
-                return;
-            }
-            
-            // Show user-friendly error for authentication failures
-            if (event.reason?.code?.startsWith('auth/')) {
-                showError('Authentication error. Please refresh the page and try again.');
-                event.preventDefault();
-            } else if (event.reason?.message?.includes('timeout')) {
-                showError('Operation timed out. Please check your connection and try again.');
-                event.preventDefault();
-            }
-        });
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', function() {
-            try {
-                // Cancel all pending operations
-                promiseManager.cancelAllOperations();
-                
-                // Clear timers
-                if (resendTimer) {
-                    clearInterval(resendTimer);
-                }
-                
-                // Clear reCAPTCHA
-                if (CustomerAuthAPI) {
-                    CustomerAuthAPI.clearRecaptcha();
-                }
-            } catch (error) {
-                console.warn('⚠️ Cleanup error:', error);
-            }
-        });
-
-        // Visibility change handler to manage state when tab becomes inactive
-        document.addEventListener('visibilitychange', function() {
-            try {
-                if (document.hidden) {
-                    console.log('📱 Tab became inactive');
-                    // Pause timers when tab is inactive
-                    if (resendTimer && resendCountdown > 0) {
-                        clearInterval(resendTimer);
-                        console.log('⏸️ Paused resend timer');
-                    }
-                } else {
-                    console.log('📱 Tab became active');
-                    // Resume timers when tab becomes active again
-                    if (resendCountdown > 0 && !resendTimer) {
-                        startResendTimer();
-                        console.log('▶️ Resumed resend timer');
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Visibility change error:', error);
-            }
-        });
-
-        // Network status monitoring
-        window.addEventListener('online', function() {
-            console.log('🌐 Network connection restored');
-            showInfo('Network connection restored. You can continue with authentication.');
-        });
-
-        window.addEventListener('offline', function() {
-            console.log('📶 Network connection lost');
-            showError('Network connection lost. Please check your internet connection.');
-        });
-
-        // =============================================================================
-        // DEBUGGING AND DIAGNOSTICS (Development Mode)
-        // =============================================================================
-
-        // Debug mode detection
-        const isDebugMode = window.location.hostname === 'localhost' || 
-                           window.location.search.includes('debug=true');
-
-        if (isDebugMode) {
-            console.log('🐛 Debug mode enabled');
-            
-            // Expose debugging functions globally
-            window.customerAuthDebug = {
-                promiseManager: promiseManager,
-                checkAuthConfig: () => CustomerAuthAPI?.checkPhoneAuthConfig?.(),
-                testRecaptcha: () => CustomerAuthAPI?.testRecaptcha?.(),
-                runDiagnostics: () => CustomerAuthAPI?.runDiagnostics?.(),
-                clearAllState: () => {
-                    promiseManager.cancelAllOperations();
-                    sessionStorage.clear();
-                    localStorage.clear();
-                    console.log('🧹 All state cleared');
-                },
-                simulateError: (type) => {
-                    switch(type) {
-                        case 'network':
-                            throw new Error('Simulated network error');
-                        case 'timeout':
-                            throw new Error('Simulated timeout error');
-                        case 'auth':
-                            const authError = new Error('Simulated auth error');
-                            authError.code = 'auth/simulated-error';
-                            throw authError;
-                        default:
-                            throw new Error('Simulated generic error');
-                    }
-                }
-            };
-            
-            console.log('🔧 Debug functions available via window.customerAuthDebug');
-        }
-
-        // Performance monitoring in debug mode
-        if (isDebugMode && typeof performance !== 'undefined') {
-            // Monitor long tasks
-            if ('PerformanceObserver' in window) {
-                const observer = new PerformanceObserver((list) => {
-                    list.getEntries().forEach((entry) => {
-                        if (entry.duration > 100) {
-                            console.warn('⚠️ Long task detected:', entry.duration + 'ms');
-                        }
-                    });
-                });
-                
-                try {
-                    observer.observe({entryTypes: ['longtask']});
-                } catch (e) {
-                    console.log('📊 Long task monitoring not supported');
-                }
-            }
-        }
-
-        console.log('📱🔍 Enhanced customer authentication system loaded with comprehensive promise handling');
+        console.log('📱🔍 Enhanced customer authentication system loaded with API integration');
         console.log('🔗 Using VediAPI for social auth and restaurant data');
         console.log('📱 Using CustomerAuthAPI for phone authentication and reCAPTCHA');
-        console.log('✅ Promise state management and error boundaries active');
-        console.log('🛡️ Timeout protection and retry logic enabled');
-        console.log('🔄 Network monitoring and offline handling ready');
     </script>
 </body>
 </html>
