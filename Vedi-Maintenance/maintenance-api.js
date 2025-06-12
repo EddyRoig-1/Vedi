@@ -133,7 +133,7 @@ const VediMaintenanceAPI = {
     } catch (error) {
       console.error('❌ Get API analytics error:', error);
       // Return mock data if collection doesn't exist yet
-              return this.getEmptyAPIAnalytics(timePeriod);
+      return this.getEmptyAPIAnalytics(timePeriod);
     }
   },
 
@@ -153,7 +153,8 @@ const VediMaintenanceAPI = {
         metadata,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-        hour: new Date().getHours()
+        hour: new Date().getHours(),
+        statusCode: success ? 200 : 500
       });
     } catch (error) {
       console.error('❌ Track API call error:', error);
@@ -315,7 +316,7 @@ const VediMaintenanceAPI = {
         
     } catch (error) {
       console.error('❌ Get realtime activity error:', error);
-              return this.getEmptyActivity();
+      return this.getEmptyActivity();
     }
   },
 
@@ -386,6 +387,288 @@ const VediMaintenanceAPI = {
       console.error('❌ Update user status error:', error);
       throw error;
     }
+  },
+
+  // ============================================================================
+  // MISSING API ANALYTICS FUNCTIONS - ADDED
+  // ============================================================================
+
+  /**
+   * Group API calls by method
+   * @param {Array} apiCalls - Array of API call data
+   * @returns {Object} Grouped API calls by method
+   */
+  groupAPICallsByMethod(apiCalls) {
+    const methodGroups = {};
+    apiCalls.forEach(call => {
+      const method = call.method || 'unknown';
+      if (!methodGroups[method]) {
+        methodGroups[method] = [];
+      }
+      methodGroups[method].push(call);
+    });
+    return methodGroups;
+  },
+
+  /**
+   * Group API calls by hour
+   * @param {Array} apiCalls - Array of API call data
+   * @returns {Object} Grouped API calls by hour
+   */
+  groupAPICallsByHour(apiCalls) {
+    const hourGroups = {};
+    apiCalls.forEach(call => {
+      const hour = call.hour || new Date(call.timestamp).getHours();
+      if (!hourGroups[hour]) {
+        hourGroups[hour] = 0;
+      }
+      hourGroups[hour]++;
+    });
+    return hourGroups;
+  },
+
+  /**
+   * Calculate error rate from API calls
+   * @param {Array} apiCalls - Array of API call data
+   * @returns {string} Error rate percentage
+   */
+  calculateErrorRate(apiCalls) {
+    if (apiCalls.length === 0) return '0.0';
+    
+    const errorCount = apiCalls.filter(call => call.success === false).length;
+    const errorRate = (errorCount / apiCalls.length) * 100;
+    return errorRate.toFixed(1);
+  },
+
+  /**
+   * Calculate average response time
+   * @param {Array} apiCalls - Array of API call data
+   * @returns {number} Average response time in milliseconds
+   */
+  calculateAverageResponseTime(apiCalls) {
+    if (apiCalls.length === 0) return 0;
+    
+    const validCalls = apiCalls.filter(call => call.responseTime && typeof call.responseTime === 'number');
+    if (validCalls.length === 0) return 0;
+    
+    const totalTime = validCalls.reduce((sum, call) => sum + call.responseTime, 0);
+    return Math.round(totalTime / validCalls.length);
+  },
+
+  /**
+   * Get top API methods by usage
+   * @param {Array} apiCalls - Array of API call data
+   * @returns {Array} Top methods sorted by usage
+   */
+  getTopAPIMethods(apiCalls) {
+    const methodCounts = {};
+    apiCalls.forEach(call => {
+      const method = call.method || 'unknown';
+      methodCounts[method] = (methodCounts[method] || 0) + 1;
+    });
+    
+    return Object.entries(methodCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([method, count]) => ({ method, count }));
+  },
+
+  /**
+   * Get database performance metrics
+   * @returns {Promise<Object>} Performance metrics
+   */
+  async getDatabasePerformance() {
+    // Simulate performance metrics
+    // In production, this would query actual database metrics
+    return {
+      averageResponseTime: Math.floor(Math.random() * 100) + 50, // 50-150ms
+      health: 'good',
+      activeConnections: Math.floor(Math.random() * 50) + 10,
+      memoryUsage: Math.floor(Math.random() * 30) + 20 + '%' // 20-50%
+    };
+  },
+
+  /**
+   * Calculate system error rate
+   * @param {Array} errorDocs - Error documents
+   * @returns {number} Error rate percentage
+   */
+  calculateSystemErrorRate(errorDocs) {
+    // Calculate error rate based on error frequency
+    const criticalErrors = errorDocs.filter(doc => {
+      const error = doc.data();
+      return error.severity === 'critical' || error.level === 'error';
+    });
+    
+    return Math.min((criticalErrors.length / Math.max(errorDocs.length, 1)) * 100, 100);
+  },
+
+  /**
+   * Get system alerts
+   * @param {Array} errorDocs - Error documents
+   * @returns {Array} System alerts
+   */
+  getSystemAlerts(errorDocs) {
+    const alerts = [];
+    
+    errorDocs.forEach(doc => {
+      const error = doc.data();
+      if (error.severity === 'critical') {
+        alerts.push({
+          type: 'critical',
+          message: error.message || 'Critical system error',
+          timestamp: error.timestamp
+        });
+      }
+    });
+    
+    return alerts.slice(0, 5); // Return top 5 alerts
+  },
+
+  /**
+   * Calculate user retention
+   * @param {Array} orders - Array of orders
+   * @returns {Object} Retention metrics
+   */
+  calculateUserRetention(orders) {
+    const userOrderCounts = {};
+    orders.forEach(order => {
+      const userId = order.customerPhone || order.customerUID;
+      userOrderCounts[userId] = (userOrderCounts[userId] || 0) + 1;
+    });
+    
+    const returningUsers = Object.values(userOrderCounts).filter(count => count > 1).length;
+    const totalUsers = Object.keys(userOrderCounts).length;
+    
+    return {
+      returningUsers,
+      totalUsers,
+      retentionRate: totalUsers > 0 ? ((returningUsers / totalUsers) * 100).toFixed(1) : '0.0'
+    };
+  },
+
+  /**
+   * Get most active restaurants
+   * @param {Array} orders - Array of orders
+   * @returns {Array} Most active restaurants
+   */
+  getMostActiveRestaurants(orders) {
+    const restaurantCounts = {};
+    orders.forEach(order => {
+      const restaurantId = order.restaurantId;
+      if (restaurantId) {
+        restaurantCounts[restaurantId] = (restaurantCounts[restaurantId] || 0) + 1;
+      }
+    });
+    
+    return Object.entries(restaurantCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([restaurantId, orderCount]) => ({ restaurantId, orderCount }));
+  },
+
+  /**
+   * Get peak activity hours
+   * @param {Array} orders - Array of orders
+   * @returns {Object} Peak activity hours
+   */
+  getPeakActivityHours(orders) {
+    const hourCounts = {};
+    orders.forEach(order => {
+      if (order.createdAt) {
+        const hour = this.timestampToDate(order.createdAt).getHours();
+        hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+      }
+    });
+    
+    const peakHour = Object.entries(hourCounts)
+      .sort(([,a], [,b]) => b - a)[0];
+    
+    return {
+      peakHour: peakHour ? peakHour[0] : 'N/A',
+      peakCount: peakHour ? peakHour[1] : 0,
+      distribution: hourCounts
+    };
+  },
+
+  /**
+   * Get restaurant owners
+   * @param {Array} users - Array of users
+   * @param {Array} restaurants - Array of restaurants
+   * @returns {Array} Restaurant owners
+   */
+  getRestaurantOwners(users, restaurants) {
+    const owners = users.filter(user => user.accountType === 'restaurant');
+    return owners.map(owner => {
+      const ownedRestaurants = restaurants.filter(r => r.ownerUserId === owner.id);
+      return {
+        ...owner,
+        restaurantCount: ownedRestaurants.length,
+        restaurants: ownedRestaurants
+      };
+    });
+  },
+
+  /**
+   * Get venue managers
+   * @param {Array} users - Array of users
+   * @param {Array} venues - Array of venues
+   * @returns {Array} Venue managers
+   */
+  getVenueManagers(users, venues) {
+    const managers = users.filter(user => user.accountType === 'venue');
+    return managers.map(manager => {
+      const managedVenues = venues.filter(v => v.managerUserId === manager.id);
+      return {
+        ...manager,
+        venueCount: managedVenues.length,
+        venues: managedVenues
+      };
+    });
+  },
+
+  /**
+   * Get user activity summary
+   * @param {Array} users - Array of users
+   * @returns {Promise<Object>} User activity summary
+   */
+  async getUserActivitySummary(users) {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    const activeUsers = users.filter(user => {
+      const lastActive = this.timestampToDate(user.lastLoginAt || user.createdAt);
+      return lastActive >= thirtyDaysAgo;
+    });
+    
+    return {
+      totalUsers: users.length,
+      activeInLast30Days: activeUsers.length,
+      activityRate: users.length > 0 ? ((activeUsers.length / users.length) * 100).toFixed(1) : '0.0'
+    };
+  },
+
+  /**
+   * Calculate overall retention
+   * @param {Array} users - Array of users
+   * @returns {string} Overall retention rate
+   */
+  calculateOverallRetention(users) {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    const oldUsers = users.filter(user => {
+      const createdAt = this.timestampToDate(user.createdAt);
+      return createdAt <= thirtyDaysAgo;
+    });
+    
+    const retainedUsers = oldUsers.filter(user => {
+      const lastActive = this.timestampToDate(user.lastLoginAt || user.createdAt);
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return lastActive >= sevenDaysAgo;
+    });
+    
+    return oldUsers.length > 0 ? ((retainedUsers.length / oldUsers.length) * 100).toFixed(1) : '0.0';
   },
 
   // ============================================================================
@@ -523,8 +806,10 @@ const VediMaintenanceAPI = {
     return {
       totalCalls: 0,
       callsByMethod: {},
+      callsByHour: {},
       errorRate: '0.0',
       averageResponseTime: 0,
+      topMethods: [],
       methodDetails: this.getMethodDetails()
     };
   },
