@@ -13,6 +13,11 @@
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
+    <!-- Your Vedi API -->
+    <script src="../firebase-api.js"></script>
+    <!-- Vedi Maintenance API -->
+    <script src="maintenance-api.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -834,40 +839,105 @@
         // Load dashboard data
         async function loadDashboardData() {
             try {
-                // Get counts from collections
-                const [usersSnapshot, restaurantsSnapshot, ordersSnapshot] = await Promise.all([
+                // Check if APIs are available
+                if (!window.VediAPI || !window.VediMaintenanceAPI) {
+                    console.error('APIs not loaded');
+                    // Set to zero and show API not loaded message
+                    document.getElementById('totalUsers').textContent = '0';
+                    document.getElementById('totalRestaurants').textContent = '0';
+                    document.getElementById('todayOrders').textContent = '0';
+                    document.getElementById('apiCalls').textContent = '0';
+                    
+                    document.getElementById('userGrowth').textContent = 'APIs not loaded';
+                    document.getElementById('restaurantGrowth').textContent = 'APIs not loaded';
+                    document.getElementById('orderGrowth').textContent = 'APIs not loaded';
+                    document.getElementById('apiGrowth').textContent = 'APIs not loaded';
+                    return;
+                }
+
+                // Use VediMaintenanceAPI for comprehensive system metrics
+                const systemMetrics = await VediMaintenanceAPI.getSystemMetrics('today');
+                
+                // Update stats with comprehensive data
+                document.getElementById('totalUsers').textContent = systemMetrics.totalUsers;
+                document.getElementById('totalRestaurants').textContent = systemMetrics.totalRestaurants;
+                document.getElementById('todayOrders').textContent = systemMetrics.ordersInPeriod;
+
+                // Get API analytics
+                const apiAnalytics = await VediMaintenanceAPI.getAPIAnalytics('today');
+                document.getElementById('apiCalls').textContent = apiAnalytics.totalCalls;
+
+                // Update growth indicators with detailed metrics
+                const usersByType = systemMetrics.usersByType;
+                const restaurantsByStatus = systemMetrics.restaurantsByStatus;
+                
+                document.getElementById('userGrowth').textContent = systemMetrics.totalUsers > 0 ? 
+                    `${usersByType.restaurant || 0} restaurants, ${usersByType.venue || 0} venues` : 'No users yet';
+                document.getElementById('restaurantGrowth').textContent = systemMetrics.totalRestaurants > 0 ? 
+                    `${restaurantsByStatus.active || 0} active, ${restaurantsByStatus.pending || 0} pending` : 'No restaurants yet';
+                document.getElementById('orderGrowth').textContent = systemMetrics.ordersInPeriod > 0 ? 
+                    `Revenue: ${systemMetrics.revenueMetrics.total.toFixed(2)}` : 'No orders today';
+                document.getElementById('apiGrowth').textContent = apiAnalytics.totalCalls > 0 ? 
+                    `${apiAnalytics.errorRate}% error rate` : 'No API calls today';
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                // Fallback to basic Firebase queries if Maintenance API fails
+                await loadBasicDashboardData();
+            }
+        }
+
+        // Fallback method for basic data loading
+        async function loadBasicDashboardData() {
+            try {
+                // Get real data from Firestore using basic queries
+                const [usersSnapshot, restaurantsSnapshot, venuesSnapshot] = await Promise.all([
                     db.collection('users').get(),
                     db.collection('restaurants').get(),
-                    db.collection('orders').where('createdAt', '>=', getStartOfDay()).get()
+                    db.collection('venues').get()
                 ]);
+
+                // Get today's orders
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const ordersSnapshot = await db.collection('orders')
+                    .where('createdAt', '>=', today)
+                    .get();
+
+                // Get today's API calls
+                const todayStr = new Date().toISOString().split('T')[0];
+                const apiCallsSnapshot = await db.collection('apiCalls')
+                    .where('date', '==', todayStr)
+                    .get();
 
                 // Update stats with real data
                 document.getElementById('totalUsers').textContent = usersSnapshot.size;
                 document.getElementById('totalRestaurants').textContent = restaurantsSnapshot.size;
                 document.getElementById('todayOrders').textContent = ordersSnapshot.size;
-                
-                // Get API calls count
-                const apiCallsSnapshot = await db.collection('apiCalls')
-                    .where('date', '==', new Date().toISOString().split('T')[0])
-                    .get();
                 document.getElementById('apiCalls').textContent = apiCallsSnapshot.size;
 
-                // Update growth indicators based on real data
-                if (usersSnapshot.size > 0) {
-                    document.getElementById('userGrowth').textContent = `${usersSnapshot.size} users registered`;
-                }
-                if (restaurantsSnapshot.size > 0) {
-                    document.getElementById('restaurantGrowth').textContent = `${restaurantsSnapshot.size} restaurants active`;
-                }
-                if (ordersSnapshot.size > 0) {
-                    document.getElementById('orderGrowth').textContent = `${ordersSnapshot.size} orders today`;
-                }
-                if (apiCallsSnapshot.size > 0) {
-                    document.getElementById('apiGrowth').textContent = `${apiCallsSnapshot.size} API calls today`;
-                }
+                // Update growth indicators
+                document.getElementById('userGrowth').textContent = usersSnapshot.size > 0 ? 
+                    `${usersSnapshot.size} total registered` : 'No users yet';
+                document.getElementById('restaurantGrowth').textContent = restaurantsSnapshot.size > 0 ? 
+                    `${restaurantsSnapshot.size} restaurants active` : 'No restaurants yet';
+                document.getElementById('orderGrowth').textContent = ordersSnapshot.size > 0 ? 
+                    `${ordersSnapshot.size} orders today` : 'No orders today';
+                document.getElementById('apiGrowth').textContent = apiCallsSnapshot.size > 0 ? 
+                    `${apiCallsSnapshot.size} API calls today` : 'No API calls today';
 
             } catch (error) {
-                console.error('Error loading dashboard data:', error);
+                console.error('Error loading basic dashboard data:', error);
+                // Set fallback values
+                document.getElementById('totalUsers').textContent = '0';
+                document.getElementById('totalRestaurants').textContent = '0';
+                document.getElementById('todayOrders').textContent = '0';
+                document.getElementById('apiCalls').textContent = '0';
+                
+                document.getElementById('userGrowth').textContent = 'Error loading data';
+                document.getElementById('restaurantGrowth').textContent = 'Error loading data';
+                document.getElementById('orderGrowth').textContent = 'Error loading data';
+                document.getElementById('apiGrowth').textContent = 'Error loading data';
             }
         }
 
@@ -881,7 +951,7 @@
                     labels: getLast7Days(),
                     datasets: [{
                         label: 'New Users',
-                        data: [12, 19, 8, 15, 22, 13, 17],
+                        data: [0, 0, 0, 0, 0, 0, 0], // Will be updated with real data
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 3,
@@ -942,16 +1012,10 @@
             apiUsageChart = new Chart(apiCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Authentication', 'Orders', 'Restaurants', 'Users', 'Analytics'],
+                    labels: ['No Data'],
                     datasets: [{
-                        data: [30, 25, 20, 15, 10],
-                        backgroundColor: [
-                            '#667eea',
-                            '#764ba2',
-                            '#f093fb',
-                            '#f5576c',
-                            '#4facfe'
-                        ],
+                        data: [1],
+                        backgroundColor: ['#e5e7eb'],
                         borderWidth: 0,
                         cutout: '70%'
                     }]
@@ -982,6 +1046,11 @@
         // Update charts with real data
         async function updateChartsWithRealData() {
             try {
+                if (!window.VediAPI) {
+                    console.log('VediAPI not available for chart updates');
+                    return;
+                }
+
                 // Get user growth data for last 7 days
                 const last7Days = getLast7Days();
                 const userGrowthData = await Promise.all(last7Days.map(async (day, index) => {
@@ -1000,10 +1069,40 @@
                     return usersSnapshot.size;
                 }));
 
-                // Update user growth chart
-                if (userGrowthData.some(val => val > 0)) {
+                // Update user growth chart only if we have data
+                const hasUserData = userGrowthData.some(val => val > 0);
+                if (hasUserData) {
                     userGrowthChart.data.datasets[0].data = userGrowthData;
                     userGrowthChart.update();
+                }
+
+                // Get API usage data by method
+                const apiCallsSnapshot = await db.collection('apiCalls').get();
+                
+                if (!apiCallsSnapshot.empty) {
+                    const methodCounts = {};
+                    apiCallsSnapshot.docs.forEach(doc => {
+                        const call = doc.data();
+                        const method = call.method || 'unknown';
+                        methodCounts[method] = (methodCounts[method] || 0) + 1;
+                    });
+
+                    const topMethods = Object.entries(methodCounts)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 5);
+
+                    if (topMethods.length > 0) {
+                        apiUsageChart.data.labels = topMethods.map(([method]) => method);
+                        apiUsageChart.data.datasets[0].data = topMethods.map(([,count]) => count);
+                        apiUsageChart.data.datasets[0].backgroundColor = [
+                            '#667eea',
+                            '#764ba2',
+                            '#f093fb',
+                            '#f5576c',
+                            '#4facfe'
+                        ];
+                        apiUsageChart.update();
+                    }
                 }
 
             } catch (error) {
@@ -1015,52 +1114,20 @@
         async function loadActivityFeed() {
             try {
                 const activityFeed = document.getElementById('activityFeed');
-                const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
                 
-                // Get recent orders
-                const ordersSnapshot = await db.collection('orders')
-                    .where('createdAt', '>=', oneHourAgo)
-                    .orderBy('createdAt', 'desc')
-                    .limit(10)
-                    .get();
-                
-                // Get recent user signups
-                const usersSnapshot = await db.collection('users')
-                    .where('createdAt', '>=', oneHourAgo)
-                    .orderBy('createdAt', 'desc')
-                    .limit(10)
-                    .get();
-                
-                const activities = [];
-                
-                // Add order activities
-                ordersSnapshot.docs.forEach(doc => {
-                    const order = doc.data();
-                    activities.push({
-                        type: 'order',
-                        icon: '📋',
-                        text: `New order #${order.orderNumber} placed`,
-                        time: getRelativeTime(order.createdAt),
-                        timestamp: order.createdAt,
-                        bg: 'linear-gradient(135deg, #fa709a, #fee140)'
-                    });
-                });
-                
-                // Add user activities
-                usersSnapshot.docs.forEach(doc => {
-                    const user = doc.data();
-                    activities.push({
-                        type: 'user',
-                        icon: '👤',
-                        text: `New ${user.accountType || 'user'} registered: ${user.name}`,
-                        time: getRelativeTime(user.createdAt),
-                        timestamp: user.createdAt,
-                        bg: 'linear-gradient(135deg, #4facfe, #00f2fe)'
-                    });
-                });
-                
-                // Sort by timestamp
-                activities.sort((a, b) => timestampToDate(b.timestamp) - timestampToDate(a.timestamp));
+                if (!window.VediMaintenanceAPI) {
+                    activityFeed.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⚠️</div>
+                            <h3>Maintenance API Not Loaded</h3>
+                            <p>Please ensure maintenance-api.js is loaded properly</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Use VediMaintenanceAPI for real-time activity
+                const activities = await VediMaintenanceAPI.getRealtimeActivity(10);
                 
                 if (activities.length === 0) {
                     activityFeed.innerHTML = `
@@ -1074,10 +1141,10 @@
                 }
                 
                 let html = '';
-                activities.slice(0, 10).forEach(activity => {
+                activities.forEach(activity => {
                     html += `
                         <div class="activity-item">
-                            <div class="activity-icon" style="background: ${activity.bg};">
+                            <div class="activity-icon" style="background: ${activity.color};">
                                 ${activity.icon}
                             </div>
                             <div class="activity-content">
@@ -1096,7 +1163,7 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">⚠️</div>
                         <h3>Unable to Load Activity</h3>
-                        <p>Please check your connection and try again</p>
+                        <p>Error: ${error.message}</p>
                     </div>
                 `;
             }
