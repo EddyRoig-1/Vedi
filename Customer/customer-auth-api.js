@@ -25,6 +25,29 @@ const CustomerAuthAPI = {
     try {
       console.log('📱 Sending phone verification to:', phoneNumber);
       
+      // Try using firebase-config.js PhoneAuthHelper first
+      if (typeof window.PhoneAuthHelper !== 'undefined') {
+        console.log('🔧 Using firebase-config.js PhoneAuthHelper');
+        try {
+          const verifier = recaptchaVerifier || window.recaptchaVerifier;
+          const result = await window.PhoneAuthHelper.sendVerificationCode(phoneNumber, verifier);
+          
+          // Track successful API call if tracking is available
+          if (window.trackAPICall) {
+            const responseTime = Date.now() - startTime;
+            await window.trackAPICall('sendPhoneVerification', responseTime, true, {
+              phoneNumber: phoneNumber.substring(0, 5) + '****'
+            });
+          }
+          
+          console.log('✅ SMS sent via PhoneAuthHelper');
+          return result;
+        } catch (helperError) {
+          console.warn('⚠️ PhoneAuthHelper failed, falling back to direct method:', helperError);
+        }
+      }
+      
+      // Fallback to direct Firebase method
       // Use provided verifier or get from global
       const verifier = recaptchaVerifier || window.recaptchaVerifier;
       if (!verifier) {
@@ -39,7 +62,25 @@ const CustomerAuthAPI = {
       
       const auth = window.firebaseAuth || firebase.auth();
       
-      // Send verification code
+      // Debug: Check Firebase app configuration
+      console.log('🔧 Firebase app name:', firebase.app().name);
+      console.log('🔧 Firebase project ID:', firebase.app().options.projectId);
+      console.log('🔧 reCAPTCHA verifier ready:', !!verifier);
+      
+      // Additional validation for US numbers
+      if (phoneNumber.startsWith('+1')) {
+        const usNumber = phoneNumber.slice(2);
+        if (usNumber.length !== 10) {
+          throw new Error('US phone numbers must be exactly 10 digits after country code');
+        }
+        // Check for invalid US number patterns
+        if (usNumber.startsWith('0') || usNumber.startsWith('1')) {
+          throw new Error('Invalid US phone number format. First digit cannot be 0 or 1');
+        }
+      }
+      
+      // Send verification code with enhanced error handling
+      console.log('🚀 Attempting to send SMS...');
       const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, verifier);
       
       // Track successful API call if tracking is available
@@ -54,6 +95,15 @@ const CustomerAuthAPI = {
       return confirmationResult;
       
     } catch (error) {
+      console.error('❌ Phone verification detailed error:', {
+        code: error.code,
+        message: error.message,
+        phoneNumber: phoneNumber ? phoneNumber.substring(0, 5) + '****' : 'undefined',
+        hasRecaptcha: !!recaptchaVerifier,
+        hasGlobalRecaptcha: !!window.recaptchaVerifier,
+        projectId: firebase.app().options.projectId
+      });
+      
       // Track failed API call if tracking is available
       if (window.trackAPICall) {
         const responseTime = Date.now() - startTime;
@@ -63,7 +113,6 @@ const CustomerAuthAPI = {
         });
       }
       
-      console.error('❌ Phone verification error:', error);
       throw this.handlePhoneAuthError(error);
     }
   },
@@ -128,6 +177,33 @@ const CustomerAuthAPI = {
     try {
       console.log('🔐 Initializing reCAPTCHA verifier...');
       
+      // Check if Firebase is properly initialized
+      if (typeof firebase === 'undefined') {
+        throw new Error('Firebase not loaded');
+      }
+      
+      if (!firebase.apps.length) {
+        throw new Error('Firebase app not initialized');
+      }
+      
+      console.log('🔧 Firebase project:', firebase.app().options.projectId);
+      console.log('🔧 Current domain:', window.location.hostname);
+      
+      // Use the firebase-config.js helper if available
+      if (typeof window.createRecaptchaVerifier === 'function') {
+        console.log('🔧 Using firebase-config.js reCAPTCHA helper');
+        
+        try {
+          const verifier = window.createRecaptchaVerifier(containerId, options);
+          await verifier.render();
+          console.log('✅ reCAPTCHA initialized via firebase-config helper');
+          return verifier;
+        } catch (configError) {
+          console.warn('⚠️ firebase-config helper failed, falling back to direct method:', configError);
+        }
+      }
+      
+      // Fallback to direct initialization
       // Clear any existing verifier
       if (window.recaptchaVerifier) {
         try {
@@ -145,14 +221,20 @@ const CustomerAuthAPI = {
       }
       container.innerHTML = '';
 
-      // Default options
+      // Enhanced default options
       const defaultOptions = {
         'size': 'normal',
         'callback': function(response) {
-          console.log('✅ reCAPTCHA solved');
+          console.log('✅ reCAPTCHA solved, response length:', response.length);
+          // Enable send button if available
+          const sendBtn = document.getElementById('sendCodeBtn');
+          if (sendBtn) sendBtn.disabled = false;
         },
         'expired-callback': function() {
           console.log('⏰ reCAPTCHA expired');
+          // Disable send button if available
+          const sendBtn = document.getElementById('sendCodeBtn');
+          if (sendBtn) sendBtn.disabled = true;
         },
         'error-callback': function(error) {
           console.error('❌ reCAPTCHA error:', error);
@@ -160,23 +242,42 @@ const CustomerAuthAPI = {
       };
 
       const finalOptions = { ...defaultOptions, ...options };
+      
+      console.log('🔧 Creating reCAPTCHA with options:', finalOptions);
 
       // Create new verifier
       const verifier = new firebase.auth.RecaptchaVerifier(containerId, finalOptions);
       
-      // Render the reCAPTCHA
-      const widgetId = await verifier.render();
+      console.log('🚀 Rendering reCAPTCHA...');
+      
+      // Render the reCAPTCHA with timeout
+      const widgetId = await Promise.race([
+        verifier.render(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('reCAPTCHA render timeout')), 30000)
+        )
+      ]);
       
       // Store globally for easy access
       window.recaptchaVerifier = verifier;
       window.recaptchaWidgetId = widgetId;
       
-      console.log('✅ reCAPTCHA initialized and rendered successfully');
+      console.log('✅ reCAPTCHA initialized and rendered successfully, widget ID:', widgetId);
       return verifier;
       
     } catch (error) {
       console.error('❌ reCAPTCHA initialization failed:', error);
-      throw new Error('Failed to initialize reCAPTCHA. Please refresh the page and try again.');
+      
+      // Provide specific error messages
+      if (error.message.includes('timeout')) {
+        throw new Error('reCAPTCHA took too long to load. Please check your internet connection and try again.');
+      } else if (error.message.includes('not found')) {
+        throw new Error('reCAPTCHA container not found. Please refresh the page.');
+      } else if (error.message.includes('Firebase')) {
+        throw new Error('Firebase configuration error. Please contact support.');
+      } else {
+        throw new Error('Failed to initialize reCAPTCHA. Please refresh the page and try again.');
+      }
     }
   },
 
@@ -353,22 +454,157 @@ const CustomerAuthAPI = {
   handlePhoneAuthError(error) {
     const phoneErrorMessages = {
       'auth/invalid-phone-number': 'Please enter a valid phone number.',
-      'auth/too-many-requests': 'Too many attempts. Please try again later.',
+      'auth/too-many-requests': 'Too many attempts. Please wait 24 hours or try a different phone number.',
       'auth/invalid-verification-code': 'Invalid verification code. Please try again.',
       'auth/code-expired': 'Verification code has expired. Please request a new one.',
-      'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please try again.',
-      'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
-      'auth/operation-not-allowed': 'Phone authentication is not enabled.',
+      'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please solve the reCAPTCHA and try again.',
+      'auth/quota-exceeded': 'SMS quota exceeded. Please try again later or contact support.',
+      'auth/operation-not-allowed': 'Phone authentication is not enabled. Please contact support.',
       'auth/missing-verification-code': 'Please enter the verification code.',
       'auth/invalid-verification-id': 'Invalid verification session. Please start over.',
-      'auth/internal-error': 'SMS service error. Please check your Firebase configuration or try again later.',
-      'auth/network-request-failed': 'Network error. Please check your connection and try again.'
+      'auth/internal-error': 'SMS service configuration error. Please contact support.',
+      'auth/internal-error-encountered': 'Firebase SMS service is not properly configured. Please contact support.',
+      'auth/network-request-failed': 'Network error. Please check your connection and try again.',
+      'auth/app-not-authorized': 'This app is not authorized for phone authentication. Please contact support.',
+      'auth/unauthorized-domain': 'This domain is not authorized for phone authentication. Please contact support.'
     };
     
-    const message = phoneErrorMessages[error.code] || error.message || 'Phone authentication failed. Please try again.';
+    // Log detailed error for debugging
+    console.error('🚨 Phone auth error details:', {
+      code: error.code,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    let message = phoneErrorMessages[error.code] || error.message || 'Phone authentication failed. Please try again.';
+    
+    // Special handling for internal errors
+    if (error.code === 'auth/internal-error-encountered' || error.code === 'auth/internal-error') {
+      message = 'SMS service is not properly configured. This usually means:\n\n' +
+                '1. Phone authentication is not enabled in Firebase Console\n' +
+                '2. Your app is not properly configured for SMS\n' +
+                '3. There may be billing issues with your Firebase project\n\n' +
+                'Please contact support for assistance.';
+    }
+    
     const newError = new Error(message);
     newError.code = error.code;
+    newError.originalError = error;
     return newError;
+  },
+
+  // ============================================================================
+  // DEBUGGING AND DIAGNOSTICS
+  // ============================================================================
+
+  /**
+   * Check Firebase phone auth configuration
+   * @returns {Object} Configuration status
+   */
+  checkPhoneAuthConfig: function() {
+    const config = {
+      firebaseLoaded: typeof firebase !== 'undefined',
+      appInitialized: false,
+      projectId: null,
+      authDomain: null,
+      phoneProviderEnabled: false,
+      domain: window.location.hostname,
+      protocol: window.location.protocol,
+      isLocalhost: window.location.hostname === 'localhost',
+      recaptchaReady: this.isRecaptchaReady()
+    };
+
+    if (config.firebaseLoaded && firebase.apps.length > 0) {
+      config.appInitialized = true;
+      config.projectId = firebase.app().options.projectId;
+      config.authDomain = firebase.app().options.authDomain;
+      
+      // Check if phone provider is enabled (this is approximate)
+      try {
+        const auth = firebase.auth();
+        config.phoneProviderEnabled = true; // If we can access auth, assume it's configured
+      } catch (error) {
+        config.phoneProviderEnabled = false;
+      }
+    }
+
+    console.log('🔍 Firebase Phone Auth Configuration Check:', config);
+    return config;
+  },
+
+  /**
+   * Test reCAPTCHA functionality
+   * @returns {Promise<Object>} Test results
+   */
+  testRecaptcha: async function() {
+    const testResults = {
+      containerExists: !!document.getElementById('recaptcha-container'),
+      verifierExists: !!window.recaptchaVerifier,
+      widgetExists: !!window.recaptchaWidgetId,
+      grecaptchaLoaded: typeof grecaptcha !== 'undefined',
+      errors: []
+    };
+
+    try {
+      if (!testResults.containerExists) {
+        testResults.errors.push('reCAPTCHA container not found');
+      }
+
+      if (testResults.grecaptchaLoaded) {
+        testResults.grecaptchaReady = typeof grecaptcha.ready === 'function';
+      } else {
+        testResults.errors.push('Google reCAPTCHA library not loaded');
+      }
+
+    } catch (error) {
+      testResults.errors.push(`reCAPTCHA test error: ${error.message}`);
+    }
+
+    console.log('🧪 reCAPTCHA Test Results:', testResults);
+    return testResults;
+  },
+
+  /**
+   * Run comprehensive diagnostics
+   * @returns {Promise<Object>} Diagnostic results
+   */
+  runDiagnostics: async function() {
+    console.log('🔬 Running Phone Auth Diagnostics...');
+    
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      config: this.checkPhoneAuthConfig(),
+      recaptcha: await this.testRecaptcha(),
+      recommendations: []
+    };
+
+    // Generate recommendations
+    if (!diagnostics.config.firebaseLoaded) {
+      diagnostics.recommendations.push('Firebase SDK not loaded - check script tags');
+    }
+
+    if (!diagnostics.config.appInitialized) {
+      diagnostics.recommendations.push('Firebase app not initialized - check firebase-config.js');
+    }
+
+    if (!diagnostics.config.phoneProviderEnabled) {
+      diagnostics.recommendations.push('Phone authentication may not be enabled in Firebase Console');
+    }
+
+    if (!diagnostics.recaptcha.containerExists) {
+      diagnostics.recommendations.push('reCAPTCHA container missing from HTML');
+    }
+
+    if (!diagnostics.recaptcha.grecaptchaLoaded) {
+      diagnostics.recommendations.push('Google reCAPTCHA library not loaded');
+    }
+
+    if (diagnostics.config.isLocalhost && diagnostics.config.protocol !== 'https:') {
+      diagnostics.recommendations.push('Consider using HTTPS even for localhost (some browsers require it)');
+    }
+
+    console.log('📋 Phone Auth Diagnostics Complete:', diagnostics);
+    return diagnostics;
   },
 
   // ============================================================================
