@@ -225,52 +225,29 @@ const VediAPI = {
   /**
    * Send SMS verification code for phone authentication
    * @param {string} phoneNumber - Phone number in E.164 format
-   * @param {Object} recaptchaVerifier - reCAPTCHA verifier instance (optional, will use global if not provided)
    * @returns {Promise<Object>} Confirmation result for verification
    */
-  async sendPhoneVerification(phoneNumber, recaptchaVerifier = null) {
-    const startTime = Date.now();
+  sendPhoneVerification: withTracking('sendPhoneVerification', async function(phoneNumber) {
     try {
       console.log('📱 Sending phone verification to:', phoneNumber);
       
-      // Use provided verifier or get from global
-      const verifier = recaptchaVerifier || window.recaptchaVerifier;
-      if (!verifier) {
+      // Get reCAPTCHA verifier
+      const recaptchaVerifier = window.recaptchaVerifier;
+      if (!recaptchaVerifier) {
         throw new Error('reCAPTCHA verifier not initialized');
       }
       
-      // Validate phone number format (E.164)
-      const e164Regex = /^\+[1-9]\d{1,14}$/;
-      if (!e164Regex.test(phoneNumber)) {
-        throw new Error('Invalid phone number format. Please use E.164 format (+1234567890)');
-      }
-      
-      const auth = getFirebaseAuth();
-      
       // Send verification code
-      const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, verifier);
-      
-      // Track successful API call
-      const responseTime = Date.now() - startTime;
-      await trackAPICall('sendPhoneVerification', responseTime, true, {
-        phoneNumber: phoneNumber.substring(0, 5) + '****' // Partial phone for privacy
-      });
+      const confirmationResult = await firebase.auth().signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
       
       console.log('✅ SMS verification code sent successfully');
       return confirmationResult;
       
     } catch (error) {
-      // Track failed API call
-      const responseTime = Date.now() - startTime;
-      await trackAPICall('sendPhoneVerification', responseTime, false, {
-        error: error.code || error.message,
-        phoneNumber: phoneNumber ? phoneNumber.substring(0, 5) + '****' : 'undefined'
-      });
-      
       console.error('❌ Phone verification error:', error);
       throw this.handlePhoneAuthError(error);
     }
-  },
+  }),
 
   /**
    * Verify SMS code and complete phone authentication
@@ -278,8 +255,7 @@ const VediAPI = {
    * @param {string} code - 6-digit verification code
    * @returns {Promise<Object>} Firebase user credential
    */
-  async verifyPhoneCode(confirmationResult, code) {
-    const startTime = Date.now();
+  verifyPhoneCode: withTracking('verifyPhoneCode', async function(confirmationResult, code) {
     try {
       console.log('🔐 Verifying phone code...');
       
@@ -287,119 +263,16 @@ const VediAPI = {
         throw new Error('No verification in progress');
       }
       
-      if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-        throw new Error('Please enter a valid 6-digit verification code');
-      }
-      
       const result = await confirmationResult.confirm(code);
-      
-      // Track successful API call
-      const responseTime = Date.now() - startTime;
-      await trackAPICall('verifyPhoneCode', responseTime, true, {
-        userId: result.user.uid
-      });
       
       console.log('✅ Phone verification successful, UID:', result.user.uid);
       return result;
       
     } catch (error) {
-      // Track failed API call
-      const responseTime = Date.now() - startTime;
-      await trackAPICall('verifyPhoneCode', responseTime, false, {
-        error: error.code || error.message
-      });
-      
       console.error('❌ Phone code verification error:', error);
       throw this.handlePhoneAuthError(error);
     }
-  },
-
-  /**
-   * Initialize reCAPTCHA verifier for phone authentication
-   * @param {string} containerId - ID of the container element for reCAPTCHA
-   * @param {Object} options - reCAPTCHA options
-   * @returns {Promise<Object>} reCAPTCHA verifier instance
-   */
-  async initializeRecaptcha(containerId = 'recaptcha-container', options = {}) {
-    try {
-      console.log('🔐 Initializing reCAPTCHA verifier...');
-      
-      // Clear any existing verifier
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (clearError) {
-          console.warn('⚠️ Error clearing existing reCAPTCHA:', clearError);
-        }
-        window.recaptchaVerifier = null;
-      }
-
-      // Clear the container
-      const container = document.getElementById(containerId);
-      if (!container) {
-        throw new Error(`reCAPTCHA container with ID '${containerId}' not found`);
-      }
-      container.innerHTML = '';
-
-      // Default options
-      const defaultOptions = {
-        'size': 'normal',
-        'callback': function(response) {
-          console.log('✅ reCAPTCHA solved');
-        },
-        'expired-callback': function() {
-          console.log('⏰ reCAPTCHA expired');
-        },
-        'error-callback': function(error) {
-          console.error('❌ reCAPTCHA error:', error);
-        }
-      };
-
-      const finalOptions = { ...defaultOptions, ...options };
-
-      // Create new verifier
-      const verifier = new firebase.auth.RecaptchaVerifier(containerId, finalOptions);
-      
-      // Render the reCAPTCHA
-      const widgetId = await verifier.render();
-      
-      // Store globally for easy access
-      window.recaptchaVerifier = verifier;
-      window.recaptchaWidgetId = widgetId;
-      
-      console.log('✅ reCAPTCHA initialized and rendered successfully');
-      return verifier;
-      
-    } catch (error) {
-      console.error('❌ reCAPTCHA initialization failed:', error);
-      throw new Error('Failed to initialize reCAPTCHA. Please refresh the page and try again.');
-    }
-  },
-
-  /**
-   * Reset reCAPTCHA verifier
-   * @returns {Promise<boolean>} Success status
-   */
-  async resetRecaptcha() {
-    try {
-      if (window.recaptchaVerifier && window.recaptchaWidgetId) {
-        if (typeof grecaptcha !== 'undefined') {
-          grecaptcha.reset(window.recaptchaWidgetId);
-          console.log('✅ reCAPTCHA reset successfully');
-          return true;
-        } else {
-          console.warn('⚠️ grecaptcha not available for reset');
-          return false;
-        }
-      } else {
-        console.warn('⚠️ No reCAPTCHA to reset');
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error resetting reCAPTCHA:', error);
-      return false;
-    }
-  },
+  }),
 
   /**
    * Sign in with Google (social authentication)
@@ -538,15 +411,11 @@ const VediAPI = {
       'auth/quota-exceeded': 'SMS quota exceeded. Please try again later.',
       'auth/operation-not-allowed': 'Phone authentication is not enabled.',
       'auth/missing-verification-code': 'Please enter the verification code.',
-      'auth/invalid-verification-id': 'Invalid verification session. Please start over.',
-      'auth/internal-error': 'SMS service error. Please check your Firebase configuration or try again later.',
-      'auth/network-request-failed': 'Network error. Please check your connection and try again.'
+      'auth/invalid-verification-id': 'Invalid verification session. Please start over.'
     };
     
-    const message = phoneErrorMessages[error.code] || error.message || 'Phone authentication failed. Please try again.';
-    const newError = new Error(message);
-    newError.code = error.code;
-    return newError;
+    const message = phoneErrorMessages[error.code] || 'Phone authentication failed. Please try again.';
+    return new Error(message);
   },
 
   /**
@@ -567,9 +436,7 @@ const VediAPI = {
     };
     
     const message = socialErrorMessages[error.code] || `${provider} sign-in failed. Please try again.`;
-    const newError = new Error(message);
-    newError.code = error.code;
-    return newError;
+    return new Error(message);
   },
 
   /**
@@ -1776,8 +1643,6 @@ const VediAPI = {
     }
   }),
 
-  }),
-
   // ============================================================================
   // LOSS INCIDENT MANAGEMENT (FIXED VERSION)
   // ============================================================================
@@ -2365,8 +2230,7 @@ console.log('🍽️ Enhanced Vedi Firebase API loaded successfully');
 console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
 console.log('📊 API tracking: ENABLED for all methods');
 console.log('🔐 Enhanced authentication support:');
-console.log('   📱 FIXED Phone authentication with improved error handling');
-console.log('   🔧 Enhanced reCAPTCHA management with reset functionality');
+console.log('   📱 Phone authentication with SMS verification');
 console.log('   🔍 Google social authentication');
 console.log('   📘 Facebook social authentication');
 console.log('   🍎 Apple social authentication');
@@ -2379,37 +2243,6 @@ console.log('   🤝 Negotiated rate tracking and management');
 console.log('   📈 Platform revenue analytics and tracking');
 console.log('   🏛️ Custom tax rates and minimum order amounts');
 console.log('🔥 Ready for production use with complete analytics, enhanced authentication, and dynamic fee management!');
-console.log('✅ FIXED: Phone authentication methods improved with proper error handling');
-console.log('✅ FIXED: reCAPTCHA initialization and reset functionality enhanced');
-console.log('✅ FIXED: Firebase database references properly initialized');
-console.log('💡 NEW: Dynamic fee system allows complete control over platform revenue');
-};
-
-// Make VediAPI available globally
-window.VediAPI = VediAPI;
-
-// Legacy support - also make it available as FirebaseAPI for backward compatibility
-window.FirebaseAPI = VediAPI;
-
-console.log('🍽️ Enhanced Vedi Firebase API loaded successfully');
-console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
-console.log('📊 API tracking: ENABLED for all methods');
-console.log('🔐 Enhanced authentication support:');
-console.log('   📱 FIXED Phone authentication with improved error handling');
-console.log('   🔧 Enhanced reCAPTCHA management with reset functionality');
-console.log('   🔍 Google social authentication');
-console.log('   📘 Facebook social authentication');
-console.log('   🍎 Apple social authentication');
-console.log('   👤 Customer profile management');
-console.log('   🔒 UID-based order security');
-console.log('💰 Dynamic Fee Management System:');
-console.log('   ⚙️ Custom fee configurations per restaurant');
-console.log('   📊 Fixed, percentage, and hybrid fee structures');
-console.log('   🤝 Negotiated rate tracking and management');
-console.log('   📈 Platform revenue analytics and tracking');
-console.log('   🏛️ Custom tax rates and minimum order amounts');
-console.log('🔥 Ready for production use with complete analytics, enhanced authentication, and dynamic fee management!');
-console.log('✅ FIXED: Phone authentication methods improved with proper error handling');
-console.log('✅ FIXED: reCAPTCHA initialization and reset functionality enhanced');
-console.log('✅ FIXED: Firebase database references properly initialized');
+console.log('✅ FIXED: Loss incident creation now handles undefined values properly');
+console.log('🔧 FIXED: Firebase database references properly initialized');
 console.log('💡 NEW: Dynamic fee system allows complete control over platform revenue');
