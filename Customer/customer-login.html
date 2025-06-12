@@ -919,14 +919,36 @@
                 // Debug: Add click listener to send code button for debugging
                 const sendCodeBtn = document.getElementById('sendCodeBtn');
                 if (sendCodeBtn) {
-                    console.log('✅ Send code button found and event listener attached');
+                    console.log('✅ Send code button found:', {
+                        disabled: sendCodeBtn.disabled,
+                        style: sendCodeBtn.style.cssText,
+                        onclick: !!sendCodeBtn.onclick,
+                        hasEventListener: sendCodeBtn.hasAttribute('onclick')
+                    });
                     
-                    // Add a direct event listener for debugging
+                    // Make sure button is clickable
+                    sendCodeBtn.disabled = false;
+                    sendCodeBtn.style.pointerEvents = 'auto';
+                    sendCodeBtn.style.opacity = '1';
+                    
+                    // Add multiple event listeners for debugging
                     sendCodeBtn.addEventListener('click', function(e) {
-                        console.log('🔄 Send code button clicked directly via event listener');
+                        console.log('🔄 Send code button clicked via addEventListener');
                         e.preventDefault();
+                        e.stopPropagation();
                         sendVerificationCode();
                     });
+                    
+                    // Test if button responds to clicks
+                    sendCodeBtn.addEventListener('mousedown', function() {
+                        console.log('🖱️ Send code button mousedown detected');
+                    });
+                    
+                    sendCodeBtn.addEventListener('mouseup', function() {
+                        console.log('🖱️ Send code button mouseup detected');
+                    });
+                    
+                    console.log('✅ Send code button event listeners attached');
                 } else {
                     console.error('❌ Send code button not found!');
                 }
@@ -1025,7 +1047,7 @@
         // ENHANCED SOCIAL AUTHENTICATION WITH PROMISE HANDLING
         // =============================================================================
 
-        // Google Sign-In with comprehensive error handling using firebase-api.js
+        // Google Sign-In using firebase-api.js (primary) with fallbacks
         async function signInWithGoogle() {
             try {
                 if (promiseManager.isOperationPending('googleSignIn')) {
@@ -1040,17 +1062,22 @@
                     console.log('🔍 Initiating Google sign-in via firebase-api.js...');
                     
                     try {
-                        // Use firebase-api.js for Google sign-in with timeout
+                        // PRIMARY: Use firebase-api.js signInWithGoogle function
                         if (typeof window.signInWithGoogle === 'function') {
+                            console.log('✅ Using firebase-api.js signInWithGoogle method');
                             const result = await withTimeout(
                                 window.signInWithGoogle(),
                                 30000,
                                 'Google sign-in timed out. Please try again.'
                             );
-                            console.log('✅ Google sign-in successful:', result.user.displayName);
+                            console.log('✅ Google sign-in successful via firebase-api.js:', result.user.displayName);
                             await handleSocialSignInSuccess(result.user, 'google');
-                        } else {
-                            // Fallback to VediAPI if firebase-api.js not available
+                            return;
+                        }
+                        
+                        // FALLBACK 1: Use VediAPI if available
+                        if (typeof VediAPI !== 'undefined' && VediAPI.signInWithGoogle) {
+                            console.log('🔄 firebase-api.js not available, trying VediAPI...');
                             const result = await withTimeout(
                                 VediAPI.signInWithGoogle(),
                                 30000,
@@ -1058,12 +1085,18 @@
                             );
                             console.log('✅ Google sign-in successful via VediAPI:', result.user.displayName);
                             await handleSocialSignInSuccess(result.user, 'google');
+                            return;
                         }
                         
-                    } catch (error) {
-                        console.log('🔄 Primary method failed, trying direct Firebase:', error.code);
+                        // FALLBACK 2: Direct Firebase
+                        console.log('🔄 No API methods available, using direct Firebase...');
+                        throw new Error('No Google sign-in method available, will use redirect');
                         
-                        if (error.message.includes('popup') || error.message.includes('blocked') || error.message.includes('timeout')) {
+                    } catch (error) {
+                        console.log('🔄 Primary methods failed, trying direct Firebase redirect:', error.message);
+                        
+                        if (error.message.includes('popup') || error.message.includes('blocked') || 
+                            error.message.includes('timeout') || error.message.includes('No Google sign-in method')) {
                             // Fallback to direct Firebase redirect
                             const provider = new firebase.auth.GoogleAuthProvider();
                             provider.addScope('profile');
@@ -1086,7 +1119,7 @@
             }
         }
 
-        // Facebook Sign-In with comprehensive error handling using firebase-api.js
+        // Facebook Sign-In using firebase-api.js (primary) with fallbacks
         async function signInWithFacebook() {
             try {
                 if (promiseManager.isOperationPending('facebookSignIn')) {
@@ -1101,17 +1134,22 @@
                     console.log('📘 Initiating Facebook sign-in via firebase-api.js...');
                     
                     try {
-                        // Use firebase-api.js for Facebook sign-in with timeout
+                        // PRIMARY: Use firebase-api.js signInWithFacebook function
                         if (typeof window.signInWithFacebook === 'function') {
+                            console.log('✅ Using firebase-api.js signInWithFacebook method');
                             const result = await withTimeout(
                                 window.signInWithFacebook(),
                                 30000,
                                 'Facebook sign-in timed out. Please try again.'
                             );
-                            console.log('✅ Facebook sign-in successful:', result.user.displayName);
+                            console.log('✅ Facebook sign-in successful via firebase-api.js:', result.user.displayName);
                             await handleSocialSignInSuccess(result.user, 'facebook');
-                        } else {
-                            // Fallback to VediAPI if firebase-api.js not available
+                            return;
+                        }
+                        
+                        // FALLBACK 1: Use VediAPI if available
+                        if (typeof VediAPI !== 'undefined' && VediAPI.signInWithFacebook) {
+                            console.log('🔄 firebase-api.js not available, trying VediAPI...');
                             const result = await withTimeout(
                                 VediAPI.signInWithFacebook(),
                                 30000,
@@ -1119,12 +1157,18 @@
                             );
                             console.log('✅ Facebook sign-in successful via VediAPI:', result.user.displayName);
                             await handleSocialSignInSuccess(result.user, 'facebook');
+                            return;
                         }
                         
-                    } catch (error) {
-                        console.log('🔄 Primary method failed, trying direct Firebase:', error.code);
+                        // FALLBACK 2: Direct Firebase
+                        console.log('🔄 No API methods available, using direct Firebase...');
+                        throw new Error('No Facebook sign-in method available, will use redirect');
                         
-                        if (error.message.includes('popup') || error.message.includes('blocked') || error.message.includes('timeout')) {
+                    } catch (error) {
+                        console.log('🔄 Primary methods failed, trying direct Firebase redirect:', error.message);
+                        
+                        if (error.message.includes('popup') || error.message.includes('blocked') || 
+                            error.message.includes('timeout') || error.message.includes('No Facebook sign-in method')) {
                             // Fallback to direct Firebase redirect
                             const provider = new firebase.auth.FacebookAuthProvider();
                             provider.addScope('email');
@@ -1146,7 +1190,7 @@
             }
         }
 
-        // Apple Sign-In with comprehensive error handling using firebase-api.js
+        // Apple Sign-In using firebase-api.js (primary) with fallbacks
         async function signInWithApple() {
             try {
                 if (promiseManager.isOperationPending('appleSignIn')) {
@@ -1161,17 +1205,22 @@
                     console.log('🍎 Initiating Apple sign-in via firebase-api.js...');
                     
                     try {
-                        // Use firebase-api.js for Apple sign-in with timeout
+                        // PRIMARY: Use firebase-api.js signInWithApple function
                         if (typeof window.signInWithApple === 'function') {
+                            console.log('✅ Using firebase-api.js signInWithApple method');
                             const result = await withTimeout(
                                 window.signInWithApple(),
                                 30000,
                                 'Apple sign-in timed out. Please try again.'
                             );
-                            console.log('✅ Apple sign-in successful:', result.user.displayName);
+                            console.log('✅ Apple sign-in successful via firebase-api.js:', result.user.displayName);
                             await handleSocialSignInSuccess(result.user, 'apple');
-                        } else {
-                            // Fallback to VediAPI if firebase-api.js not available
+                            return;
+                        }
+                        
+                        // FALLBACK 1: Use VediAPI if available
+                        if (typeof VediAPI !== 'undefined' && VediAPI.signInWithApple) {
+                            console.log('🔄 firebase-api.js not available, trying VediAPI...');
                             const result = await withTimeout(
                                 VediAPI.signInWithApple(),
                                 30000,
@@ -1179,12 +1228,18 @@
                             );
                             console.log('✅ Apple sign-in successful via VediAPI:', result.user.displayName);
                             await handleSocialSignInSuccess(result.user, 'apple');
+                            return;
                         }
                         
-                    } catch (error) {
-                        console.log('🔄 Primary method failed, trying direct Firebase:', error.code);
+                        // FALLBACK 2: Direct Firebase
+                        console.log('🔄 No API methods available, using direct Firebase...');
+                        throw new Error('No Apple sign-in method available, will use redirect');
                         
-                        if (error.message.includes('popup') || error.message.includes('blocked') || error.message.includes('timeout')) {
+                    } catch (error) {
+                        console.log('🔄 Primary methods failed, trying direct Firebase redirect:', error.message);
+                        
+                        if (error.message.includes('popup') || error.message.includes('blocked') || 
+                            error.message.includes('timeout') || error.message.includes('No Apple sign-in method')) {
                             // Fallback to direct Firebase redirect
                             const provider = new firebase.auth.OAuthProvider('apple.com');
                             provider.addScope('email');
@@ -1543,7 +1598,9 @@
                         const sendBtn = document.getElementById('sendCodeBtn');
                         if (sendBtn) {
                             sendBtn.disabled = false;
-                            console.log('✅ Send code button enabled');
+                            sendBtn.style.pointerEvents = 'auto';
+                            sendBtn.style.opacity = '1';
+                            console.log('✅ Send code button enabled and made clickable');
                         }
                         
                     } catch (error) {
