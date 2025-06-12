@@ -12,6 +12,11 @@
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
+    <!-- Your Vedi API -->
+    <script src="../firebase-api.js"></script>
+    <!-- Vedi Maintenance API -->
+    <script src="maintenance-api.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -595,7 +600,7 @@
                     labels: getLast7Days(),
                     datasets: [{
                         label: 'API Calls',
-                        data: [120, 190, 300, 500, 200, 300, 450],
+                        data: [0, 0, 0, 0, 0, 0, 0], // Will be filled with real data
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 3,
@@ -651,16 +656,10 @@
             statusChart = new Chart(statusCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['200 OK', '201 Created', '400 Bad Request', '401 Unauthorized', '500 Server Error'],
+                    labels: ['No Data'],
                     datasets: [{
-                        data: [85, 10, 3, 1, 1],
-                        backgroundColor: [
-                            '#10b981',
-                            '#059669',
-                            '#f59e0b',
-                            '#ef4444',
-                            '#dc2626'
-                        ],
+                        data: [1],
+                        backgroundColor: ['#e5e7eb'],
                         borderWidth: 0,
                         cutout: '70%'
                     }]
@@ -692,7 +691,7 @@
                     labels: getLast24Hours(),
                     datasets: [{
                         label: 'Response Time (ms)',
-                        data: [120, 135, 110, 125, 140, 115],
+                        data: [0, 0, 0, 0, 0, 0], // Will be filled with real data
                         borderColor: '#764ba2',
                         backgroundColor: 'rgba(118, 75, 162, 0.1)',
                         borderWidth: 2,
@@ -744,6 +743,46 @@
         // Load API data
         async function loadAPIData() {
             try {
+                if (!window.VediMaintenanceAPI) {
+                    // Show API not available message
+                    document.getElementById('totalCalls').textContent = '0';
+                    document.getElementById('successRate').textContent = '0%';
+                    document.getElementById('errorCount').textContent = '0';
+                    document.getElementById('avgResponse').textContent = '0ms';
+                    document.getElementById('avgResponseTime').textContent = '0ms';
+                    
+                    console.error('VediMaintenanceAPI not loaded');
+                    return;
+                }
+
+                // Use VediMaintenanceAPI for comprehensive API analytics
+                const apiAnalytics = await VediMaintenanceAPI.getAPIAnalytics('today');
+                
+                // Update overview cards with comprehensive data
+                document.getElementById('totalCalls').textContent = apiAnalytics.totalCalls.toLocaleString();
+                document.getElementById('errorCount').textContent = apiAnalytics.totalCalls > 0 ? 
+                    Math.round((parseFloat(apiAnalytics.errorRate) / 100) * apiAnalytics.totalCalls) : 0;
+                
+                const successRate = apiAnalytics.totalCalls > 0 ? 
+                    (100 - parseFloat(apiAnalytics.errorRate)).toFixed(1) : '0.0';
+                document.getElementById('successRate').textContent = successRate + '%';
+                
+                document.getElementById('avgResponse').textContent = apiAnalytics.averageResponseTime + 'ms';
+                document.getElementById('avgResponseTime').textContent = apiAnalytics.averageResponseTime + 'ms';
+
+                // Update charts with real API data
+                await updateChartsWithRealData();
+
+            } catch (error) {
+                console.error('Error loading API data:', error);
+                // Fallback to basic Firebase queries
+                await loadBasicAPIData();
+            }
+        }
+
+        // Fallback method for basic API data
+        async function loadBasicAPIData() {
+            try {
                 const today = new Date().toISOString().split('T')[0];
                 
                 // Get API calls for today
@@ -755,10 +794,11 @@
                 document.getElementById('totalCalls').textContent = totalCalls.toLocaleString();
 
                 if (totalCalls > 0) {
-                    // Calculate success rate
+                    // Calculate success rate and other metrics
                     let successfulCalls = 0;
                     let errorCount = 0;
                     let totalResponseTime = 0;
+                    let responseTimeCount = 0;
 
                     apiCallsSnapshot.docs.forEach(doc => {
                         const call = doc.data();
@@ -767,8 +807,9 @@
                         } else {
                             errorCount++;
                         }
-                        if (call.responseTime) {
+                        if (call.responseTime && typeof call.responseTime === 'number') {
                             totalResponseTime += call.responseTime;
+                            responseTimeCount++;
                         }
                     });
 
@@ -776,18 +817,32 @@
                     document.getElementById('successRate').textContent = successRate + '%';
                     document.getElementById('errorCount').textContent = errorCount;
 
-                    if (totalResponseTime > 0) {
-                        const avgResponse = Math.round(totalResponseTime / totalCalls);
+                    if (responseTimeCount > 0) {
+                        const avgResponse = Math.round(totalResponseTime / responseTimeCount);
                         document.getElementById('avgResponse').textContent = avgResponse + 'ms';
                         document.getElementById('avgResponseTime').textContent = avgResponse + 'ms';
+                    } else {
+                        document.getElementById('avgResponse').textContent = 'N/A';
+                        document.getElementById('avgResponseTime').textContent = 'N/A';
                     }
+                } else {
+                    // No API calls today
+                    document.getElementById('successRate').textContent = 'N/A';
+                    document.getElementById('errorCount').textContent = '0';
+                    document.getElementById('avgResponse').textContent = 'N/A';
+                    document.getElementById('avgResponseTime').textContent = 'N/A';
                 }
 
                 // Update charts with real data
                 await updateChartsWithRealData();
 
             } catch (error) {
-                console.error('Error loading API data:', error);
+                console.error('Error loading basic API data:', error);
+                // Set error state
+                document.getElementById('totalCalls').textContent = 'Error';
+                document.getElementById('successRate').textContent = 'Error';
+                document.getElementById('errorCount').textContent = 'Error';
+                document.getElementById('avgResponse').textContent = 'Error';
             }
         }
 
