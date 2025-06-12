@@ -5,13 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vedi Fee Management</title>
     
-    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs - CORRECT ORDER -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Your Vedi API - LOAD BEFORE THE PAGE SCRIPTS -->
+    <script src="../firebase-api.js"></script>
+    <!-- Vedi Maintenance API -->
+    <script src="maintenance-api.js"></script>
     
     <style>
         * {
@@ -927,7 +932,7 @@
     <div id="alertContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 1001;"></div>
 
     <script>
-        // Firebase Configuration - Initialize first
+        // Firebase Configuration - WAIT FOR FIREBASE TO LOAD
         const firebaseConfig = {
             apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
             authDomain: "vedi00.firebaseapp.com",
@@ -938,22 +943,57 @@
             measurementId: "G-ZS0FKPTEY2"
         };
 
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const firebaseAuth = firebase.auth();
-        const firebaseDb = firebase.firestore();
+        // Initialize Firebase ONLY if not already initialized
+        let firebaseAuth, firebaseDb;
+        
+        function initializeFirebase() {
+            try {
+                if (!firebase.apps || firebase.apps.length === 0) {
+                    firebase.initializeApp(firebaseConfig);
+                    console.log('🔥 Firebase initialized by fee management');
+                }
+                
+                firebaseAuth = firebase.auth();
+                firebaseDb = firebase.firestore();
+                
+                // Make globally available for compatibility
+                window.firebaseAuth = firebaseAuth;
+                window.firebaseDb = firebaseDb;
+                
+                console.log('✅ Firebase references ready');
+                return true;
+            } catch (error) {
+                console.error('❌ Firebase initialization error:', error);
+                return false;
+            }
+        }
+
+        // Wait for DOM and Firebase to be ready
+        function waitForFirebase() {
+            return new Promise((resolve) => {
+                const checkFirebase = () => {
+                    if (typeof firebase !== 'undefined' && firebase.auth && firebase.firestore) {
+                        if (initializeFirebase()) {
+                            resolve(true);
+                        } else {
+                            setTimeout(checkFirebase, 100);
+                        }
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                checkFirebase();
+            });
+        }
 
         // Global variables
         let revenueChart, feeTypeChart;
         let restaurants = [];
         let feeConfigs = [];
 
-        // Real VediAPI Integration - Connect to your actual Firebase API
-        // The VediAPI should be loaded from your firebase-api.js file
-        
-        // Ensure VediAPI is available
+        // Ensure VediAPI is available - FIXED
         function ensureVediAPI() {
-            if (!window.VediAPI) {
+            if (typeof window.VediAPI === 'undefined' || !window.VediAPI) {
                 console.error('❌ VediAPI not found! Make sure firebase-api.js is loaded.');
                 showAlert('VediAPI not available. Please ensure the Firebase API is loaded.', 'error');
                 return false;
@@ -1094,11 +1134,44 @@
             document.getElementById(prefix + 'Total').textContent = formatCurrency(total);
         }
 
-        // Initialize the application
+        // Initialize the application - FIXED INITIALIZATION ORDER
         document.addEventListener('DOMContentLoaded', async function() {
-            await loadInitialData();
-            initializeCharts();
-            setupEventListeners();
+            console.log('🚀 Fee Management System starting...');
+            
+            try {
+                // Wait for Firebase to be ready
+                await waitForFirebase();
+                console.log('✅ Firebase ready');
+                
+                // Wait a bit more for VediAPI to load
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                if (ensureVediAPI()) {
+                    console.log('✅ VediAPI ready');
+                    showAlert('Connected to Firebase API successfully', 'success');
+                    
+                    // Now load all data
+                    await loadInitialData();
+                    initializeCharts();
+                    setupEventListeners();
+                    
+                    console.log('🎉 Fee Management System fully loaded!');
+                } else {
+                    console.error('❌ VediAPI failed to load');
+                    showAlert('VediAPI failed to load. Some features may not work.', 'error');
+                    
+                    // Still initialize charts and UI
+                    initializeCharts();
+                    setupEventListeners();
+                }
+            } catch (error) {
+                console.error('❌ Initialization error:', error);
+                showAlert('Error initializing system: ' + error.message, 'error');
+                
+                // Fallback initialization
+                initializeCharts();
+                setupEventListeners();
+            }
         });
 
         // Load initial data
@@ -1796,21 +1869,7 @@
         console.log('🔥 Connected to REAL Firebase data');
         console.log('📊 Charts display REAL revenue data from orders collection');
         console.log('💰 Fee management uses REAL Firebase API');
-        console.log('⚠️ Note: Ensure firebase-api.js is loaded for full functionality');
-    </script>
-    
-    <!-- Load the actual Firebase API -->
-    <script>
-        // Check if VediAPI is loaded and show status
-        document.addEventListener('DOMContentLoaded', function() {
-            if (window.VediAPI) {
-                console.log('✅ VediAPI is available');
-                showAlert('Connected to Firebase API successfully', 'success');
-            } else {
-                console.warn('⚠️ VediAPI not found - some features may not work');
-                showAlert('VediAPI not found. Please ensure firebase-api.js is loaded.', 'error');
-            }
-        });
+        console.log('✅ Fixed Firebase initialization order');
     </script>
 </body>
 </html>
