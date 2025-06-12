@@ -948,101 +948,18 @@
         let restaurants = [];
         let feeConfigs = [];
 
-        // Mock VediAPI for demo purposes (replace with actual API)
-        const VediAPI = {
-            async getFeeAnalytics(timePeriod) {
-                try {
-                    // Simulate API call delay
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    // Generate mock data based on time period
-                    const mockData = {
-                        totalRevenue: Math.random() * 50000 + 10000,
-                        totalServiceFees: Math.random() * 5000 + 1000,
-                        totalTax: Math.random() * 2000 + 500,
-                        orderCount: Math.floor(Math.random() * 200) + 50,
-                        averageOrderValue: Math.random() * 50 + 25,
-                        platformCommission: Math.random() * 3000 + 500,
-                        revenueByRestaurant: {
-                            'rest1': { revenue: 12000, orders: 45, serviceFees: 800 },
-                            'rest2': { revenue: 8500, orders: 32, serviceFees: 650 },
-                            'rest3': { revenue: 6200, orders: 28, serviceFees: 420 }
-                        }
-                    };
-                    
-                    return mockData;
-                } catch (error) {
-                    console.error('Error in getFeeAnalytics:', error);
-                    return {
-                        totalRevenue: 0,
-                        totalServiceFees: 0,
-                        totalTax: 0,
-                        orderCount: 0,
-                        averageOrderValue: 0,
-                        platformCommission: 0,
-                        revenueByRestaurant: {}
-                    };
-                }
-            },
-
-            async getAllFeeConfigs() {
-                try {
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    
-                    return [
-                        {
-                            id: '1',
-                            restaurantId: 'rest1',
-                            restaurantName: 'Pizza Palace',
-                            restaurantCurrency: 'USD',
-                            feeType: 'fixed',
-                            serviceFeeFixed: 2.50,
-                            serviceFeePercentage: 0,
-                            taxRate: 0.085,
-                            isNegotiated: false
-                        },
-                        {
-                            id: '2',
-                            restaurantId: 'rest2',
-                            restaurantName: 'Burger Barn',
-                            restaurantCurrency: 'USD',
-                            feeType: 'percentage',
-                            serviceFeeFixed: 0,
-                            serviceFeePercentage: 3.5,
-                            taxRate: 0.085,
-                            isNegotiated: true
-                        }
-                    ];
-                } catch (error) {
-                    console.error('Error in getAllFeeConfigs:', error);
-                    return [];
-                }
-            },
-
-            async createOrUpdateFeeConfig(restaurantId, feeConfig) {
-                try {
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    console.log('Fee config saved for restaurant:', restaurantId, feeConfig);
-                    return feeConfig;
-                } catch (error) {
-                    console.error('Error saving fee config:', error);
-                    throw error;
-                }
-            },
-
-            async deleteFeeConfig(restaurantId) {
-                try {
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    console.log('Fee config deleted for restaurant:', restaurantId);
-                } catch (error) {
-                    console.error('Error deleting fee config:', error);
-                    throw error;
-                }
+        // Real VediAPI Integration - Connect to your actual Firebase API
+        // The VediAPI should be loaded from your firebase-api.js file
+        
+        // Ensure VediAPI is available
+        function ensureVediAPI() {
+            if (!window.VediAPI) {
+                console.error('❌ VediAPI not found! Make sure firebase-api.js is loaded.');
+                showAlert('VediAPI not available. Please ensure the Firebase API is loaded.', 'error');
+                return false;
             }
-        };
-
-        // Make VediAPI available globally
-        window.VediAPI = VediAPI;
+            return true;
+        }
 
         // Tab functionality
         function showTab(tabName) {
@@ -1199,30 +1116,43 @@
             }
         }
 
-        // Load restaurants (mock data)
+        // Load restaurants from Firebase
         async function loadRestaurants() {
             try {
-                restaurants = [
-                    { id: 'rest1', name: 'Pizza Palace' },
-                    { id: 'rest2', name: 'Burger Barn' },
-                    { id: 'rest3', name: 'Sushi Station' },
-                    { id: 'rest4', name: 'Taco Town' },
-                    { id: 'rest5', name: 'Pasta Paradise' }
-                ];
+                if (!ensureVediAPI()) return;
                 
+                // Get all restaurants from Firebase
+                const restaurantsSnapshot = await firebaseDb.collection('restaurants').get();
+                restaurants = restaurantsSnapshot.docs.map(doc => ({ 
+                    id: doc.id, 
+                    ...doc.data() 
+                }));
+                
+                console.log('✅ Loaded restaurants from Firebase:', restaurants.length);
+                
+                // Populate restaurant select dropdown
                 const select = document.getElementById('restaurantSelect');
                 select.innerHTML = '<option value="">Select a restaurant...</option>';
                 restaurants.forEach(restaurant => {
                     select.innerHTML += `<option value="${restaurant.id}">${restaurant.name}</option>`;
                 });
             } catch (error) {
-                console.error('Error loading restaurants:', error);
+                console.error('❌ Error loading restaurants from Firebase:', error);
+                showAlert('Error loading restaurants', 'error');
             }
         }
 
-        // Load overview data
+        // Load overview data from real Firebase data
         async function loadOverviewData() {
             try {
+                if (!ensureVediAPI()) {
+                    document.getElementById('totalRevenue').textContent = '$0';
+                    document.getElementById('totalFees').textContent = '$0';
+                    document.getElementById('avgFeePercent').textContent = '0%';
+                    return;
+                }
+
+                console.log('🔄 Loading real overview data from Firebase...');
                 const analytics = await VediAPI.getFeeAnalytics('month');
                 
                 document.getElementById('totalRevenue').textContent = formatCurrency(analytics.totalRevenue || 0);
@@ -1232,19 +1162,35 @@
                     ((analytics.totalServiceFees / analytics.totalRevenue) * 100).toFixed(1) : 0;
                 document.getElementById('avgFeePercent').textContent = avgFeePercent + '%';
                 
+                console.log('✅ Overview data loaded:', {
+                    revenue: analytics.totalRevenue,
+                    fees: analytics.totalServiceFees,
+                    orders: analytics.orderCount
+                });
+                
             } catch (error) {
-                console.error('Error loading overview data:', error);
+                console.error('❌ Error loading overview data:', error);
                 document.getElementById('totalRevenue').textContent = '$0';
                 document.getElementById('totalFees').textContent = '$0';
                 document.getElementById('avgFeePercent').textContent = '0%';
+                showAlert('Error loading overview data', 'error');
             }
         }
 
-        // Load analytics
+        // Load analytics from real Firebase data
         async function loadAnalytics() {
             try {
+                if (!ensureVediAPI()) {
+                    document.getElementById('analyticsContent').innerHTML = 
+                        '<div class="empty-state"><div class="empty-state-icon">🔌</div><h3>VediAPI not available</h3><p>Please ensure the Firebase API is loaded properly</p></div>';
+                    return;
+                }
+
+                console.log('🔄 Loading real analytics data from Firebase...');
                 const timePeriod = document.getElementById('analyticsTimePeriod')?.value || 'month';
                 const analytics = await VediAPI.getFeeAnalytics(timePeriod);
+                
+                console.log('📊 Analytics data received:', analytics);
                 
                 document.getElementById('analyticsContent').innerHTML = `
                     <div style="display: grid; gap: 1rem;">
@@ -1278,9 +1224,10 @@
                 loadTopRestaurants(analytics.revenueByRestaurant || {});
                 
             } catch (error) {
-                console.error('Error loading analytics:', error);
+                console.error('❌ Error loading analytics:', error);
                 document.getElementById('analyticsContent').innerHTML = 
-                    '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Error Loading Analytics</h3><p>Unable to load analytics data</p></div>';
+                    '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Error Loading Analytics</h3><p>Unable to load analytics data from Firebase</p></div>';
+                showAlert('Error loading analytics data', 'error');
             }
         }
 
@@ -1325,10 +1272,19 @@
             topRestaurantsElement.innerHTML = html;
         }
 
-        // Load restaurant fees
+        // Load restaurant fees from Firebase
         async function loadRestaurantFees() {
             try {
+                if (!ensureVediAPI()) {
+                    document.getElementById('restaurantFeesTable').innerHTML = 
+                        '<div class="empty-state"><div class="empty-state-icon">🔌</div><h3>VediAPI not available</h3><p>Please ensure the Firebase API is loaded properly</p></div>';
+                    return;
+                }
+
+                console.log('🔄 Loading real fee configurations from Firebase...');
                 feeConfigs = await VediAPI.getAllFeeConfigs();
+                
+                console.log('💰 Fee configs loaded:', feeConfigs.length);
                 
                 if (feeConfigs.length === 0) {
                     document.getElementById('restaurantFeesTable').innerHTML = 
@@ -1395,9 +1351,10 @@
                 document.getElementById('restaurantFeesTable').innerHTML = html;
 
             } catch (error) {
-                console.error('Error loading restaurant fees:', error);
+                console.error('❌ Error loading restaurant fees from Firebase:', error);
                 document.getElementById('restaurantFeesTable').innerHTML = 
-                    '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Error Loading Fees</h3><p>Unable to load restaurant fee configurations</p></div>';
+                    '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Error Loading Fees</h3><p>Unable to load restaurant fee configurations from Firebase</p></div>';
+                showAlert('Error loading restaurant fees', 'error');
             }
         }
 
@@ -1525,12 +1482,21 @@
             }
         }
 
-        // Load real fee type distribution
+        // Load real fee type distribution from Firebase
         async function loadRealFeeTypeData() {
             try {
+                console.log('📊 Loading real fee type distribution...');
+                
+                if (!ensureVediAPI()) {
+                    // Use empty data if API not available
+                    feeTypeChart.data.datasets[0].data = [0, 0, 0];
+                    feeTypeChart.update();
+                    return;
+                }
+                
                 const feeTypeCounts = { fixed: 0, percentage: 0, hybrid: 0 };
                 
-                // Count fee types from current configs
+                // Count fee types from real Firebase configurations
                 feeConfigs.forEach(config => {
                     const feeType = config.feeType || 'fixed';
                     if (feeTypeCounts.hasOwnProperty(feeType)) {
@@ -1538,7 +1504,7 @@
                     }
                 });
 
-                // Update chart
+                // Update chart with real data
                 feeTypeChart.data.datasets[0].data = [
                     feeTypeCounts.fixed,
                     feeTypeCounts.percentage,
@@ -1546,55 +1512,83 @@
                 ];
                 feeTypeChart.update();
 
-                console.log('📊 Fee type chart updated:', feeTypeCounts);
+                console.log('✅ Fee type chart updated with real data:', feeTypeCounts);
                 
             } catch (error) {
-                console.error('Error loading fee type data:', error);
-                // Use demo data if real data fails
-                feeTypeChart.data.datasets[0].data = [5, 3, 2];
+                console.error('❌ Error loading fee type data:', error);
+                // Use empty data on error
+                feeTypeChart.data.datasets[0].data = [0, 0, 0];
                 feeTypeChart.update();
             }
         }
 
-        // Load real revenue data
+        // Load real revenue data from Firebase orders
         async function loadRealRevenueData() {
             try {
-                // Generate last 30 days of realistic revenue data
+                console.log('📈 Loading real revenue data from Firebase orders...');
+                
+                if (!ensureVediAPI()) {
+                    console.warn('VediAPI not available, using empty chart');
+                    revenueChart.data.labels = [];
+                    revenueChart.data.datasets[0].data = [];
+                    revenueChart.update();
+                    return;
+                }
+                
+                // Get last 30 days of actual orders from Firebase
                 const last30Days = [];
                 const revenueData = [];
                 
                 for (let i = 29; i >= 0; i--) {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
-                    last30Days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    last30Days.push(dateStr);
                     
-                    // Generate realistic daily revenue (simulate business patterns)
-                    const dayOfWeek = date.getDay();
-                    const baseRevenue = 800; // Base daily revenue
+                    // Get orders for this specific day from Firebase
+                    const dayStart = new Date(date);
+                    dayStart.setHours(0, 0, 0, 0);
+                    const dayEnd = new Date(date);
+                    dayEnd.setHours(23, 59, 59, 999);
                     
-                    // Weekend boost
-                    let multiplier = 1;
-                    if (dayOfWeek === 5 || dayOfWeek === 6) multiplier = 1.4; // Friday/Saturday boost
-                    if (dayOfWeek === 0) multiplier = 1.2; // Sunday boost
-                    
-                    // Add some randomness for realistic variation
-                    const randomVariation = 0.7 + Math.random() * 0.6; // 70% to 130% of base
-                    
-                    const dayRevenue = baseRevenue * multiplier * randomVariation;
-                    revenueData.push(Math.round(dayRevenue));
+                    try {
+                        const ordersSnapshot = await firebaseDb.collection('orders')
+                            .where('createdAt', '>=', dayStart)
+                            .where('createdAt', '<=', dayEnd)
+                            .where('status', '==', 'completed')
+                            .get();
+                        
+                        let dayRevenue = 0;
+                        ordersSnapshot.docs.forEach(doc => {
+                            const order = doc.data();
+                            dayRevenue += (order.total || 0);
+                        });
+                        
+                        revenueData.push(dayRevenue);
+                        console.log(`📅 ${dateStr}: ${dayRevenue.toFixed(2)} (${ordersSnapshot.docs.length} orders)`);
+                        
+                    } catch (error) {
+                        console.warn(`⚠️ Error loading orders for ${dateStr}:`, error);
+                        revenueData.push(0);
+                    }
                 }
 
-                // Update revenue chart
+                // Update revenue chart with real Firebase data
                 revenueChart.data.labels = last30Days;
                 revenueChart.data.datasets[0].data = revenueData;
                 revenueChart.update();
 
-                console.log('📈 Revenue chart updated with 30 days of data');
+                const totalRevenue = revenueData.reduce((sum, day) => sum + day, 0);
+                console.log('✅ Revenue chart updated with real Firebase data');
+                console.log(`💰 Total 30-day revenue: ${totalRevenue.toFixed(2)}`);
                 
             } catch (error) {
-                console.error('Error loading revenue data:', error);
-                // Use demo data if real data fails
-                loadDemoRevenueData();
+                console.error('❌ Error loading real revenue data:', error);
+                // Clear chart on error
+                revenueChart.data.labels = [];
+                revenueChart.data.datasets[0].data = [];
+                revenueChart.update();
+                showAlert('Error loading revenue data from Firebase', 'error');
             }
         }
 
@@ -1799,8 +1793,24 @@
         window.loadAnalytics = loadAnalytics;
 
         console.log('🚀 Vedi Fee Management System initialized');
-        console.log('📊 Charts will display real revenue data');
-        console.log('💰 Fee management fully functional');
+        console.log('🔥 Connected to REAL Firebase data');
+        console.log('📊 Charts display REAL revenue data from orders collection');
+        console.log('💰 Fee management uses REAL Firebase API');
+        console.log('⚠️ Note: Ensure firebase-api.js is loaded for full functionality');
+    </script>
+    
+    <!-- Load the actual Firebase API -->
+    <script>
+        // Check if VediAPI is loaded and show status
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.VediAPI) {
+                console.log('✅ VediAPI is available');
+                showAlert('Connected to Firebase API successfully', 'success');
+            } else {
+                console.warn('⚠️ VediAPI not found - some features may not work');
+                showAlert('VediAPI not found. Please ensure firebase-api.js is loaded.', 'error');
+            }
+        });
     </script>
 </body>
 </html>
