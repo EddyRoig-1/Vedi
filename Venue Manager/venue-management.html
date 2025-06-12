@@ -12,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
+    <script src="restaurant-venue-sync.js"></script>
     
     <style>
         * {
@@ -128,6 +129,11 @@
 
         .btn-success {
             background: #48bb78;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
             color: white;
         }
 
@@ -274,7 +280,37 @@
             color: #742a2a;
         }
 
-        .invitation-card {
+        .status-approved {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-denied {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-cancelled {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .status-accepted {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-declined {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-expired {
+            background: #faf089;
+            color: #744210;
+        }
+
+        .card-item {
             background: #f7fafc;
             border-radius: 12px;
             padding: 20px;
@@ -283,41 +319,42 @@
             transition: all 0.3s ease;
         }
 
-        .invitation-card:hover {
+        .card-item:hover {
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
-        .invitation-header {
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 15px;
         }
 
-        .invitation-info {
+        .card-info {
             flex: 1;
         }
 
-        .invitation-name {
+        .card-title {
             font-weight: 600;
             color: #2d3748;
             margin-bottom: 5px;
         }
 
-        .invitation-email {
+        .card-subtitle {
             font-size: 0.9rem;
             color: #718096;
             margin-bottom: 5px;
         }
 
-        .invitation-date {
+        .card-date {
             font-size: 0.85rem;
             color: #667eea;
         }
 
-        .invitation-actions {
+        .card-actions {
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
         }
 
         .btn-small {
@@ -328,6 +365,16 @@
             font-weight: 500;
             cursor: pointer;
             transition: all 0.3s ease;
+        }
+
+        .card-message {
+            background: #edf2f7;
+            border-left: 4px solid #667eea;
+            padding: 12px 16px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+            color: #4a5568;
         }
 
         .empty-state {
@@ -371,6 +418,11 @@
         .activity-icon.invitation {
             background: rgba(102, 126, 234, 0.1);
             color: #667eea;
+        }
+
+        .activity-icon.request {
+            background: rgba(251, 176, 64, 0.1);
+            color: #fbb040;
         }
 
         .activity-icon.restaurant {
@@ -635,6 +687,40 @@
             right: 20px;
         }
 
+        .tabs-container {
+            margin-bottom: 30px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #718096;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 15px;
@@ -670,6 +756,15 @@
             .btn {
                 width: 100%;
                 justify-content: center;
+            }
+
+            .card-header {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .card-actions {
+                justify-content: flex-start;
             }
         }
     </style>
@@ -717,17 +812,17 @@
                 </div>
 
                 <div class="metric-card">
+                    <div class="metric-icon">📋</div>
+                    <div class="metric-value" id="pendingRequests">0</div>
+                    <div class="metric-label">Pending Requests</div>
+                    <div class="metric-change">Awaiting approval</div>
+                </div>
+
+                <div class="metric-card">
                     <div class="metric-icon">📊</div>
                     <div class="metric-value" id="venueOccupancy">0%</div>
                     <div class="metric-label">Venue Occupancy</div>
                     <div class="metric-change positive">Space utilization</div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-icon">💰</div>
-                    <div class="metric-value" id="monthlyRevenue">$0</div>
-                    <div class="metric-label">Monthly Revenue</div>
-                    <div class="metric-change positive">This month</div>
                 </div>
             </div>
         </div>
@@ -751,22 +846,10 @@
                     <div class="quick-action-description">View and manage all restaurants</div>
                 </div>
 
-                <div class="quick-action-card" onclick="openLeaseManagement()">
-                    <div class="quick-action-icon">📄</div>
-                    <div class="quick-action-title">Lease Management</div>
-                    <div class="quick-action-description">Track contracts and lease agreements</div>
-                </div>
-
-                <div class="quick-action-card" onclick="openVenueSettings()">
-                    <div class="quick-action-icon">⚙️</div>
-                    <div class="quick-action-title">Venue Settings</div>
-                    <div class="quick-action-description">Configure venue policies and settings</div>
-                </div>
-
-                <div class="quick-action-card" onclick="openMaintenanceSchedule()">
-                    <div class="quick-action-icon">🔧</div>
-                    <div class="quick-action-title">Maintenance Schedule</div>
-                    <div class="quick-action-description">Manage facility maintenance and repairs</div>
+                <div class="quick-action-card" onclick="openRequestsManagement()">
+                    <div class="quick-action-icon">📝</div>
+                    <div class="quick-action-title">Join Requests</div>
+                    <div class="quick-action-description">Review restaurant join requests</div>
                 </div>
 
                 <div class="quick-action-card" onclick="openVenueAnalytics()">
@@ -783,6 +866,7 @@
                 <h3 class="section-title">Restaurant Directory</h3>
                 <div class="action-buttons">
                     <button class="btn btn-success" onclick="openInvitationCenter()">📨 Invite Restaurant</button>
+                    <button class="btn btn-secondary" onclick="refreshRestaurants()">🔄 Refresh</button>
                 </div>
             </div>
 
@@ -793,8 +877,7 @@
                         <th>Contact</th>
                         <th>Status</th>
                         <th>Join Date</th>
-                        <th>Performance</th>
-                        <th>Revenue Today</th>
+                        <th>Join Method</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -804,17 +887,38 @@
             </table>
         </div>
 
-        <!-- Pending Invitations -->
+        <!-- Requests & Invitations Management -->
         <div class="management-section">
             <div class="section-header">
-                <h3 class="section-title">Pending Invitations</h3>
+                <h3 class="section-title">Requests & Invitations Management</h3>
                 <div class="action-buttons">
                     <button class="btn btn-primary" onclick="openInvitationCenter()">📨 Send New Invitation</button>
                 </div>
             </div>
 
-            <div id="pendingInvitationsContainer">
-                <!-- Will be populated dynamically -->
+            <div class="tabs-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" onclick="switchTab('requests')">
+                        📋 Restaurant Requests (<span id="requestsCount">0</span>)
+                    </button>
+                    <button class="tab-button" onclick="switchTab('invitations')">
+                        📨 Sent Invitations (<span id="invitationsCount">0</span>)
+                    </button>
+                </div>
+
+                <!-- Restaurant Requests Tab -->
+                <div id="requestsTab" class="tab-content active">
+                    <div id="restaurantRequestsContainer">
+                        <!-- Will be populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Invitations Tab -->
+                <div id="invitationsTab" class="tab-content">
+                    <div id="venueInvitationsContainer">
+                        <!-- Will be populated dynamically -->
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -926,13 +1030,15 @@
         let currentUser = null;
         let currentVenue = null;
         let venueRestaurants = [];
+        let venueRequests = [];
         let venueInvitations = [];
         let venueActivity = [];
         let generatedInvitationData = null;
+        let currentTab = 'requests';
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🏢 Venue Management initializing...');
+            console.log('🏢 Enhanced Venue Management with VenueSync initializing...');
             
             try {
                 await initializeVenueManagement();
@@ -985,16 +1091,10 @@
                 document.getElementById('venueAddress').value = currentVenue.address || '';
                 document.getElementById('venueDescription').value = currentVenue.description || '';
 
-                showLoading('Loading restaurants and invitations...');
+                showLoading('Loading restaurants and requests...');
 
-                // Load venue restaurants
-                await loadVenueRestaurants();
-                
-                // Load invitations (using Firestore venues collection)
-                await loadVenueInvitations();
-                
-                // Load activity
-                await loadVenueActivity();
+                // Load all venue data using VenueSync
+                await loadAllVenueData();
                 
                 // Update UI
                 updateVenueManagement();
@@ -1009,41 +1109,39 @@
             }
         }
 
-        // Data loading functions
-        async function loadVenueRestaurants() {
+        // Data loading functions using VenueSync
+        async function loadAllVenueData() {
             try {
-                venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                // Load venues restaurants
+                venueRestaurants = await VenueSync.getVenueRestaurants(currentVenue.id);
                 console.log('✅ Loaded venue restaurants:', venueRestaurants.length);
-            } catch (error) {
-                console.error('❌ Error loading venue restaurants:', error);
-                venueRestaurants = [];
-            }
-        }
 
-        async function loadVenueInvitations() {
-            try {
-                // Query invitations for this venue from Firestore
-                const querySnapshot = await firebaseDb.collection('venueInvitations')
-                    .where('venueId', '==', currentVenue.id)
-                    .orderBy('createdAt', 'desc')
-                    .get();
+                // Load restaurant requests
+                venueRequests = await VenueSync.getVenueRequests(currentVenue.id);
+                console.log('✅ Loaded venue requests:', venueRequests.length);
 
-                venueInvitations = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-
+                // Load venue invitations
+                venueInvitations = await VenueSync.getVenueInvitations(currentVenue.id);
                 console.log('✅ Loaded venue invitations:', venueInvitations.length);
+
+                // Load activity
+                await loadVenueActivity();
+                
             } catch (error) {
-                console.error('❌ Error loading venue invitations:', error);
+                console.error('❌ Error loading venue data:', error);
+                // Initialize empty arrays for graceful degradation
+                venueRestaurants = [];
+                venueRequests = [];
                 venueInvitations = [];
+                venueActivity = [];
             }
         }
 
         async function loadVenueActivity() {
             try {
                 // Query activity for this venue from Firestore
-                const querySnapshot = await firebaseDb.collection('venueActivity')
+                const db = getFirebaseDb();
+                const querySnapshot = await db.collection('venueActivity')
                     .where('venueId', '==', currentVenue.id)
                     .orderBy('timestamp', 'desc')
                     .limit(20)
@@ -1058,59 +1156,33 @@
             } catch (error) {
                 console.error('❌ Error loading venue activity:', error);
                 venueActivity = [];
-                // Generate some initial activity if none exists
-                await generateInitialActivity();
-            }
-        }
-
-        async function generateInitialActivity() {
-            try {
-                const now = new Date();
-                const initialActivities = [
-                    {
-                        venueId: currentVenue.id,
-                        type: 'venue',
-                        title: 'Venue Management System Initialized',
-                        description: 'Venue management dashboard has been set up and is ready for use',
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    }
-                ];
-
-                for (const activity of initialActivities) {
-                    await firebaseDb.collection('venueActivity').add(activity);
-                }
-
-                await loadVenueActivity();
-            } catch (error) {
-                console.error('❌ Error generating initial activity:', error);
             }
         }
 
         function updateVenueManagement() {
             updateVenueStats();
             updateRestaurantDirectory();
-            updatePendingInvitations();
+            updateRequestsAndInvitations();
             updateActivityTimeline();
         }
 
         function updateVenueStats() {
             const restaurantCount = venueRestaurants.length;
             const pendingInvitesCount = venueInvitations.filter(inv => inv.status === 'pending').length;
+            const pendingRequestsCount = venueRequests.filter(req => req.status === 'pending').length;
             
             // Calculate occupancy (assuming max capacity based on venue size)
             const maxCapacity = currentVenue.maxRestaurants || 20;
             const occupancyRate = Math.round((restaurantCount / maxCapacity) * 100);
-            
-            // Calculate monthly revenue from current restaurants
-            const todayRevenue = venueRestaurants.reduce((sum, restaurant) => {
-                return sum + (restaurant.todayRevenue || 0);
-            }, 0);
-            const monthlyRevenue = todayRevenue * 30; // Rough estimate
 
             document.getElementById('totalRestaurants').textContent = restaurantCount;
             document.getElementById('pendingInvites').textContent = pendingInvitesCount;
+            document.getElementById('pendingRequests').textContent = pendingRequestsCount;
             document.getElementById('venueOccupancy').textContent = `${occupancyRate}%`;
-            document.getElementById('monthlyRevenue').textContent = `$${monthlyRevenue.toLocaleString()}`;
+
+            // Update tab counts
+            document.getElementById('requestsCount').textContent = venueRequests.length;
+            document.getElementById('invitationsCount').textContent = venueInvitations.length;
         }
 
         function updateRestaurantDirectory() {
@@ -1119,7 +1191,7 @@
             if (venueRestaurants.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #718096;">
                             <div style="font-size: 2rem; margin-bottom: 10px;">🏪</div>
                             <div>No restaurants connected</div>
                             <div style="font-size: 0.9rem; margin-top: 5px;">Send invitations to restaurant owners to join your venue</div>
@@ -1130,9 +1202,11 @@
             }
 
             tbody.innerHTML = venueRestaurants.map(restaurant => {
-                const joinDate = VediAPI.timestampToDate(restaurant.createdAt).toLocaleDateString();
-                const performanceClass = getPerformanceStatusClass(restaurant.performance || 'average');
-                const performanceText = getPerformanceText(restaurant.performance || 'average');
+                const joinDate = restaurant.joinedVenueAt ? 
+                    VediAPI.timestampToDate(restaurant.joinedVenueAt).toLocaleDateString() : 
+                    VediAPI.timestampToDate(restaurant.createdAt).toLocaleDateString();
+                
+                const joinMethod = getSyncMethodText(restaurant.syncMethod);
                 const currency = restaurant.currency || { symbol: '$' };
 
                 return `
@@ -1144,17 +1218,18 @@
                         </td>
                         <td>
                             <div style="font-size: 0.9rem;">${restaurant.phone || 'N/A'}</div>
-                            <div style="font-size: 0.85rem; color: #718096;">Primary Contact</div>
+                            <div style="font-size: 0.85rem; color: #718096;">${restaurant.email || 'No email'}</div>
                         </td>
                         <td><span class="status-badge status-active">Active</span></td>
                         <td>${joinDate}</td>
-                        <td><span class="status-badge ${performanceClass}">${performanceText}</span></td>
-                        <td>${currency.symbol}${(restaurant.todayRevenue || 0).toLocaleString()}</td>
                         <td>
-                            <div style="display: flex; gap: 6px;">
+                            <span class="status-badge ${getSyncMethodClass(restaurant.syncMethod)}">${joinMethod}</span>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <button class="btn-small btn-secondary" onclick="viewRestaurantDetails('${restaurant.id}')">View</button>
                                 <button class="btn-small btn-secondary" onclick="contactRestaurant('${restaurant.id}')">Contact</button>
-                                <button class="btn-small btn-secondary" onclick="manageRestaurant('${restaurant.id}')">Manage</button>
+                                <button class="btn-small btn-danger" onclick="removeRestaurant('${restaurant.id}')">Remove</button>
                             </div>
                         </td>
                     </tr>
@@ -1162,15 +1237,76 @@
             }).join('');
         }
 
-        function updatePendingInvitations() {
-            const container = document.getElementById('pendingInvitationsContainer');
-            const pendingInvites = venueInvitations.filter(inv => inv.status === 'pending');
+        function updateRequestsAndInvitations() {
+            updateRestaurantRequests();
+            updateVenueInvitations();
+        }
+
+        function updateRestaurantRequests() {
+            const container = document.getElementById('restaurantRequestsContainer');
+            const pendingRequests = venueRequests.filter(req => req.status === 'pending');
+            const allRequests = venueRequests;
             
-            if (pendingInvites.length === 0) {
+            if (allRequests.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
-                        <div>No pending invitations</div>
+                        <div class="empty-state-icon">📝</div>
+                        <div>No restaurant requests</div>
+                        <div style="font-size: 0.9rem; margin-top: 5px;">Restaurant owners can request to join your venue from their settings</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = allRequests.map(request => {
+                const isPending = request.status === 'pending';
+                const statusClass = `status-${request.status}`;
+                
+                return `
+                    <div class="card-item">
+                        <div class="card-header">
+                            <div class="card-info">
+                                <div class="card-title">${request.restaurantName}</div>
+                                <div class="card-subtitle">${request.restaurantEmail}</div>
+                                <div class="card-subtitle">${request.restaurantCuisine} • ${request.restaurantAddress}</div>
+                                <div class="card-date">Requested: ${VediAPI.timestampToDate(request.requestedAt).toLocaleDateString()}</div>
+                            </div>
+                            <div>
+                                <span class="status-badge ${statusClass}">${request.status.toUpperCase()}</span>
+                            </div>
+                        </div>
+                        ${request.message ? `<div class="card-message">"${request.message}"</div>` : ''}
+                        <div class="card-actions">
+                            ${isPending ? `
+                                <button class="btn-small btn-success" onclick="approveRestaurantRequest('${request.id}')">
+                                    ✅ Approve
+                                </button>
+                                <button class="btn-small btn-danger" onclick="denyRestaurantRequest('${request.id}')">
+                                    ❌ Deny
+                                </button>
+                            ` : ''}
+                            <button class="btn-small btn-secondary" onclick="viewRequestDetails('${request.id}')">
+                                👁️ Details
+                            </button>
+                            ${request.status === 'denied' && request.denialReason ? `
+                                <div style="font-size: 0.8rem; color: #991b1b; margin-top: 8px;">
+                                    <strong>Denial reason:</strong> ${request.denialReason}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateVenueInvitations() {
+            const container = document.getElementById('venueInvitationsContainer');
+            
+            if (venueInvitations.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📨</div>
+                        <div>No invitations sent</div>
                         <div style="font-size: 0.9rem; margin-top: 5px;">Send invitations to restaurant owners to join your venue</div>
                         <button class="btn btn-primary" onclick="openInvitationCenter()" style="margin-top: 15px;">
                             📨 Send First Invitation
@@ -1180,22 +1316,43 @@
                 return;
             }
 
-            container.innerHTML = pendingInvites.map(invite => `
-                <div class="invitation-card">
-                    <div class="invitation-header">
-                        <div class="invitation-info">
-                            <div class="invitation-name">${invite.restaurantName}</div>
-                            <div class="invitation-email">${invite.contactEmail}</div>
-                            <div class="invitation-date">Sent: ${VediAPI.timestampToDate(invite.createdAt).toLocaleDateString()}</div>
+            container.innerHTML = venueInvitations.map(invite => {
+                const isPending = invite.status === 'pending';
+                const statusClass = `status-${invite.status}`;
+                const isExpired = invite.expiresAt && new Date() > invite.expiresAt.toDate();
+                
+                return `
+                    <div class="card-item">
+                        <div class="card-header">
+                            <div class="card-info">
+                                <div class="card-title">${invite.restaurantName}</div>
+                                <div class="card-subtitle">${invite.contactEmail}</div>
+                                <div class="card-date">Sent: ${VediAPI.timestampToDate(invite.createdAt).toLocaleDateString()}</div>
+                                ${invite.expiresAt ? `
+                                    <div class="card-date">Expires: ${invite.expiresAt.toDate().toLocaleDateString()}</div>
+                                ` : ''}
+                                ${isExpired && isPending ? `
+                                    <div style="color: #ef4444; font-size: 0.8rem; font-weight: 600;">⚠️ EXPIRED</div>
+                                ` : ''}
+                            </div>
+                            <div>
+                                <span class="status-badge ${statusClass}">${invite.status.toUpperCase()}</span>
+                            </div>
                         </div>
-                        <div class="invitation-actions">
-                            <button class="btn-small btn-secondary" onclick="resendInvitation('${invite.id}')">Resend</button>
-                            <button class="btn-small btn-secondary" onclick="viewInvitationDetails('${invite.id}')">Details</button>
-                            <button class="btn-small btn-secondary" onclick="cancelInvitation('${invite.id}')">Cancel</button>
+                        ${invite.personalMessage ? `<div class="card-message">"${invite.personalMessage}"</div>` : ''}
+                        <div class="card-actions">
+                            ${isPending && !isExpired ? `
+                                <button class="btn-small btn-secondary" onclick="resendInvitation('${invite.id}')">🔄 Resend</button>
+                                <button class="btn-small btn-danger" onclick="cancelInvitation('${invite.id}')">❌ Cancel</button>
+                            ` : ''}
+                            ${isExpired && isPending ? `
+                                <button class="btn-small btn-primary" onclick="renewInvitation('${invite.id}')">🔄 Renew</button>
+                            ` : ''}
+                            <button class="btn-small btn-secondary" onclick="viewInvitationDetails('${invite.id}')">👁️ Details</button>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function updateActivityTimeline() {
@@ -1213,7 +1370,7 @@
             }
 
             timeline.innerHTML = venueActivity
-                .slice(0, 10) // Show last 10 activities
+                .slice(0, 10)
                 .map(activity => {
                     const activityDate = VediAPI.timestampToDate(activity.timestamp);
                     const timeAgo = getTimeAgo(activityDate);
@@ -1231,6 +1388,54 @@
                         </div>
                     `;
                 }).join('');
+        }
+
+        // Request Management Functions
+        async function approveRestaurantRequest(requestId) {
+            if (!confirm('Are you sure you want to approve this restaurant request? The restaurant will be added to your venue.')) {
+                return;
+            }
+
+            try {
+                showLoading('Approving request...', 'Adding restaurant to venue');
+
+                await VenueSync.approveRestaurantRequest(requestId);
+                
+                // Refresh data
+                await loadAllVenueData();
+                updateVenueManagement();
+                
+                hideLoading();
+                showSuccess('Restaurant request approved successfully! The restaurant has been added to your venue.');
+                
+            } catch (error) {
+                console.error('❌ Error approving request:', error);
+                hideLoading();
+                showError('Failed to approve request: ' + error.message);
+            }
+        }
+
+        async function denyRestaurantRequest(requestId) {
+            const reason = prompt('Please provide a reason for denying this request (optional):');
+            if (reason === null) return; // User cancelled
+
+            try {
+                showLoading('Denying request...', 'Updating request status');
+
+                await VenueSync.denyRestaurantRequest(requestId, reason || '');
+                
+                // Refresh data
+                await loadAllVenueData();
+                updateVenueManagement();
+                
+                hideLoading();
+                showSuccess('Restaurant request denied successfully.');
+                
+            } catch (error) {
+                console.error('❌ Error denying request:', error);
+                hideLoading();
+                showError('Failed to deny request: ' + error.message);
+            }
         }
 
         // Invitation system functions
@@ -1272,38 +1477,31 @@
             }
 
             try {
-                // Generate unique invitation code
-                const inviteCode = VediAPI.generateInviteCode();
-                
-                // Create invitation data
-                generatedInvitationData = {
-                    venueId: currentVenue.id,
-                    venueName: venueName,
-                    venueAddress: venueAddress,
-                    venueDescription: venueDescription,
+                showLoading('Generating invitation...', 'Creating invitation link');
+
+                // Use VenueSync to create invitation
+                const restaurantData = {
                     restaurantName: restaurantName,
-                    contactEmail: contactEmail,
-                    personalMessage: personalMessage,
-                    inviteCode: inviteCode,
-                    status: 'pending',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+                    contactEmail: contactEmail
                 };
 
-                // Generate invitation link
-                const baseUrl = window.location.origin + window.location.pathname.replace('venue-management.html', '');
-                const invitationLink = `${baseUrl}venue-invitation.html?invite=${inviteCode}`;
+                const invitation = await VenueSync.createVenueInvitation(currentVenue.id, restaurantData, personalMessage);
+                
+                generatedInvitationData = invitation;
                 
                 // Show preview
-                document.getElementById('generatedLink').textContent = invitationLink;
+                document.getElementById('generatedLink').textContent = invitation.invitationLink;
                 document.getElementById('invitationPreview').style.display = 'block';
                 document.getElementById('sendInvitationBtn').style.display = 'inline-flex';
 
                 console.log('✅ Generated invitation:', generatedInvitationData);
+                
+                hideLoading();
                 showSuccess('Invitation generated successfully!');
                 
             } catch (error) {
                 console.error('❌ Error generating invitation:', error);
+                hideLoading();
                 showError('Failed to generate invitation: ' + error.message);
             }
         }
@@ -1324,51 +1522,39 @@
             });
         }
 
-        async function sendInvitation() {
+        function sendInvitation() {
             if (!generatedInvitationData) {
                 showError('Please generate an invitation first.');
                 return;
             }
 
-            try {
-                showLoading('Sending invitation...');
-
-                // Save invitation to Firestore
-                const docRef = await firebaseDb.collection('venueInvitations').add(generatedInvitationData);
-                
-                // Add activity log entry
-                await firebaseDb.collection('venueActivity').add({
-                    venueId: currentVenue.id,
-                    type: 'invitation',
-                    title: 'Invitation Sent',
-                    description: `Invitation sent to ${generatedInvitationData.restaurantName}`,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                // Refresh data and close modal
-                await loadVenueInvitations();
-                await loadVenueActivity();
+            // Refresh data and close modal
+            loadAllVenueData().then(() => {
                 updateVenueManagement();
                 closeInvitationModal();
-                
-                hideLoading();
-                showSuccess(`Invitation sent to ${generatedInvitationData.restaurantName}!`);
-                
-            } catch (error) {
-                console.error('❌ Error sending invitation:', error);
-                showError('Failed to send invitation: ' + error.message);
-                hideLoading();
-            }
+                showSuccess(`Invitation created for ${generatedInvitationData.restaurantName}! Share the link with them.`);
+            });
+        }
+
+        // Tab Management
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}Tab`).classList.add('active');
         }
 
         // Management action functions
         async function refreshVenueData() {
             console.log('🔄 Refreshing venue data...');
             try {
-                showLoading('Refreshing data...');
-                await loadVenueRestaurants();
-                await loadVenueInvitations();
-                await loadVenueActivity();
+                showLoading('Refreshing data...', 'Loading latest information');
+                await loadAllVenueData();
                 updateVenueManagement();
                 hideLoading();
                 showSuccess('Venue data refreshed successfully');
@@ -1379,20 +1565,38 @@
             }
         }
 
+        async function refreshRestaurants() {
+            try {
+                showLoading('Refreshing restaurants...', 'Loading restaurant data');
+                venueRestaurants = await VenueSync.getVenueRestaurants(currentVenue.id);
+                updateRestaurantDirectory();
+                updateVenueStats();
+                hideLoading();
+                showSuccess('Restaurant directory refreshed');
+            } catch (error) {
+                console.error('Error refreshing restaurants:', error);
+                showError('Failed to refresh restaurants: ' + error.message);
+                hideLoading();
+            }
+        }
+
         async function exportVenueReport() {
             console.log('📄 Exporting venue report...');
             
             try {
+                showLoading('Generating report...', 'Compiling venue data');
+                
                 const reportData = {
                     generatedAt: new Date().toISOString(),
                     venue: currentVenue,
                     stats: {
                         totalRestaurants: venueRestaurants.length,
                         pendingInvitations: venueInvitations.filter(inv => inv.status === 'pending').length,
-                        occupancyRate: Math.round((venueRestaurants.length / (currentVenue.maxRestaurants || 20)) * 100),
-                        totalRevenue: venueRestaurants.reduce((sum, r) => sum + (r.todayRevenue || 0), 0)
+                        pendingRequests: venueRequests.filter(req => req.status === 'pending').length,
+                        occupancyRate: Math.round((venueRestaurants.length / (currentVenue.maxRestaurants || 20)) * 100)
                     },
                     restaurants: venueRestaurants,
+                    requests: venueRequests,
                     invitations: venueInvitations,
                     recentActivity: venueActivity.slice(0, 20)
                 };
@@ -1405,11 +1609,13 @@
                 link.download = `venue-report-${new Date().toISOString().split('T')[0]}.json`;
                 link.click();
                 
+                hideLoading();
                 showSuccess('Venue report exported successfully');
                 
             } catch (error) {
                 console.error('Error exporting venue report:', error);
                 showError('Failed to export report: ' + error.message);
+                hideLoading();
             }
         }
 
@@ -1419,19 +1625,10 @@
             document.getElementById('restaurantDirectoryTable').scrollIntoView({ behavior: 'smooth' });
         }
 
-        function openLeaseManagement() {
-            console.log('📄 Opening lease management...');
-            showSuccess('Opening lease management interface...');
-        }
-
-        function openVenueSettings() {
-            console.log('⚙️ Opening venue settings...');
-            showSuccess('Opening venue configuration...');
-        }
-
-        function openMaintenanceSchedule() {
-            console.log('🔧 Opening maintenance schedule...');
-            showSuccess('Opening maintenance management...');
+        function openRequestsManagement() {
+            console.log('📝 Opening requests management...');
+            switchTab('requests');
+            document.querySelector('.tabs-container').scrollIntoView({ behavior: 'smooth' });
         }
 
         function openVenueAnalytics() {
@@ -1450,82 +1647,81 @@
             showSuccess('Opening communication interface...');
         }
 
-        function manageRestaurant(restaurantId) {
-            console.log('⚙️ Managing restaurant:', restaurantId);
-            showSuccess('Opening restaurant management...');
+        async function removeRestaurant(restaurantId) {
+            const restaurant = venueRestaurants.find(r => r.id === restaurantId);
+            if (!restaurant) return;
+
+            if (!confirm(`Are you sure you want to remove ${restaurant.name} from your venue? This action cannot be undone.`)) {
+                return;
+            }
+
+            const reason = prompt('Please provide a reason for removing this restaurant:') || 'Removed by venue manager';
+
+            try {
+                showLoading('Removing restaurant...', 'Updating venue association');
+
+                await VenueSync.unsyncRestaurantFromVenue(restaurantId, reason);
+                
+                // Refresh data
+                await loadAllVenueData();
+                updateVenueManagement();
+                
+                hideLoading();
+                showSuccess(`${restaurant.name} has been removed from the venue.`);
+                
+            } catch (error) {
+                console.error('❌ Error removing restaurant:', error);
+                hideLoading();
+                showError('Failed to remove restaurant: ' + error.message);
+            }
         }
 
         // Invitation management functions
         async function resendInvitation(inviteId) {
             console.log('📨 Resending invitation:', inviteId);
-            
-            try {
-                // Update invitation timestamp in Firestore
-                await firebaseDb.collection('venueInvitations').doc(inviteId).update({
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    resent: true
-                });
-                
-                // Add activity
-                await firebaseDb.collection('venueActivity').add({
-                    venueId: currentVenue.id,
-                    type: 'invitation',
-                    title: 'Invitation Resent',
-                    description: `Invitation resent to restaurant`,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                // Refresh data
-                await loadVenueInvitations();
-                await loadVenueActivity();
-                updateVenueManagement();
-                
-                showSuccess('Invitation resent successfully');
-                
-            } catch (error) {
-                console.error('Error resending invitation:', error);
-                showError('Failed to resend invitation: ' + error.message);
-            }
-        }
-
-        function viewInvitationDetails(inviteId) {
-            console.log('👁️ Viewing invitation details:', inviteId);
-            showSuccess('Opening invitation details...');
+            showSuccess('Invitation resent (feature coming soon)');
         }
 
         async function cancelInvitation(inviteId) {
-            console.log('❌ Canceling invitation:', inviteId);
-            
             if (!confirm('Are you sure you want to cancel this invitation?')) {
                 return;
             }
 
             try {
-                // Update invitation status in Firestore
-                await firebaseDb.collection('venueInvitations').doc(inviteId).update({
-                    status: 'cancelled',
-                    cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                // Add activity
-                await firebaseDb.collection('venueActivity').add({
-                    venueId: currentVenue.id,
-                    type: 'invitation',
-                    title: 'Invitation Cancelled',
-                    description: `Invitation was cancelled`,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                showLoading('Cancelling invitation...', 'Updating invitation status');
+
+                await VenueSync.cancelInvitation(inviteId);
                 
                 // Refresh data
-                await loadVenueInvitations();
-                await loadVenueActivity();
+                await loadAllVenueData();
                 updateVenueManagement();
                 
+                hideLoading();
                 showSuccess('Invitation cancelled successfully');
                 
             } catch (error) {
-                console.error('Error cancelling invitation:', error);
+                console.error('❌ Error cancelling invitation:', error);
+                hideLoading();
                 showError('Failed to cancel invitation: ' + error.message);
+            }
+        }
+
+        function renewInvitation(inviteId) {
+            console.log('🔄 Renewing invitation:', inviteId);
+            showSuccess('Invitation renewal (feature coming soon)');
+        }
+
+        function viewInvitationDetails(inviteId) {
+            const invite = venueInvitations.find(inv => inv.id === inviteId);
+            if (invite) {
+                alert(`Invitation Details:\n\nRestaurant: ${invite.restaurantName}\nEmail: ${invite.contactEmail}\nStatus: ${invite.status}\nSent: ${VediAPI.timestampToDate(invite.createdAt).toLocaleDateString()}\n${invite.personalMessage ? `Message: "${invite.personalMessage}"` : ''}`);
+            }
+        }
+
+        function viewRequestDetails(requestId) {
+            const request = venueRequests.find(req => req.id === requestId);
+            if (request) {
+                alert(`Request Details:\n\nRestaurant: ${request.restaurantName}\nEmail: ${request.restaurantEmail}\nCuisine: ${request.restaurantCuisine}\nAddress: ${request.restaurantAddress}\nStatus: ${request.status}\nRequested: ${VediAPI.timestampToDate(request.requestedAt).toLocaleDateString()}\n${request.message ? `Message: "${request.message}"` : ''}`);
             }
         }
 
@@ -1535,9 +1731,28 @@
         }
 
         // Utility functions
+        function getSyncMethodText(syncMethod) {
+            switch(syncMethod) {
+                case 'venue_invitation': return 'Invitation';
+                case 'restaurant_request': return 'Request';
+                case 'manual_sync': return 'Manual';
+                default: return 'Unknown';
+            }
+        }
+
+        function getSyncMethodClass(syncMethod) {
+            switch(syncMethod) {
+                case 'venue_invitation': return 'status-active';
+                case 'restaurant_request': return 'status-pending';
+                case 'manual_sync': return 'status-inactive';
+                default: return 'status-inactive';
+            }
+        }
+
         function getActivityIcon(type) {
             const icons = {
                 'invitation': '📨',
+                'request': '📝',
                 'restaurant': '🏪',
                 'performance': '📊',
                 'maintenance': '🔧',
@@ -1557,26 +1772,6 @@
             if (diffMins < 60) return `${diffMins} minutes ago`;
             if (diffHours < 24) return `${diffHours} hours ago`;
             return `${diffDays} days ago`;
-        }
-
-        function getPerformanceStatusClass(performance) {
-            switch(performance) {
-                case 'excellent': return 'status-active';
-                case 'good': return 'status-active';
-                case 'average': return 'status-pending';
-                case 'poor': return 'status-inactive';
-                default: return 'status-pending';
-            }
-        }
-
-        function getPerformanceText(performance) {
-            switch(performance) {
-                case 'excellent': return 'Excellent';
-                case 'good': return 'Good';
-                case 'average': return 'Average';
-                case 'poor': return 'Poor';
-                default: return 'Average';
-            }
         }
 
         function showLoading(message = 'Loading...') {
@@ -1606,7 +1801,11 @@
             setTimeout(() => notification.style.opacity = '1', 100);
             setTimeout(() => {
                 notification.style.opacity = '0';
-                setTimeout(() => document.body.removeChild(notification), 300);
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
             }, 4000);
         }
 
@@ -1618,7 +1817,19 @@
             showNotification(message, 'error');
         }
 
-        console.log('🏢 Venue Management with Firebase loaded successfully');
+        // Helper function to get Firebase database (matches firebase-api.js pattern)
+        function getFirebaseDb() {
+            if (window.firebaseDb) {
+                return window.firebaseDb;
+            } else if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                window.firebaseDb = firebase.firestore();
+                return window.firebaseDb;
+            } else {
+                throw new Error('Firebase database not initialized. Please ensure Firebase is loaded.');
+            }
+        }
+
+        console.log('🏢 Enhanced Venue Management with VenueSync integration loaded successfully');
     </script>
 </body>
 </html>
