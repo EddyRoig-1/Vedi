@@ -1268,7 +1268,7 @@
             hideMessages();
         }
 
-        // Send verification code using CustomerAuthAPI
+        // Send verification code using CustomerAuthAPI with Firebase's recommended approach
         async function sendVerificationCode() {
             const countryCode = document.getElementById('countryCode').value;
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
@@ -1299,10 +1299,15 @@
                 setLoading('phone', true);
                 hideMessages();
                 
-                // Send verification using CustomerAuthAPI
-                confirmationResult = await CustomerAuthAPI.sendPhoneVerification(fullPhoneNumber);
+                // Send verification using CustomerAuthAPI with Firebase's recommended approach
+                const confirmationResult = await CustomerAuthAPI.sendPhoneVerification(fullPhoneNumber);
+                
+                // Store both the confirmationResult and verificationId for flexibility
+                window.confirmationResult = confirmationResult;
+                window.verificationId = confirmationResult.verificationId;
                 
                 console.log('✅ Verification code sent successfully');
+                console.log('🔑 Verification ID:', !!window.verificationId);
                 showInfo('Verification code sent! Please check your phone.');
                 
                 // Update steps
@@ -1339,7 +1344,7 @@
             }
         }
 
-        // Verify code using CustomerAuthAPI
+        // Verify code using Firebase's recommended PhoneAuthProvider.credential approach
         async function verifyCode() {
             const code = document.getElementById('verificationCode').value.trim();
             
@@ -1357,16 +1362,37 @@
                 setLoading('code', true);
                 hideMessages();
                 
-                console.log('🔐 Verifying code...');
+                console.log('🔐 Verifying code using Firebase recommended approach...');
                 
-                if (!confirmationResult) {
+                let result;
+                
+                // Try Firebase's recommended PhoneAuthProvider.credential approach first
+                if (window.verificationId) {
+                    try {
+                        console.log('🔑 Using PhoneAuthProvider.credential method...');
+                        result = await CustomerAuthAPI.verifyPhoneCode(window.verificationId, code);
+                        console.log('✅ Phone verified using credential method!');
+                    } catch (credentialError) {
+                        console.warn('⚠️ Credential method failed, trying legacy confirm method:', credentialError);
+                        
+                        // Fallback to legacy confirmationResult.confirm method
+                        if (window.confirmationResult) {
+                            result = await CustomerAuthAPI.verifyPhoneCodeLegacy(window.confirmationResult, code);
+                            console.log('✅ Phone verified using legacy confirm method!');
+                        } else {
+                            throw credentialError;
+                        }
+                    }
+                } else if (window.confirmationResult) {
+                    // Use legacy method if no verificationId
+                    console.log('🔄 Using legacy confirmationResult.confirm method...');
+                    result = await CustomerAuthAPI.verifyPhoneCodeLegacy(window.confirmationResult, code);
+                    console.log('✅ Phone verified using legacy method!');
+                } else {
                     throw new Error('No verification in progress. Please request a new code.');
                 }
                 
-                // Verify code using CustomerAuthAPI
-                const result = await CustomerAuthAPI.verifyPhoneCode(confirmationResult, code);
                 const user = result.user;
-                
                 console.log('✅ Phone verified! User UID:', user.uid);
                 
                 // Complete phone auth sign-in
@@ -1446,13 +1472,17 @@
             }
         }
 
-        // Resend code function using CustomerAuthAPI
+        // Resend code function using Firebase's recommended approach
         async function resendCode() {
             try {
                 setLoading('code', true);
                 hideMessages();
                 
                 console.log('🔄 Resending verification code...');
+                
+                // Clear stored verification data
+                window.confirmationResult = null;
+                window.verificationId = null;
                 
                 document.getElementById('step3').classList.remove('active');
                 document.getElementById('step2').classList.remove('completed');
