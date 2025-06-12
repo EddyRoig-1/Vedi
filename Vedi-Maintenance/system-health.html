@@ -776,7 +776,7 @@
             });
             
             // Set up real-time updates every 30 seconds
-            setInterval(() => {
+            setInterval(function() {
                 if (auth.currentUser && isAdmin) {
                     loadSystemData();
                     updateCharts();
@@ -815,17 +815,16 @@
                 'memoryUsage', 'activeConnections', 'avgResponseTime'
             ];
             
-            loadingElements.forEach(id => {
+            loadingElements.forEach(function(id) {
                 const element = document.getElementById(id);
                 if (element) element.textContent = 'Login Required';
             });
             
-            // Update status cards to show auth required
             updateSystemHealthCard('unknown', 'Authentication Required', 'Please log in as admin');
             
             // Update service status
             const serviceStatuses = ['firebaseStatus', 'analyticsStatus', 'securityStatus', 'alertsStatus'];
-            serviceStatuses.forEach(id => {
+            serviceStatuses.forEach(function(id) {
                 const element = document.getElementById(id);
                 if (element) {
                     element.textContent = 'Auth Required';
@@ -851,7 +850,7 @@
                 // Load system health
                 await loadSystemHealth();
                 
-                // Load API analytics
+                // Load API metrics
                 await loadAPIMetrics();
                 
                 // Load platform metrics
@@ -963,7 +962,7 @@
                 
                 // Calculate today's metrics
                 const today = new Date().toISOString().split('T')[0];
-                const todayOrders = ordersSnapshot.docs.filter(doc => {
+                const todayOrders = ordersSnapshot.docs.filter(function(doc) {
                     const orderData = doc.data();
                     const orderDate = orderData.createdAt ? 
                         timestampToDate(orderData.createdAt).toISOString().split('T')[0] : null;
@@ -973,20 +972,20 @@
                 document.getElementById('ordersToday').textContent = todayOrders.length;
                 
                 // Calculate today's revenue
-                const todayRevenue = todayOrders.reduce((sum, doc) => {
+                const todayRevenue = todayOrders.reduce(function(sum, doc) {
                     const order = doc.data();
                     return sum + (order.total || 0);
                 }, 0);
                 
-                document.getElementById('todayRevenue').textContent = ' + todayRevenue.toFixed(2);
+                document.getElementById('todayRevenue').textContent = '$' + todayRevenue.toFixed(2);
                 
                 // Calculate average order value
                 const avgOrderValue = todayOrders.length > 0 ? 
                     (todayRevenue / todayOrders.length).toFixed(2) : '0.00';
-                document.getElementById('avgOrderValue').textContent = ' + avgOrderValue;
+                document.getElementById('avgOrderValue').textContent = '$' + avgOrderValue;
                 
                 // Calculate active users today
-                const activeToday = usersSnapshot.docs.filter(doc => {
+                const activeToday = usersSnapshot.docs.filter(function(doc) {
                     const userData = doc.data();
                     const lastActive = userData.lastLoginAt ? 
                         timestampToDate(userData.lastLoginAt).toISOString().split('T')[0] : null;
@@ -1012,7 +1011,7 @@
                 
                 // Show error state for platform metrics
                 const platformElements = ['totalUsers', 'totalOrders', 'totalRestaurants', 'ordersToday', 'todayRevenue', 'avgOrderValue', 'activeToday'];
-                platformElements.forEach(id => {
+                platformElements.forEach(function(id) {
                     const element = document.getElementById(id);
                     if (element) element.textContent = 'Error';
                 });
@@ -1034,7 +1033,7 @@
                 const alerts = [];
                 
                 // Add system errors as alerts
-                errorsSnapshot.docs.forEach(doc => {
+                errorsSnapshot.docs.forEach(function(doc) {
                     const error = doc.data();
                     alerts.push({
                         type: 'error',
@@ -1046,7 +1045,7 @@
                 });
                 
                 // Add recent user registrations as info
-                recentUsersSnapshot.docs.forEach(doc => {
+                recentUsersSnapshot.docs.forEach(function(doc) {
                     const user = doc.data();
                     alerts.push({
                         type: 'success',
@@ -1058,23 +1057,25 @@
                 });
                 
                 // Add recent orders as info
-                recentOrdersSnapshot.docs.forEach(doc => {
+                recentOrdersSnapshot.docs.forEach(function(doc) {
                     const order = doc.data();
                     alerts.push({
                         type: 'info',
                         icon: '📋',
                         title: 'New Order Received',
-                        message: `Order #${order.orderNumber} placed - ${(order.total || 0).toFixed(2)}`,
+                        message: `Order #${order.orderNumber} placed - $${(order.total || 0).toFixed(2)}`,
                         time: getRelativeTime(order.createdAt)
                     });
                 });
                 
                 // Sort alerts by timestamp (most recent first)
-                alerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                alerts.sort(function(a, b) {
+                    return new Date(b.timestamp) - new Date(a.timestamp);
+                });
                 
                 // Update alert counts
-                const errorAlerts = alerts.filter(a => a.type === 'error').length;
-                const warningAlerts = alerts.filter(a => a.type === 'warning').length;
+                const errorAlerts = alerts.filter(function(a) { return a.type === 'error'; }).length;
+                const warningAlerts = alerts.filter(function(a) { return a.type === 'warning'; }).length;
                 const totalAlerts = alerts.length;
                 
                 document.getElementById('totalAlerts').textContent = totalAlerts;
@@ -1288,11 +1289,13 @@
             // Filter alerts based on current filter
             let filteredAlerts = alerts;
             if (currentAlertFilter !== 'all') {
-                filteredAlerts = alerts.filter(alert => alert.type === currentAlertFilter);
+                filteredAlerts = alerts.filter(function(alert) {
+                    return alert.type === currentAlertFilter;
+                });
             }
             
             let html = '';
-            filteredAlerts.slice(0, 10).forEach(alert => {
+            filteredAlerts.slice(0, 10).forEach(function(alert) {
                 html += `
                     <div class="alert-item">
                         <div class="alert-icon alert-${alert.type}">
@@ -1319,7 +1322,9 @@
         // Filter alerts
         function filterAlerts(type) {
             // Update active filter button
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.filter-btn').forEach(function(btn) {
+                btn.classList.remove('active');
+            });
             event.target.classList.add('active');
             
             currentAlertFilter = type;
