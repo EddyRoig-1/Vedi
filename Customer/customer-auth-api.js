@@ -25,29 +25,6 @@ const CustomerAuthAPI = {
     try {
       console.log('📱 Sending phone verification to:', phoneNumber);
       
-      // Try using firebase-config.js PhoneAuthHelper first
-      if (typeof window.PhoneAuthHelper !== 'undefined') {
-        console.log('🔧 Using firebase-config.js PhoneAuthHelper');
-        try {
-          const verifier = recaptchaVerifier || window.recaptchaVerifier;
-          const result = await window.PhoneAuthHelper.sendVerificationCode(phoneNumber, verifier);
-          
-          // Track successful API call if tracking is available
-          if (window.trackAPICall) {
-            const responseTime = Date.now() - startTime;
-            await window.trackAPICall('sendPhoneVerification', responseTime, true, {
-              phoneNumber: phoneNumber.substring(0, 5) + '****'
-            });
-          }
-          
-          console.log('✅ SMS sent via PhoneAuthHelper');
-          return result;
-        } catch (helperError) {
-          console.warn('⚠️ PhoneAuthHelper failed, falling back to direct method:', helperError);
-        }
-      }
-      
-      // Fallback to direct Firebase method
       // Use provided verifier or get from global
       const verifier = recaptchaVerifier || window.recaptchaVerifier;
       if (!verifier) {
@@ -59,13 +36,6 @@ const CustomerAuthAPI = {
       if (!e164Regex.test(phoneNumber)) {
         throw new Error('Invalid phone number format. Please use E.164 format (+1234567890)');
       }
-      
-      const auth = window.firebaseAuth || firebase.auth();
-      
-      // Debug: Check Firebase app configuration
-      console.log('🔧 Firebase app name:', firebase.app().name);
-      console.log('🔧 Firebase project ID:', firebase.app().options.projectId);
-      console.log('🔧 reCAPTCHA verifier ready:', !!verifier);
       
       // Additional validation for US numbers
       if (phoneNumber.startsWith('+1')) {
@@ -79,9 +49,19 @@ const CustomerAuthAPI = {
         }
       }
       
-      // Send verification code with enhanced error handling
-      console.log('🚀 Attempting to send SMS...');
+      const auth = firebase.auth();
+      
+      // Debug: Check Firebase app configuration
+      console.log('🔧 Firebase app name:', firebase.app().name);
+      console.log('🔧 Firebase project ID:', firebase.app().options.projectId);
+      console.log('🔧 reCAPTCHA verifier ready:', !!verifier);
+      
+      // Send verification code using Firebase's recommended approach
+      console.log('🚀 Attempting to send SMS using Firebase auth...');
       const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, verifier);
+      
+      // Store the verificationId globally for later use
+      window.phoneVerificationId = confirmationResult.verificationId;
       
       // Track successful API call if tracking is available
       if (window.trackAPICall) {
@@ -92,6 +72,8 @@ const CustomerAuthAPI = {
       }
       
       console.log('✅ SMS verification code sent successfully');
+      console.log('🔑 Verification ID stored:', !!confirmationResult.verificationId);
+      
       return confirmationResult;
       
     } catch (error) {
@@ -118,15 +100,67 @@ const CustomerAuthAPI = {
   },
 
   /**
-   * Verify SMS code and complete phone authentication
+   * Verify SMS code using Firebase's recommended PhoneAuthProvider.credential approach
+   * @param {string} verificationId - Verification ID from sendPhoneVerification result
+   * @param {string} code - 6-digit verification code
+   * @returns {Promise<Object>} Firebase user credential
+   */
+  verifyPhoneCode: async function(verificationId, code) {
+    const startTime = Date.now();
+    try {
+      console.log('🔐 Verifying phone code using PhoneAuthProvider.credential...');
+      
+      if (!verificationId) {
+        throw new Error('No verification ID available. Please request a new code.');
+      }
+      
+      if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+        throw new Error('Please enter a valid 6-digit verification code');
+      }
+      
+      // Create credential using Firebase's recommended method
+      console.log('🔑 Creating phone auth credential...');
+      const credential = firebase.auth.PhoneAuthProvider.credential(verificationId, code);
+      
+      // Sign in with credential
+      console.log('🚀 Signing in with phone credential...');
+      const userCredential = await firebase.auth().signInWithCredential(credential);
+      
+      // Track successful API call if tracking is available
+      if (window.trackAPICall) {
+        const responseTime = Date.now() - startTime;
+        await window.trackAPICall('verifyPhoneCode', responseTime, true, {
+          userId: userCredential.user.uid
+        });
+      }
+      
+      console.log('✅ Phone verification successful, UID:', userCredential.user.uid);
+      return userCredential;
+      
+    } catch (error) {
+      // Track failed API call if tracking is available
+      if (window.trackAPICall) {
+        const responseTime = Date.now() - startTime;
+        await window.trackAPICall('verifyPhoneCode', responseTime, false, {
+          error: error.code || error.message
+        });
+      }
+      
+      console.error('❌ Phone code verification error:', error);
+      throw this.handlePhoneAuthError(error);
+    }
+  },
+
+  /**
+   * Alternative method using confirmationResult.confirm (legacy approach)
    * @param {Object} confirmationResult - Result from sendPhoneVerification
    * @param {string} code - 6-digit verification code
    * @returns {Promise<Object>} Firebase user credential
    */
-  verifyPhoneCode: async function(confirmationResult, code) {
+  verifyPhoneCodeLegacy: async function(confirmationResult, code) {
     const startTime = Date.now();
     try {
-      console.log('🔐 Verifying phone code...');
+      console.log('🔐 Verifying code using legacy confirmationResult.confirm...');
       
       if (!confirmationResult) {
         throw new Error('No verification in progress');
@@ -141,24 +175,24 @@ const CustomerAuthAPI = {
       // Track successful API call if tracking is available
       if (window.trackAPICall) {
         const responseTime = Date.now() - startTime;
-        await window.trackAPICall('verifyPhoneCode', responseTime, true, {
+        await window.trackAPICall('verifyPhoneCodeLegacy', responseTime, true, {
           userId: result.user.uid
         });
       }
       
-      console.log('✅ Phone verification successful, UID:', result.user.uid);
+      console.log('✅ Phone verification successful (legacy), UID:', result.user.uid);
       return result;
       
     } catch (error) {
       // Track failed API call if tracking is available
       if (window.trackAPICall) {
         const responseTime = Date.now() - startTime;
-        await window.trackAPICall('verifyPhoneCode', responseTime, false, {
+        await window.trackAPICall('verifyPhoneCodeLegacy', responseTime, false, {
           error: error.code || error.message
         });
       }
       
-      console.error('❌ Phone code verification error:', error);
+      console.error('❌ Phone code verification error (legacy):', error);
       throw this.handlePhoneAuthError(error);
     }
   },
@@ -203,7 +237,7 @@ const CustomerAuthAPI = {
         }
       }
       
-      // Fallback to direct initialization
+      // Fallback to direct initialization with invisible reCAPTCHA
       // Clear any existing verifier
       if (window.recaptchaVerifier) {
         try {
@@ -221,9 +255,9 @@ const CustomerAuthAPI = {
       }
       container.innerHTML = '';
 
-      // Enhanced default options
+      // Enhanced default options with fallback to invisible reCAPTCHA
       const defaultOptions = {
-        'size': 'normal',
+        'size': 'normal', // Try normal first, will fallback to invisible if needed
         'callback': function(response) {
           console.log('✅ reCAPTCHA solved, response length:', response.length);
           // Enable send button if available
@@ -238,6 +272,9 @@ const CustomerAuthAPI = {
         },
         'error-callback': function(error) {
           console.error('❌ reCAPTCHA error:', error);
+          console.log('🔄 Attempting to use invisible reCAPTCHA...');
+          // Try invisible reCAPTCHA as fallback
+          this.initializeInvisibleRecaptcha(containerId);
         }
       };
 
@@ -245,25 +282,33 @@ const CustomerAuthAPI = {
       
       console.log('🔧 Creating reCAPTCHA with options:', finalOptions);
 
-      // Create new verifier
+      // Create new verifier - Firebase will handle reCAPTCHA keys automatically
       const verifier = new firebase.auth.RecaptchaVerifier(containerId, finalOptions);
       
       console.log('🚀 Rendering reCAPTCHA...');
       
-      // Render the reCAPTCHA with timeout
-      const widgetId = await Promise.race([
-        verifier.render(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('reCAPTCHA render timeout')), 30000)
-        )
-      ]);
-      
-      // Store globally for easy access
-      window.recaptchaVerifier = verifier;
-      window.recaptchaWidgetId = widgetId;
-      
-      console.log('✅ reCAPTCHA initialized and rendered successfully, widget ID:', widgetId);
-      return verifier;
+      try {
+        // Render the reCAPTCHA with timeout
+        const widgetId = await Promise.race([
+          verifier.render(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('reCAPTCHA render timeout')), 30000)
+          )
+        ]);
+        
+        // Store globally for easy access
+        window.recaptchaVerifier = verifier;
+        window.recaptchaWidgetId = widgetId;
+        
+        console.log('✅ reCAPTCHA initialized and rendered successfully, widget ID:', widgetId);
+        return verifier;
+        
+      } catch (renderError) {
+        console.warn('⚠️ Normal reCAPTCHA failed, trying invisible:', renderError);
+        
+        // Fallback to invisible reCAPTCHA
+        return await this.initializeInvisibleRecaptcha(containerId);
+      }
       
     } catch (error) {
       console.error('❌ reCAPTCHA initialization failed:', error);
@@ -278,6 +323,56 @@ const CustomerAuthAPI = {
       } else {
         throw new Error('Failed to initialize reCAPTCHA. Please refresh the page and try again.');
       }
+    }
+  },
+
+  /**
+   * Initialize invisible reCAPTCHA as fallback
+   * @param {string} containerId - Container ID
+   * @returns {Promise<Object>} reCAPTCHA verifier
+   */
+  initializeInvisibleRecaptcha: async function(containerId) {
+    try {
+      console.log('👻 Initializing invisible reCAPTCHA...');
+      
+      // Clear existing verifier
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (error) {
+          console.warn('⚠️ Error clearing existing verifier:', error);
+        }
+      }
+
+      // Create invisible reCAPTCHA
+      const verifier = new firebase.auth.RecaptchaVerifier(containerId, {
+        'size': 'invisible',
+        'callback': function(response) {
+          console.log('✅ Invisible reCAPTCHA solved automatically');
+        },
+        'error-callback': function(error) {
+          console.error('❌ Invisible reCAPTCHA error:', error);
+        }
+      });
+
+      const widgetId = await verifier.render();
+      
+      // Store globally
+      window.recaptchaVerifier = verifier;
+      window.recaptchaWidgetId = widgetId;
+      
+      // Hide the container since it's invisible
+      const container = document.getElementById(containerId);
+      if (container) {
+        container.style.display = 'none';
+      }
+      
+      console.log('✅ Invisible reCAPTCHA initialized successfully');
+      return verifier;
+      
+    } catch (error) {
+      console.error('❌ Invisible reCAPTCHA initialization failed:', error);
+      throw error;
     }
   },
 
