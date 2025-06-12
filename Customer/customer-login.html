@@ -1688,7 +1688,7 @@
                 }
                 console.log('✅ No pending operation, proceeding...');
 
-                await promiseManager.execute('sendVerificationCode', async () => {
+                const result = await promiseManager.execute('sendVerificationCode', async () => {
                     console.log('🚀 Inside promise manager execute block');
                     
                     const countryCode = document.getElementById('countryCode').value;
@@ -1705,7 +1705,7 @@
                     if (!phoneNumber) {
                         console.log('❌ Phone number is empty');
                         showError('Please enter your phone number');
-                        return;
+                        return false; // Return false instead of return to continue execution
                     }
                     console.log('✅ Phone number provided');
 
@@ -1719,13 +1719,13 @@
                         if (!CustomerAuthAPI.validatePhoneNumber(fullPhoneNumber)) {
                             console.log('❌ Phone validation failed');
                             showError('Please enter a valid phone number');
-                            return;
+                            return false;
                         }
                         console.log('✅ Phone validation passed');
                     } catch (error) {
                         console.error('❌ Phone formatting error:', error);
                         showError('Invalid phone number format. Please check your number.');
-                        return;
+                        return false;
                     }
                     
                     customerPhone = fullPhoneNumber;
@@ -1741,7 +1741,7 @@
                         } catch (recaptchaError) {
                             console.error('❌ Failed to initialize reCAPTCHA:', recaptchaError);
                             showError('Failed to initialize phone verification. Please refresh the page and try again.');
-                            return;
+                            return false;
                         }
                     } else {
                         console.log('✅ reCAPTCHA verifier ready');
@@ -1800,6 +1800,8 @@
                             }
                         }, 100);
                         
+                        return true; // Success
+                        
                     } catch (verificationError) {
                         console.error('❌ Verification send error:', verificationError);
                         console.error('🔍 Error details:', {
@@ -1854,12 +1856,11 @@
                             }
                         }, 500);
                         
-                        // Don't re-throw here, we've handled the error
-                        return;
+                        return false; // Error occurred
                     }
                 });
                 
-                console.log('✅ sendVerificationCode completed successfully');
+                console.log('✅ sendVerificationCode completed with result:', result);
                 
             } catch (error) {
                 console.error('❌ Outer error in sendVerificationCode:', error);
