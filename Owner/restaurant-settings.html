@@ -1113,7 +1113,7 @@
             </div>
         </div>
 
-        <!-- Step 3: Venue Association (NEW) -->
+        <!-- Step 3: Venue Association -->
         <div class="step" id="step3">
             <h2 class="step-title">Venue Association</h2>
             <p class="step-description">Manage your restaurant's association with food halls and venues.</p>
@@ -1143,9 +1143,6 @@
                             </div>
                         </div>
                         <div class="venue-actions">
-                            <button class="btn btn-secondary btn-small" onclick="viewVenueDetails()">
-                                📋 View Details
-                            </button>
                             <button class="btn btn-danger btn-small" onclick="leaveVenue()">
                                 🚪 Leave Venue
                             </button>
@@ -1203,7 +1200,7 @@
             </div>
         </div>
 
-        <!-- Step 4: Operating Details (renumbered from Step 3) -->
+        <!-- Step 4: Operating Details -->
         <div class="step" id="step4">
             <h2 class="step-title">Operating Details</h2>
             <p class="step-description">Configure your restaurant's operational settings and hours.</p>
@@ -1344,7 +1341,7 @@
     <script>
         // Global variables
         let currentStep = 1;
-        const totalSteps = 4; // Updated to 4 steps
+        const totalSteps = 4;
         let formData = {};
         let operatingHours = {};
         let currentPeriodCount = 1;
@@ -1408,26 +1405,11 @@
                 restaurantId = currentRestaurant.id;
                 console.log('✅ Restaurant loaded:', currentRestaurant.name, 'ID:', restaurantId);
                 
-                // Load venue sync status
-                console.log('🔄 Loading venue sync status...');
-                restaurantSyncStatus = await VenueSync.getRestaurantSyncStatus(restaurantId);
-                console.log('✅ Sync status loaded:', restaurantSyncStatus);
-                
-                // Load available venues if not associated
-                if (!restaurantSyncStatus.isAssociated) {
-                    console.log('📍 Loading available venues...');
-                    await loadAvailableVenues();
-                }
-                
-                // Load pending requests
-                console.log('📨 Loading pending requests...');
-                pendingRequests = await VenueSync.getRestaurantRequests(restaurantId);
+                // Load venue association data with the updated function
+                await loadVenueAssociationData();
                 
                 // Populate form fields with Firebase data
                 populateFieldsFromFirebase(currentRestaurant);
-                
-                // Setup venue association UI
-                setupVenueAssociationUI();
                 
                 // Setup other UI components
                 setupCurrencySelection();
@@ -1448,7 +1430,7 @@
             }
         });
 
-        // Venue Association Functions
+        // Venue Association Functions - UPDATED
         async function loadAvailableVenues() {
             try {
                 availableVenues = await VediAPI.getAllVenues({ orderBy: 'name', orderDirection: 'asc' });
@@ -1456,6 +1438,34 @@
             } catch (error) {
                 console.error('❌ Error loading venues:', error);
                 availableVenues = [];
+            }
+        }
+
+        // Updated venue loading function to refresh sync status after loading
+        async function loadVenueAssociationData() {
+            try {
+                console.log('🔄 Loading venue association data...');
+                
+                // Always refresh sync status to get latest data
+                restaurantSyncStatus = await VenueSync.getRestaurantSyncStatus(restaurantId);
+                console.log('✅ Sync status refreshed:', restaurantSyncStatus);
+                
+                // Load available venues if not associated
+                if (!restaurantSyncStatus.isAssociated) {
+                    console.log('📍 Loading available venues...');
+                    await loadAvailableVenues();
+                }
+                
+                // Load pending requests (but filter them in setupVenueAssociationUI)
+                console.log('📨 Loading pending requests...');
+                pendingRequests = await VenueSync.getRestaurantRequests(restaurantId);
+                
+                // Setup the UI with the refreshed data
+                setupVenueAssociationUI();
+                
+            } catch (error) {
+                console.error('❌ Error loading venue association data:', error);
+                showError('Failed to load venue information: ' + error.message);
             }
         }
 
@@ -1476,6 +1486,9 @@
                 currentVenueDisplay.style.display = 'block';
                 venueSelectionSection.style.display = 'none';
                 
+                // IMPORTANT: Hide pending requests when restaurant is associated
+                pendingRequestsDisplay.style.display = 'none';
+                
             } else {
                 // Show venue selection
                 if (availableVenues.length > 0) {
@@ -1488,14 +1501,19 @@
                 }
                 
                 currentVenueDisplay.style.display = 'none';
-            }
-            
-            // Show pending requests if any
-            if (pendingRequests.length > 0) {
-                displayPendingRequests();
-                pendingRequestsDisplay.style.display = 'block';
-            } else {
-                pendingRequestsDisplay.style.display = 'none';
+                
+                // Only show pending requests if restaurant is NOT associated
+                // Filter out approved requests since those should have resulted in association
+                const activePendingRequests = pendingRequests.filter(request => 
+                    request.status === 'pending' || request.status === 'denied'
+                );
+                
+                if (activePendingRequests.length > 0) {
+                    displayPendingRequests(activePendingRequests);
+                    pendingRequestsDisplay.style.display = 'block';
+                } else {
+                    pendingRequestsDisplay.style.display = 'none';
+                }
             }
         }
 
@@ -1511,10 +1529,11 @@
             });
         }
 
-        function displayPendingRequests() {
+        function displayPendingRequests(requestsToShow = null) {
             const pendingRequestsList = document.getElementById('pendingRequestsList');
+            const requestsToDisplay = requestsToShow || pendingRequests;
             
-            pendingRequestsList.innerHTML = pendingRequests.map(request => `
+            pendingRequestsList.innerHTML = requestsToDisplay.map(request => `
                 <div class="request-item">
                     <div class="request-header">
                         <div>
@@ -1559,9 +1578,8 @@
                 
                 console.log('✅ Venue join request sent:', request);
                 
-                // Refresh pending requests
-                pendingRequests = await VenueSync.getRestaurantRequests(restaurantId);
-                setupVenueAssociationUI();
+                // Refresh venue association data
+                await loadVenueAssociationData();
                 
                 // Clear form
                 venueSelector.value = '';
@@ -1587,9 +1605,8 @@
                 
                 await VenueSync.cancelVenueRequest(requestId);
                 
-                // Refresh pending requests
-                pendingRequests = await VenueSync.getRestaurantRequests(restaurantId);
-                setupVenueAssociationUI();
+                // Refresh venue association data
+                await loadVenueAssociationData();
                 
                 hideLoading();
                 showSuccess('Venue request cancelled successfully');
@@ -1613,15 +1630,8 @@
                 
                 await VenueSync.unsyncRestaurantFromVenue(restaurantId, reason);
                 
-                // Refresh sync status
-                restaurantSyncStatus = await VenueSync.getRestaurantSyncStatus(restaurantId);
-                
-                // Reload venues if now independent
-                if (!restaurantSyncStatus.isAssociated) {
-                    await loadAvailableVenues();
-                }
-                
-                setupVenueAssociationUI();
+                // Refresh venue association data
+                await loadVenueAssociationData();
                 
                 hideLoading();
                 showSuccess('Successfully left the venue. You are now an independent restaurant.');
@@ -1633,23 +1643,19 @@
             }
         }
 
-        function viewVenueDetails() {
-            if (restaurantSyncStatus.venueId) {
-                showInfo(`Opening venue details for ${restaurantSyncStatus.venueName}...`);
-                // Could open venue details in modal or new tab
-            }
-        }
-
+        // Updated refresh function
         async function refreshVenueList() {
             try {
-                showLoading('Refreshing venue list...', 'Loading available venues');
+                showLoading('Refreshing venue information...', 'Loading latest data');
                 
-                await loadAvailableVenues();
-                setupVenueAssociationUI();
+                // Refresh all venue-related data
+                await loadVenueAssociationData();
                 
                 hideLoading();
                 
-                if (availableVenues.length > 0) {
+                if (restaurantSyncStatus.isAssociated) {
+                    showSuccess('Venue information refreshed successfully');
+                } else if (availableVenues.length > 0) {
                     showSuccess(`Found ${availableVenues.length} available venues`);
                 } else {
                     showInfo('No venues are currently accepting new restaurants');
@@ -1658,7 +1664,7 @@
             } catch (error) {
                 console.error('❌ Error refreshing venues:', error);
                 hideLoading();
-                showError('Failed to refresh venue list: ' + error.message);
+                showError('Failed to refresh venue information: ' + error.message);
             }
         }
 
@@ -1671,7 +1677,7 @@
             }
         }
 
-        // UI Helper Functions (existing functions remain the same)
+        // UI Helper Functions
         function showLoading(text = 'Loading...', subtext = '') {
             const overlay = document.getElementById('loadingOverlay');
             const textEl = document.getElementById('loadingText');
@@ -1978,7 +1984,7 @@
             }
         }
 
-        // Operating hours functions (same as setup page)
+        // Operating hours functions
         function saveHoursForDays() {
             const selectedDayCheckboxes = document.querySelectorAll('.day-selector-grid input[type="checkbox"]:checked');
             const selectedDays = Array.from(selectedDayCheckboxes).map(cb => cb.value);
