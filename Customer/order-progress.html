@@ -861,6 +861,264 @@
         let hasPlayedReadyNotification = false;
         let audioContext = null;
         let vibrationInterval = null;
+        let isAudioInitialized = false;
+        let notificationAudio = null;
+
+        // ENHANCED: Mobile-optimized audio initialization
+        function initializeAudio() {
+            return new Promise((resolve, reject) => {
+                try {
+                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                    
+                    if (isMobile) {
+                        // Method 1: Try Web Audio API (preferred for precise control)
+                        try {
+                            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                            
+                            // iOS requires user interaction to start audio context
+                            if (audioContext.state === 'suspended') {
+                                audioContext.resume().then(() => {
+                                    isAudioInitialized = true;
+                                    console.log('🔊 Mobile audio context initialized');
+                                    resolve(true);
+                                }).catch(err => {
+                                    console.warn('⚠️ Audio context resume failed:', err);
+                                    // Fallback to HTML5 audio
+                                    initializeHTMLAudio().then(resolve).catch(reject);
+                                });
+                            } else {
+                                isAudioInitialized = true;
+                                console.log('🔊 Audio context ready');
+                                resolve(true);
+                            }
+                        } catch (webAudioError) {
+                            console.warn('⚠️ Web Audio API failed, trying HTML5 audio');
+                            // Fallback to HTML5 audio
+                            initializeHTMLAudio().then(resolve).catch(reject);
+                        }
+                    } else {
+                        // Desktop - use Web Audio API
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        isAudioInitialized = true;
+                        resolve(true);
+                    }
+                } catch (error) {
+                    console.error('❌ Audio initialization failed:', error);
+                    reject(error);
+                }
+            });
+        }
+
+        // NEW: HTML5 Audio fallback for better mobile compatibility
+        function initializeHTMLAudio() {
+            return new Promise((resolve, reject) => {
+                try {
+                    // Create a silent audio file that we can play to "unlock" audio
+                    const silentAudio = new Audio();
+                    
+                    // Use a data URL for a very short silent audio file
+                    silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==';
+                    silentAudio.volume = 0.01;
+                    
+                    const playPromise = silentAudio.play();
+                    
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            console.log('🔊 HTML5 Audio unlocked');
+                            isAudioInitialized = true;
+                            resolve(true);
+                        }).catch(err => {
+                            console.error('❌ HTML5 Audio unlock failed:', err);
+                            reject(err);
+                        });
+                    } else {
+                        // Older browsers that don't return a promise
+                        isAudioInitialized = true;
+                        resolve(true);
+                    }
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        // ENHANCED: Mobile-optimized beep function
+        function playBeep(frequency = 800, duration = 300, volume = 0.3) {
+            return new Promise((resolve) => {
+                try {
+                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                    
+                    if (audioContext && audioContext.state === 'running') {
+                        // Web Audio API method (preferred)
+                        const oscillator = audioContext.createOscillator();
+                        const gainNode = audioContext.createGain();
+
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioContext.destination);
+
+                        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                        oscillator.type = 'sine';
+
+                        // Mobile devices often have different volume characteristics
+                        const mobileVolume = isMobile ? volume * 0.8 : volume;
+                        gainNode.gain.setValueAtTime(mobileVolume, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + duration / 1000);
+                        
+                        setTimeout(resolve, duration);
+                    } else {
+                        // HTML5 Audio fallback
+                        playHTMLBeep(frequency, duration).then(resolve);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Beep play error:', error);
+                    // Ultimate fallback - try to play a simple tone
+                    playHTMLBeep(frequency, duration).then(resolve);
+                }
+            });
+        }
+
+        // NEW: HTML5 Audio beep generation
+        function playHTMLBeep(frequency = 800, duration = 300) {
+            return new Promise((resolve) => {
+                try {
+                    // Create or reuse audio element for notifications
+                    if (!notificationAudio) {
+                        notificationAudio = new Audio();
+                        // Use a simple beep sound data URL
+                        notificationAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==";
+                    }
+                    
+                    notificationAudio.volume = 0.8;
+                    notificationAudio.currentTime = 0; // Reset to beginning
+                    
+                    const playPromise = notificationAudio.play();
+                    
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            console.log('🔊 HTML5 audio playing');
+                            setTimeout(resolve, duration);
+                        }).catch(err => {
+                            console.warn('⚠️ HTML5 audio play failed:', err);
+                            setTimeout(resolve, duration);
+                        });
+                    } else {
+                        // Older browsers that don't return a promise
+                        setTimeout(resolve, duration);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ HTML5 beep error:', error);
+                    setTimeout(resolve, duration);
+                }
+            });
+        }
+
+        // ENHANCED: Enhanced vibration for mobile devices
+        function vibratePhone(pattern = [400, 200, 400]) {
+            try {
+                if ('vibrate' in navigator) {
+                    // Check if we're on a mobile device
+                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                    
+                    if (isMobile) {
+                        const result = navigator.vibrate(pattern);
+                        console.log(`📳 Vibration ${result ? 'activated' : 'failed'}`);
+                        return result;
+                    } else {
+                        console.log('📳 Vibration not available on desktop');
+                        return false;
+                    }
+                } else {
+                    console.log('📳 Vibration API not supported');
+                    return false;
+                }
+            } catch (error) {
+                console.warn('📳 Vibration error:', error);
+                return false;
+            }
+        }
+
+        // ENHANCED: Order ready notification with multiple fallbacks and better mobile support
+        async function playOrderReadyNotification() {
+            console.log('🔔 Playing order ready notification');
+            
+            try {
+                // 1. Initialize audio if not done already
+                if (!isAudioInitialized) {
+                    await initializeAudio();
+                }
+                
+                // 2. Request notification permission if needed
+                if ('Notification' in window && Notification.permission === 'default') {
+                    const permission = await Notification.requestPermission();
+                    console.log(`🔔 Notification permission: ${permission}`);
+                }
+                
+                // 3. Show browser notification
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('🍽️ Order Ready!', {
+                        body: `Order #${orderData.orderNumber} is ready for pickup!`,
+                        icon: '/favicon.ico', // Add your app icon path
+                        tag: 'order-ready',
+                        requireInteraction: true,
+                        silent: false // Let the notification make sound too
+                    });
+                }
+                
+                // 4. Play audio sequence with multiple beeps optimized for mobile
+                const beepSequence = [
+                    { freq: 880, duration: 500 },  // High beep
+                    { freq: 660, duration: 500 },  // Lower beep  
+                    { freq: 880, duration: 700 },  // High beep (longer)
+                ];
+                
+                // Play 3 cycles of the beep sequence
+                for (let cycle = 0; cycle < 3; cycle++) {
+                    for (const beepConfig of beepSequence) {
+                        await playBeep(beepConfig.freq, beepConfig.duration, 0.8);
+                        await new Promise(resolve => setTimeout(resolve, 200)); // Pause between beeps
+                    }
+                    // Pause between cycles
+                    if (cycle < 2) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+                
+                // 5. Vibrate for mobile devices (extended pattern)
+                const vibrationPattern = [400, 200, 400, 200, 600, 300, 400];
+                
+                // Vibrate in intervals for better effect
+                let vibrationCount = 0;
+                const maxVibrations = 8;
+                
+                vibrationInterval = setInterval(() => {
+                    vibratePhone(vibrationPattern);
+                    vibrationCount++;
+                    
+                    if (vibrationCount >= maxVibrations) {
+                        clearInterval(vibrationInterval);
+                        vibrationInterval = null;
+                    }
+                }, 1500); // Vibrate every 1.5 seconds
+                
+                console.log('✅ Order ready notification sequence completed');
+                
+            } catch (error) {
+                console.error('❌ Notification error:', error);
+                
+                // Fallback: Try basic HTML5 audio
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==');
+                    audio.volume = 1.0;
+                    await audio.play();
+                    vibratePhone([1000, 500, 1000]);
+                } catch (fallbackError) {
+                    console.error('❌ Fallback notification failed:', fallbackError);
+                }
+            }
+        }
 
         // ENHANCED: Fixed getOrderByNumber function for better authentication support
         async function getOrderByNumberFixed(orderNumber) {
@@ -966,11 +1224,37 @@
         document.addEventListener('DOMContentLoaded', async function() {
             
             try {
+                // Set up user interaction listeners to unlock audio (required for iOS Safari)
+                const unlockAudio = async () => {
+                    if (!isAudioInitialized) {
+                        try {
+                            await initializeAudio();
+                            console.log('🔊 Audio unlocked by user interaction');
+                        } catch (error) {
+                            console.warn('⚠️ Audio unlock failed:', error);
+                        }
+                    }
+                };
+                
+                // Listen for any user interaction to unlock audio
+                ['click', 'touchstart', 'touchend', 'keydown', 'mousedown'].forEach(eventType => {
+                    document.addEventListener(eventType, unlockAudio, { once: true });
+                });
+                
                 // ENHANCED: Check authentication first
                 await checkAuthenticationAndSession();
                 
-                // Initialize audio context for sounds
-                initializeAudio();
+                // Try to initialize audio early (will work on desktop, fail silently on mobile until interaction)
+                setTimeout(async () => {
+                    if (!isAudioInitialized) {
+                        try {
+                            await initializeAudio();
+                        } catch (error) {
+                            // Expected to fail on mobile until user interaction
+                            console.log('🔊 Audio initialization pending user interaction (normal for mobile)');
+                        }
+                    }
+                }, 1000);
                 
                 await loadCustomerSession();
                 await loadRestaurantData();
@@ -1776,7 +2060,9 @@
         function formatPrice(amount) {
             if (!amount && amount !== 0) return '$0.00';
             const currency = restaurantData?.currency || 'USD';
-            const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '$';
+            const symbol = currency === 'USD' ? '
+                         : currency === 'EUR' ? '€' : '
+                        ;
             return `${symbol}${Number(amount).toFixed(2)}`;
         }
 
@@ -1861,134 +2147,6 @@
             goToCustomerOrders();
         }
 
-        // Audio notification functions
-        function initializeAudio() {
-            try {
-                const initAudioContext = () => {
-                    if (!audioContext) {
-                        try {
-                            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                            
-                            if (audioContext.state === 'suspended') {
-                                audioContext.resume().then(() => {
-                                    console.log('🔊 Audio context resumed');
-                                }).catch(err => {
-                                    console.warn('⚠️ Audio context resume failed:', err);
-                                });
-                            }
-                        } catch (err) {
-                            console.warn('⚠️ Audio context creation failed:', err);
-                            audioContext = null;
-                        }
-                    }
-                };
-
-                ['click', 'touchstart', 'keydown', 'mousedown', 'touchend'].forEach(eventType => {
-                    document.addEventListener(eventType, function initAudio() {
-                        initAudioContext();
-                    });
-                });
-
-                initAudioContext();
-            } catch (error) {
-                console.warn('⚠️ Audio initialization failed:', error);
-            }
-        }
-
-        function playBeep(frequency = 800, duration = 300) {
-            if (audioContext && audioContext.state !== 'closed') {
-                try {
-                    const oscillator = audioContext.createOscillator();
-                    const gainNode = audioContext.createGain();
-
-                    oscillator.connect(gainNode);
-                    gainNode.connect(audioContext.destination);
-
-                    oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-                    oscillator.type = 'sine';
-
-                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
-
-                    oscillator.start(audioContext.currentTime);
-                    oscillator.stop(audioContext.currentTime + duration / 1000);
-                    
-                } catch (error) {
-                    console.warn('⚠️ Beep play error:', error);
-                }
-            }
-        }
-
-        function vibratePhone(pattern = [200, 100, 200]) {
-            if ('vibrate' in navigator) {
-                navigator.vibrate(pattern);
-            }
-        }
-
-        function playOrderReadyNotification() {
-            console.log('🔔 Playing order ready notification');
-            
-            // Show browser notification
-            if ('Notification' in window) {
-                if (Notification.permission === 'granted') {
-                    new Notification('🍽️ Order Ready!', {
-                        body: `Order #${orderData.orderNumber} is ready for pickup!`,
-                        tag: 'order-ready',
-                        requireInteraction: true
-                    });
-                } else if (Notification.permission !== 'denied') {
-                    Notification.requestPermission().then(function(permission) {
-                        if (permission === 'granted') {
-                            new Notification('🍽️ Order Ready!', {
-                                body: `Order #${orderData.orderNumber} is ready for pickup!`,
-                                tag: 'order-ready',
-                                requireInteraction: true
-                            });
-                        }
-                    });
-                }
-            }
-
-            // Play beep sounds
-            const beepPattern = [
-                { freq: 880, duration: 400 },
-                { freq: 660, duration: 400 },
-                { freq: 880, duration: 400 },
-            ];
-
-            let patternIndex = 0;
-            let totalBeeps = 0;
-            const maxCycles = 3;
-
-            const beepInterval = setInterval(() => {
-                const pattern = beepPattern[patternIndex];
-                playBeep(pattern.freq, pattern.duration);
-                
-                patternIndex = (patternIndex + 1) % beepPattern.length;
-                
-                if (patternIndex === 0) {
-                    totalBeeps++;
-                    if (totalBeeps >= maxCycles) {
-                        clearInterval(beepInterval);
-                    }
-                }
-            }, 600);
-
-            // Vibrate for mobile devices
-            let vibrationCount = 0;
-            const maxVibrations = 10;
-            
-            vibrationInterval = setInterval(() => {
-                vibratePhone([400, 200]);
-                vibrationCount++;
-                
-                if (vibrationCount >= maxVibrations) {
-                    clearInterval(vibrationInterval);
-                    vibrationInterval = null;
-                }
-            }, 600);
-        }
-
         // NEW: Session monitoring for enhanced security
         function monitorAuthenticationState() {
             firebase.auth().onAuthStateChanged(function(user) {
@@ -2043,6 +2201,17 @@
                 clearInterval(vibrationInterval);
             }
         });
+
+        // FOR TESTING: Add these test functions (remove in production)
+        window.testMobileAudio = async function() {
+            console.log('🧪 Testing mobile audio...');
+            await playOrderReadyNotification();
+        };
+
+        window.testMobileVibration = function() {
+            console.log('🧪 Testing mobile vibration...');
+            vibratePhone([200, 100, 200, 100, 400]);
+        };
     </script>
 </body>
 </html>
