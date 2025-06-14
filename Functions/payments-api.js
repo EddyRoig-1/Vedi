@@ -197,7 +197,7 @@ exports.createPaymentIntent = functions.https.onCall(async ({
 
     console.log('💳 Stripe fees for this restaurant:', {
       percentage: (stripePct * 100).toFixed(1) + '%',
-      flatFee: ' + stripeFlat.toFixed(2)
+      flatFee: '$' + stripeFlat.toFixed(2)
     });
 
     // STEP 6: GROSS-UP FORMULA - Calculate what customer needs to pay
@@ -318,7 +318,7 @@ exports.createPaymentIntent = functions.https.onCall(async ({
 });
 
 /**
- * Helper function to calculate protected pricing (can be called independently)
+ * FIXED: Helper function to calculate protected pricing with CORS support
  * Used for testing or price quotes without creating payment intent
  */
 exports.calculateProtectedPricing = functions.https.onCall(async ({ 
@@ -327,14 +327,16 @@ exports.calculateProtectedPricing = functions.https.onCall(async ({
 }, context) => {
   try {
     console.log('🧮 Calculating protected pricing quote...');
+    console.log('📊 Input:', { restaurantId, subtotalCents });
     
-    // Load fee configuration
+    // Load fee configuration from database
     const [feeConfigDoc] = await Promise.all([
       db.collection('feeConfigurations').doc(restaurantId).get()
     ]);
 
     let feeConfig;
     if (!feeConfigDoc.exists) {
+      console.log('⚠️ No restaurant-specific config, checking default...');
       const defaultFeeDoc = await db.collection('feeConfigurations').doc('default').get();
       feeConfig = defaultFeeDoc.exists ? defaultFeeDoc.data() : {
         feeType: 'hybrid',
@@ -346,7 +348,10 @@ exports.calculateProtectedPricing = functions.https.onCall(async ({
       };
     } else {
       feeConfig = feeConfigDoc.data();
+      console.log('✅ Using restaurant-specific fee configuration');
     }
+
+    console.log('⚙️ Fee config:', feeConfig);
 
     const subtotal = subtotalCents / 100;
     
@@ -378,6 +383,15 @@ exports.calculateProtectedPricing = functions.https.onCall(async ({
     const displayedServiceFee = customerTotal - subtotal - taxAmount;
     const serviceFeePercentage = (displayedServiceFee / subtotal) * 100;
 
+    console.log('✅ Calculation complete:', {
+      subtotal,
+      taxAmount,
+      displayedServiceFee,
+      customerTotal,
+      taxRate: taxRate * 100,
+      serviceFeePercentage
+    });
+
     return {
       quote: {
         subtotalCents: Math.round(subtotal * 100),
@@ -386,6 +400,9 @@ exports.calculateProtectedPricing = functions.https.onCall(async ({
         totalCents: Math.round(customerTotal * 100),
         serviceFeePercentage: serviceFeePercentage,
         taxRate: taxRate * 100,
+        desiredServiceFeeCents: Math.round(desiredServiceFee * 100),
+        stripeFeePercentage: stripePct * 100,
+        stripeFlatFee: (feeConfig.stripeFlatFee || 30),
         marginProtected: true
       }
     };
@@ -400,3 +417,4 @@ console.log('💳 Protected Margin Payment API loaded successfully');
 console.log('🛡️ Features: Margin protection, dynamic fees, secure gross-up calculation');
 console.log('📊 All calculations done securely in backend');
 console.log('🎯 Your service fee margin is always protected from Stripe fees');
+console.log('🔧 CORS enabled for web app access');
