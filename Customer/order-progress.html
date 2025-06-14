@@ -1060,27 +1060,26 @@
                 if ('Notification' in window && Notification.permission === 'granted') {
                     new Notification('🍽️ Order Ready!', {
                         body: `Order #${orderData.orderNumber} is ready for pickup!`,
-                        icon: '/favicon.ico', // Add your app icon path
+                        icon: '/favicon.ico',
                         tag: 'order-ready',
                         requireInteraction: true,
-                        silent: false // Let the notification make sound too
+                        silent: false
                     });
                 }
                 
                 // 4. Play audio sequence with multiple beeps optimized for mobile
                 const beepSequence = [
-                    { freq: 880, duration: 500 },  // High beep
-                    { freq: 660, duration: 500 },  // Lower beep  
-                    { freq: 880, duration: 700 },  // High beep (longer)
+                    { freq: 880, duration: 500 },
+                    { freq: 660, duration: 500 },
+                    { freq: 880, duration: 700 },
                 ];
                 
                 // Play 3 cycles of the beep sequence
                 for (let cycle = 0; cycle < 3; cycle++) {
                     for (const beepConfig of beepSequence) {
                         await playBeep(beepConfig.freq, beepConfig.duration, 0.8);
-                        await new Promise(resolve => setTimeout(resolve, 200)); // Pause between beeps
+                        await new Promise(resolve => setTimeout(resolve, 200));
                     }
-                    // Pause between cycles
                     if (cycle < 2) {
                         await new Promise(resolve => setTimeout(resolve, 1000));
                     }
@@ -1089,7 +1088,6 @@
                 // 5. Vibrate for mobile devices (extended pattern)
                 const vibrationPattern = [400, 200, 400, 200, 600, 300, 400];
                 
-                // Vibrate in intervals for better effect
                 let vibrationCount = 0;
                 const maxVibrations = 8;
                 
@@ -1101,7 +1099,7 @@
                         clearInterval(vibrationInterval);
                         vibrationInterval = null;
                     }
-                }, 1500); // Vibrate every 1.5 seconds
+                }, 1500);
                 
                 console.log('✅ Order ready notification sequence completed');
                 
@@ -1583,9 +1581,6 @@
             try {
                 console.log('🔥 Setting up direct Firestore listener');
                 
-                // CRITICAL FIX: Query must match the exact constraints in your security rules
-                // Your security rules expect specific query patterns for list operations
-                
                 // Try Method 1: Single document get by building document ID (if you have a predictable ID pattern)
                 if (orderData.id) {
                     console.log('📄 Using single document listener');
@@ -1635,9 +1630,6 @@
             try {
                 console.log('🔍 Setting up query-based listener');
                 
-                // CRITICAL: The query must exactly match what your security rules allow
-                // Based on your rules, these are the allowed query patterns:
-                
                 // Pattern 1: customerUID + orderNumber (most secure)
                 let query = firebase.firestore()
                     .collection('orders')
@@ -1664,13 +1656,11 @@
                         updateOrderProgress();
                     } else {
                         console.warn('⚠️ No matching order found in UID query');
-                        // Try phone-based query for phone auth users
                         setupPhoneBasedListener();
                     }
                 }, (error) => {
                     console.error('❌ UID query listener error:', error);
                     
-                    // Try phone-based query as fallback
                     if (currentUser.phoneNumber && error.code === 'permission-denied') {
                         console.log('🔄 Trying phone-based listener');
                         setupPhoneBasedListener();
@@ -1695,7 +1685,6 @@
             try {
                 console.log('📱 Setting up phone-based Firestore listener');
                 
-                // CRITICAL: Query must match security rules pattern for phone auth
                 let query = firebase.firestore()
                     .collection('orders')
                     .where('customerPhone', '==', currentUser.phoneNumber)
@@ -1788,13 +1777,11 @@
                 try {
                     console.log('🔄 Polling for order updates...');
                     
-                    // Use the same function that works for initial load
                     const updatedOrder = await getOrderByNumberFixed(orderData.orderNumber);
                     
                     if (updatedOrder && updatedOrder.status !== orderData.status) {
                         console.log('📈 Polling detected status change:', orderData.status, '→', updatedOrder.status);
                         
-                        // Verify order ownership
                         if (updatedOrder.customerUID && updatedOrder.customerUID !== currentUser.uid) {
                             console.error('🚫 Order ownership mismatch in polling');
                             showError('Order access has changed. Please refresh the page.');
@@ -1809,11 +1796,9 @@
                     }
                 } catch (error) {
                     console.error('❌ Polling error:', error);
-                    // Continue polling even on errors, but don't spam console
                 }
-            }, 5000); // Poll every 5 seconds
+            }, 5000);
             
-            // Store the interval so we can clear it later
             window.pollingInterval = pollInterval;
         }
 
@@ -1821,18 +1806,15 @@
         function handleStatusChange(previousStatus, newStatus) {
             console.log('🔄 Handling status change:', previousStatus, '→', newStatus);
             
-            // Play notification when order becomes ready
             if (newStatus === 'ready' && !hasPlayedReadyNotification) {
                 playOrderReadyNotification();
                 hasPlayedReadyNotification = true;
             }
             
-            // Handle completion
             if (newStatus === 'completed') {
                 handleOrderCompletion();
             }
             
-            // Handle cancellation
             if (newStatus === 'cancelled') {
                 handleOrderCancellation();
             }
@@ -1840,16 +1822,13 @@
 
         // Display order information
         function displayOrderInfo() {
-            // Hide loading
             document.getElementById('loadingMessage').style.display = 'none';
 
-            // Show order info
             document.getElementById('orderNumber').textContent = `Order #${orderData.orderNumber}`;
             document.getElementById('orderInfoCard').style.display = 'block';
             document.getElementById('orderTracker').style.display = 'block';
             document.getElementById('orderDetails').style.display = 'block';
 
-            // Populate order items
             const orderItemsList = document.getElementById('orderItemsList');
             if (orderData.items && orderData.items.length > 0) {
                 orderItemsList.innerHTML = orderData.items.map(item => `
@@ -1863,19 +1842,16 @@
                 `).join('');
             }
 
-            // Show special instructions if any
             if (orderData.specialInstructions) {
                 document.getElementById('specialInstructions').style.display = 'block';
                 document.getElementById('specialInstructionsText').textContent = orderData.specialInstructions;
             }
 
-            // Show order summary with proper formatting
             document.getElementById('orderSubtotal').textContent = formatPrice(orderData.subtotal || orderData.total);
             document.getElementById('orderTax').textContent = formatPrice(orderData.tax || 0);
             document.getElementById('orderServiceFee').textContent = formatPrice(orderData.serviceFee || 0);
             document.getElementById('orderTotal').textContent = formatPrice(orderData.total);
 
-            // Update progress
             updateOrderProgress();
         }
 
@@ -1886,23 +1862,19 @@
             const steps = ['pending', 'preparing', 'ready', 'completed'];
             let currentStepIndex = steps.indexOf(orderData.status);
 
-            // Handle cancelled status (show as failed at pending step)
             if (orderData.status === 'cancelled') {
-                currentStepIndex = 0; // Stay at pending step but mark as failed
+                currentStepIndex = 0;
                 
-                // Update progress line to show red
                 const progressFill = document.getElementById('progressLineFill');
                 progressFill.style.background = 'linear-gradient(90deg, #e53e3e, #c53030)';
-                progressFill.style.width = '25%'; // Small amount to show cancellation
+                progressFill.style.width = '25%';
                 
-                // Update step circles for cancellation
                 steps.forEach((step, index) => {
                     const stepElement = document.getElementById(`step-${step}`);
                     if (stepElement) {
                         stepElement.classList.remove('active', 'completed');
                         
                         if (index === 0) {
-                            // Mark pending step as cancelled
                             stepElement.style.background = 'linear-gradient(135deg, #e53e3e, #c53030)';
                             stepElement.style.color = 'white';
                             stepElement.innerHTML = '<div class="step-icon">❌</div>';
@@ -1910,27 +1882,22 @@
                     }
                 });
                 
-                // Update status text and description
                 updateStatusText();
                 return;
             }
 
-            // Normal flow for non-cancelled orders
-            // Update progress line
             const progressFill = document.getElementById('progressLineFill');
             const progressPercentage = (currentStepIndex / (steps.length - 1)) * 100;
             progressFill.style.width = `${progressPercentage}%`;
-            progressFill.style.background = 'linear-gradient(90deg, #667eea, #764ba2)'; // Reset to normal color
+            progressFill.style.background = 'linear-gradient(90deg, #667eea, #764ba2)';
 
-            // Update step circles
             steps.forEach((step, index) => {
                 const stepElement = document.getElementById(`step-${step}`);
                 if (stepElement) {
                     stepElement.classList.remove('active', 'completed');
-                    stepElement.style.background = ''; // Reset custom styles
+                    stepElement.style.background = '';
                     stepElement.style.color = '';
                     
-                    // Reset icon
                     const icons = ['📝', '👨‍🍳', '🔔', '✅'];
                     stepElement.innerHTML = `<div class="step-icon">${icons[index]}</div>`;
                     
@@ -1942,7 +1909,6 @@
                 }
             });
 
-            // Update status text and description
             updateStatusText();
         }
 
@@ -1982,7 +1948,6 @@
                     estimatedTime.style.color = '#e53e3e';
                     progressDescription.textContent = 'We\'re sorry, but your order has been cancelled. You will not be charged.';
                     orderNumber.style.background = 'linear-gradient(135deg, #e53e3e, #c53030)';
-                    // Show cancellation message
                     showCancellationMessage();
                     break;
                 default:
@@ -1996,19 +1961,15 @@
         function handleOrderCompletion() {
             console.log('🎉 Order completed!');
             
-            // Show completion message
             const completionMessage = document.getElementById('completionMessage');
             completionMessage.classList.add('show');
             
-            // Show the "Create New Order" button
             const newOrderBtn = document.getElementById('newOrderBtn');
             newOrderBtn.classList.add('show');
             
-            // Add class to progress content to increase bottom padding
             const progressContent = document.getElementById('progressContent');
             progressContent.classList.add('both-buttons-visible');
             
-            // Stop real-time tracking when completed
             stopOrderTracking();
         }
 
@@ -2016,18 +1977,14 @@
         function handleOrderCancellation() {
             console.log('❌ Order cancelled!');
             
-            // Show cancellation message
             showCancellationMessage();
             
-            // Show the "Create New Order" button
             const newOrderBtn = document.getElementById('newOrderBtn');
             newOrderBtn.classList.add('show');
             
-            // Add class to progress content to increase bottom padding
             const progressContent = document.getElementById('progressContent');
             progressContent.classList.add('both-buttons-visible');
             
-            // Stop real-time tracking when cancelled
             stopOrderTracking();
         }
 
@@ -2039,13 +1996,13 @@
             }
         }
 
-        // Stop order tracking (shared function)
+        // Stop order tracking
         function stopOrderTracking() {
             if (orderUpdateListener) {
                 if (typeof orderUpdateListener === 'function') {
-                    orderUpdateListener(); // VediAPI unsubscribe
+                    orderUpdateListener();
                 } else if (orderUpdateListener.unsubscribe) {
-                    orderUpdateListener.unsubscribe(); // Firestore unsubscribe
+                    orderUpdateListener.unsubscribe();
                 }
                 orderUpdateListener = null;
             }
@@ -2060,21 +2017,17 @@
         function formatPrice(amount) {
             if (!amount && amount !== 0) return '$0.00';
             const currency = restaurantData?.currency || 'USD';
-            const symbol = currency === 'USD' ? '
-                         : currency === 'EUR' ? '€' : '
-                        ;
+            const symbol = currency === 'USD' ? ' : currency === 'EUR' ? '€' : ';
             return `${symbol}${Number(amount).toFixed(2)}`;
         }
 
-        // ENHANCED: Better error display with helpful buttons
+        // Error display
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
             const loadingDiv = document.getElementById('loadingMessage');
             
-            // Hide loading
             loadingDiv.style.display = 'none';
             
-            // Show error with more detailed message and helpful buttons
             errorDiv.innerHTML = `
                 <h3>⚠️ Unable to load order</h3>
                 <p>${message}</p>
@@ -2087,7 +2040,6 @@
             `;
             errorDiv.style.display = 'block';
             
-            // Hide other content
             document.getElementById('orderInfoCard').style.display = 'none';
             document.getElementById('orderTracker').style.display = 'none';
             document.getElementById('orderDetails').style.display = 'none';
@@ -2132,32 +2084,27 @@
             window.location.href = `customer-orders.html?${params.toString()}`;
         }
 
-        // ENHANCED: Smart back navigation
         function goBackToPrevious() {
             console.log('🔙 Going back to previous page...');
             
-            // Check if we came from customer orders page
             const referrer = document.referrer;
             if (referrer && referrer.includes('customer-orders.html')) {
                 window.history.back();
                 return;
             }
             
-            // Otherwise go to customer orders (most logical)
             goToCustomerOrders();
         }
 
-        // NEW: Session monitoring for enhanced security
+        // Session monitoring
         function monitorAuthenticationState() {
             firebase.auth().onAuthStateChanged(function(user) {
                 if (!user && currentUser) {
-                    // User was signed out unexpectedly
                     console.warn('⚠️ User signed out unexpectedly');
                     showSessionWarning();
                     currentUser = null;
                     updateAuthenticationIndicator();
                 } else if (user && !currentUser) {
-                    // User signed in during session
                     console.log('✅ User signed in during session');
                     currentUser = user;
                     updateAuthenticationIndicator();
@@ -2166,7 +2113,6 @@
             });
         }
 
-        // NEW: Hide session warning
         function hideSessionWarning() {
             const warning = document.getElementById('sessionWarning');
             if (warning) {
@@ -2185,9 +2131,9 @@
             
             if (orderUpdateListener) {
                 if (typeof orderUpdateListener === 'function') {
-                    orderUpdateListener(); // VediAPI unsubscribe
+                    orderUpdateListener();
                 } else if (orderUpdateListener.unsubscribe) {
-                    orderUpdateListener.unsubscribe(); // Firestore unsubscribe
+                    orderUpdateListener.unsubscribe();
                 }
                 orderUpdateListener = null;
             }
