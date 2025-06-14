@@ -88,8 +88,9 @@ exports.createAccountLink = functions.https.onCall(async ({ restaurantId }, cont
 });
 
 /**
- * Creates a payment intent with proper fee calculation and gross-up
- * UPDATED: Uses only database-stored fee configurations (no more stripe-fees.json)
+ * Creates a payment intent with PROTECTED MARGIN CALCULATION
+ * Input: subtotalCents (from checkout)
+ * Output: Protected total that ensures your margin is preserved
  */
 exports.createPaymentIntent = functions.https.onCall(async ({ 
   restaurantId, 
@@ -99,8 +100,13 @@ exports.createPaymentIntent = functions.https.onCall(async ({
   chargeCurrency 
 }, context) => {
   try {
-    console.log('🔄 Processing payment intent for restaurant:', restaurantId);
-    console.log('💰 Subtotal:', subtotalCents, 'cents');
+    console.log('🚀 Processing protected payment calculation...');
+    console.log('📊 Input data:', {
+      restaurantId,
+      subtotalCents,
+      currency,
+      cardBrand
+    });
 
     // Load restaurant and fee configuration data in parallel
     const [restaurantDoc, feeConfigDoc] = await Promise.all([
@@ -145,115 +151,252 @@ exports.createPaymentIntent = functions.https.onCall(async ({
       throw new functions.https.HttpsError('failed-precondition', 'Restaurant not connected to Stripe');
     }
 
-    // Get Stripe fee configuration from database (not JSON file)
-    const stripePct = feeConfig.stripeFeePercentage || 2.9; // Default 2.9%
-    const stripeFlatCents = feeConfig.stripeFlatFee || 30; // Default 30 cents
-
-    console.log('💳 Using Stripe fees from database:', {
-      percentage: stripePct + '%',
-      flatFee: stripeFlatCents + '¢'
-    });
-
-    // FIXED: Calculate desired net revenue (service fee) with proper percentage handling
-    let serviceFeeAmount = 0;
-    
-    if (feeConfig.feeType === 'fixed') {
-      serviceFeeAmount = (feeConfig.serviceFeeFixed || 0) * 100; // Convert to cents
-    } else if (feeConfig.feeType === 'percentage') {
-      serviceFeeAmount = subtotalCents * ((feeConfig.serviceFeePercentage || 0) / 100);
-    } else if (feeConfig.feeType === 'hybrid') {
-      serviceFeeAmount = (feeConfig.serviceFeeFixed || 0) * 100 + 
-                        subtotalCents * ((feeConfig.serviceFeePercentage || 0) / 100);
-    }
-
-    const desiredNetCents = Math.round(serviceFeeAmount);
-
-    console.log('🧮 Service fee calculation:', {
+    console.log('⚙️ Fee configuration loaded:', {
       feeType: feeConfig.feeType,
       serviceFeeFixed: feeConfig.serviceFeeFixed,
       serviceFeePercentage: feeConfig.serviceFeePercentage,
-      calculatedServiceFeeCents: desiredNetCents
+      taxRate: feeConfig.taxRate,
+      stripeFeePercentage: feeConfig.stripeFeePercentage,
+      stripeFlatFee: feeConfig.stripeFlatFee
     });
 
-    // Gross-up calculation to account for Stripe fees
-    // Formula: (desired_net + stripe_flat) / (1 - stripe_percentage/100)
-    const appFee = Math.round((desiredNetCents + stripeFlatCents) / (1 - stripePct / 100));
+    // STEP 1: Calculate subtotal in dollars
+    const subtotal = subtotalCents / 100;
+    console.log('💰 Subtotal:', subtotal);
 
-    // Calculate tax (also fix percentage handling here)
-    const taxRate = feeConfig.taxRate || 8.5; // Default 8.5%
-    const taxCents = Math.round(subtotalCents * (taxRate / 100));
-
-    // Calculate total payment amount
-    const totalCents = subtotalCents + taxCents + appFee;
-
-    // Calculate what actually goes to Stripe vs what you keep
-    const actualStripeFee = Math.round(appFee * (stripePct / 100) + stripeFlatCents);
-    const actualNetRevenue = appFee - actualStripeFee;
-
-    console.log('📊 Final fee breakdown:', {
-      subtotalCents,
-      desiredNetCents,
-      appFee,
-      actualStripeFee,
-      actualNetRevenue,
-      taxCents,
-      totalCents,
-      stripeFeeConfig: {
-        percentage: stripePct,
-        flatCents: stripeFlatCents
-      }
-    });
-
-    // Validation check
-    if (totalCents <= 0) {
-      throw new functions.https.HttpsError('invalid-argument', 'Invalid payment amount calculated');
+    // STEP 2: Calculate desired service fee (what you want to keep)
+    let desiredServiceFee = 0;
+    if (feeConfig.feeType === 'fixed') {
+      desiredServiceFee = feeConfig.serviceFeeFixed || 0;
+    } else if (feeConfig.feeType === 'percentage') {
+      const percentage = (feeConfig.serviceFeePercentage || 0) / 100;
+      desiredServiceFee = subtotal * percentage;
+    } else if (feeConfig.feeType === 'hybrid') {
+      const percentage = (feeConfig.serviceFeePercentage || 0) / 100;
+      desiredServiceFee = (feeConfig.serviceFeeFixed || 0) + (subtotal * percentage);
     }
 
-    // Create Stripe payment intent
+    console.log('🎯 Desired service fee (what you want to keep):', desiredServiceFee);
+
+    // STEP 3: Calculate tax
+    const taxRate = (feeConfig.taxRate || 8.5) / 100;
+    const taxAmount = subtotal * taxRate;
+    console.log('🏛️ Tax calculation:', {
+      rate: (taxRate * 100).toFixed(1) + '%',
+      amount: taxAmount
+    });
+
+    // STEP 4: Calculate base amount you want to keep after payment
+    const baseAmount = subtotal + taxAmount + desiredServiceFee;
+    console.log('📦 Base amount to protect:', baseAmount);
+
+    // STEP 5: Get Stripe fees for this restaurant from database
+    const stripePct = (feeConfig.stripeFeePercentage || 2.9) / 100; // Convert to decimal
+    const stripeFlatCents = feeConfig.stripeFlatFee || 30; // In cents
+    const stripeFlat = stripeFlatCents / 100; // Convert to dollars
+
+    console.log('💳 Stripe fees for this restaurant:', {
+      percentage: (stripePct * 100).toFixed(1) + '%',
+      flatFee: ' + stripeFlat.toFixed(2)
+    });
+
+    // STEP 6: GROSS-UP FORMULA - Calculate what customer needs to pay
+    // Formula: (baseAmount + stripeFlat) / (1 - stripePct)
+    const customerTotal = (baseAmount + stripeFlat) / (1 - stripePct);
+
+    console.log('🧮 Gross-up calculation:');
+    console.log('   Formula: (' + baseAmount + ' + ' + stripeFlat + ') / (1 - ' + stripePct + ')');
+    console.log('   Customer pays:', customerTotal);
+
+    // STEP 7: Verify the math works
+    const actualStripeTotal = (customerTotal * stripePct) + stripeFlat;
+    const actualNetReceived = customerTotal - actualStripeTotal;
+    
+    console.log('🔍 Verification:');
+    console.log('   Customer pays:', customerTotal);
+    console.log('   Stripe takes:', actualStripeTotal);
+    console.log('   You receive:', actualNetReceived);
+    console.log('   Target was:', baseAmount);
+    console.log('   Difference:', Math.abs(actualNetReceived - baseAmount));
+
+    // STEP 8: Calculate what shows as "Service Fee" to customer
+    const displayedServiceFee = customerTotal - subtotal - taxAmount;
+    
+    // STEP 9: Calculate dynamic service fee percentage for display
+    const serviceFeePercentage = (displayedServiceFee / subtotal) * 100;
+
+    console.log('📊 Customer-facing breakdown:');
+    console.log('   Subtotal:', subtotal);
+    console.log('   Tax:', taxAmount);
+    console.log('   Displayed Service Fee:', displayedServiceFee);
+    console.log('   Service Fee %:', serviceFeePercentage.toFixed(1) + '%');
+    console.log('   Total:', customerTotal);
+
+    // STEP 10: Convert to cents for Stripe
+    const totalCents = Math.round(customerTotal * 100);
+    const subtotalCentsCalc = Math.round(subtotal * 100);
+    const taxCents = Math.round(taxAmount * 100);
+    const serviceFeCents = Math.round(displayedServiceFee * 100);
+    const desiredServiceFeeCents = Math.round(desiredServiceFee * 100);
+
+    // STEP 11: Calculate application fee (what goes to your platform)
+    // This should be the displayed service fee since that includes the gross-up
+    const applicationFeeCents = serviceFeCents;
+
+    console.log('💰 Final amounts in cents:');
+    console.log('   Total charge:', totalCents);
+    console.log('   Application fee:', applicationFeeCents);
+    console.log('   To restaurant:', totalCents - applicationFeeCents);
+
+    // Validation check
+    if (totalCents <= 0 || applicationFeeCents < 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid payment amounts calculated');
+    }
+
+    // STEP 12: Create Stripe payment intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: totalCents,
       currency: currency.toLowerCase(),
-      application_fee_amount: appFee,
+      application_fee_amount: applicationFeeCents,
       transfer_data: {
         destination: stripeAccountId
       },
       metadata: {
         restaurantId,
-        subtotal: subtotalCents.toString(),
-        serviceFee: desiredNetCents.toString(),
-        tax: taxCents.toString()
+        subtotal: subtotalCentsCalc.toString(),
+        tax: taxCents.toString(),
+        serviceFee: serviceFeCents.toString(),
+        desiredServiceFee: desiredServiceFeeCents.toString(),
+        marginProtected: 'true'
       }
     });
 
     console.log('✅ Payment intent created successfully:', paymentIntent.id);
+    console.log('🛡️ Margin protection applied - you will receive exactly:', desiredServiceFee);
 
-    // Return client secret and detailed breakdown for UI display
+    // STEP 13: Return client secret and detailed breakdown
     return {
       clientSecret: paymentIntent.client_secret,
       breakdown: {
-        subtotalCents,
-        taxCents,
-        serviceFee: appFee, // This is the total app fee (what customer pays)
-        originalServiceFee: desiredNetCents, // This is what you actually want to keep
-        stripeFee: actualStripeFee, // This is what goes to Stripe
-        netRevenue: actualNetRevenue, // This is what you actually keep after Stripe fees
-        stripePct,
-        stripeFlatCents,
-        totalCents,
-        feeBreakdown: {
-          type: feeConfig.feeType,
-          fixed: feeConfig.serviceFeeFixed,
-          percentage: feeConfig.serviceFeePercentage,
-          taxRate: taxRate
+        // Customer-facing amounts
+        subtotalCents: subtotalCentsCalc,
+        taxCents: taxCents,
+        serviceFeCents: serviceFeCents, // What customer pays as "service fee"
+        totalCents: totalCents,
+        
+        // Behind-the-scenes amounts
+        desiredServiceFeeCents: desiredServiceFeeCents, // What you actually wanted
+        actualServiceFeeCents: serviceFeCents, // What customer pays (includes gross-up)
+        marginProtectionApplied: serviceFeCents - desiredServiceFeeCents, // Gross-up amount
+        
+        // Display information
+        serviceFeePercentage: serviceFeePercentage,
+        taxRate: taxRate * 100,
+        
+        // Configuration used
+        feeType: feeConfig.feeType,
+        stripeFeePercentage: stripePct * 100,
+        stripeFlatFee: stripeFlatCents,
+        
+        // Verification data
+        verification: {
+          customerPays: totalCents,
+          stripeTakes: Math.round(actualStripeTotal * 100),
+          youReceive: Math.round(actualNetReceived * 100),
+          targetWas: Math.round(baseAmount * 100)
         }
       }
     };
 
   } catch (error) {
-    console.error('❌ Error creating payment intent:', error);
+    console.error('❌ Error creating protected payment intent:', error);
     if (error instanceof functions.https.HttpsError) {
       throw error;
     }
     throw new functions.https.HttpsError('internal', 'Failed to create payment intent: ' + error.message);
   }
 });
+
+/**
+ * Helper function to calculate protected pricing (can be called independently)
+ * Used for testing or price quotes without creating payment intent
+ */
+exports.calculateProtectedPricing = functions.https.onCall(async ({ 
+  restaurantId, 
+  subtotalCents 
+}, context) => {
+  try {
+    console.log('🧮 Calculating protected pricing quote...');
+    
+    // Load fee configuration
+    const [feeConfigDoc] = await Promise.all([
+      db.collection('feeConfigurations').doc(restaurantId).get()
+    ]);
+
+    let feeConfig;
+    if (!feeConfigDoc.exists) {
+      const defaultFeeDoc = await db.collection('feeConfigurations').doc('default').get();
+      feeConfig = defaultFeeDoc.exists ? defaultFeeDoc.data() : {
+        feeType: 'hybrid',
+        serviceFeeFixed: 0.50,
+        serviceFeePercentage: 3,
+        taxRate: 8.5,
+        stripeFeePercentage: 2.9,
+        stripeFlatFee: 30
+      };
+    } else {
+      feeConfig = feeConfigDoc.data();
+    }
+
+    const subtotal = subtotalCents / 100;
+    
+    // Calculate desired service fee
+    let desiredServiceFee = 0;
+    if (feeConfig.feeType === 'fixed') {
+      desiredServiceFee = feeConfig.serviceFeeFixed || 0;
+    } else if (feeConfig.feeType === 'percentage') {
+      const percentage = (feeConfig.serviceFeePercentage || 0) / 100;
+      desiredServiceFee = subtotal * percentage;
+    } else if (feeConfig.feeType === 'hybrid') {
+      const percentage = (feeConfig.serviceFeePercentage || 0) / 100;
+      desiredServiceFee = (feeConfig.serviceFeeFixed || 0) + (subtotal * percentage);
+    }
+
+    // Calculate tax
+    const taxRate = (feeConfig.taxRate || 8.5) / 100;
+    const taxAmount = subtotal * taxRate;
+
+    // Calculate base amount
+    const baseAmount = subtotal + taxAmount + desiredServiceFee;
+
+    // Get Stripe fees
+    const stripePct = (feeConfig.stripeFeePercentage || 2.9) / 100;
+    const stripeFlat = (feeConfig.stripeFlatFee || 30) / 100;
+
+    // Gross-up calculation
+    const customerTotal = (baseAmount + stripeFlat) / (1 - stripePct);
+    const displayedServiceFee = customerTotal - subtotal - taxAmount;
+    const serviceFeePercentage = (displayedServiceFee / subtotal) * 100;
+
+    return {
+      quote: {
+        subtotalCents: Math.round(subtotal * 100),
+        taxCents: Math.round(taxAmount * 100),
+        serviceFeCents: Math.round(displayedServiceFee * 100),
+        totalCents: Math.round(customerTotal * 100),
+        serviceFeePercentage: serviceFeePercentage,
+        taxRate: taxRate * 100,
+        marginProtected: true
+      }
+    };
+
+  } catch (error) {
+    console.error('❌ Error calculating protected pricing quote:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to calculate pricing quote: ' + error.message);
+  }
+});
+
+console.log('💳 Protected Margin Payment API loaded successfully');
+console.log('🛡️ Features: Margin protection, dynamic fees, secure gross-up calculation');
+console.log('📊 All calculations done securely in backend');
+console.log('🎯 Your service fee margin is always protected from Stripe fees');
