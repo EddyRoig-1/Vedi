@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment - Secure Checkout</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    
+    <!-- Stripe Scripts -->
+    <script src="https://js.stripe.com/v3/"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Loading States */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            max-width: 320px;
+            width: 90%;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #2d3748;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .loading-subtext {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        /* Header Styles */
+        .payment-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.3rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-2px);
+        }
+
+        .header-info {
+            flex: 1;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .security-badge {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Content Styles */
+        .payment-content {
+            padding: 24px 20px;
+            padding-bottom: 120px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Order Summary */
+        .order-summary {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            margin-bottom: 32px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            font-size: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+
+        .summary-row.total {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            margin: 16px -24px -24px -24px;
+            padding: 20px 24px;
+            border-radius: 0 0 20px 20px;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        /* Payment Form */
+        .payment-form {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .stripe-elements {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 16px;
+            transition: border-color 0.3s ease;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+        }
+
+        .stripe-elements:focus-within {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        #card-element {
+            width: 100%;
+        }
+
+        .card-errors {
+            color: #e53e3e;
+            font-size: 0.9rem;
+            margin-top: 8px;
+            min-height: 20px;
+        }
+
+        .card-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: #e6fffa;
+            border: 1px solid #38b2ac;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: #2c7a7b;
+        }
+
+        .card-brand.hidden {
+            display: none;
+        }
+
+        /* Security Notice */
+        .security-notice {
+            background: linear-gradient(135deg, #e6fffa, #b2f5ea);
+            border: 1px solid #38b2ac;
+            color: #2c7a7b;
+            padding: 16px 20px;
+            border-radius: 16px;
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .security-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        /* Pay Button */
+        .pay-section {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 380px;
+            z-index: 1000;
+        }
+
+        .pay-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            border: none;
+            padding: 20px 24px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 20px 50px rgba(72, 187, 120, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .pay-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 25px 60px rgba(72, 187, 120, 0.5);
+        }
+
+        .pay-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            background: #a0aec0;
+        }
+
+        .button-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Error States */
+        .error-message {
+            background: linear-gradient(135deg, #fed7d7, #feb2b2);
+            color: #c53030;
+            padding: 20px;
+            border-radius: 16px;
+            margin: 16px;
+            border: 1px solid #fc8181;
+            text-align: center;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.3s ease;
+            transform: translateX(100%);
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        /* Fee Breakdown Update */
+        .fee-update {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .fee-update.show {
+            display: block;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .payment-header {
+                padding: 20px 16px;
+            }
+
+            .payment-content {
+                padding: 20px 16px;
+                padding-bottom: 120px;
+            }
+
+            .page-title {
+                font-size: 1.5rem;
+            }
+
+            .pay-section {
+                width: calc(100% - 20px);
+                bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Initializing secure payment...</div>
+            <div class="loading-subtext">Setting up encryption</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="payment-header">
+            <div class="header-content">
+                <button class="back-btn" onclick="goBackToCheckout()">←</button>
+                <div class="header-info">
+                    <h1 class="page-title">Secure Payment</h1>
+                    <div class="security-badge">
+                        <span>🔒</span>
+                        <span>256-bit SSL Encrypted</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="payment-content" id="paymentContent" style="display: none;">
+            <!-- Order Summary -->
+            <div class="section">
+                <h2 class="section-title">📊 Order Summary</h2>
+                <div class="order-summary" id="orderSummary">
+                    <div class="summary-row">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">$0.00</span>
+                    </div>
+                    <div class="summary-row" id="taxRow">
+                        <span id="taxLabel">Tax:</span>
+                        <span id="tax">$0.00</span>
+                    </div>
+                    <div class="summary-row" id="serviceFeeRow">
+                        <span id="serviceFeeLabel">Service Fee:</span>
+                        <span id="serviceFee">$0.00</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total:</span>
+                        <span id="total">$0.00</span>
+                    </div>
+                </div>
+                
+                <div class="fee-update" id="feeUpdate">
+                    💳 Fees may update based on your card type for optimal processing.
+                </div>
+            </div>
+
+            <!-- Security Notice -->
+            <div class="security-notice">
+                <span class="security-icon">🛡️</span>
+                <span>Your payment information is encrypted and secure. We never store your card details.</span>
+            </div>
+
+            <!-- Payment Form -->
+            <div class="section">
+                <h2 class="section-title">💳 Payment Information</h2>
+                <div class="payment-form">
+                    <div class="form-group">
+                        <label class="form-label" for="card-element">Card Information</label>
+                        <div class="stripe-elements">
+                            <div id="card-element">
+                                <!-- Stripe Elements will create form elements here -->
+                            </div>
+                        </div>
+                        <div id="card-errors" class="card-errors" role="alert"></div>
+                        <div id="card-brand" class="card-brand hidden">
+                            <span>💳</span>
+                            <span id="brand-text">Card detected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div class="error-message" id="errorMessage" style="display: none;">
+            <h3>⚠️ Unable to load payment</h3>
+            <p>Please check your connection and try again.</p>
+            <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                Try Again
+            </button>
+        </div>
+
+        <!-- Pay Button -->
+        <div class="pay-section" id="paySection" style="display: none;">
+            <button class="pay-btn" id="payBtn" disabled>
+                <span id="payBtnText">Complete Payment</span>
+                <div class="button-spinner" id="payBtnSpinner" style="display: none;"></div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Global variables
+        let stripe = null;
+        let elements = null;
+        let cardElement = null;
+        let cardBrand = null;
+        let orderParams = {};
+        let currentRestaurant = null;
+        let orderBreakdown = null;
+
+        // Parse URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const restaurantId = params.get('restaurantId') || '';
+        const table = params.get('table') || '';
+        const location = params.get('location') || '';
+        const name = params.get('name') || '';
+        const phone = params.get('phone') || '';
+        const currency = params.get('currency') || 'USD';
+        const subtotalCents = Number(params.get('subtotalCents')) || 0;
+        const subtotal = subtotalCents / 100;
+
+        // Store in global object
+        orderParams = {
+            restaurantId,
+            table,
+            location,
+            name,
+            phone,
+            currency,
+            subtotalCents,
+            subtotal
+        };
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Payment page initializing...');
+            console.log('📋 Order parameters:', orderParams);
+            
+            try {
+                await initializePaymentPage();
+            } catch (error) {
+                console.error('Error initializing payment page:', error);
+                showErrorMessage('Failed to load payment page: ' + error.message);
+                hideLoading();
+            }
+        });
+
+        // Main initialization function
+        async function initializePaymentPage() {
+            showLoading();
+            
+            try {
+                // Validate required parameters
+                if (!restaurantId || !subtotalCents || !currency) {
+                    throw new Error('Missing required order information. Please return to checkout.');
+                }
+
+                console.log('🔍 Validating parameters:', {
+                    restaurantId,
+                    subtotalCents,
+                    currency,
+                    table,
+                    name
+                });
+
+                // Load restaurant data for fee calculation
+                await loadRestaurantData();
+                
+                // Initialize Stripe
+                await initializeStripe();
+                
+                // Calculate and display initial fees
+                await calculateAndDisplayFees();
+                
+                // Show content
+                document.getElementById('paymentContent').style.display = 'block';
+                document.getElementById('paySection').style.display = 'block';
+                
+                hideLoading();
+                
+                console.log('✅ Payment page loaded successfully');
+                
+            } catch (error) {
+                console.error('Payment page initialization error:', error);
+                showErrorMessage(error.message);
+                hideLoading();
+            }
+        }
+
+        // Load restaurant data
+        async function loadRestaurantData() {
+            try {
+                currentRestaurant = await VediAPI.getRestaurant(restaurantId);
+                console.log('🏪 Loaded restaurant for payment:', currentRestaurant.name);
+            } catch (error) {
+                console.error('Error loading restaurant data:', error);
+                throw new Error('Unable to load restaurant information');
+            }
+        }
+
+        // Initialize Stripe
+        async function initializeStripe() {
+            try {
+                // TODO: Replace with your actual publishable key
+                stripe = Stripe('pk_test_YOUR_PUBLISHABLE_KEY_HERE');
+                elements = stripe.elements();
+                
+                // Create card element
+                cardElement = elements.create('card', {
+                    style: {
+                        base: {
+                            fontSize: '16px',
+                            color: '#2d3748',
+                            fontFamily: 'Inter, system-ui, sans-serif',
+                            '::placeholder': {
+                                color: '#a0aec0',
+                            },
+                        },
+                        invalid: {
+                            color: '#e53e3e',
+                            iconColor: '#e53e3e'
+                        }
+                    }
+                });
+                
+                // Mount card element
+                cardElement.mount('#card-element');
+                
+                // Handle real-time validation errors from the card element
+                cardElement.on('change', handleCardChange);
+                
+                console.log('✅ Stripe initialized successfully');
+                
+            } catch (error) {
+                console.error('Error initializing Stripe:', error);
+                throw new Error('Unable to initialize secure payment system');
+            }
+        }
+
+        // Handle card input changes
+        async function handleCardChange(event) {
+            const cardErrors = document.getElementById('card-errors');
+            const cardBrandDiv = document.getElementById('card-brand');
+            const brandText = document.getElementById('brand-text');
+            const payBtn = document.getElementById('payBtn');
+            
+            if (event.error) {
+                cardErrors.textContent = event.error.message;
+                payBtn.disabled = true;
+            } else {
+                cardErrors.textContent = '';
+                payBtn.disabled = false;
+            }
+            
+            // Detect card brand and potentially recalculate fees
+            if (event.complete && event.brand) {
+                cardBrand = event.brand;
+                
+                // Show card brand
+                cardBrandDiv.classList.remove('hidden');
+                brandText.textContent = `${getCardBrandName(event.brand)} detected`;
+                
+                console.log('💳 Card brand detected:', event.brand);
+                
+                // Recalculate fees for this card brand
+                await recalculateFeesForCard(event.brand);
+                
+            } else {
+                cardBrandDiv.classList.add('hidden');
+                cardBrand = null;
+            }
+        }
+
+        // Get friendly card brand name
+        function getCardBrandName(brand) {
+            const brandNames = {
+                'visa': 'Visa',
+                'mastercard': 'Mastercard',
+                'amex': 'American Express',
+                'discover': 'Discover',
+                'diners': 'Diners Club',
+                'jcb': 'JCB',
+                'unionpay': 'UnionPay',
+                'unknown': 'Card'
+            };
+            return brandNames[brand] || 'Card';
+        }
+
+        // Recalculate fees when card brand changes
+        async function recalculateFeesForCard(brand) {
+            try {
+                console.log('🔄 Recalculating fees for card brand:', brand);
+                
+                // Call VediAPI or fee calculation service
+                const feeConfig = await VediAPI.getFeeConfig(restaurantId);
+                
+                // Recalculate with card-specific rates
+                const updatedBreakdown = calculateFeesWithCardBrand(subtotal, feeConfig, brand);
+                
+                // Update display if fees changed
+                if (updatedBreakdown.total !== orderBreakdown?.total) {
+                    orderBreakdown = updatedBreakdown;
+                    updateFeeDisplay();
+                    
+                    // Show fee update notice
+                    const feeUpdate = document.getElementById('feeUpdate');
+                    feeUpdate.classList.add('show');
+                    setTimeout(() => feeUpdate.classList.remove('show'), 5000);
+                }
+                
+            } catch (error) {
+                console.warn('⚠️ Could not recalculate fees for card brand:', error);
+                // Continue with existing fees
+            }
+        }
+
+        // Calculate fees with card brand consideration
+        function calculateFeesWithCardBrand(subtotal, feeConfig, brand) {
+            // This is a simplified version - you would implement actual
+            // card-specific fee calculation based on your business logic
+            const baseBreakdown = calculateBasicFees(subtotal, feeConfig);
+            
+            // Adjust for card brand if needed
+            let cardAdjustment = 0;
+            if (brand === 'amex') {
+                cardAdjustment = subtotal * 0.005; // 0.5% additional for Amex
+            }
+            
+            return {
+                ...baseBreakdown,
+                cardFee: cardAdjustment,
+                total: baseBreakdown.total + cardAdjustment
+            };
+        }
+
+        // Calculate and display initial fees
+        async function calculateAndDisplayFees() {
+            try {
+                // Get fee configuration for restaurant
+                const feeConfig = await VediAPI.getFeeConfig(restaurantId);
+                
+                // Calculate breakdown
+                orderBreakdown = calculateBasicFees(subtotal, feeConfig);
+                
+                console.log('💰 Calculated order breakdown:', orderBreakdown);
+                
+                // Update display
+                updateFeeDisplay();
+                
+            } catch (error) {
+                console.error('❌ Error calculating fees:', error);
+                
+                // Use fallback calculation
+                orderBreakdown = {
+                    subtotal: subtotal,
+                    taxAmount: subtotal * 0.085, // 8.5% default tax
+                    serviceFee: 2.00, // $2 default service fee
+                    total: subtotal + (subtotal * 0.085) + 2.00
+                };
+                
+                updateFeeDisplay();
+            }
+        }
+
+        // Calculate basic fees
+        function calculateBasicFees(subtotal, feeConfig) {
+            const taxRate = feeConfig.taxRate || 0.085;
+            const taxAmount = subtotal * taxRate;
+            
+            let serviceFee = 0;
+            if (feeConfig.feeType === 'fixed') {
+                serviceFee = feeConfig.serviceFeeFixed || 0;
+            } else if (feeConfig.feeType === 'percentage') {
+                serviceFee = subtotal * (feeConfig.serviceFeePercentage || 0);
+            } else if (feeConfig.feeType === 'hybrid') {
+                serviceFee = (feeConfig.serviceFeeFixed || 0) + 
+                           (subtotal * (feeConfig.serviceFeePercentage || 0));
+            }
+            
+            const total = subtotal + taxAmount + serviceFee;
+            
+            return {
+                subtotal,
+                taxAmount,
+                serviceFee,
+                total,
+                taxRate,
+                feeConfig
+            };
+        }
+
+        // Update fee display
+        function updateFeeDisplay() {
+            const currency = getCurrentCurrency();
+            
+            document.getElementById('subtotal').textContent = formatPrice(orderBreakdown.subtotal, currency);
+            document.getElementById('tax').textContent = formatPrice(orderBreakdown.taxAmount, currency);
+            document.getElementById('serviceFee').textContent = formatPrice(orderBreakdown.serviceFee, currency);
+            document.getElementById('total').textContent = formatPrice(orderBreakdown.total, currency);
+            
+            // Update labels
+            const taxRate = (orderBreakdown.taxRate * 100).toFixed(1);
+            document.getElementById('taxLabel').textContent = `Tax (${taxRate}%):`;
+            
+            // Update pay button text
+            document.getElementById('payBtnText').textContent = `Pay ${formatPrice(orderBreakdown.total, currency)}`;
+        }
+
+        // Get current currency
+        function getCurrentCurrency() {
+            if (currentRestaurant && currentRestaurant.currency) {
+                return currentRestaurant.currency;
+            }
+            return { code: currency || 'USD', symbol: ', name: 'US Dollar' };
+        }
+
+        // Format price with currency
+        function formatPrice(amount, currencyObj) {
+            const curr = currencyObj || getCurrentCurrency();
+            const formattedAmount = Number(amount).toFixed(2);
+            return `${curr.symbol}${formattedAmount}`;
+        }
+
+        // Handle payment button click
+        document.getElementById('payBtn').addEventListener('click', async () => {
+            const payBtn = document.getElementById('payBtn');
+            const payBtnText = document.getElementById('payBtnText');
+            const payBtnSpinner = document.getElementById('payBtnSpinner');
+            
+            // Disable button and show loading
+            payBtn.disabled = true;
+            payBtnText.style.display = 'none';
+            payBtnSpinner.style.display = 'block';
+            
+            try {
+                console.log('💳 Processing payment...');
+                
+                // 1. Call Cloud Function to get clientSecret + breakdown
+                const cf = firebase.functions().httpsCallable('createPaymentIntent');
+                const { data } = await cf({
+                    restaurantId,
+                    subtotalCents,
+                    currency,
+                    cardBrand,
+                    chargeCurrency: currency
+                });
+                
+                console.log('🔑 Payment intent created:', data);
+                
+                // 2. Display any updated breakdown if provided
+                if (data.breakdown) {
+                    orderBreakdown = {
+                        subtotal: data.breakdown.subtotal / 100,
+                        taxAmount: data.breakdown.taxAmount / 100,
+                        serviceFee: data.breakdown.serviceFee / 100,
+                        total: data.breakdown.totalCents / 100,
+                        appFee: data.breakdown.appFee / 100
+                    };
+                    updateFeeDisplay();
+                }
+                
+                // 3. Confirm the payment
+                const result = await stripe.confirmCardPayment(data.clientSecret, {
+                    payment_method: {
+                        card: cardElement,
+                        billing_details: {
+                            name: name || 'Customer'
+                        }
+                    }
+                });
+                
+                if (result.error) {
+                    console.error('❌ Payment failed:', result.error);
+                    throw new Error(result.error.message);
+                } else {
+                    console.log('✅ Payment succeeded:', result.paymentIntent);
+                    
+                    // 4. On success: create the order record
+                    const orderData = {
+                        restaurantId,
+                        table,
+                        location,
+                        name,
+                        phone,
+                        orderNumber: result.paymentIntent.id,
+                        subtotal: subtotalCents,
+                        fees: data.breakdown || orderBreakdown,
+                        status: 'paid',
+                        paymentIntentId: result.paymentIntent.id,
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    await VediAPI.createOrder(orderData);
+                    console.log('📝 Order created successfully');
+                    
+                    // 5. Redirect to order progress
+                    showSuccess('Payment successful! Redirecting...');
+                    
+                    setTimeout(() => {
+                        // Both files are in Customer folder
+                        window.location.href = `order-progress.html?orderNumber=${orderData.orderNumber}`;
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('❌ Payment error:', error);
+                showError(error.message || 'Payment failed. Please try again.');
+                
+                // Re-enable button
+                payBtn.disabled = false;
+                payBtnText.style.display = 'block';
+                payBtnSpinner.style.display = 'none';
+            }
+        });
+
+        // Navigation function
+        function goBackToCheckout() {
+            console.log('🔙 Going back to checkout...');
+            const params = new URLSearchParams();
+            params.set('restaurant', restaurantId);
+            params.set('table', table);
+            if (location) params.set('location', location);
+            if (name) params.set('name', name);
+            if (phone) params.set('phone', phone);
+            
+            // Both files are in Customer folder
+            window.location.href = `checkout.html?${params.toString()}`;
+        }
+
+        // Utility functions
+        function showLoading() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showErrorMessage(message) {
+            hideLoading();
+            document.getElementById('errorMessage').innerHTML = `
+                <h3>⚠️ Unable to load payment</h3>
+                <p>${message}</p>
+                <button onclick="goBackToCheckout()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                    Return to Checkout
+                </button>
+            `;
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('paymentContent').style.display = 'none';
+            document.getElementById('paySection').style.display = 'none';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        console.log('💳 Payment page loaded successfully');
+    </script>
+</body>
+</html>
