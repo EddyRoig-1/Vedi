@@ -766,7 +766,6 @@
             const loadTime = Date.now() - performanceStartTime;
             console.log(`📊 Page initialization: ${loadTime}ms`);
             
-            // Monitor Firebase connection
             performance.mark('firebase-start');
         }
 
@@ -831,6 +830,87 @@
                 };
                 checkAPIs();
             });
+        }
+
+        // FIXED: Check restaurant status using direct Firestore access
+        async function checkRestaurantStatusDirect(restaurantId) {
+            try {
+                console.log('🔍 Checking restaurant status directly...');
+                const db = firebase.firestore();
+                const doc = await db.collection('restaurants').doc(restaurantId).get();
+                
+                if (!doc.exists) {
+                    throw new Error('Restaurant not found');
+                }
+                
+                const restaurant = doc.data();
+                
+                return {
+                    isOnline: restaurant.isOnline !== false, // Default to true if not set
+                    offlineReason: restaurant.offlineReason || '',
+                    restaurantName: restaurant.name,
+                    success: true
+                };
+                
+            } catch (error) {
+                console.error('❌ Failed to check restaurant status:', error);
+                // Return default online status if there's an error
+                return {
+                    isOnline: true,
+                    offlineReason: '',
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        // FIXED: Listen to restaurant status changes using direct Firestore listener
+        function listenToRestaurantStatusDirect(restaurantId, callback) {
+            try {
+                const db = firebase.firestore();
+                
+                console.log('🔄 Starting direct status listener for restaurant:', restaurantId);
+                
+                return db.collection('restaurants').doc(restaurantId)
+                    .onSnapshot(doc => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            const status = {
+                                isOnline: data.isOnline !== false,
+                                offlineReason: data.offlineReason || '',
+                                restaurantName: data.name,
+                                restaurantId: restaurantId,
+                                timestamp: new Date().toISOString()
+                            };
+                            
+                            console.log('📡 Direct status update:', {
+                                restaurant: data.name,
+                                status: status.isOnline ? 'ONLINE' : 'OFFLINE',
+                                reason: status.offlineReason || 'N/A'
+                            });
+                            
+                            callback(status);
+                        } else {
+                            console.warn('⚠️ Restaurant document not found:', restaurantId);
+                            callback({
+                                isOnline: false,
+                                offlineReason: 'Restaurant not found',
+                                error: 'Restaurant document not found'
+                            });
+                        }
+                    }, error => {
+                        console.error('❌ Status listener error:', error);
+                        callback({
+                            isOnline: true, // Default to online on error to avoid blocking customers
+                            offlineReason: '',
+                            error: error.message
+                        });
+                    });
+                    
+            } catch (error) {
+                console.error('❌ Failed to setup status listener:', error);
+                return () => {};
+            }
         }
 
         // Enhanced initialization with redirect result handling
@@ -898,60 +978,53 @@
             });
         }
 
-        // Load restaurant information with status checking using VediAPI
+        // FIXED: Load restaurant information with status checking using direct Firestore access
         async function loadRestaurantInfoWithStatusCheck() {
             try {
                 console.log('🏪 Loading restaurant data for ID:', restaurantId);
                 showStatusChecking();
                 document.getElementById('restaurantName').textContent = 'Loading...';
                 
-                if (typeof VediAPI !== 'undefined') {
-                    // Load restaurant data
-                    console.log('📋 Loading restaurant information...');
-                    restaurantData = await VediAPI.getRestaurant(restaurantId);
-                    document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+                // Load restaurant data using VediAPI
+                console.log('📋 Loading restaurant information...');
+                restaurantData = await VediAPI.getRestaurant(restaurantId);
+                document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
+                
+                // Check restaurant online status using direct Firestore access
+                console.log('🔍 Checking restaurant availability status...');
+                const status = await checkRestaurantStatusDirect(restaurantId);
+                
+                console.log('📊 Restaurant status:', status);
+                
+                // If restaurant is offline, redirect to unavailable page
+                if (!status.isOnline) {
+                    console.log('🔴 Restaurant is OFFLINE, redirecting to unavailable page...');
                     
-                    // Check restaurant online status
-                    console.log('🔍 Checking restaurant availability status...');
-                    const status = await VediAPI.getRestaurantStatus(restaurantId);
-                    
-                    console.log('📊 Restaurant status:', status);
-                    
-                    // If restaurant is offline, redirect to unavailable page
-                    if (!status.isOnline) {
-                        console.log('🔴 Restaurant is OFFLINE, redirecting to unavailable page...');
-                        
-                        // Show brief message before redirect
-                        hideStatusChecking();
-                        showInfo(`${restaurantData.name} is currently offline. Redirecting...`);
-                        
-                        // Build redirect URL with all parameters
-                        const urlParams = new URLSearchParams();
-                        urlParams.set('restaurant', restaurantId);
-                        if (tableNumber) urlParams.set('table', tableNumber);
-                        if (tableLocation) urlParams.set('location', tableLocation);
-                        
-                        const redirectUrl = `customer-unavailable.html?${urlParams.toString()}`;
-                        
-                        setTimeout(() => {
-                            window.location.href = redirectUrl;
-                        }, 2000);
-                        
-                        return;
-                    }
-                    
-                    // Restaurant is online, proceed normally
-                    console.log('🟢 Restaurant is ONLINE, proceeding with login...');
+                    // Show brief message before redirect
                     hideStatusChecking();
+                    showInfo(`${restaurantData.name} is currently offline. Redirecting...`);
                     
-                    // Start monitoring restaurant status for real-time updates
-                    startRestaurantStatusMonitoring();
+                    // Build redirect URL with all parameters
+                    const urlParams = new URLSearchParams();
+                    urlParams.set('restaurant', restaurantId);
+                    if (tableNumber) urlParams.set('table', tableNumber);
+                    if (tableLocation) urlParams.set('location', tableLocation);
                     
-                } else {
-                    console.warn('⚠️ VediAPI not available - proceeding without status check');
-                    hideStatusChecking();
-                    document.getElementById('restaurantName').textContent = 'Restaurant';
+                    const redirectUrl = `customer-unavailable.html?${urlParams.toString()}`;
+                    
+                    setTimeout(() => {
+                        window.location.href = redirectUrl;
+                    }, 2000);
+                    
+                    return;
                 }
+                
+                // Restaurant is online, proceed normally
+                console.log('🟢 Restaurant is ONLINE, proceeding with login...');
+                hideStatusChecking();
+                
+                // Start monitoring restaurant status for real-time updates
+                startRestaurantStatusMonitoring();
                 
             } catch (error) {
                 console.error('❌ Failed to load restaurant or check status:', error);
@@ -963,13 +1036,13 @@
             }
         }
 
-        // Monitor restaurant status in real-time
+        // FIXED: Monitor restaurant status in real-time using direct Firestore listener
         function startRestaurantStatusMonitoring() {
-            if (typeof VediAPI !== 'undefined' && restaurantId) {
+            if (restaurantId) {
                 console.log('📡 Starting real-time restaurant status monitoring...');
                 
-                // Listen for real-time status changes
-                restaurantStatusListener = VediAPI.listenToRestaurantStatus(restaurantId, (status) => {
+                // Listen for real-time status changes using direct Firestore
+                restaurantStatusListener = listenToRestaurantStatusDirect(restaurantId, (status) => {
                     console.log('📡 Real-time status update:', status);
                     
                     // If restaurant goes offline while customer is on login page
@@ -1807,9 +1880,9 @@
         });
 
         console.log('📱🔍 Enhanced customer authentication system loaded with restaurant status checking');
-        console.log('🔗 Using VediAPI for social auth, restaurant data, and status checking');
+        console.log('🔗 Using VediAPI for social auth, restaurant data, and direct status checking');
         console.log('📱 Using CustomerAuthAPI for phone authentication and reCAPTCHA');
-        console.log('🟢🔴 Restaurant status monitoring: ENABLED');
+        console.log('🟢🔴 Restaurant status monitoring: ENABLED with direct Firestore access');
     </script>
 </body>
 </html>
