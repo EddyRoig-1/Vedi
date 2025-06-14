@@ -162,6 +162,64 @@
             font-size: 0.9rem;
         }
 
+        /* Restaurant Offline Status */
+        .restaurant-offline {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .restaurant-offline h3 {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            color: #d39e00;
+        }
+
+        .restaurant-offline p {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .restaurant-offline .offline-reason {
+            font-style: italic;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .restaurant-offline .checking-status {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .restaurant-offline .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffc107;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Form sections - disabled state */
+        .form-section-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            user-select: none;
+        }
+
         /* Social Login Section */
         .social-login {
             margin-bottom: 30px;
@@ -607,140 +665,154 @@
                 <div class="table-info" id="tableInfo">Table #--</div>
             </div>
 
+            <!-- Restaurant Offline Status -->
+            <div class="restaurant-offline" id="restaurantOfflineStatus" style="display: none;">
+                <h3>🔴 Currently Unavailable</h3>
+                <p><strong id="offlineRestaurantName">This restaurant</strong> is not currently taking orders.</p>
+                <p class="offline-reason" id="offlineReason"></p>
+                <div class="checking-status">
+                    <span class="status-dot"></span>
+                    <span>Checking for availability...</span>
+                </div>
+            </div>
+
             <!-- Messages -->
             <div class="error-message" id="errorMessage"></div>
             <div class="success-message" id="successMessage"></div>
             <div class="info-message" id="infoMessage"></div>
             
-            <!-- Main Social Login Phase -->
-            <div class="form-phase active" id="socialPhase">
-                <div class="social-login">
-                    <h3>Quick Sign In</h3>
-                    <div class="social-buttons">
-                        <button class="social-btn google" id="googleSignInBtn" onclick="signInWithGoogle()">
-                            <span class="social-icon">🔍</span>
-                            <span>Continue with Google</span>
-                            <div class="loading-spinner" id="googleSpinner"></div>
-                        </button>
-                        
-                        <button class="social-btn facebook" id="facebookSignInBtn" onclick="signInWithFacebook()">
-                            <span class="social-icon">📘</span>
-                            <span>Continue with Facebook</span>
-                            <div class="loading-spinner" id="facebookSpinner"></div>
-                        </button>
-                        
-                        <button class="social-btn apple" id="appleSignInBtn" onclick="signInWithApple()">
-                            <span class="social-icon">🍎</span>
-                            <span>Continue with Apple</span>
-                            <div class="loading-spinner" id="appleSpinner"></div>
+            <!-- Main Login Forms Container -->
+            <div id="loginFormsContainer">
+                <!-- Main Social Login Phase -->
+                <div class="form-phase active" id="socialPhase">
+                    <div class="social-login">
+                        <h3>Quick Sign In</h3>
+                        <div class="social-buttons">
+                            <button class="social-btn google" id="googleSignInBtn" onclick="signInWithGoogle()">
+                                <span class="social-icon">🔍</span>
+                                <span>Continue with Google</span>
+                                <div class="loading-spinner" id="googleSpinner"></div>
+                            </button>
+                            
+                            <button class="social-btn facebook" id="facebookSignInBtn" onclick="signInWithFacebook()">
+                                <span class="social-icon">📘</span>
+                                <span>Continue with Facebook</span>
+                                <div class="loading-spinner" id="facebookSpinner"></div>
+                            </button>
+                            
+                            <button class="social-btn apple" id="appleSignInBtn" onclick="signInWithApple()">
+                                <span class="social-icon">🍎</span>
+                                <span>Continue with Apple</span>
+                                <div class="loading-spinner" id="appleSpinner"></div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="divider">
+                        <span>or</span>
+                    </div>
+
+                    <div class="phone-auth">
+                        <h3>Use Phone Number</h3>
+                        <button class="btn" onclick="switchToPhoneAuth()">
+                            📱 Sign in with Phone
                         </button>
                     </div>
                 </div>
 
-                <div class="divider">
-                    <span>or</span>
+                <!-- Phone Collection for Social Users -->
+                <div class="form-phase" id="phoneCollectionPhase">
+                    <div class="phone-collection">
+                        <h4>📱 Add Your Phone Number</h4>
+                        <p>To ensure we can reach you about your order, please add your phone number. This helps with order updates and notifications.</p>
+                        
+                        <div class="form-group">
+                            <label for="socialUserPhone">Phone Number</label>
+                            <div class="phone-input-group">
+                                <select class="country-select" id="socialCountryCode">
+                                    <option value="+1">🇺🇸 +1</option>
+                                </select>
+                                <input type="tel" id="socialUserPhone" class="phone-number-input" placeholder="123-456-7890">
+                            </div>
+                        </div>
+                        
+                        <button class="btn" onclick="saveSocialUserPhone()">
+                            <span class="loading-spinner" id="phoneCollectionSpinner"></span>
+                            <span>Save & Continue</span>
+                        </button>
+                        
+                        <button class="btn skip-phone" onclick="skipPhoneCollection()">
+                            Skip for Now
+                        </button>
+                    </div>
                 </div>
 
-                <div class="phone-auth">
-                    <h3>Use Phone Number</h3>
-                    <button class="btn" onclick="switchToPhoneAuth()">
-                        📱 Sign in with Phone
+                <!-- Step Indicator (for phone auth) -->
+                <div class="step-indicator" id="stepIndicator">
+                    <div class="step active" id="step1">1</div>
+                    <div class="step" id="step2">2</div>
+                    <div class="step" id="step3">3</div>
+                </div>
+
+                <!-- Phase 1: Name Input (Phone Auth) -->
+                <div class="form-phase" id="namePhase">
+                    <div class="form-group">
+                        <label for="customerName">Your Name</label>
+                        <input type="text" id="customerName" name="customerName" placeholder="Enter your full name" required>
+                    </div>
+                    <button type="button" class="btn" id="nameNextBtn" onclick="proceedToPhone()">
+                        <span class="loading-spinner" id="nameSpinner"></span>
+                        <span>Continue</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="goBackToSocial()">
+                        ← Back to Sign In Options
                     </button>
                 </div>
-            </div>
 
-            <!-- Phone Collection for Social Users -->
-            <div class="form-phase" id="phoneCollectionPhase">
-                <div class="phone-collection">
-                    <h4>📱 Add Your Phone Number</h4>
-                    <p>To ensure we can reach you about your order, please add your phone number. This helps with order updates and notifications.</p>
-                    
+                <!-- Phase 2: Phone Verification -->
+                <div class="form-phase" id="phonePhase">
                     <div class="form-group">
-                        <label for="socialUserPhone">Phone Number</label>
+                        <label for="phoneNumber">Phone Number</label>
                         <div class="phone-input-group">
-                            <select class="country-select" id="socialCountryCode">
+                            <select class="country-select" id="countryCode">
                                 <option value="+1">🇺🇸 +1</option>
                             </select>
-                            <input type="tel" id="socialUserPhone" class="phone-number-input" placeholder="123-456-7890">
+                            <input type="tel" id="phoneNumber" name="phoneNumber" class="phone-number-input" placeholder="123-456-7890" required>
                         </div>
                     </div>
                     
-                    <button class="btn" onclick="saveSocialUserPhone()">
-                        <span class="loading-spinner" id="phoneCollectionSpinner"></span>
-                        <span>Save & Continue</span>
+                    <!-- reCAPTCHA container -->
+                    <div class="recaptcha-container" id="recaptcha-container"></div>
+                    
+                    <button type="button" class="btn" id="sendCodeBtn" onclick="sendVerificationCode()">
+                        <span class="loading-spinner" id="phoneSpinner"></span>
+                        <span id="sendCodeText">Send Verification Code</span>
                     </button>
                     
-                    <button class="btn skip-phone" onclick="skipPhoneCollection()">
-                        Skip for Now
+                    <button type="button" class="btn btn-secondary" onclick="goBackToName()">
+                        ← Back
                     </button>
                 </div>
-            </div>
 
-            <!-- Step Indicator (for phone auth) -->
-            <div class="step-indicator" id="stepIndicator">
-                <div class="step active" id="step1">1</div>
-                <div class="step" id="step2">2</div>
-                <div class="step" id="step3">3</div>
-            </div>
-
-            <!-- Phase 1: Name Input (Phone Auth) -->
-            <div class="form-phase" id="namePhase">
-                <div class="form-group">
-                    <label for="customerName">Your Name</label>
-                    <input type="text" id="customerName" name="customerName" placeholder="Enter your full name" required>
-                </div>
-                <button type="button" class="btn" id="nameNextBtn" onclick="proceedToPhone()">
-                    <span class="loading-spinner" id="nameSpinner"></span>
-                    <span>Continue</span>
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="goBackToSocial()">
-                    ← Back to Sign In Options
-                </button>
-            </div>
-
-            <!-- Phase 2: Phone Verification -->
-            <div class="form-phase" id="phonePhase">
-                <div class="form-group">
-                    <label for="phoneNumber">Phone Number</label>
-                    <div class="phone-input-group">
-                        <select class="country-select" id="countryCode">
-                            <option value="+1">🇺🇸 +1</option>
-                        </select>
-                        <input type="tel" id="phoneNumber" name="phoneNumber" class="phone-number-input" placeholder="123-456-7890" required>
+                <!-- Phase 3: Code Verification -->
+                <div class="form-phase" id="codePhase">
+                    <div class="form-group">
+                        <label for="verificationCode">Verification Code</label>
+                        <input type="text" id="verificationCode" name="verificationCode" 
+                               placeholder="123456" maxlength="6" class="verification-input" required>
+                        <div class="resend-timer" id="resendTimer"></div>
                     </div>
+                    
+                    <button type="button" class="btn" id="verifyCodeBtn" onclick="verifyCode()">
+                        <span class="loading-spinner" id="codeSpinner"></span>
+                        <span>Verify & Start Ordering</span>
+                    </button>
+                    
+                    <button type="button" class="btn btn-secondary" id="resendBtn" onclick="resendCode()" 
+                            style="margin-top: 10px;" disabled>
+                        Resend Code
+                    </button>
                 </div>
-                
-                <!-- reCAPTCHA container -->
-                <div class="recaptcha-container" id="recaptcha-container"></div>
-                
-                <button type="button" class="btn" id="sendCodeBtn" onclick="sendVerificationCode()">
-                    <span class="loading-spinner" id="phoneSpinner"></span>
-                    <span id="sendCodeText">Send Verification Code</span>
-                </button>
-                
-                <button type="button" class="btn btn-secondary" onclick="goBackToName()">
-                    ← Back
-                </button>
-            </div>
-
-            <!-- Phase 3: Code Verification -->
-            <div class="form-phase" id="codePhase">
-                <div class="form-group">
-                    <label for="verificationCode">Verification Code</label>
-                    <input type="text" id="verificationCode" name="verificationCode" 
-                           placeholder="123456" maxlength="6" class="verification-input" required>
-                    <div class="resend-timer" id="resendTimer"></div>
-                </div>
-                
-                <button type="button" class="btn" id="verifyCodeBtn" onclick="verifyCode()">
-                    <span class="loading-spinner" id="codeSpinner"></span>
-                    <span>Verify & Start Ordering</span>
-                </button>
-                
-                <button type="button" class="btn btn-secondary" id="resendBtn" onclick="resendCode()" 
-                        style="margin-top: 10px;" disabled>
-                    Resend Code
-                </button>
             </div>
         </div>
     </div>
@@ -760,6 +832,7 @@
         let currentSocialUser = null;
         let performanceStartTime = Date.now();
         let restaurantStatusListener = null;
+        let isRestaurantOnline = false; // Track restaurant status
 
         // Performance monitoring
         function addPerformanceMonitoring() {
@@ -778,6 +851,13 @@
                 const originalHandler = button.onclick;
                 
                 button.onclick = function(e) {
+                    // Check if restaurant is online before allowing any sign-in
+                    if (!isRestaurantOnline) {
+                        console.log('🚫 Sign-in blocked - restaurant is offline');
+                        showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                        return false;
+                    }
+
                     const now = Date.now();
                     if (now - lastClick < 1000) {
                         console.log('🚫 Click ignored - too fast');
@@ -790,6 +870,36 @@
                     }
                 };
             });
+        }
+
+        // Show/hide restaurant offline status
+        function showRestaurantOffline(restaurantName, reason) {
+            const offlineStatus = document.getElementById('restaurantOfflineStatus');
+            const offlineNameElement = document.getElementById('offlineRestaurantName');
+            const offlineReasonElement = document.getElementById('offlineReason');
+            const loginContainer = document.getElementById('loginFormsContainer');
+            
+            if (offlineStatus && loginContainer) {
+                offlineNameElement.textContent = restaurantName || 'This restaurant';
+                offlineReasonElement.textContent = reason || '';
+                
+                offlineStatus.style.display = 'block';
+                loginContainer.classList.add('form-section-disabled');
+                
+                console.log('🔴 Restaurant offline UI shown');
+            }
+        }
+
+        function hideRestaurantOffline() {
+            const offlineStatus = document.getElementById('restaurantOfflineStatus');
+            const loginContainer = document.getElementById('loginFormsContainer');
+            
+            if (offlineStatus && loginContainer) {
+                offlineStatus.style.display = 'none';
+                loginContainer.classList.remove('form-section-disabled');
+                
+                console.log('🟢 Restaurant online UI restored');
+            }
         }
 
         // Hide initial loader
@@ -978,7 +1088,7 @@
             });
         }
 
-        // FIXED: Load restaurant information with status checking using direct Firestore access
+        // MODIFIED: Load restaurant information with status checking - NO REDIRECT
         async function loadRestaurantInfoWithStatusCheck() {
             try {
                 console.log('🏪 Loading restaurant data for ID:', restaurantId);
@@ -996,32 +1106,20 @@
                 
                 console.log('📊 Restaurant status:', status);
                 
-                // If restaurant is offline, redirect to unavailable page
-                if (!status.isOnline) {
-                    console.log('🔴 Restaurant is OFFLINE, redirecting to unavailable page...');
-                    
-                    // Show brief message before redirect
-                    hideStatusChecking();
-                    showInfo(`${restaurantData.name} is currently offline. Redirecting...`);
-                    
-                    // Build redirect URL with all parameters
-                    const urlParams = new URLSearchParams();
-                    urlParams.set('restaurant', restaurantId);
-                    if (tableNumber) urlParams.set('table', tableNumber);
-                    if (tableLocation) urlParams.set('location', tableLocation);
-                    
-                    const redirectUrl = `customer-unavailable.html?${urlParams.toString()}`;
-                    
-                    setTimeout(() => {
-                        window.location.href = redirectUrl;
-                    }, 2000);
-                    
-                    return;
-                }
+                // Update global status
+                isRestaurantOnline = status.isOnline;
                 
-                // Restaurant is online, proceed normally
-                console.log('🟢 Restaurant is ONLINE, proceeding with login...');
-                hideStatusChecking();
+                // If restaurant is offline, show offline status but DON'T redirect
+                if (!status.isOnline) {
+                    console.log('🔴 Restaurant is OFFLINE - showing offline status (no redirect)');
+                    hideStatusChecking();
+                    showRestaurantOffline(restaurantData.name, status.offlineReason);
+                } else {
+                    // Restaurant is online, proceed normally
+                    console.log('🟢 Restaurant is ONLINE, proceeding with login...');
+                    hideStatusChecking();
+                    hideRestaurantOffline();
+                }
                 
                 // Start monitoring restaurant status for real-time updates
                 startRestaurantStatusMonitoring();
@@ -1033,10 +1131,11 @@
                 // Show error but don't block login completely
                 document.getElementById('restaurantName').textContent = 'Restaurant';
                 showError('Unable to verify restaurant status. You can still proceed with login.');
+                isRestaurantOnline = true; // Default to online on error
             }
         }
 
-        // FIXED: Monitor restaurant status in real-time using direct Firestore listener
+        // MODIFIED: Monitor restaurant status in real-time - NO REDIRECT, just update UI
         function startRestaurantStatusMonitoring() {
             if (restaurantId) {
                 console.log('📡 Starting real-time restaurant status monitoring...');
@@ -1045,27 +1144,24 @@
                 restaurantStatusListener = listenToRestaurantStatusDirect(restaurantId, (status) => {
                     console.log('📡 Real-time status update:', status);
                     
-                    // If restaurant goes offline while customer is on login page
-                    if (!status.isOnline) {
+                    const previousStatus = isRestaurantOnline;
+                    isRestaurantOnline = status.isOnline;
+                    
+                    if (!status.isOnline && previousStatus) {
+                        // Restaurant went offline
                         console.log('🔴 Restaurant went OFFLINE during login session');
+                        showRestaurantOffline(status.restaurantName || restaurantData?.name, status.offlineReason);
+                        showInfo(`${status.restaurantName || restaurantData?.name || 'Restaurant'} is now unavailable for orders. Please wait for it to come back online.`);
                         
-                        // Show notification
-                        showError(`${restaurantData?.name || 'Restaurant'} just went offline. Redirecting...`);
-                        
-                        // Redirect to unavailable page after brief delay
-                        setTimeout(() => {
-                            const urlParams = new URLSearchParams();
-                            urlParams.set('restaurant', restaurantId);
-                            if (tableNumber) urlParams.set('table', tableNumber);
-                            if (tableLocation) urlParams.set('location', tableLocation);
-                            
-                            const redirectUrl = `customer-unavailable.html?${urlParams.toString()}`;
-                            window.location.href = redirectUrl;
-                        }, 3000);
+                    } else if (status.isOnline && !previousStatus) {
+                        // Restaurant came back online
+                        console.log('🟢 Restaurant came ONLINE during login session');
+                        hideRestaurantOffline();
+                        showSuccess(`${status.restaurantName || restaurantData?.name || 'Restaurant'} is now available for orders! You can sign in.`);
                     }
                 });
                 
-                console.log('✅ Real-time status monitoring started');
+                console.log('✅ Real-time status monitoring started (no redirect mode)');
             }
         }
 
@@ -1088,6 +1184,12 @@
 
         // Google Sign-In using VediAPI
         async function signInWithGoogle() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             try {
                 setLoading('google', true);
                 hideMessages();
@@ -1127,6 +1229,12 @@
 
         // Facebook Sign-In using VediAPI
         async function signInWithFacebook() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             try {
                 setLoading('facebook', true);
                 hideMessages();
@@ -1165,6 +1273,12 @@
 
         // Apple Sign-In using VediAPI
         async function signInWithApple() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             try {
                 setLoading('apple', true);
                 hideMessages();
@@ -1246,6 +1360,12 @@
 
         // Save phone number for social user
         async function saveSocialUserPhone() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot complete sign-in while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             const countryCode = document.getElementById('socialCountryCode').value;
             const phoneNumber = document.getElementById('socialUserPhone').value.trim();
             
@@ -1286,6 +1406,12 @@
 
         // Skip phone collection
         async function skipPhoneCollection() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot complete sign-in while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             try {
                 const userName = currentSocialUser.displayName || 'Guest User';
                 const userEmail = currentSocialUser.email || '';
@@ -1372,6 +1498,12 @@
 
         // Switch to phone auth
         function switchToPhoneAuth() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             document.getElementById('stepIndicator').style.display = 'flex';
             switchToPhase('namePhase');
             
@@ -1436,6 +1568,12 @@
 
         // Phone auth step navigation
         function proceedToPhone() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot proceed while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             const name = document.getElementById('customerName').value.trim();
             
             if (!name) {
@@ -1488,6 +1626,12 @@
 
         // Send verification code using CustomerAuthAPI with Firebase's recommended approach
         async function sendVerificationCode() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot send verification code while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             const countryCode = document.getElementById('countryCode').value;
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
             
@@ -1564,6 +1708,12 @@
 
         // Verify code using Firebase's recommended PhoneAuthProvider.credential approach
         async function verifyCode() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot verify code while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             const code = document.getElementById('verificationCode').value.trim();
             
             if (!code) {
@@ -1692,6 +1842,12 @@
 
         // Resend code function using Firebase's recommended approach
         async function resendCode() {
+            // Check restaurant status before proceeding
+            if (!isRestaurantOnline) {
+                showError('Cannot resend code while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
             try {
                 setLoading('code', true);
                 hideMessages();
@@ -1882,7 +2038,7 @@
         console.log('📱🔍 Enhanced customer authentication system loaded with restaurant status checking');
         console.log('🔗 Using VediAPI for social auth, restaurant data, and direct status checking');
         console.log('📱 Using CustomerAuthAPI for phone authentication and reCAPTCHA');
-        console.log('🟢🔴 Restaurant status monitoring: ENABLED with direct Firestore access');
+        console.log('🟢🔴 Restaurant status monitoring: ENABLED with NO REDIRECT (stay on page mode)');
     </script>
 </body>
 </html>
