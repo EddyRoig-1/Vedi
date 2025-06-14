@@ -1120,12 +1120,17 @@
         };
 
         // =============================================================================
-        // FIREBASE INITIALIZATION
+        // FIREBASE INITIALIZATION WITH PROPER TIMING
         // =============================================================================
         
         const FirebaseManager = {
             async initialize() {
                 try {
+                    console.log('🔄 Checking Firebase availability...');
+                    
+                    // Wait for Firebase to be fully loaded
+                    await this.waitForFirebase();
+                    
                     if (typeof firebase === 'undefined') {
                         throw new Error('Firebase not loaded');
                     }
@@ -1140,8 +1145,11 @@
                     window.firebaseAuth = Firebase.auth;
                     window.firebaseDb = Firebase.db;
                     
+                    // Wait for VediAPI to be available
+                    await this.waitForVediAPI();
+                    
                     AppState.isFirebaseReady = true;
-                    console.log('✅ Firebase initialized successfully');
+                    console.log('✅ Firebase and VediAPI initialized successfully');
                     return true;
                     
                 } catch (error) {
@@ -1151,8 +1159,42 @@
                 }
             },
 
+            waitForFirebase() {
+                return new Promise((resolve) => {
+                    const checkFirebase = () => {
+                        if (typeof firebase !== 'undefined' && firebase.apps !== undefined) {
+                            console.log('✅ Firebase SDK ready');
+                            resolve();
+                        } else {
+                            console.log('⏳ Waiting for Firebase SDK...');
+                            setTimeout(checkFirebase, 100);
+                        }
+                    };
+                    checkFirebase();
+                });
+            },
+
+            waitForVediAPI() {
+                return new Promise((resolve) => {
+                    const checkVediAPI = () => {
+                        if (typeof window.VediAPI !== 'undefined' && window.VediAPI) {
+                            console.log('✅ VediAPI ready');
+                            resolve();
+                        } else {
+                            console.log('⏳ Waiting for VediAPI...');
+                            setTimeout(checkVediAPI, 100);
+                        }
+                    };
+                    checkVediAPI();
+                });
+            },
+
             isReady() {
-                return AppState.isFirebaseReady && window.VediAPI;
+                return AppState.isFirebaseReady && 
+                       typeof window.VediAPI !== 'undefined' && 
+                       window.VediAPI &&
+                       Firebase.db &&
+                       Firebase.auth;
             }
         };
 
@@ -1230,8 +1272,12 @@
         const DataManager = {
             async loadOverviewData() {
                 try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase not ready');
+                    }
+
                     console.log('📊 Loading overview analytics...');
-                    const analytics = await VediAPI.getFeeAnalytics('month');
+                    const analytics = await window.VediAPI.getFeeAnalytics('month');
                     
                     document.getElementById('totalRevenue').textContent = Utils.formatCurrency(analytics.totalRevenue || 0);
                     document.getElementById('totalFees').textContent = Utils.formatCurrency(analytics.totalServiceFees || 0);
@@ -1240,7 +1286,11 @@
                         ((analytics.totalServiceFees / analytics.totalRevenue) * 100).toFixed(1) : 0;
                     document.getElementById('avgFeePercent').textContent = avgFeePercent + '%';
                     
-                    console.log('✅ Overview data loaded');
+                    console.log('✅ Overview data loaded:', {
+                        revenue: analytics.totalRevenue,
+                        fees: analytics.totalServiceFees,
+                        orders: analytics.orderCount
+                    });
                     
                 } catch (error) {
                     console.error('❌ Error loading overview data:', error);
@@ -1253,12 +1303,18 @@
 
             async loadRestaurants() {
                 try {
-                    console.log('🏪 Loading restaurants...');
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase not ready');
+                    }
+
+                    console.log('🏪 Loading restaurants from Firebase...');
                     const restaurantsSnapshot = await Firebase.db.collection('restaurants').get();
                     AppState.restaurants = restaurantsSnapshot.docs.map(doc => ({ 
                         id: doc.id, 
                         ...doc.data() 
                     }));
+                    
+                    console.log('🏪 Found restaurants:', AppState.restaurants);
                     
                     // Populate restaurant dropdown
                     const restaurantSelect = document.getElementById('restaurantSelect');
@@ -1266,7 +1322,7 @@
                     AppState.restaurants.forEach(restaurant => {
                         const option = document.createElement('option');
                         option.value = restaurant.id;
-                        option.textContent = restaurant.name;
+                        option.textContent = restaurant.name || `Restaurant ${restaurant.id}`;
                         restaurantSelect.appendChild(option);
                     });
                     
@@ -1280,8 +1336,14 @@
 
             async loadRestaurantFees() {
                 try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase not ready');
+                    }
+
                     console.log('💰 Loading restaurant fee configurations...');
-                    AppState.feeConfigs = await VediAPI.getAllFeeConfigs();
+                    AppState.feeConfigs = await window.VediAPI.getAllFeeConfigs();
+                    
+                    console.log('💰 Found fee configs:', AppState.feeConfigs);
                     
                     if (AppState.feeConfigs.length === 0) {
                         Utils.showEmptyState('restaurantFeesTable', '🏪', 'No Fee Configurations', 'Start by creating fee configurations for your restaurants');
@@ -1293,7 +1355,7 @@
                     
                 } catch (error) {
                     console.error('❌ Error loading restaurant fees:', error);
-                    Utils.showEmptyState('restaurantFeesTable', '⚠️', 'Error Loading Fees', 'Unable to load fee configurations');
+                    Utils.showEmptyState('restaurantFeesTable', '⚠️', 'Error Loading Fees', 'Unable to load fee configurations: ' + error.message);
                     throw error;
                 }
             },
@@ -1364,9 +1426,15 @@
 
             async loadAnalytics() {
                 try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase not ready');
+                    }
+
                     console.log('📈 Loading analytics data...');
                     const timePeriod = document.getElementById('analyticsTimePeriod')?.value || 'month';
-                    const analytics = await VediAPI.getFeeAnalytics(timePeriod);
+                    const analytics = await window.VediAPI.getFeeAnalytics(timePeriod);
+                    
+                    console.log('📊 Analytics data:', analytics);
                     
                     document.getElementById('analyticsContent').innerHTML = `
                         <div style="display: grid; gap: 1rem;">
@@ -1401,8 +1469,8 @@
                     
                 } catch (error) {
                     console.error('❌ Error loading analytics:', error);
-                    Utils.showEmptyState('analyticsContent', '⚠️', 'Error Loading Analytics', 'Unable to load analytics data');
-                    Utils.showEmptyState('topRestaurants', '📊', 'No Data', 'Error loading restaurant data');
+                    Utils.showEmptyState('analyticsContent', '⚠️', 'Error Loading Analytics', 'Unable to load analytics data: ' + error.message);
+                    Utils.showEmptyState('topRestaurants', '📊', 'No Data', 'Error loading restaurant data: ' + error.message);
                     throw error;
                 }
             },
@@ -1754,7 +1822,7 @@
                         stripeFlatFee: parseInt(formData.get('defaultStripeFlatFee')) || 0
                     };
 
-                    await VediAPI.createOrUpdateFeeConfig('default', feeConfig);
+                    await window.VediAPI.createOrUpdateFeeConfig('default', feeConfig);
                     Utils.showAlert('Default fee configuration saved successfully!', 'success');
                     
                 } catch (error) {
@@ -1791,7 +1859,7 @@
                         stripeFlatFee: parseInt(formData.get('stripeFlatFee')) || 0
                     };
 
-                    await VediAPI.createOrUpdateFeeConfig(restaurantId, feeConfig);
+                    await window.VediAPI.createOrUpdateFeeConfig(restaurantId, feeConfig);
                     
                     Utils.showAlert('Restaurant fee configuration saved successfully!', 'success');
                     this.closeModal();
@@ -1802,6 +1870,27 @@
                     console.error('Error saving restaurant config:', error);
                     Utils.showAlert('Error saving configuration: ' + error.message, 'error');
                     throw error;
+                }
+            },
+
+            async deleteFee(restaurantId) {
+                if (!confirm('Are you sure you want to delete this fee configuration? The restaurant will revert to default fees.')) {
+                    return;
+                }
+                
+                try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase API not available');
+                    }
+                    
+                    await window.VediAPI.deleteFeeConfig(restaurantId);
+                    Utils.showAlert('Fee configuration deleted successfully!', 'success');
+                    
+                    await this.refreshData();
+                    
+                } catch (error) {
+                    console.error('Error deleting fee config:', error);
+                    Utils.showAlert('Error deleting fee configuration: ' + error.message, 'error');
                 }
             },
 
@@ -1968,10 +2057,10 @@
                     // Show loading states
                     UIManager.showLoadingStates();
                     
-                    // Initialize Firebase
+                    // Initialize Firebase with proper timing
                     const firebaseReady = await FirebaseManager.initialize();
                     
-                    if (firebaseReady && window.VediAPI) {
+                    if (firebaseReady) {
                         console.log('✅ Firebase and VediAPI ready');
                         Utils.showAlert('Firebase connected successfully', 'success');
                         
