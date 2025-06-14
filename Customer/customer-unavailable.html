@@ -675,6 +675,86 @@
             });
         }
 
+        // Check restaurant status using restaurant document directly
+        async function checkRestaurantStatusDirect(restaurantId) {
+            try {
+                const db = firebase.firestore();
+                const doc = await db.collection('restaurants').doc(restaurantId).get();
+                
+                if (!doc.exists) {
+                    throw new Error('Restaurant not found');
+                }
+                
+                const restaurant = doc.data();
+                
+                return {
+                    isOnline: restaurant.isOnline !== false, // Default to true if not set
+                    offlineReason: restaurant.offlineReason || '',
+                    restaurantName: restaurant.name,
+                    success: true
+                };
+                
+            } catch (error) {
+                console.error('❌ Failed to check restaurant status:', error);
+                // Return default online status if there's an error
+                return {
+                    isOnline: true,
+                    offlineReason: '',
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        // Listen to restaurant status changes using direct Firestore listener
+        function listenToRestaurantStatusDirect(restaurantId, callback) {
+            try {
+                const db = firebase.firestore();
+                
+                console.log('🔄 Starting direct status listener for restaurant:', restaurantId);
+                
+                return db.collection('restaurants').doc(restaurantId)
+                    .onSnapshot(doc => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            const status = {
+                                isOnline: data.isOnline !== false,
+                                offlineReason: data.offlineReason || '',
+                                restaurantName: data.name,
+                                restaurantId: restaurantId,
+                                timestamp: new Date().toISOString()
+                            };
+                            
+                            console.log('📡 Direct status update:', {
+                                restaurant: data.name,
+                                status: status.isOnline ? 'ONLINE' : 'OFFLINE',
+                                reason: status.offlineReason || 'N/A'
+                            });
+                            
+                            callback(status);
+                        } else {
+                            console.warn('⚠️ Restaurant document not found:', restaurantId);
+                            callback({
+                                isOnline: false,
+                                offlineReason: 'Restaurant not found',
+                                error: 'Restaurant document not found'
+                            });
+                        }
+                    }, error => {
+                        console.error('❌ Status listener error:', error);
+                        callback({
+                            isOnline: true, // Default to online on error
+                            offlineReason: '',
+                            error: error.message
+                        });
+                    });
+                    
+            } catch (error) {
+                console.error('❌ Failed to setup status listener:', error);
+                return () => {};
+            }
+        }
+
         // Initialize the page
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Customer unavailable page initializing...');
