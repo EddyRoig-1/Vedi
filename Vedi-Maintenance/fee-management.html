@@ -1120,21 +1120,20 @@
         };
 
         // =============================================================================
-        // FIREBASE INITIALIZATION WITH PROPER TIMING
+        // FIREBASE INITIALIZATION WITH SIMPLIFIED TIMING
         // =============================================================================
         
         const FirebaseManager = {
             async initialize() {
                 try {
-                    console.log('🔄 Checking Firebase availability...');
+                    console.log('🔄 Initializing Firebase...');
                     
-                    // Wait for Firebase to be fully loaded
-                    await this.waitForFirebase();
-                    
+                    // Check if Firebase is already loaded
                     if (typeof firebase === 'undefined') {
-                        throw new Error('Firebase not loaded');
+                        throw new Error('Firebase SDK not loaded');
                     }
 
+                    // Initialize Firebase if not already done
                     if (!firebase.apps || firebase.apps.length === 0) {
                         firebase.initializeApp(Firebase.config);
                     }
@@ -1145,48 +1144,31 @@
                     window.firebaseAuth = Firebase.auth;
                     window.firebaseDb = Firebase.db;
                     
-                    // Wait for VediAPI to be available
-                    await this.waitForVediAPI();
+                    // Simple check for VediAPI - don't wait indefinitely
+                    let attempts = 0;
+                    const maxAttempts = 20; // Max 2 seconds
                     
-                    AppState.isFirebaseReady = true;
-                    console.log('✅ Firebase and VediAPI initialized successfully');
-                    return true;
+                    while (attempts < maxAttempts) {
+                        if (typeof window.VediAPI !== 'undefined' && window.VediAPI) {
+                            console.log('✅ VediAPI found after', attempts * 100, 'ms');
+                            AppState.isFirebaseReady = true;
+                            return true;
+                        }
+                        
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        attempts++;
+                    }
+                    
+                    // If VediAPI not found, continue anyway but mark as not ready
+                    console.warn('⚠️ VediAPI not found after 2 seconds, continuing without it');
+                    AppState.isFirebaseReady = false;
+                    return false;
                     
                 } catch (error) {
                     console.error('❌ Firebase initialization failed:', error);
                     AppState.isFirebaseReady = false;
                     return false;
                 }
-            },
-
-            waitForFirebase() {
-                return new Promise((resolve) => {
-                    const checkFirebase = () => {
-                        if (typeof firebase !== 'undefined' && firebase.apps !== undefined) {
-                            console.log('✅ Firebase SDK ready');
-                            resolve();
-                        } else {
-                            console.log('⏳ Waiting for Firebase SDK...');
-                            setTimeout(checkFirebase, 100);
-                        }
-                    };
-                    checkFirebase();
-                });
-            },
-
-            waitForVediAPI() {
-                return new Promise((resolve) => {
-                    const checkVediAPI = () => {
-                        if (typeof window.VediAPI !== 'undefined' && window.VediAPI) {
-                            console.log('✅ VediAPI ready');
-                            resolve();
-                        } else {
-                            console.log('⏳ Waiting for VediAPI...');
-                            setTimeout(checkVediAPI, 100);
-                        }
-                    };
-                    checkVediAPI();
-                });
             },
 
             isReady() {
@@ -2057,25 +2039,34 @@
                     // Show loading states
                     UIManager.showLoadingStates();
                     
-                    // Initialize Firebase with proper timing
+                    // Initialize Firebase with timeout
+                    console.log('🔄 Attempting Firebase initialization...');
                     const firebaseReady = await FirebaseManager.initialize();
                     
                     if (firebaseReady) {
-                        console.log('✅ Firebase and VediAPI ready');
+                        console.log('✅ Firebase and VediAPI ready, loading data...');
                         Utils.showAlert('Firebase connected successfully', 'success');
                         
                         // Load real data
                         await this.loadInitialData();
                         
                     } else {
-                        console.log('⚠️ Firebase or VediAPI not available');
-                        Utils.showAlert('Firebase not available - please check your connection', 'error');
+                        console.log('⚠️ VediAPI not available, checking alternative approach...');
                         
-                        // Show empty states
-                        UIManager.showEmptyStates();
+                        // Try alternative approach - check if VediAPI exists at all
+                        if (typeof window.VediAPI !== 'undefined') {
+                            console.log('🔄 VediAPI exists, trying direct initialization...');
+                            AppState.isFirebaseReady = true;
+                            Utils.showAlert('VediAPI found, attempting data load...', 'info');
+                            await this.loadInitialData();
+                        } else {
+                            console.log('❌ VediAPI completely unavailable');
+                            Utils.showAlert('VediAPI not available - please ensure firebase-api.js is loaded', 'error');
+                            UIManager.showEmptyStates();
+                        }
                     }
                     
-                    console.log('🎉 Fee Management System fully loaded!');
+                    console.log('🎉 Fee Management System initialization complete!');
                     
                 } catch (error) {
                     console.error('❌ Initialization error:', error);
@@ -2088,21 +2079,50 @@
                 try {
                     console.log('📊 Loading initial data...');
                     
-                    await Promise.all([
-                        DataManager.loadRestaurants(),
-                        DataManager.loadOverviewData(),
-                        DataManager.loadRestaurantFees(),
-                        DataManager.loadAnalytics()
-                    ]);
+                    // Test VediAPI first
+                    if (typeof window.VediAPI === 'undefined') {
+                        throw new Error('VediAPI not available');
+                    }
+                    
+                    console.log('🔍 VediAPI methods available:', Object.keys(window.VediAPI));
+                    
+                    // Load data step by step with error handling
+                    try {
+                        await DataManager.loadRestaurants();
+                    } catch (error) {
+                        console.error('Failed to load restaurants:', error);
+                    }
+                    
+                    try {
+                        await DataManager.loadOverviewData();
+                    } catch (error) {
+                        console.error('Failed to load overview:', error);
+                    }
+                    
+                    try {
+                        await DataManager.loadRestaurantFees();
+                    } catch (error) {
+                        console.error('Failed to load fees:', error);
+                    }
+                    
+                    try {
+                        await DataManager.loadAnalytics();
+                    } catch (error) {
+                        console.error('Failed to load analytics:', error);
+                    }
                     
                     // Load chart data after configs are loaded
-                    await ChartManager.loadChartData();
+                    try {
+                        await ChartManager.loadChartData();
+                    } catch (error) {
+                        console.error('Failed to load charts:', error);
+                    }
                     
-                    console.log('✅ All initial data loaded successfully');
+                    console.log('✅ Initial data loading complete');
                     
                 } catch (error) {
                     console.error('❌ Error loading initial data:', error);
-                    Utils.showAlert('Error loading data from Firebase', 'error');
+                    Utils.showAlert('Error loading data: ' + error.message, 'error');
                     throw error;
                 }
             }
@@ -2112,11 +2132,26 @@
         // APPLICATION STARTUP
         // =============================================================================
         
-        // Wait for DOM to be ready
+        // Wait for DOM to be ready and give time for all scripts to load
+        function startApp() {
+            // Add a longer delay to ensure all scripts are loaded
+            setTimeout(() => {
+                console.log('🔍 Checking script availability...');
+                console.log('Firebase available:', typeof firebase !== 'undefined');
+                console.log('VediAPI available:', typeof window.VediAPI !== 'undefined');
+                
+                if (typeof window.VediAPI !== 'undefined') {
+                    console.log('VediAPI methods:', Object.keys(window.VediAPI).slice(0, 10), '...');
+                }
+                
+                App.initialize();
+            }, 1000); // Wait 1 second for all scripts to load
+        }
+
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => App.initialize());
+            document.addEventListener('DOMContentLoaded', startApp);
         } else {
-            App.initialize();
+            startApp();
         }
 
         // Make functions globally available for onclick handlers
