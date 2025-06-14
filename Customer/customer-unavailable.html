@@ -1,4 +1,13 @@
-<!DOCTYPE html>
+// Redirect to login page
+        function redirectToLogin() {
+            const urlParams = new URLSearchParams();
+            urlParams.set('restaurant', restaurantId);
+            if (tableNumber) urlParams.set('table', tableNumber);
+            if (tableLocation) urlParams.set('location', tableLocation);
+            
+            const loginUrl = `customer-login.html?${urlParams.toString()}`;
+            window.location.href = loginUrl;
+        }<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -296,51 +305,6 @@
             animation: spin 1s linear infinite;
         }
 
-        .auto-refresh {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            border: 2px solid #e9ecef;
-        }
-
-        .auto-refresh h4 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .auto-refresh p {
-            color: #666;
-            font-size: 0.9rem;
-            line-height: 1.4;
-            margin-bottom: 15px;
-        }
-
-        .refresh-timer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: white;
-            padding: 12px 15px;
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
-        }
-
-        .timer-text {
-            color: #666;
-            font-size: 0.85rem;
-        }
-
-        .timer-countdown {
-            color: #667eea;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
         .timer-progress {
             width: 100%;
             height: 4px;
@@ -566,20 +530,6 @@
                 </div>
             </div>
 
-            <!-- Auto-refresh section -->
-            <div class="auto-refresh">
-                <h4>🔄 Auto-checking for availability</h4>
-                <p>We're automatically checking if the restaurant comes back online. You don't need to refresh the page.</p>
-                
-                <div class="refresh-timer">
-                    <span class="timer-text">Next check in:</span>
-                    <span class="timer-countdown" id="countdown">30s</span>
-                </div>
-                <div class="timer-progress">
-                    <div class="timer-progress-bar" id="progressBar"></div>
-                </div>
-            </div>
-
             <div class="action-buttons">
                 <button class="btn btn-primary" onclick="checkAvailabilityNow()">
                     <span class="loading-spinner" id="checkSpinner"></span>
@@ -588,10 +538,6 @@
                 
                 <button class="btn btn-secondary" onclick="refreshPage()">
                     🔄 Refresh Page
-                </button>
-                
-                <button class="btn btn-outline" onclick="goBack()">
-                    ← Go Back
                 </button>
             </div>
 
@@ -676,7 +622,7 @@
             });
         }
 
-        // Check restaurant status using restaurant document directly
+        // Check restaurant status using restaurant document directly with default creation
         async function checkRestaurantStatusDirect(restaurantId) {
             try {
                 console.log('🔍 Direct status check for restaurant:', restaurantId);
@@ -689,11 +635,40 @@
                 
                 const restaurant = doc.data();
                 
+                // Check if status fields exist
+                const hasStatusFields = restaurant.hasOwnProperty('isOnline');
+                
+                if (!hasStatusFields) {
+                    console.log('🔧 Status fields not found, creating default online status...');
+                    
+                    // Create default status fields
+                    const defaultStatus = {
+                        isOnline: true,
+                        offlineReason: '',
+                        statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        statusUpdatedBy: 'system_default'
+                    };
+                    
+                    // Update the restaurant document with default status
+                    await db.collection('restaurants').doc(restaurantId).update(defaultStatus);
+                    
+                    console.log('✅ Default online status created for restaurant');
+                    
+                    return {
+                        isOnline: true,
+                        offlineReason: '',
+                        restaurantName: restaurant.name,
+                        success: true,
+                        created: true // Indicates we created the status
+                    };
+                }
+                
                 const status = {
                     isOnline: restaurant.isOnline !== false, // Default to true if not set
                     offlineReason: restaurant.offlineReason || '',
                     restaurantName: restaurant.name,
-                    success: true
+                    success: true,
+                    created: false
                 };
                 
                 console.log('📊 Direct status check result:', status);
@@ -775,7 +750,6 @@
                 if (restaurantId) {
                     await loadRestaurantInfo();
                     startStatusMonitoring();
-                    startCountdownTimer();
                 } else {
                     showError('Restaurant not found. Please scan a valid QR code.');
                     hideInitialLoader();
@@ -979,64 +953,14 @@
             
             if (!isOnline) {
                 showInfo('Restaurant is still offline. We\'ll keep checking automatically.');
-                // Reset countdown timer
-                countdownSeconds = 30;
-                updateCountdownDisplay();
             }
             
             setLoading('check', false);
         }
 
-        // Countdown timer functions
-        function startCountdownTimer() {
-            updateCountdownDisplay();
-            
-            countdownInterval = setInterval(() => {
-                countdownSeconds--;
-                updateCountdownDisplay();
-                
-                if (countdownSeconds <= 0) {
-                    // Check status and reset timer
-                    checkRestaurantStatus();
-                    countdownSeconds = 30;
-                }
-            }, 1000);
-        }
-
-        function updateCountdownDisplay() {
-            const countdownElement = document.getElementById('countdown');
-            const progressBar = document.getElementById('progressBar');
-            
-            countdownElement.textContent = `${countdownSeconds}s`;
-            
-            // Update progress bar
-            const progress = ((30 - countdownSeconds) / 30) * 100;
-            progressBar.style.width = `${progress}%`;
-        }
-
-        // Redirect to login page
-        function redirectToLogin() {
-            const urlParams = new URLSearchParams();
-            urlParams.set('restaurant', restaurantId);
-            if (tableNumber) urlParams.set('table', tableNumber);
-            if (tableLocation) urlParams.set('location', tableLocation);
-            
-            const loginUrl = `customer-login.html?${urlParams.toString()}`;
-            window.location.href = loginUrl;
-        }
-
         // Utility functions
         function refreshPage() {
             window.location.reload();
-        }
-
-        function goBack() {
-            if (window.history.length > 1) {
-                window.history.back();
-            } else {
-                // If no history, go to a default page or close
-                window.close();
-            }
         }
 
         // Loading states
@@ -1108,9 +1032,6 @@
             if (statusCheckInterval) {
                 clearInterval(statusCheckInterval);
             }
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-            }
             if (restaurantStatusListener) {
                 restaurantStatusListener();
             }
@@ -1129,8 +1050,8 @@
 
         console.log('🚫🏪 Customer unavailable page loaded');
         console.log('📡 Real-time status monitoring: ENABLED');
-        console.log('🔄 Auto-refresh every 30 seconds: ENABLED');
         console.log('🔧 Using direct Firestore access for status monitoring');
+        console.log('✨ Simplified UI - no auto-refresh timers');
     </script>
 </body>
 </html>
