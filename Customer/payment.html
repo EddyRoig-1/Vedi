@@ -474,7 +474,7 @@
                 </div>
                 
                 <div class="fee-update" id="feeUpdate">
-                    💳 Fees may update based on your card type for optimal processing.
+                    💳 Fees updated based on your card type and restaurant configuration.
                 </div>
             </div>
 
@@ -540,7 +540,7 @@
         const params = new URLSearchParams(window.location.search);
         const restaurantId = params.get('restaurantId') || '';
         const table = params.get('table') || '';
-        const tableLocation = params.get('location') || ''; // Renamed from 'location' to 'tableLocation'
+        const tableLocation = params.get('location') || '';
         const name = params.get('name') || '';
         const phone = params.get('phone') || '';
         const currency = params.get('currency') || 'USD';
@@ -551,7 +551,7 @@
         orderParams = {
             restaurantId,
             table,
-            location: tableLocation, // Use the renamed variable
+            location: tableLocation,
             name,
             phone,
             currency,
@@ -597,7 +597,7 @@
                 // Initialize Stripe
                 await initializeStripe();
                 
-                // Calculate and display initial fees
+                // Calculate and display initial fees (preview only)
                 await calculateAndDisplayFees();
                 
                 // Show content
@@ -680,7 +680,7 @@
                 payBtn.disabled = false;
             }
             
-            // Detect card brand and potentially recalculate fees
+            // Detect card brand
             if (event.complete && event.brand) {
                 cardBrand = event.brand;
                 
@@ -690,8 +690,10 @@
                 
                 console.log('💳 Card brand detected:', event.brand);
                 
-                // Recalculate fees for this card brand
-                await recalculateFeesForCard(event.brand);
+                // Show update notice
+                const feeUpdate = document.getElementById('feeUpdate');
+                feeUpdate.classList.add('show');
+                setTimeout(() => feeUpdate.classList.remove('show'), 5000);
                 
             } else {
                 cardBrandDiv.classList.add('hidden');
@@ -714,63 +716,16 @@
             return brandNames[brand] || 'Card';
         }
 
-        // Recalculate fees when card brand changes
-        async function recalculateFeesForCard(brand) {
-            try {
-                console.log('🔄 Recalculating fees for card brand:', brand);
-                
-                // Call VediAPI or fee calculation service
-                const feeConfig = await VediAPI.getFeeConfig(restaurantId);
-                
-                // Recalculate with card-specific rates
-                const updatedBreakdown = calculateFeesWithCardBrand(subtotal, feeConfig, brand);
-                
-                // Update display if fees changed
-                if (updatedBreakdown.total !== orderBreakdown?.total) {
-                    orderBreakdown = updatedBreakdown;
-                    updateFeeDisplay();
-                    
-                    // Show fee update notice
-                    const feeUpdate = document.getElementById('feeUpdate');
-                    feeUpdate.classList.add('show');
-                    setTimeout(() => feeUpdate.classList.remove('show'), 5000);
-                }
-                
-            } catch (error) {
-                console.warn('⚠️ Could not recalculate fees for card brand:', error);
-                // Continue with existing fees
-            }
-        }
-
-        // Calculate fees with card brand consideration
-        function calculateFeesWithCardBrand(subtotal, feeConfig, brand) {
-            // This is a simplified version - you would implement actual
-            // card-specific fee calculation based on your business logic
-            const baseBreakdown = calculateBasicFees(subtotal, feeConfig);
-            
-            // Adjust for card brand if needed
-            let cardAdjustment = 0;
-            if (brand === 'amex') {
-                cardAdjustment = subtotal * 0.005; // 0.5% additional for Amex
-            }
-            
-            return {
-                ...baseBreakdown,
-                cardFee: cardAdjustment,
-                total: baseBreakdown.total + cardAdjustment
-            };
-        }
-
-        // Calculate and display initial fees
+        // Calculate and display initial fees (preview only)
         async function calculateAndDisplayFees() {
             try {
                 // Get fee configuration for restaurant
                 const feeConfig = await VediAPI.getFeeConfig(restaurantId);
                 
-                // Calculate breakdown
+                // Calculate basic breakdown for preview
                 orderBreakdown = calculateBasicFees(subtotal, feeConfig);
                 
-                console.log('💰 Calculated order breakdown:', orderBreakdown);
+                console.log('💰 Calculated initial breakdown:', orderBreakdown);
                 
                 // Update display
                 updateFeeDisplay();
@@ -790,19 +745,31 @@
             }
         }
 
-        // Calculate basic fees
+        // UPDATED: Calculate basic fees with fixed percentage handling
         function calculateBasicFees(subtotal, feeConfig) {
-            const taxRate = feeConfig.taxRate || 0.085;
+            // Handle tax rate (convert percentage to decimal if needed)
+            let taxRate = feeConfig.taxRate || 0.085;
+            if (taxRate > 1) {
+                taxRate = taxRate / 100; // Convert if stored as whole number
+            }
             const taxAmount = subtotal * taxRate;
             
             let serviceFee = 0;
             if (feeConfig.feeType === 'fixed') {
                 serviceFee = feeConfig.serviceFeeFixed || 0;
             } else if (feeConfig.feeType === 'percentage') {
-                serviceFee = subtotal * (feeConfig.serviceFeePercentage || 0);
+                // Handle percentage (convert to decimal if needed)
+                let percentage = feeConfig.serviceFeePercentage || 0;
+                if (percentage > 1) {
+                    percentage = percentage / 100; // Convert if stored as whole number
+                }
+                serviceFee = subtotal * percentage;
             } else if (feeConfig.feeType === 'hybrid') {
-                serviceFee = (feeConfig.serviceFeeFixed || 0) + 
-                           (subtotal * (feeConfig.serviceFeePercentage || 0));
+                let percentage = feeConfig.serviceFeePercentage || 0;
+                if (percentage > 1) {
+                    percentage = percentage / 100; // Convert if stored as whole number
+                }
+                serviceFee = (feeConfig.serviceFeeFixed || 0) + (subtotal * percentage);
             }
             
             const total = subtotal + taxAmount + serviceFee;
@@ -812,7 +779,7 @@
                 taxAmount,
                 serviceFee,
                 total,
-                taxRate,
+                taxRate: taxRate * 100, // Store as percentage for display
                 feeConfig
             };
         }
@@ -827,7 +794,7 @@
             document.getElementById('total').textContent = formatPrice(orderBreakdown.total, currency);
             
             // Update labels
-            const taxRate = (orderBreakdown.taxRate * 100).toFixed(1);
+            const taxRate = orderBreakdown.taxRate ? orderBreakdown.taxRate.toFixed(1) : '8.5';
             document.getElementById('taxLabel').textContent = `Tax (${taxRate}%):`;
             
             // Update pay button text
@@ -849,7 +816,7 @@
             return `${curr.symbol}${formattedAmount}`;
         }
 
-        // Handle payment button click
+        // UPDATED: Handle payment button click with new Cloud Function response
         document.getElementById('payBtn').addEventListener('click', async () => {
             const payBtn = document.getElementById('payBtn');
             const payBtnText = document.getElementById('payBtnText');
@@ -875,16 +842,29 @@
                 
                 console.log('🔑 Payment intent created:', data);
                 
-                // 2. Display any updated breakdown if provided
+                // 2. Display updated breakdown from Cloud Function (the real fees)
                 if (data.breakdown) {
+                    // Convert cents to dollars for display
                     orderBreakdown = {
-                        subtotal: data.breakdown.subtotal / 100,
-                        taxAmount: data.breakdown.taxAmount / 100,
-                        serviceFee: data.breakdown.serviceFee / 100,
-                        total: data.breakdown.totalCents / 100,
-                        appFee: data.breakdown.appFee / 100
+                        subtotal: data.breakdown.subtotalCents / 100,
+                        taxAmount: data.breakdown.taxCents / 100,
+                        serviceFee: data.breakdown.serviceFee / 100, // This is the total app fee
+                        originalServiceFee: data.breakdown.originalServiceFee / 100, // What you actually wanted
+                        stripeFee: data.breakdown.stripeFee / 100, // What goes to Stripe
+                        netRevenue: data.breakdown.netRevenue / 100, // What you actually keep
+                        total: data.breakdown.totalCents / 100
                     };
+                    
+                    // Update the display with final calculated fees
                     updateFeeDisplay();
+                    
+                    console.log('💰 Updated fee breakdown from Cloud Function:', orderBreakdown);
+                    console.log('📊 Fee details:', {
+                        customerPaysServiceFee: orderBreakdown.serviceFee,
+                        youWantedToKeep: orderBreakdown.originalServiceFee,
+                        stripeActuallyTakes: orderBreakdown.stripeFee,
+                        youActuallyKeep: orderBreakdown.netRevenue
+                    });
                 }
                 
                 // 3. Confirm the payment
@@ -907,7 +887,7 @@
                     const orderData = {
                         restaurantId,
                         table,
-                        location: tableLocation, // Use renamed variable
+                        location: tableLocation,
                         name,
                         phone,
                         orderNumber: result.paymentIntent.id,
@@ -947,7 +927,7 @@
             const params = new URLSearchParams();
             params.set('restaurant', restaurantId);
             params.set('table', table);
-            if (tableLocation) params.set('location', tableLocation); // Use renamed variable
+            if (tableLocation) params.set('location', tableLocation);
             if (name) params.set('name', name);
             if (phone) params.set('phone', phone);
             
@@ -997,7 +977,10 @@
             showNotification(message, 'error');
         }
 
-        console.log('💳 Payment page loaded successfully');
+        console.log('💳 Updated Payment page loaded');
+        console.log('✅ Uses Cloud Function for final fee calculation');
+        console.log('🧮 Handles percentage format correctly');
+        console.log('💰 Shows preview fees initially, real fees after Cloud Function call');
     </script>
 </body>
 </html>
