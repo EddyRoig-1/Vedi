@@ -120,6 +120,48 @@
             font-size: 0.9rem;
         }
 
+        /* Status checking overlay */
+        .status-checking-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+
+        .status-checking-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .status-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .status-checking-text {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .status-checking-subtext {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
         /* Social Login Section */
         .social-login {
             margin-bottom: 30px;
@@ -548,6 +590,13 @@
     </div>
 
     <div class="container">
+        <!-- Status Checking Overlay -->
+        <div class="status-checking-overlay" id="statusCheckingOverlay">
+            <div class="status-spinner"></div>
+            <div class="status-checking-text">Checking restaurant availability...</div>
+            <div class="status-checking-subtext">Please wait a moment</div>
+        </div>
+
         <div class="login-page">
             <div class="logo">🍽️</div>
             <h1>Welcome!</h1>
@@ -710,6 +759,7 @@
         let resendCountdown = 60;
         let currentSocialUser = null;
         let performanceStartTime = Date.now();
+        let restaurantStatusListener = null;
 
         // Performance monitoring
         function addPerformanceMonitoring() {
@@ -749,6 +799,21 @@
             if (loader) {
                 loader.style.opacity = '0';
                 setTimeout(() => loader.remove(), 300);
+            }
+        }
+
+        // Show/hide status checking overlay
+        function showStatusChecking() {
+            const overlay = document.getElementById('statusCheckingOverlay');
+            if (overlay) {
+                overlay.classList.remove('hidden');
+            }
+        }
+
+        function hideStatusChecking() {
+            const overlay = document.getElementById('statusCheckingOverlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
             }
         }
 
@@ -795,10 +860,11 @@
                 updateTableDisplay();
                 
                 if (restaurantId) {
-                    await loadRestaurantInfo();
+                    await loadRestaurantInfoWithStatusCheck();
                 } else {
                     showError('Restaurant not found. Please scan a valid QR code.');
                     hideInitialLoader();
+                    hideStatusChecking();
                     return;
                 }
 
@@ -814,6 +880,7 @@
                 console.error('❌ Page initialization error:', error);
                 showError('Failed to load page');
                 hideInitialLoader();
+                hideStatusChecking();
             }
         });
 
@@ -831,23 +898,101 @@
             });
         }
 
-        // Load restaurant information using VediAPI
-        async function loadRestaurantInfo() {
+        // Load restaurant information with status checking using VediAPI
+        async function loadRestaurantInfoWithStatusCheck() {
             try {
                 console.log('🏪 Loading restaurant data for ID:', restaurantId);
+                showStatusChecking();
                 document.getElementById('restaurantName').textContent = 'Loading...';
                 
                 if (typeof VediAPI !== 'undefined') {
+                    // Load restaurant data
+                    console.log('📋 Loading restaurant information...');
                     restaurantData = await VediAPI.getRestaurant(restaurantId);
                     document.getElementById('restaurantName').textContent = restaurantData.name || 'Restaurant';
-                    console.log('✅ Restaurant loaded:', restaurantData.name);
+                    
+                    // Check restaurant online status
+                    console.log('🔍 Checking restaurant availability status...');
+                    const status = await VediAPI.getRestaurantStatus(restaurantId);
+                    
+                    console.log('📊 Restaurant status:', status);
+                    
+                    // If restaurant is offline, redirect to unavailable page
+                    if (!status.isOnline) {
+                        console.log('🔴 Restaurant is OFFLINE, redirecting to unavailable page...');
+                        
+                        // Show brief message before redirect
+                        hideStatusChecking();
+                        showInfo(`${restaurantData.name} is currently offline. Redirecting...`);
+                        
+                        // Build redirect URL with all parameters
+                        const urlParams = new URLSearchParams();
+                        urlParams.set('restaurant', restaurantId);
+                        if (tableNumber) urlParams.set('table', tableNumber);
+                        if (tableLocation) urlParams.set('location', tableLocation);
+                        
+                        const redirectUrl = `customer-unavailable.html?${urlParams.toString()}`;
+                        
+                        setTimeout(() => {
+                            window.location.href = redirectUrl;
+                        }, 2000);
+                        
+                        return;
+                    }
+                    
+                    // Restaurant is online, proceed normally
+                    console.log('🟢 Restaurant is ONLINE, proceeding with login...');
+                    hideStatusChecking();
+                    
+                    // Start monitoring restaurant status for real-time updates
+                    startRestaurantStatusMonitoring();
+                    
                 } else {
-                    console.warn('⚠️ VediAPI not available');
+                    console.warn('⚠️ VediAPI not available - proceeding without status check');
+                    hideStatusChecking();
                     document.getElementById('restaurantName').textContent = 'Restaurant';
                 }
+                
             } catch (error) {
-                console.error('❌ Failed to load restaurant:', error);
+                console.error('❌ Failed to load restaurant or check status:', error);
+                hideStatusChecking();
+                
+                // Show error but don't block login completely
                 document.getElementById('restaurantName').textContent = 'Restaurant';
+                showError('Unable to verify restaurant status. You can still proceed with login.');
+            }
+        }
+
+        // Monitor restaurant status in real-time
+        function startRestaurantStatusMonitoring() {
+            if (typeof VediAPI !== 'undefined' && restaurantId) {
+                console.log('📡 Starting real-time restaurant status monitoring...');
+                
+                // Listen for real-time status changes
+                restaurantStatusListener = VediAPI.listenToRestaurantStatus(restaurantId, (status) => {
+                    console.log('📡 Real-time status update:', status);
+                    
+                    // If restaurant goes offline while customer is on login page
+                    if (!status.isOnline) {
+                        console.log('🔴 Restaurant went OFFLINE during login session');
+                        
+                        // Show notification
+                        showError(`${restaurantData?.name || 'Restaurant'} just went offline. Redirecting...`);
+                        
+                        // Redirect to unavailable page after brief delay
+                        setTimeout(() => {
+                            const urlParams = new URLSearchParams();
+                            urlParams.set('restaurant', restaurantId);
+                            if (tableNumber) urlParams.set('table', tableNumber);
+                            if (tableLocation) urlParams.set('location', tableLocation);
+                            
+                            const redirectUrl = `customer-unavailable.html?${urlParams.toString()}`;
+                            window.location.href = redirectUrl;
+                        }, 3000);
+                    }
+                });
+                
+                console.log('✅ Real-time status monitoring started');
             }
         }
 
@@ -1642,6 +1787,14 @@
             }
         });
 
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            // Cleanup restaurant status listener
+            if (restaurantStatusListener) {
+                restaurantStatusListener();
+            }
+        });
+
         // Global error handler for extension errors
         window.addEventListener('error', function(event) {
             // Ignore extension-related errors
@@ -1653,9 +1806,10 @@
             }
         });
 
-        console.log('📱🔍 Enhanced customer authentication system loaded with API integration');
-        console.log('🔗 Using VediAPI for social auth and restaurant data');
+        console.log('📱🔍 Enhanced customer authentication system loaded with restaurant status checking');
+        console.log('🔗 Using VediAPI for social auth, restaurant data, and status checking');
         console.log('📱 Using CustomerAuthAPI for phone authentication and reCAPTCHA');
+        console.log('🟢🔴 Restaurant status monitoring: ENABLED');
     </script>
 </body>
 </html>
