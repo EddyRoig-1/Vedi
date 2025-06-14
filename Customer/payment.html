@@ -381,20 +381,16 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
-        /* Fee Breakdown Update */
-        .fee-update {
-            background: rgba(102, 126, 234, 0.1);
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            color: #667eea;
-            padding: 12px 16px;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            margin-top: 16px;
-            display: none;
-        }
-
-        .fee-update.show {
-            display: block;
+        /* Fee info badge */
+        .fee-info-badge {
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            border: 1px solid rgba(34, 197, 94, 0.2);
         }
 
         /* Responsive Design */
@@ -472,10 +468,6 @@
                         <span id="total">$0.00</span>
                     </div>
                 </div>
-                
-                <div class="fee-update" id="feeUpdate">
-                    💳 Fees updated based on your card type and restaurant configuration.
-                </div>
             </div>
 
             <!-- Security Notice -->
@@ -536,7 +528,7 @@
         let currentRestaurant = null;
         let orderBreakdown = null;
 
-        // Parse URL parameters
+        // Parse URL parameters (passed from checkout with protected pricing)
         const params = new URLSearchParams(window.location.search);
         const restaurantId = params.get('restaurantId') || '';
         const table = params.get('table') || '';
@@ -544,8 +536,14 @@
         const name = params.get('name') || '';
         const phone = params.get('phone') || '';
         const currency = params.get('currency') || 'USD';
+        
+        // PROTECTED PRICING PASSED FROM CHECKOUT
+        const totalCents = Number(params.get('totalCents')) || 0;
         const subtotalCents = Number(params.get('subtotalCents')) || 0;
-        const subtotal = subtotalCents / 100;
+        const taxCents = Number(params.get('taxCents')) || 0;
+        const serviceFeCents = Number(params.get('serviceFeCents')) || 0;
+        const serviceFeePercentage = Number(params.get('serviceFeePercentage')) || 0;
+        const taxRate = Number(params.get('taxRate')) || 0;
 
         // Store in global object
         orderParams = {
@@ -555,13 +553,17 @@
             name,
             phone,
             currency,
+            totalCents,
             subtotalCents,
-            subtotal
+            taxCents,
+            serviceFeCents,
+            serviceFeePercentage,
+            taxRate
         };
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Payment page initializing...');
+            console.log('🚀 Payment page initializing with protected pricing...');
             console.log('📋 Order parameters:', orderParams);
             
             try {
@@ -579,26 +581,26 @@
             
             try {
                 // Validate required parameters
-                if (!restaurantId || !subtotalCents || !currency) {
+                if (!restaurantId || !totalCents || !currency) {
                     throw new Error('Missing required order information. Please return to checkout.');
                 }
 
-                console.log('🔍 Validating parameters:', {
+                console.log('🔍 Validating protected pricing parameters:', {
                     restaurantId,
+                    totalCents,
                     subtotalCents,
-                    currency,
-                    table,
-                    name
+                    taxCents,
+                    serviceFeCents
                 });
 
-                // Load restaurant data for fee calculation
+                // Load restaurant data
                 await loadRestaurantData();
                 
                 // Initialize Stripe
                 await initializeStripe();
                 
-                // Calculate and display initial fees (preview only)
-                await calculateAndDisplayFees();
+                // Display the protected pricing (no calculation needed)
+                displayProtectedPricing();
                 
                 // Show content
                 document.getElementById('paymentContent').style.display = 'block';
@@ -606,7 +608,7 @@
                 
                 hideLoading();
                 
-                console.log('✅ Payment page loaded successfully');
+                console.log('✅ Payment page loaded with protected pricing');
                 
             } catch (error) {
                 console.error('Payment page initialization error:', error);
@@ -665,6 +667,47 @@
             }
         }
 
+        // Display the protected pricing (passed from checkout)
+        function displayProtectedPricing() {
+            console.log('💰 Displaying protected pricing from checkout:', orderParams);
+
+            // Convert cents to dollars for display
+            const subtotal = subtotalCents / 100;
+            const tax = taxCents / 100;
+            const serviceFee = serviceFeCents / 100;
+            const total = totalCents / 100;
+
+            // Store breakdown for later use
+            orderBreakdown = {
+                subtotal,
+                taxAmount: tax,
+                serviceFee,
+                total,
+                taxRate,
+                serviceFeePercentage
+            };
+
+            // Update display with exact values from checkout
+            document.getElementById('subtotal').textContent = formatPrice(subtotal);
+            document.getElementById('tax').textContent = formatPrice(tax);
+            document.getElementById('serviceFee').textContent = formatPrice(serviceFee);
+            document.getElementById('total').textContent = formatPrice(total);
+
+            // Update labels with the rates
+            document.getElementById('taxLabel').innerHTML = `Tax (${taxRate.toFixed(1)}%):`;
+            
+            // Service fee label with dynamic percentage and protection badge
+            let serviceFeeLabel = `Service Fee (${serviceFeePercentage.toFixed(1)}%):`;
+            const protectionBadge = '<span class="fee-info-badge">Margin Protected</span>';
+            document.getElementById('serviceFeeLabel').innerHTML = serviceFeeLabel + protectionBadge;
+
+            // Update pay button text
+            document.getElementById('payBtnText').textContent = `Pay ${formatPrice(total)}`;
+
+            console.log('✅ Protected pricing displayed - Customer pays:', formatPrice(total));
+            console.log('🛡️ Same total as checkout - no price surprises!');
+        }
+
         // Handle card input changes
         async function handleCardChange(event) {
             const cardErrors = document.getElementById('card-errors');
@@ -689,11 +732,7 @@
                 brandText.textContent = `${getCardBrandName(event.brand)} detected`;
                 
                 console.log('💳 Card brand detected:', event.brand);
-                
-                // Show update notice
-                const feeUpdate = document.getElementById('feeUpdate');
-                feeUpdate.classList.add('show');
-                setTimeout(() => feeUpdate.classList.remove('show'), 5000);
+                // Note: Card brand doesn't affect pricing since it's already calculated
                 
             } else {
                 cardBrandDiv.classList.add('hidden');
@@ -716,91 +755,6 @@
             return brandNames[brand] || 'Card';
         }
 
-        // Calculate and display initial fees (preview only)
-        async function calculateAndDisplayFees() {
-            try {
-                // Get fee configuration for restaurant
-                const feeConfig = await VediAPI.getFeeConfig(restaurantId);
-                
-                // Calculate basic breakdown for preview
-                orderBreakdown = calculateBasicFees(subtotal, feeConfig);
-                
-                console.log('💰 Calculated initial breakdown:', orderBreakdown);
-                
-                // Update display
-                updateFeeDisplay();
-                
-            } catch (error) {
-                console.error('❌ Error calculating fees:', error);
-                
-                // Use fallback calculation
-                orderBreakdown = {
-                    subtotal: subtotal,
-                    taxAmount: subtotal * 0.085, // 8.5% default tax
-                    serviceFee: 2.00, // $2 default service fee
-                    total: subtotal + (subtotal * 0.085) + 2.00
-                };
-                
-                updateFeeDisplay();
-            }
-        }
-
-        // UPDATED: Calculate basic fees with fixed percentage handling
-        function calculateBasicFees(subtotal, feeConfig) {
-            // Handle tax rate (convert percentage to decimal if needed)
-            let taxRate = feeConfig.taxRate || 0.085;
-            if (taxRate > 1) {
-                taxRate = taxRate / 100; // Convert if stored as whole number
-            }
-            const taxAmount = subtotal * taxRate;
-            
-            let serviceFee = 0;
-            if (feeConfig.feeType === 'fixed') {
-                serviceFee = feeConfig.serviceFeeFixed || 0;
-            } else if (feeConfig.feeType === 'percentage') {
-                // Handle percentage (convert to decimal if needed)
-                let percentage = feeConfig.serviceFeePercentage || 0;
-                if (percentage > 1) {
-                    percentage = percentage / 100; // Convert if stored as whole number
-                }
-                serviceFee = subtotal * percentage;
-            } else if (feeConfig.feeType === 'hybrid') {
-                let percentage = feeConfig.serviceFeePercentage || 0;
-                if (percentage > 1) {
-                    percentage = percentage / 100; // Convert if stored as whole number
-                }
-                serviceFee = (feeConfig.serviceFeeFixed || 0) + (subtotal * percentage);
-            }
-            
-            const total = subtotal + taxAmount + serviceFee;
-            
-            return {
-                subtotal,
-                taxAmount,
-                serviceFee,
-                total,
-                taxRate: taxRate * 100, // Store as percentage for display
-                feeConfig
-            };
-        }
-
-        // Update fee display
-        function updateFeeDisplay() {
-            const currency = getCurrentCurrency();
-            
-            document.getElementById('subtotal').textContent = formatPrice(orderBreakdown.subtotal, currency);
-            document.getElementById('tax').textContent = formatPrice(orderBreakdown.taxAmount, currency);
-            document.getElementById('serviceFee').textContent = formatPrice(orderBreakdown.serviceFee, currency);
-            document.getElementById('total').textContent = formatPrice(orderBreakdown.total, currency);
-            
-            // Update labels
-            const taxRate = orderBreakdown.taxRate ? orderBreakdown.taxRate.toFixed(1) : '8.5';
-            document.getElementById('taxLabel').textContent = `Tax (${taxRate}%):`;
-            
-            // Update pay button text
-            document.getElementById('payBtnText').textContent = `Pay ${formatPrice(orderBreakdown.total, currency)}`;
-        }
-
         // Get current currency
         function getCurrentCurrency() {
             if (currentRestaurant && currentRestaurant.currency) {
@@ -810,13 +764,13 @@
         }
 
         // Format price with currency
-        function formatPrice(amount, currencyObj) {
-            const curr = currencyObj || getCurrentCurrency();
+        function formatPrice(amount) {
+            const curr = getCurrentCurrency();
             const formattedAmount = Number(amount).toFixed(2);
             return `${curr.symbol}${formattedAmount}`;
         }
 
-        // UPDATED: Handle payment button click with new Cloud Function response
+        // UPDATED: Handle payment button click - uses simplified Cloud Function
         document.getElementById('payBtn').addEventListener('click', async () => {
             const payBtn = document.getElementById('payBtn');
             const payBtnText = document.getElementById('payBtnText');
@@ -828,46 +782,20 @@
             payBtnSpinner.style.display = 'block';
             
             try {
-                console.log('💳 Processing payment...');
+                console.log('💳 Processing payment with protected pricing...');
                 
-                // 1. Call Cloud Function to get clientSecret + breakdown
+                // Call simplified Cloud Function - just creates payment intent with provided total
                 const cf = firebase.functions().httpsCallable('createPaymentIntent');
                 const { data } = await cf({
                     restaurantId,
-                    subtotalCents,
+                    totalCents, // Pass the protected total from checkout
                     currency,
-                    cardBrand,
-                    chargeCurrency: currency
+                    cardBrand: cardBrand || 'standard'
                 });
                 
-                console.log('🔑 Payment intent created:', data);
+                console.log('🔑 Payment intent created with protected total:', data);
                 
-                // 2. Display updated breakdown from Cloud Function (the real fees)
-                if (data.breakdown) {
-                    // Convert cents to dollars for display
-                    orderBreakdown = {
-                        subtotal: data.breakdown.subtotalCents / 100,
-                        taxAmount: data.breakdown.taxCents / 100,
-                        serviceFee: data.breakdown.serviceFee / 100, // This is the total app fee
-                        originalServiceFee: data.breakdown.originalServiceFee / 100, // What you actually wanted
-                        stripeFee: data.breakdown.stripeFee / 100, // What goes to Stripe
-                        netRevenue: data.breakdown.netRevenue / 100, // What you actually keep
-                        total: data.breakdown.totalCents / 100
-                    };
-                    
-                    // Update the display with final calculated fees
-                    updateFeeDisplay();
-                    
-                    console.log('💰 Updated fee breakdown from Cloud Function:', orderBreakdown);
-                    console.log('📊 Fee details:', {
-                        customerPaysServiceFee: orderBreakdown.serviceFee,
-                        youWantedToKeep: orderBreakdown.originalServiceFee,
-                        stripeActuallyTakes: orderBreakdown.stripeFee,
-                        youActuallyKeep: orderBreakdown.netRevenue
-                    });
-                }
-                
-                // 3. Confirm the payment
+                // Confirm the payment using the protected pricing
                 const result = await stripe.confirmCardPayment(data.clientSecret, {
                     payment_method: {
                         card: cardElement,
@@ -881,9 +809,9 @@
                     console.error('❌ Payment failed:', result.error);
                     throw new Error(result.error.message);
                 } else {
-                    console.log('✅ Payment succeeded:', result.paymentIntent);
+                    console.log('✅ Payment succeeded with protected pricing:', result.paymentIntent);
                     
-                    // 4. On success: create the order record
+                    // Create the order record
                     const orderData = {
                         restaurantId,
                         table,
@@ -891,21 +819,27 @@
                         name,
                         phone,
                         orderNumber: result.paymentIntent.id,
-                        subtotal: subtotalCents,
-                        fees: data.breakdown || orderBreakdown,
+                        breakdown: {
+                            subtotalCents,
+                            taxCents,
+                            serviceFeCents,
+                            totalCents,
+                            serviceFeePercentage,
+                            taxRate,
+                            marginProtected: true
+                        },
                         status: 'paid',
                         paymentIntentId: result.paymentIntent.id,
                         createdAt: new Date().toISOString()
                     };
                     
                     await VediAPI.createOrder(orderData);
-                    console.log('📝 Order created successfully');
+                    console.log('📝 Order created successfully with protected pricing');
                     
-                    // 5. Redirect to order progress
-                    showSuccess('Payment successful! Redirecting...');
+                    // Show success and redirect
+                    showSuccess('Payment successful! Your order is confirmed.');
                     
                     setTimeout(() => {
-                        // Both files are in Customer folder
                         window.location.href = `order-progress.html?orderNumber=${orderData.orderNumber}`;
                     }, 2000);
                 }
@@ -931,7 +865,6 @@
             if (name) params.set('name', name);
             if (phone) params.set('phone', phone);
             
-            // Both files are in Customer folder
             window.location.href = `checkout.html?${params.toString()}`;
         }
 
@@ -977,10 +910,10 @@
             showNotification(message, 'error');
         }
 
-        console.log('💳 Updated Payment page loaded');
-        console.log('✅ Uses Cloud Function for final fee calculation');
-        console.log('🧮 Handles percentage format correctly');
-        console.log('💰 Shows preview fees initially, real fees after Cloud Function call');
+        console.log('💳 Payment page with protected pricing loaded');
+        console.log('🛡️ Displays exact totals from checkout');
+        console.log('📊 No price recalculation - consistent pricing');
+        console.log('✅ Customer sees same total throughout journey');
     </script>
 </body>
 </html>
