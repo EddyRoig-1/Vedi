@@ -1,5 +1,6 @@
 // firebase-api.js - Complete Vedi Firebase API Implementation with Firebase Reference Initialization
 // UPDATED: Removed phone authentication, SMS verification, and reCAPTCHA functionality
+// UPDATED: Added Stripe fee configuration support
 
 // ============================================================================
 // FIREBASE REFERENCE INITIALIZATION (CRITICAL FIX)
@@ -1231,11 +1232,11 @@ const VediAPI = {
   }),
 
   // ============================================================================
-  // DYNAMIC FEE MANAGEMENT SYSTEM
+  // DYNAMIC FEE MANAGEMENT SYSTEM WITH STRIPE FEE SUPPORT
   // ============================================================================
 
   /**
-   * Create or update fee configuration for a restaurant
+   * Create or update fee configuration for a restaurant (UPDATED WITH STRIPE FEES)
    * @param {string} restaurantId - Restaurant ID
    * @param {Object} feeConfig - Fee configuration
    * @returns {Promise<Object>} Created/updated fee config
@@ -1252,6 +1253,9 @@ const VediAPI = {
         feeType: feeConfig.feeType || 'fixed', // 'fixed', 'percentage', or 'hybrid'
         taxRate: feeConfig.taxRate || 0.085, // Default 8.5%
         minimumOrderAmount: feeConfig.minimumOrderAmount || 0,
+        // NEW: Stripe fee configuration
+        stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9, // Default 2.9%
+        stripeFlatFee: feeConfig.stripeFlatFee || 30, // Default 30 cents
         // Negotiated rates
         isNegotiated: feeConfig.isNegotiated || false,
         negotiatedBy: feeConfig.negotiatedBy || null, // Admin user ID
@@ -1266,7 +1270,7 @@ const VediAPI = {
       // Use restaurant ID as document ID for easy lookup
       await db.collection('feeConfigurations').doc(restaurantId).set(config, { merge: true });
       
-      console.log('✅ Fee configuration saved for restaurant:', restaurantId);
+      console.log('✅ Fee configuration with Stripe fees saved for restaurant:', restaurantId);
       return config;
       
     } catch (error) {
@@ -1276,7 +1280,7 @@ const VediAPI = {
   }),
 
   /**
-   * Get fee configuration for a restaurant
+   * Get fee configuration for a restaurant (UPDATED WITH STRIPE FEES)
    * @param {string} restaurantId - Restaurant ID
    * @returns {Promise<Object|null>} Fee configuration or default
    */
@@ -1290,7 +1294,7 @@ const VediAPI = {
         return { id: doc.id, ...doc.data() };
       }
       
-      // Return default configuration if none exists
+      // Return default configuration if none exists (UPDATED WITH STRIPE DEFAULTS)
       return {
         restaurantId,
         serviceFeeFixed: 2.00, // Default $2.00
@@ -1298,13 +1302,15 @@ const VediAPI = {
         feeType: 'fixed',
         taxRate: 0.085, // Default 8.5%
         minimumOrderAmount: 0,
+        stripeFeePercentage: 2.9, // Default Stripe 2.9%
+        stripeFlatFee: 30, // Default Stripe 30 cents
         isNegotiated: false,
         isDefault: true
       };
       
     } catch (error) {
       console.error('❌ Get fee config error:', error);
-      // Return default on error
+      // Return default on error (UPDATED WITH STRIPE DEFAULTS)
       return {
         restaurantId,
         serviceFeeFixed: 2.00,
@@ -1312,6 +1318,8 @@ const VediAPI = {
         feeType: 'fixed',
         taxRate: 0.085,
         minimumOrderAmount: 0,
+        stripeFeePercentage: 2.9,
+        stripeFlatFee: 30,
         isDefault: true
       };
     }
@@ -1341,7 +1349,7 @@ const VediAPI = {
   }),
 
   /**
-   * Calculate fees for an order
+   * Calculate fees for an order (UPDATED WITH STRIPE FEES)
    * @param {string} restaurantId - Restaurant ID
    * @param {number} subtotal - Order subtotal
    * @returns {Promise<Object>} Calculated fees
@@ -1351,6 +1359,7 @@ const VediAPI = {
       const feeConfig = await this.getFeeConfig(restaurantId);
       
       let serviceFee = 0;
+      let stripeFee = 0;
       let taxAmount = 0;
       
       // Calculate service fee based on configuration
@@ -1374,14 +1383,20 @@ const VediAPI = {
         serviceFee += shortfall; // Add shortfall to service fee
       }
       
+      // NEW: Calculate Stripe fees
+      const stripePercentage = (feeConfig.stripeFeePercentage || 2.9) / 100;
+      const stripeFlatCents = feeConfig.stripeFlatFee || 30;
+      stripeFee = (subtotal * stripePercentage) + (stripeFlatCents / 100);
+      
       // Calculate tax
       taxAmount = subtotal * (feeConfig.taxRate || 0.085);
       
-      const total = subtotal + serviceFee + taxAmount;
+      const total = subtotal + serviceFee + stripeFee + taxAmount;
       
       return {
         subtotal,
         serviceFee: Math.round(serviceFee * 100) / 100, // Round to 2 decimals
+        stripeFee: Math.round(stripeFee * 100) / 100, // Round to 2 decimals
         taxAmount: Math.round(taxAmount * 100) / 100,
         taxRate: feeConfig.taxRate || 0.085,
         total: Math.round(total * 100) / 100,
@@ -1390,6 +1405,8 @@ const VediAPI = {
           serviceFeeType: feeConfig.feeType,
           serviceFeeFixed: feeConfig.serviceFeeFixed,
           serviceFeePercentage: feeConfig.serviceFeePercentage,
+          stripeFeePercentage: feeConfig.stripeFeePercentage,
+          stripeFlatFee: feeConfig.stripeFlatFee,
           isNegotiated: feeConfig.isNegotiated
         }
       };
@@ -1442,7 +1459,7 @@ const VediAPI = {
         }
       }));
       
-      console.log('✅ Retrieved fee configurations:', enrichedConfigs.length);
+      console.log('✅ Retrieved fee configurations with Stripe fees:', enrichedConfigs.length);
       return enrichedConfigs;
       
     } catch (error) {
@@ -1492,6 +1509,7 @@ const VediAPI = {
       
       let totalRevenue = 0;
       let totalServiceFees = 0;
+      let totalStripeFees = 0; // NEW: Track Stripe fees
       let totalTax = 0;
       let orderCount = 0;
       const revenueByRestaurant = {};
@@ -1501,6 +1519,7 @@ const VediAPI = {
         if (order.status === 'completed') {
           totalRevenue += order.total || 0;
           totalServiceFees += order.serviceFee || 0;
+          totalStripeFees += order.stripeFee || 0; // NEW: Add Stripe fees
           totalTax += order.tax || 0;
           orderCount++;
           
@@ -1509,12 +1528,14 @@ const VediAPI = {
             revenueByRestaurant[restId] = {
               revenue: 0,
               serviceFees: 0,
+              stripeFees: 0, // NEW: Track Stripe fees per restaurant
               orders: 0
             };
           }
           
           revenueByRestaurant[restId].revenue += order.total || 0;
           revenueByRestaurant[restId].serviceFees += order.serviceFee || 0;
+          revenueByRestaurant[restId].stripeFees += order.stripeFee || 0; // NEW
           revenueByRestaurant[restId].orders++;
         }
       });
@@ -1523,12 +1544,15 @@ const VediAPI = {
         timePeriod,
         totalRevenue,
         totalServiceFees,
+        totalStripeFees, // NEW: Include Stripe fees in analytics
         totalTax,
         orderCount,
         averageOrderValue: orderCount > 0 ? totalRevenue / orderCount : 0,
         averageServiceFee: orderCount > 0 ? totalServiceFees / orderCount : 0,
+        averageStripeFee: orderCount > 0 ? totalStripeFees / orderCount : 0, // NEW
         revenueByRestaurant,
-        platformCommission: totalServiceFees // This is your revenue
+        platformCommission: totalServiceFees, // This is your revenue
+        stripeCommission: totalStripeFees // NEW: Stripe's revenue
       };
       
     } catch (error) {
@@ -2172,8 +2196,14 @@ console.log('   📊 Fixed, percentage, and hybrid fee structures');
 console.log('   🤝 Negotiated rate tracking and management');
 console.log('   📈 Platform revenue analytics and tracking');
 console.log('   🏛️ Custom tax rates and minimum order amounts');
-console.log('🔥 Ready for production use with complete analytics, enhanced authentication, and dynamic fee management!');
+console.log('💳 NEW: Stripe Fee Management:');
+console.log('   🔧 Stripe percentage and flat fee configuration');
+console.log('   📊 Separate tracking of Stripe fees in analytics');
+console.log('   💰 Accurate fee calculations including Stripe costs');
+console.log('   📈 Enhanced revenue analytics with Stripe fee breakdown');
+console.log('🔥 Ready for production use with complete analytics, enhanced authentication, and Stripe fee management!');
 console.log('✅ FIXED: Loss incident creation now handles undefined values properly');
 console.log('🔧 FIXED: Firebase database references properly initialized');
 console.log('💡 NEW: Dynamic fee system allows complete control over platform revenue');
 console.log('🧹 CLEANED: Removed phone auth, SMS verification, and reCAPTCHA functionality');
+console.log('💳 UPDATED: All fee-related functions now support Stripe fee configuration and calculation');
