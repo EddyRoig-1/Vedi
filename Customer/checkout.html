@@ -14,6 +14,9 @@
     <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
     
+    <!-- VediAPI Pricing Extensions -->
+    <script src="../vediapi-pricing-extensions.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -812,7 +815,10 @@
     <div class="notification" id="notification"></div>
 
     <script>
-        // Global variables
+        // ============================================================================
+        // GLOBAL VARIABLES & STATE
+        // ============================================================================
+        
         let currentRestaurant = null;
         let cart = {};
         let menuItems = {};
@@ -820,12 +826,15 @@
         let customerSession = {};
         let currentUser = null;
         let customerAllergenInfo = null;
-        let orderBreakdown = null; // Will store final protected pricing
+        let orderBreakdown = null;
         let protectedPricingCalculated = false;
 
-        // Initialize when page loads
+        // ============================================================================
+        // INITIALIZATION
+        // ============================================================================
+        
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Frontend protected pricing checkout initializing...');
+            console.log('🚀 Protected pricing checkout initializing...');
             
             try {
                 await initializeCheckoutPage();
@@ -836,7 +845,6 @@
             }
         });
 
-        // Main initialization function
         async function initializeCheckoutPage() {
             showLoading();
             
@@ -844,116 +852,37 @@
                 // Step 1: Check authentication
                 await checkAuthenticationAndSession();
                 
-                // Step 2: Get customer data
+                // Step 2: Get customer data from URL
                 getCustomerDataFromURL();
                 
                 // Step 3: Load restaurant and menu data
                 await loadRestaurantAndMenuData();
                 
-                // Step 4: Load cart data
+                // Step 4: Load cart and allergen data
                 loadCartData();
                 loadAllergenInfo();
                 
-                // Step 5: CRITICAL - Calculate protected pricing via BACKEND
+                // Step 5: Calculate protected pricing using VediAPI extensions
                 await calculateProtectedPricing();
                 
-                // Step 6: Update UI elements
+                // Step 6: Update UI
                 updateCustomerDisplay();
-                
-                // Step 7: Render everything with protected pricing
                 renderCheckout();
                 
                 hideLoading();
-                
-                console.log('✅ Frontend protected pricing checkout loaded successfully');
+                console.log('✅ Checkout loaded successfully');
                 
             } catch (error) {
-                console.error('Checkout page initialization error:', error);
+                console.error('Checkout initialization error:', error);
                 showErrorMessage('Failed to load checkout: ' + error.message);
                 hideLoading();
             }
         }
 
-        // UPDATED: Calculate protected pricing using BACKEND Cloud Function
-        async function calculateProtectedPricing() {
-            const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
-            
-            if (cartItemsCount === 0) {
-                console.log('ℹ️ No items in cart, skipping pricing calculation');
-                return;
-            }
-
-            // Calculate subtotal
-            let subtotal = 0;
-            for (let itemId in cart) {
-                if (cart[itemId] > 0 && menuItems[itemId]) {
-                    subtotal += menuItems[itemId].price * cart[itemId];
-                }
-            }
-
-            try {
-                console.log('🔄 Calculating protected pricing via BACKEND Cloud Function...');
-                console.log('📊 Restaurant ID:', customerData.restaurantId);
-                console.log('💰 Subtotal:', subtotal);
-                
-                // Call the backend Cloud Function instead of frontend calculation
-                const cf = firebase.functions().httpsCallable('calculateProtectedPricing');
-                const { data } = await cf({
-                    restaurantId: customerData.restaurantId,
-                    subtotalCents: Math.round(subtotal * 100)
-                });
-                
-                console.log('✅ Backend calculation successful:', data);
-                
-                // Use the backend-calculated values
-                const quote = data.quote;
-                orderBreakdown = {
-                    subtotal: quote.subtotalCents / 100,
-                    taxAmount: quote.taxCents / 100,
-                    taxRate: quote.taxRate, // This will be the correct 7.0% from your config
-                    serviceFee: quote.serviceFeCents / 100, // What customer sees
-                    serviceFeePercentage: quote.serviceFeePercentage, // Dynamic percentage
-                    total: quote.totalCents / 100, // Final protected price
-                    
-                    // Backend breakdown data for testing
-                    backendData: data.quote || {},
-                    marginProtected: true
-                };
-
-                protectedPricingCalculated = true;
-                
-                console.log('🛡️ Using backend protected pricing:', orderBreakdown);
-                console.log('📊 Tax rate from backend:', quote.taxRate + '%');
-                console.log('💰 Customer total:', orderBreakdown.total);
-                
-            } catch (error) {
-                console.error('❌ Backend calculation failed:', error);
-                
-                // Fallback to basic calculation only if backend fails
-                console.log('⚠️ Using fallback calculation...');
-                const defaultTaxRate = 0.085;
-                const defaultServiceFee = 2.00;
-                const tax = subtotal * defaultTaxRate;
-                const total = subtotal + tax + defaultServiceFee;
-
-                orderBreakdown = {
-                    subtotal: subtotal,
-                    taxAmount: tax,
-                    taxRate: defaultTaxRate * 100,
-                    serviceFee: defaultServiceFee,
-                    serviceFeePercentage: (defaultServiceFee / subtotal) * 100,
-                    total: total,
-                    backendData: null,
-                    marginProtected: false
-                };
-                protectedPricingCalculated = true;
-                
-                console.log('⚠️ Using fallback protected pricing:', orderBreakdown);
-                showError('Using fallback pricing - backend calculation failed');
-            }
-        }
-
-        // ENHANCED: Authentication check
+        // ============================================================================
+        // AUTHENTICATION & SESSION MANAGEMENT
+        // ============================================================================
+        
         async function checkAuthenticationAndSession() {
             return new Promise((resolve, reject) => {
                 firebase.auth().onAuthStateChanged(async function(user) {
@@ -982,7 +911,6 @@
             });
         }
 
-        // Load customer session data
         async function loadCustomerSession() {
             try {
                 const sessionData = sessionStorage.getItem('customerSession');
@@ -1006,19 +934,17 @@
                 }
                 
             } catch (error) {
-                console.error('❌ Error loading customer session in checkout:', error);
+                console.error('❌ Error loading customer session:', error);
                 customerSession = {};
             }
         }
 
-        // Verify session consistency
         function verifySessionConsistency() {
             const hasUserAuth = currentUser && currentUser.uid;
             const hasCartData = Object.keys(cart).length > 0 || sessionStorage.getItem('customerCart');
             return hasUserAuth && hasCartData;
         }
 
-        // Show session warning
         function showSessionWarning() {
             const warning = document.getElementById('sessionWarning');
             if (warning) {
@@ -1026,7 +952,6 @@
             }
         }
 
-        // Redirect to login
         function redirectToLogin() {
             const currentParams = new URLSearchParams(window.location.search);
             const loginUrl = `customer-login.html?${currentParams.toString()}`;
@@ -1035,7 +960,10 @@
             }, 2000);
         }
 
-        // Get customer data from URL
+        // ============================================================================
+        // DATA LOADING
+        // ============================================================================
+        
         function getCustomerDataFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
             
@@ -1068,7 +996,6 @@
             }
         }
 
-        // Load restaurant and menu data
         async function loadRestaurantAndMenuData() {
             try {
                 currentRestaurant = await VediAPI.getRestaurant(customerData.restaurantId);
@@ -1088,26 +1015,173 @@
             }
         }
 
-        // Currency utility functions
-        function getRestaurantCurrency() {
-            if (currentRestaurant && currentRestaurant.currency) {
-                return currentRestaurant.currency;
+        function loadCartData() {
+            try {
+                const savedCartData = sessionStorage.getItem('customerCart');
+                if (savedCartData) {
+                    const cartData = JSON.parse(savedCartData);
+                    
+                    if (cartData.customerUID && 
+                        currentUser && 
+                        cartData.customerUID === currentUser.uid &&
+                        cartData.restaurantId === customerData.restaurantId) {
+                        
+                        cart = cartData.items || {};
+                        console.log('🛒 Loaded verified cart for authenticated user:', cart);
+                    } else if (!cartData.customerUID) {
+                        cart = cartData.items || cartData || {};
+                        console.log('🛒 Loaded legacy cart for checkout:', cart);
+                    } else {
+                        console.log('🛒 Cart verification failed in checkout, starting fresh');
+                        cart = {};
+                    }
+                } else {
+                    console.log('🛒 No cart found in checkout');
+                    cart = {};
+                }
+            } catch (error) {
+                console.error('Error loading cart in checkout:', error);
+                cart = {};
             }
-            return { code: 'USD', symbol: '$', name: 'US Dollar' };
         }
 
-        function formatPrice(amount, showCode = false) {
-            const currency = getRestaurantCurrency();
-            const formattedAmount = Number(amount).toFixed(2);
-            
-            if (showCode) {
-                return `${currency.symbol}${formattedAmount} ${currency.code}`;
+        function loadAllergenInfo() {
+            try {
+                const savedAllergenInfo = sessionStorage.getItem('customerAllergenInfo');
+                if (savedAllergenInfo) {
+                    customerAllergenInfo = JSON.parse(savedAllergenInfo);
+                    console.log('🛡️ Customer allergen info loaded for checkout:', customerAllergenInfo);
+                    populateAllergenInstructions();
+                } else {
+                    console.log('🛡️ No allergen info found for checkout');
+                    customerAllergenInfo = null;
+                }
+            } catch (error) {
+                console.error('Error loading allergen info:', error);
+                customerAllergenInfo = null;
             }
-            
-            return `${currency.symbol}${formattedAmount}`;
         }
 
-        // Update customer display
+        function populateAllergenInstructions() {
+            if (!customerAllergenInfo) return;
+
+            const specialInstructionsTextarea = document.getElementById('specialInstructions');
+            const allergenNotice = document.getElementById('allergenNotice');
+            
+            const { allergenNames, customAllergens } = customerAllergenInfo;
+            
+            if (allergenNames.length > 0 || customAllergens) {
+                let allergenText = '';
+                
+                if (allergenNames.length > 0) {
+                    allergenText += `🛡️ ALLERGIES: Please avoid ${allergenNames.join(', ')}`;
+                }
+                
+                if (customAllergens) {
+                    if (allergenText) allergenText += '. ';
+                    allergenText += `Additional restrictions: ${customAllergens}`;
+                }
+                
+                if (allergenText) {
+                    allergenText += '.';
+                    specialInstructionsTextarea.value = allergenText;
+                    allergenNotice.style.display = 'flex';
+                    console.log('🛡️ Auto-populated allergen instructions for checkout:', allergenText);
+                }
+            }
+        }
+
+        // ============================================================================
+        // PROTECTED PRICING CALCULATION
+        // ============================================================================
+        
+        async function calculateProtectedPricing() {
+            const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
+            
+            if (cartItemsCount === 0) {
+                console.log('ℹ️ No items in cart, skipping pricing calculation');
+                return;
+            }
+
+            // Calculate subtotal
+            let subtotal = 0;
+            for (let itemId in cart) {
+                if (cart[itemId] > 0 && menuItems[itemId]) {
+                    subtotal += menuItems[itemId].price * cart[itemId];
+                }
+            }
+
+            try {
+                console.log('🔄 Calculating protected pricing via VediAPI extensions...');
+                console.log('📊 Restaurant ID:', customerData.restaurantId);
+                console.log('💰 Subtotal:', subtotal);
+                
+                // Wait for VediAPI extensions to be available
+                let attempts = 0;
+                while (!VediAPI.getProtectedPricingBreakdown && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!VediAPI.getProtectedPricingBreakdown) {
+                    throw new Error('VediAPI pricing extensions not loaded');
+                }
+                
+                // Use the VediAPI extension method
+                const breakdown = await VediAPI.getProtectedPricingBreakdown(
+                    customerData.restaurantId,
+                    Math.round(subtotal * 100)
+                );
+                
+                console.log('✅ VediAPI calculation successful:', breakdown);
+                
+                // Store the VediAPI result
+                orderBreakdown = {
+                    subtotal: breakdown.subtotal,
+                    taxAmount: breakdown.taxAmount,
+                    taxRate: breakdown.taxRate,
+                    serviceFee: breakdown.serviceFee,
+                    serviceFeePercentage: breakdown.serviceFeePercentage,
+                    total: breakdown.total,
+                    backendData: breakdown.breakdown,
+                    marginProtected: true
+                };
+
+                protectedPricingCalculated = true;
+                
+                console.log('🛡️ Using VediAPI protected pricing:', orderBreakdown);
+                console.log('📊 Tax rate from VediAPI:', breakdown.taxRate + '%');
+                console.log('💰 Customer total:', orderBreakdown.total);
+                
+            } catch (error) {
+                console.error('❌ VediAPI calculation failed:', error);
+                
+                // Fallback to basic calculation
+                const defaultTaxRate = 0.085;
+                const defaultServiceFee = 2.00;
+                const tax = subtotal * defaultTaxRate;
+                const total = subtotal + tax + defaultServiceFee;
+
+                orderBreakdown = {
+                    subtotal: subtotal,
+                    taxAmount: tax,
+                    taxRate: defaultTaxRate * 100,
+                    serviceFee: defaultServiceFee,
+                    serviceFeePercentage: (defaultServiceFee / subtotal) * 100,
+                    total: total,
+                    marginProtected: false
+                };
+                protectedPricingCalculated = true;
+                
+                console.log('⚠️ Using fallback protected pricing:', orderBreakdown);
+                showError('Using fallback pricing - VediAPI extensions unavailable');
+            }
+        }
+
+        // ============================================================================
+        // UI DISPLAY FUNCTIONS
+        // ============================================================================
+        
         function updateCustomerDisplay() {
             document.getElementById('restaurantName').textContent = currentRestaurant.name;
             
@@ -1126,7 +1200,6 @@
             updateAuthenticationIndicator();
         }
 
-        // Update authentication indicator
         function updateAuthenticationIndicator() {
             const authIndicator = document.getElementById('authIndicator');
             const authIcon = document.getElementById('authIcon');
@@ -1164,90 +1237,10 @@
             }
         }
 
-        // Load cart data
-        function loadCartData() {
-            try {
-                const savedCartData = sessionStorage.getItem('customerCart');
-                if (savedCartData) {
-                    const cartData = JSON.parse(savedCartData);
-                    
-                    if (cartData.customerUID && 
-                        currentUser && 
-                        cartData.customerUID === currentUser.uid &&
-                        cartData.restaurantId === customerData.restaurantId) {
-                        
-                        cart = cartData.items || {};
-                        console.log('🛒 Loaded verified cart for authenticated user:', cart);
-                    } else if (!cartData.customerUID) {
-                        cart = cartData.items || cartData || {};
-                        console.log('🛒 Loaded legacy cart for checkout:', cart);
-                    } else {
-                        console.log('🛒 Cart verification failed in checkout, starting fresh');
-                        cart = {};
-                    }
-                } else {
-                    console.log('🛒 No cart found in checkout');
-                    cart = {};
-                }
-            } catch (error) {
-                console.error('Error loading cart in checkout:', error);
-                cart = {};
-            }
-        }
-
-        // Load allergen information
-        function loadAllergenInfo() {
-            try {
-                const savedAllergenInfo = sessionStorage.getItem('customerAllergenInfo');
-                if (savedAllergenInfo) {
-                    customerAllergenInfo = JSON.parse(savedAllergenInfo);
-                    console.log('🛡️ Customer allergen info loaded for checkout:', customerAllergenInfo);
-                    populateAllergenInstructions();
-                } else {
-                    console.log('🛡️ No allergen info found for checkout');
-                    customerAllergenInfo = null;
-                }
-            } catch (error) {
-                console.error('Error loading allergen info:', error);
-                customerAllergenInfo = null;
-            }
-        }
-
-        // Populate allergen instructions
-        function populateAllergenInstructions() {
-            if (!customerAllergenInfo) return;
-
-            const specialInstructionsTextarea = document.getElementById('specialInstructions');
-            const allergenNotice = document.getElementById('allergenNotice');
-            
-            const { allergenNames, customAllergens } = customerAllergenInfo;
-            
-            if (allergenNames.length > 0 || customAllergens) {
-                let allergenText = '';
-                
-                if (allergenNames.length > 0) {
-                    allergenText += `🛡️ ALLERGIES: Please avoid ${allergenNames.join(', ')}`;
-                }
-                
-                if (customAllergens) {
-                    if (allergenText) allergenText += '. ';
-                    allergenText += `Additional restrictions: ${customAllergens}`;
-                }
-                
-                if (allergenText) {
-                    allergenText += '.';
-                    specialInstructionsTextarea.value = allergenText;
-                    allergenNotice.style.display = 'flex';
-                    console.log('🛡️ Auto-populated allergen instructions for checkout:', allergenText);
-                }
-            }
-        }
-
-        // UPDATED: Main render function with backend protected pricing
         function renderCheckout() {
             const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
             
-            console.log('🎨 Rendering checkout with backend protected pricing:', protectedPricingCalculated);
+            console.log('🎨 Rendering checkout with protected pricing:', protectedPricingCalculated);
             
             if (cartItemsCount === 0) {
                 showEmptyCart();
@@ -1255,8 +1248,6 @@
             }
 
             renderCartItems();
-            
-            // Display the backend-calculated pricing immediately
             displayProtectedPricing();
             
             // Show checkout content and place order button
@@ -1264,26 +1255,25 @@
             document.getElementById('placeOrderSection').style.display = 'block';
         }
 
-        // UPDATED: Display the backend-calculated protected pricing with fee breakdown
         function displayProtectedPricing() {
             if (!protectedPricingCalculated || !orderBreakdown) {
                 console.warn('⚠️ Protected pricing not calculated yet');
                 return;
             }
 
-            console.log('💰 Displaying backend protected pricing:', orderBreakdown);
+            console.log('💰 Displaying protected pricing:', orderBreakdown);
 
-            // Update display with backend values
+            // Update display with protected values
             document.getElementById('subtotal').textContent = formatPrice(orderBreakdown.subtotal);
             document.getElementById('tax').textContent = formatPrice(orderBreakdown.taxAmount);
             document.getElementById('serviceFee').textContent = formatPrice(orderBreakdown.serviceFee);
             document.getElementById('total').textContent = formatPrice(orderBreakdown.total);
 
-            // Update labels with actual rates from backend
+            // Update labels with dynamic rates
             const taxRate = orderBreakdown.taxRate.toFixed(1);
             document.getElementById('taxLabel').innerHTML = `Tax (${taxRate}%):`;
 
-            // Update service fee label with dynamic percentage (no green badge)
+            // Update service fee label with dynamic percentage
             const serviceFeePercentage = orderBreakdown.serviceFeePercentage.toFixed(1);
             document.getElementById('serviceFeeLabel').innerHTML = `Service Fee (${serviceFeePercentage}%):`;
 
@@ -1295,11 +1285,10 @@
             // Update place order button text
             document.getElementById('orderBtnText').textContent = `Place Order • ${formatPrice(orderBreakdown.total)}`;
 
-            console.log('✅ Backend protected pricing displayed - Customer pays:', formatPrice(orderBreakdown.total));
-            console.log('🏛️ Tax rate from backend:', taxRate + '%');
+            console.log('✅ Protected pricing displayed - Customer pays:', formatPrice(orderBreakdown.total));
+            console.log('🏛️ Tax rate:', taxRate + '%');
         }
 
-        // NEW: Display detailed fee breakdown for testing
         function displayFeeBreakdown() {
             const breakdown = orderBreakdown.backendData;
             if (!breakdown) return;
@@ -1307,9 +1296,9 @@
             const feeBreakdownElement = document.getElementById('feeBreakdown');
             
             // Calculate the breakdown amounts
-            const yourMargin = (breakdown.desiredServiceFeeCents || 0) / 100;
+            const yourMargin = breakdown.desiredServiceFee || 0;
             const stripeFees = (breakdown.stripeFeePercentage || 2.9) * orderBreakdown.subtotal / 100 + (breakdown.stripeFlatFee || 30) / 100;
-            const grossupAmount = orderBreakdown.serviceFee - yourMargin;
+            const grossupAmount = breakdown.grossUpAmount || 0;
 
             // Update the breakdown display
             document.getElementById('yourMargin').textContent = formatPrice(yourMargin);
@@ -1327,14 +1316,6 @@
             });
         }
 
-        // Show empty cart
-        function showEmptyCart() {
-            document.getElementById('checkoutContent').style.display = 'none';
-            document.getElementById('placeOrderSection').style.display = 'none';
-            document.getElementById('emptyCart').style.display = 'block';
-        }
-
-        // Render cart items
         function renderCartItems() {
             const cartItemsList = document.getElementById('cartItemsList');
             let html = '';
@@ -1371,7 +1352,16 @@
             cartItemsList.innerHTML = html;
         }
 
-        // UPDATED: Update quantity function - recalculates using backend
+        function showEmptyCart() {
+            document.getElementById('checkoutContent').style.display = 'none';
+            document.getElementById('placeOrderSection').style.display = 'none';
+            document.getElementById('emptyCart').style.display = 'block';
+        }
+
+        // ============================================================================
+        // CART MANIPULATION
+        // ============================================================================
+        
         async function updateQuantity(itemId, change) {
             console.log(`🔢 Updating quantity for item ${itemId} by ${change}`);
             
@@ -1385,29 +1375,27 @@
 
             saveCart();
             
-            // Recalculate protected pricing via backend immediately
+            // Recalculate protected pricing immediately
             await calculateProtectedPricing();
             
-            // Re-render with new backend pricing
+            // Re-render with new protected pricing
             renderCheckout();
         }
 
-        // UPDATED: Remove item function - recalculates using backend
         async function removeItem(itemId) {
             if (confirm('Remove this item from your cart?')) {
                 console.log(`🗑️ Removing item ${itemId}`);
                 delete cart[itemId];
                 saveCart();
                 
-                // Recalculate protected pricing via backend immediately
+                // Recalculate protected pricing immediately
                 await calculateProtectedPricing();
                 
-                // Re-render with new backend pricing
+                // Re-render with new protected pricing
                 renderCheckout();
             }
         }
 
-        // Save cart with customer UID
         function saveCart() {
             const cartData = {
                 items: cart,
@@ -1418,9 +1406,12 @@
             sessionStorage.setItem('customerCart', JSON.stringify(cartData));
         }
 
-        // UPDATED: Place order function - passes exact backend-calculated total to payment
+        // ============================================================================
+        // ORDER PLACEMENT
+        // ============================================================================
+        
         async function placeOrder() {
-            console.log('📝 Preparing to redirect to payment with backend protected pricing...');
+            console.log('📝 Preparing to redirect to payment with protected pricing...');
             
             const placeOrderBtn = document.getElementById('placeOrderBtn');
             const orderBtnText = document.getElementById('orderBtnText');
@@ -1437,7 +1428,7 @@
                 }
 
                 if (!orderBreakdown || !protectedPricingCalculated) {
-                    throw new Error('Backend pricing not calculated. Please refresh the page.');
+                    throw new Error('Protected pricing not calculated. Please refresh the page.');
                 }
 
                 // Check if cart has items
@@ -1446,19 +1437,19 @@
                     throw new Error('No items in cart to order');
                 }
 
-                // Use the backend-calculated protected pricing values
+                // Use the protected pricing values
                 const restaurantId = customerData.restaurantId;
                 const currency = getRestaurantCurrency().code;
-                const totalCents = Math.round(orderBreakdown.total * 100); // Use backend total
+                const totalCents = Math.round(orderBreakdown.total * 100);
 
-                // Create URL parameters with backend protected pricing
+                // Create URL parameters with protected pricing
                 const params = new URLSearchParams({
                     restaurantId,
                     table: customerData.tableNumber || '',
                     location: customerData.location || '',
                     name: customerData.name || '',
                     phone: customerData.phone || '',
-                    totalCents, // Pass exact backend total
+                    totalCents,
                     subtotalCents: Math.round(orderBreakdown.subtotal * 100),
                     taxCents: Math.round(orderBreakdown.taxAmount * 100),
                     serviceFeCents: Math.round(orderBreakdown.serviceFee * 100),
@@ -1467,16 +1458,16 @@
                     currency
                 });
 
-                console.log('🔄 Redirecting to payment with backend protected pricing:', {
+                console.log('🔄 Redirecting to payment with protected pricing:', {
                     total: formatPrice(orderBreakdown.total),
                     subtotal: formatPrice(orderBreakdown.subtotal),
                     tax: formatPrice(orderBreakdown.taxAmount),
                     serviceFee: formatPrice(orderBreakdown.serviceFee),
                     taxRate: orderBreakdown.taxRate + '%',
-                    source: 'backend-calculation'
+                    source: 'vediapi-extensions'
                 });
                 
-                // Redirect to payment.html with backend protected pricing
+                // Redirect to payment.html with protected pricing
                 window.location.href = `payment.html?${params.toString()}`;
 
             } catch (error) {
@@ -1490,7 +1481,28 @@
             }
         }
 
-        // Navigation function
+        // ============================================================================
+        // UTILITY FUNCTIONS
+        // ============================================================================
+        
+        function getRestaurantCurrency() {
+            if (currentRestaurant && currentRestaurant.currency) {
+                return currentRestaurant.currency;
+            }
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
+        }
+
+        function formatPrice(amount, showCode = false) {
+            const currency = getRestaurantCurrency();
+            const formattedAmount = Number(amount).toFixed(2);
+            
+            if (showCode) {
+                return `${currency.symbol}${formattedAmount} ${currency.code}`;
+            }
+            
+            return `${currency.symbol}${formattedAmount}`;
+        }
+
         function goBackToMenu() {
             console.log('🔙 Going back to menu from checkout...');
             const params = new URLSearchParams();
@@ -1503,7 +1515,6 @@
             window.location.href = `menu.html?${params.toString()}`;
         }
 
-        // Utility functions
         function showLoading() {
             document.getElementById('loadingOverlay').style.display = 'flex';
         }
@@ -1546,13 +1557,18 @@
             showNotification(message, 'error');
         }
 
-        console.log('🛒✅ Backend-powered protected pricing checkout loaded');
-        console.log('🔄 Uses backend Cloud Function for all pricing calculations');
-        console.log('🛡️ Margins protected using backend gross-up calculation');
+        // ============================================================================
+        // INITIALIZATION LOGGING
+        // ============================================================================
+        
+        console.log('🛒✅ VediAPI-powered protected pricing checkout loaded');
+        console.log('🔄 Uses VediAPI extensions for all pricing calculations');
+        console.log('🛡️ Margins protected using VediAPI gross-up calculation');
         console.log('📊 Displays actual tax rates from fee configurations');
-        console.log('💰 Payment page receives exact totals from backend');
+        console.log('💰 Payment page receives exact totals from VediAPI');
         console.log('🎯 Consistent pricing throughout customer journey');
         console.log('🔍 Testing: Fee breakdown shows your margin vs Stripe fees');
+        console.log('🔧 VediAPI extended via vediapi-pricing-extensions.js');
     </script>
 </body>
 </html>
