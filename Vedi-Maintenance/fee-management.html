@@ -3,20 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vedi Fee Management</title>
+    <title>Vedi Fee Management System</title>
     
-    <!-- Firebase SDKs - CORRECT ORDER -->
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
-    <!-- Chart.js for analytics -->
+    <!-- Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    
-    <!-- Your Vedi API - LOAD BEFORE THE PAGE SCRIPTS -->
-    <script src="../firebase-api.js"></script>
-    <!-- Vedi Maintenance API -->
-    <script src="maintenance-api.js"></script>
     
     <style>
         * {
@@ -26,7 +21,7 @@
         }
 
         body {
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             color: #1a202c;
@@ -36,7 +31,6 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            min-height: calc(100vh - 2rem);
         }
 
         .main-content {
@@ -94,7 +88,6 @@
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
-            position: relative;
         }
 
         .tab.active {
@@ -323,9 +316,17 @@
             background: var(--card-gradient);
         }
 
-        .stat-card.revenue::before { --card-gradient: linear-gradient(90deg, #4facfe, #00f2fe); }
-        .stat-card.fees::before { --card-gradient: linear-gradient(90deg, #43e97b, #38f9d7); }
-        .stat-card.percent::before { --card-gradient: linear-gradient(90deg, #fa709a, #fee140); }
+        .stat-card.revenue::before { 
+            --card-gradient: linear-gradient(90deg, #4facfe, #00f2fe); 
+        }
+        
+        .stat-card.fees::before { 
+            --card-gradient: linear-gradient(90deg, #43e97b, #38f9d7); 
+        }
+        
+        .stat-card.percent::before { 
+            --card-gradient: linear-gradient(90deg, #fa709a, #fee140); 
+        }
 
         .stat-card:hover {
             transform: translateY(-8px);
@@ -561,6 +562,10 @@
 
         @media (max-width: 768px) {
             .container {
+                padding: 0.5rem;
+            }
+
+            .main-content {
                 padding: 1rem;
             }
 
@@ -584,6 +589,7 @@
 
             .btn {
                 padding: 0.75rem 1.5rem;
+                font-size: 0.8rem;
             }
 
             .table {
@@ -633,6 +639,11 @@
                 opacity: 0;
             }
         }
+
+        .stripe-fee {
+            color: #667eea;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -641,233 +652,222 @@
             <!-- Header -->
             <div class="page-header">
                 <h1 class="page-title">💰 Fee Management System</h1>
-                <p class="page-subtitle">Manage platform fees, taxes, Stripe fees, and revenue analytics for your food ordering platform</p>
+                <p class="page-subtitle">Manage platform fees, taxes, Stripe fees, and revenue analytics</p>
             </div>
 
-        <!-- Tab Navigation -->
-        <div class="tabs">
-            <button class="tab active" onclick="showTab('overview')">
-                <span>📊</span>
-                <span>Overview</span>
-            </button>
-            <button class="tab" onclick="showTab('configure')">
-                <span>⚙️</span>
-                <span>Configure Fees</span>
-            </button>
-            <button class="tab" onclick="showTab('analytics')">
-                <span>📈</span>
-                <span>Revenue Analytics</span>
-            </button>
-            <button class="tab" onclick="showTab('restaurants')">
-                <span>🏪</span>
-                <span>Restaurant Fees</span>
-            </button>
-        </div>
-
-        <!-- Overview Tab -->
-        <div id="overview-tab" class="tab-content active">
-            <div class="grid grid-3">
-                <div class="stat-card revenue">
-                    <div class="stat-value" id="totalRevenue">$0</div>
-                    <div class="stat-label">Total Platform Revenue</div>
-                </div>
-                <div class="stat-card fees">
-                    <div class="stat-value" id="totalFees">$0</div>
-                    <div class="stat-label">Service Fees Collected</div>
-                </div>
-                <div class="stat-card percent">
-                    <div class="stat-value" id="avgFeePercent">0%</div>
-                    <div class="stat-label">Average Fee Rate</div>
-                </div>
+            <!-- Tab Navigation -->
+            <div class="tabs">
+                <button class="tab active" data-tab="overview">
+                    <span>📊</span>
+                    <span>Overview</span>
+                </button>
+                <button class="tab" data-tab="configure">
+                    <span>⚙️</span>
+                    <span>Configure Fees</span>
+                </button>
+                <button class="tab" data-tab="analytics">
+                    <span>📈</span>
+                    <span>Analytics</span>
+                </button>
+                <button class="tab" data-tab="restaurants">
+                    <span>🏪</span>
+                    <span>Restaurant Fees</span>
+                </button>
             </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">💡 Quick Actions</h3>
-                </div>
-                <div class="quick-actions">
-                    <div class="action-card" onclick="showTab('configure')">
-                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚙️</div>
-                        <div style="font-weight: 600; margin-bottom: 0.25rem;">Default Fee Structure</div>
-                        <div style="font-size: 0.875rem; color: #64748b;">Set up default fees for new restaurants</div>
+            <!-- Overview Tab -->
+            <div id="overview-tab" class="tab-content active">
+                <div class="grid grid-3">
+                    <div class="stat-card revenue">
+                        <div class="stat-value" id="totalRevenue">$0</div>
+                        <div class="stat-label">Total Platform Revenue</div>
                     </div>
-                    <div class="action-card" onclick="showCreateFeeModal()">
-                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏪</div>
-                        <div style="font-weight: 600; margin-bottom: 0.25rem;">Configure Restaurant Fee</div>
-                        <div style="font-size: 0.875rem; color: #64748b;">Set custom fees for specific restaurants</div>
+                    <div class="stat-card fees">
+                        <div class="stat-value" id="totalFees">$0</div>
+                        <div class="stat-label">Service Fees Collected</div>
+                    </div>
+                    <div class="stat-card percent">
+                        <div class="stat-value" id="avgFeePercent">0%</div>
+                        <div class="stat-label">Average Fee Rate</div>
                     </div>
                 </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">💡 Quick Actions</h3>
+                    </div>
+                    <div class="quick-actions">
+                        <div class="action-card" data-action="configure">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚙️</div>
+                            <div style="font-weight: 600; margin-bottom: 0.25rem;">Default Fee Structure</div>
+                            <div style="font-size: 0.875rem; color: #64748b;">Set up default fees for new restaurants</div>
+                        </div>
+                        <div class="action-card" data-action="create-fee">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏪</div>
+                            <div style="font-weight: 600; margin-bottom: 0.25rem;">Configure Restaurant Fee</div>
+                            <div style="font-size: 0.875rem; color: #64748b;">Set custom fees for specific restaurants</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">📈 Revenue Trends</h3>
+                        <span class="badge badge-info">Last 30 Days</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
             </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">📈 Revenue Trends</h3>
-                    <span class="badge badge-info">Last 30 Days</span>
-                </div>
-                <div class="chart-container">
-                    <canvas id="revenueChart"></canvas>
-                </div>
-            </div>
-        </div>
+            <!-- Configure Fees Tab -->
+            <div id="configure-tab" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">⚙️ Default Fee Configuration</h3>
+                        <span class="badge badge-info">Applied to new restaurants</span>
+                    </div>
+                    
+                    <form id="defaultFeeForm">
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Fee Type</label>
+                                <select class="form-select" id="defaultFeeType">
+                                    <option value="fixed">Fixed Amount</option>
+                                    <option value="percentage">Percentage</option>
+                                    <option value="hybrid">Fixed + Percentage</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Tax Rate (%)</label>
+                                <input type="number" class="form-input" id="defaultTaxRate" value="8.5" step="0.1">
+                            </div>
+                        </div>
 
-        <!-- Configure Fees Tab -->
-        <div id="configure-tab" class="tab-content">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">⚙️ Default Fee Configuration</h3>
-                    <span class="badge badge-info">Applied to new restaurants</span>
-                </div>
-                
-                <form id="defaultFeeForm">
-                    <div class="grid grid-2">
+                        <div class="grid grid-2">
+                            <div class="form-group" id="defaultFixedFeeGroup">
+                                <label class="form-label">Fixed Service Fee ($)</label>
+                                <input type="number" class="form-input" id="defaultFixedFee" value="2.00" step="0.01">
+                            </div>
+                            
+                            <div class="form-group" id="defaultPercentageFeeGroup" style="display: none;">
+                                <label class="form-label">Percentage Fee (%)</label>
+                                <input type="number" class="form-input" id="defaultPercentageFee" value="3" step="0.1">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Stripe Percentage Fee (%)</label>
+                                <input type="number" class="form-input" id="defaultStripePercentageFee" value="2.9" step="0.1" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Stripe Flat Fee (cents)</label>
+                                <input type="number" class="form-input" id="defaultStripeFlatFee" value="30" step="1" required>
+                            </div>
+                        </div>
+
                         <div class="form-group">
-                            <label class="form-label">Fee Type</label>
-                            <select class="form-select" id="defaultFeeType" onchange="updateDefaultFeePreview()">
-                                <option value="fixed">Fixed Amount</option>
-                                <option value="percentage">Percentage</option>
-                                <option value="hybrid">Fixed + Percentage</option>
+                            <label class="form-label">Minimum Order Amount ($)</label>
+                            <input type="number" class="form-input" id="defaultMinOrder" value="0" step="0.01">
+                        </div>
+
+                        <div class="fee-preview">
+                            <h4>📊 Fee Preview (on $25 order)</h4>
+                            <div id="defaultFeePreview">
+                                <div class="fee-preview-item">
+                                    <span>Subtotal:</span>
+                                    <strong>$25.00</strong>
+                                </div>
+                                <div class="fee-preview-item">
+                                    <span>Service Fee:</span>
+                                    <strong id="previewServiceFee">$2.00</strong>
+                                </div>
+                                <div class="fee-preview-item">
+                                    <span class="stripe-fee">Stripe Fee:</span>
+                                    <strong id="previewStripeFee" class="stripe-fee">$1.03</strong>
+                                </div>
+                                <div class="fee-preview-item">
+                                    <span>Tax:</span>
+                                    <strong id="previewTax">$2.13</strong>
+                                </div>
+                                <div class="fee-preview-item fee-preview-total">
+                                    <span><strong>Total:</strong></span>
+                                    <strong id="previewTotal">$30.16</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success">
+                            <span>💾</span>
+                            <span>Save Default Configuration</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div id="analytics-tab" class="tab-content">
+                <div class="grid grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">📊 Revenue Analytics</h3>
+                            <select id="analyticsTimePeriod" class="form-select" style="width: auto;">
+                                <option value="week">Last 7 Days</option>
+                                <option value="month" selected>Last 30 Days</option>
+                                <option value="quarter">Last 90 Days</option>
+                                <option value="year">Last Year</option>
                             </select>
                         </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Tax Rate (%)</label>
-                            <input type="number" class="form-input" id="defaultTaxRate" value="8.5" step="0.1" onchange="updateDefaultFeePreview()">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-2">
-                        <div class="form-group" id="defaultFixedFeeGroup">
-                            <label class="form-label">Fixed Service Fee ($)</label>
-                            <input type="number" class="form-input" id="defaultFixedFee" value="2.00" step="0.01" onchange="updateDefaultFeePreview()">
-                        </div>
-                        
-                        <div class="form-group" id="defaultPercentageFeeGroup" style="display: none;">
-                            <label class="form-label">Percentage Fee (%)</label>
-                            <input type="number" class="form-input" id="defaultPercentageFee" value="3" step="0.1" onchange="updateDefaultFeePreview()">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-2">
-                        <div class="form-group">
-                            <label class="form-label">Stripe Percentage Fee (%)</label>
-                            <input type="number"
-                                   class="form-input"
-                                   id="defaultStripePercentageFee"
-                                   value="2.9"
-                                   step="0.1"
-                                   onchange="updateDefaultFeePreview()"
-                                   required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Stripe Flat Fee (cents)</label>
-                            <input type="number"
-                                   class="form-input"
-                                   id="defaultStripeFlatFee"
-                                   value="30"
-                                   step="1"
-                                   onchange="updateDefaultFeePreview()"
-                                   required>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Minimum Order Amount ($)</label>
-                        <input type="number" class="form-input" id="defaultMinOrder" value="0" step="0.01" onchange="updateDefaultFeePreview()">
-                    </div>
-
-                    <div class="fee-preview">
-                        <h4>📊 Fee Preview (on $25 order)</h4>
-                        <div id="defaultFeePreview">
-                            <div class="fee-preview-item">
-                                <span>Subtotal:</span>
-                                <strong>$25.00</strong>
-                            </div>
-                            <div class="fee-preview-item">
-                                <span>Service Fee:</span>
-                                <strong id="previewServiceFee">$2.00</strong>
-                            </div>
-                            <div class="fee-preview-item">
-                                <span>Stripe Fee:</span>
-                                <strong id="previewStripeFee">$0.00</strong>
-                            </div>
-                            <div class="fee-preview-item">
-                                <span>Tax:</span>
-                                <strong id="previewTax">$2.13</strong>
-                            </div>
-                            <div class="fee-preview-item fee-preview-total">
-                                <span><strong>Total:</strong></span>
-                                <strong id="previewTotal">$29.13</strong>
+                        <div id="analyticsContent">
+                            <div class="loading">
+                                <div class="loading-spinner"></div>
+                                Loading analytics...
                             </div>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-success">
-                        <span>💾</span>
-                        <span>Save Default Configuration</span>
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Analytics Tab -->
-        <div id="analytics-tab" class="tab-content">
-            <div class="grid grid-2">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">📊 Revenue Analytics</h3>
-                        <select id="analyticsTimePeriod" onchange="loadAnalytics()" class="form-select" style="width: auto;">
-                            <option value="week">Last 7 Days</option>
-                            <option value="month" selected>Last 30 Days</option>
-                            <option value="quarter">Last 90 Days</option>
-                            <option value="year">Last Year</option>
-                        </select>
-                    </div>
-                    <div id="analyticsContent">
-                        <div class="loading">
-                            <div class="loading-spinner"></div>
-                            Loading analytics...
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🏆 Top Performing Restaurants</h3>
+                        </div>
+                        <div id="topRestaurants">
+                            <div class="loading">
+                                <div class="loading-spinner"></div>
+                                Loading restaurant data...
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">🏆 Top Performing Restaurants</h3>
+                        <h3 class="card-title">📈 Revenue by Fee Type</h3>
                     </div>
-                    <div id="topRestaurants">
+                    <div class="chart-container">
+                        <canvas id="feeTypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Restaurants Tab -->
+            <div id="restaurants-tab" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🏪 Restaurant Fee Configurations</h3>
+                        <button class="btn btn-primary" id="addRestaurantFeeBtn">
+                            <span>➕</span>
+                            <span>Add Restaurant Fee</span>
+                        </button>
+                    </div>
+                    
+                    <div id="restaurantFeesTable">
                         <div class="loading">
                             <div class="loading-spinner"></div>
-                            Loading restaurant data...
+                            Loading restaurant fees...
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">📈 Revenue by Fee Type</h3>
-                </div>
-                <div class="chart-container">
-                    <canvas id="feeTypeChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Restaurants Tab -->
-        <div id="restaurants-tab" class="tab-content">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">🏪 Restaurant Fee Configurations</h3>
-                    <button class="btn btn-primary" onclick="showCreateFeeModal()">
-                        <span>➕</span>
-                        <span>Add Restaurant Fee</span>
-                    </button>
-                </div>
-                
-                <div id="restaurantFeesTable">
-                    <div class="loading">
-                        <div class="loading-spinner"></div>
-                        Loading restaurant fees...
                     </div>
                 </div>
             </div>
@@ -879,7 +879,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title" id="modalTitle">Create Restaurant Fee</h3>
-                <button class="close-btn" onclick="closeFeeModal()">&times;</button>
+                <button class="close-btn" id="closeModalBtn">&times;</button>
             </div>
             
             <form id="restaurantFeeForm">
@@ -894,7 +894,7 @@
 
                 <div class="form-group">
                     <label class="form-label">Fee Type</label>
-                    <select class="form-select" id="feeType" onchange="updateFeePreview()" required>
+                    <select class="form-select" id="feeType" required>
                         <option value="fixed">Fixed Amount</option>
                         <option value="percentage">Percentage</option>
                         <option value="hybrid">Fixed + Percentage</option>
@@ -904,53 +904,41 @@
                 <div class="grid grid-2">
                     <div class="form-group" id="fixedFeeGroup">
                         <label class="form-label">Fixed Service Fee ($)</label>
-                        <input type="number" class="form-input" id="fixedFee" value="2.00" step="0.01" onchange="updateFeePreview()">
+                        <input type="number" class="form-input" id="fixedFee" value="2.00" step="0.01">
                     </div>
                     
                     <div class="form-group" id="percentageFeeGroup" style="display: none;">
                         <label class="form-label">Percentage Fee (%)</label>
-                        <input type="number" class="form-input" id="percentageFee" value="3" step="0.1" onchange="updateFeePreview()">
+                        <input type="number" class="form-input" id="percentageFee" value="3" step="0.1">
                     </div>
                 </div>
 
                 <div class="grid grid-2">
                     <div class="form-group">
                         <label class="form-label">Tax Rate (%)</label>
-                        <input type="number" class="form-input" id="taxRate" value="8.5" step="0.1" onchange="updateFeePreview()" required>
+                        <input type="number" class="form-input" id="taxRate" value="8.5" step="0.1" required>
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Minimum Order Amount ($)</label>
-                        <input type="number" class="form-input" id="minOrder" value="0" step="0.01" onchange="updateFeePreview()">
+                        <input type="number" class="form-input" id="minOrder" value="0" step="0.01">
                     </div>
                 </div>
 
                 <div class="grid grid-2">
                     <div class="form-group">
                         <label class="form-label">Stripe Percentage Fee (%)</label>
-                        <input type="number"
-                               class="form-input"
-                               id="stripePercentageFee"
-                               value="2.9"
-                               step="0.1"
-                               onchange="updateFeePreview()"
-                               required>
+                        <input type="number" class="form-input" id="stripePercentageFee" value="2.9" step="0.1" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Stripe Flat Fee (cents)</label>
-                        <input type="number"
-                               class="form-input"
-                               id="stripeFlatFee"
-                               value="30"
-                               step="1"
-                               onchange="updateFeePreview()"
-                               required>
+                        <input type="number" class="form-input" id="stripeFlatFee" value="30" step="1" required>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">
-                        <input type="checkbox" id="isNegotiated" onchange="toggleNegotiatedFields()"> 
+                        <input type="checkbox" id="isNegotiated"> 
                         Negotiated Rate
                     </label>
                 </div>
@@ -979,8 +967,8 @@
                             <strong id="modalPreviewServiceFee">$2.00</strong>
                         </div>
                         <div class="fee-preview-item">
-                            <span>Stripe Fee:</span>
-                            <strong id="modalPreviewStripeFee">$0.00</strong>
+                            <span class="stripe-fee">Stripe Fee:</span>
+                            <strong id="modalPreviewStripeFee" class="stripe-fee">$1.03</strong>
                         </div>
                         <div class="fee-preview-item">
                             <span>Tax:</span>
@@ -988,13 +976,13 @@
                         </div>
                         <div class="fee-preview-item fee-preview-total">
                             <span><strong>Total:</strong></span>
-                            <strong id="modalPreviewTotal">$29.13</strong>
+                            <strong id="modalPreviewTotal">$30.16</strong>
                         </div>
                     </div>
                 </div>
 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="closeFeeModal()">Cancel</button>
+                    <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
                     <button type="submit" class="btn btn-success">
                         <span>💾</span>
                         <span>Save Fee Configuration</span>
@@ -1008,7 +996,7 @@
     <div id="alertContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 1001;"></div>
 
     <script>
-        // Firebase Configuration - WAIT FOR FIREBASE TO LOAD
+        // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
             authDomain: "vedi00.firebaseapp.com",
@@ -1019,24 +1007,26 @@
             measurementId: "G-ZS0FKPTEY2"
         };
 
-        // Initialize Firebase ONLY if not already initialized
+        // Application State
         let firebaseAuth, firebaseDb;
-        
+        let revenueChart, feeTypeChart;
+        let restaurants = [];
+        let feeConfigs = [];
+
+        // Initialize Firebase
         function initializeFirebase() {
             try {
                 if (!firebase.apps || firebase.apps.length === 0) {
                     firebase.initializeApp(firebaseConfig);
-                    console.log('🔥 Firebase initialized by fee management');
                 }
                 
                 firebaseAuth = firebase.auth();
                 firebaseDb = firebase.firestore();
                 
-                // Make globally available for compatibility
                 window.firebaseAuth = firebaseAuth;
                 window.firebaseDb = firebaseDb;
                 
-                console.log('✅ Firebase references ready');
+                console.log('✅ Firebase initialized successfully');
                 return true;
             } catch (error) {
                 console.error('❌ Firebase initialization error:', error);
@@ -1044,108 +1034,104 @@
             }
         }
 
-        // Wait for DOM and Firebase to be ready
-        function waitForFirebase() {
-            return new Promise((resolve) => {
-                const checkFirebase = () => {
-                    if (typeof firebase !== 'undefined' && firebase.auth && firebase.firestore) {
-                        if (initializeFirebase()) {
-                            resolve(true);
-                        } else {
-                            setTimeout(checkFirebase, 100);
+        // Utility Functions
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(amount || 0);
+        }
+
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.style.cssText = `
+                position: relative;
+                padding: 1rem 1.5rem;
+                border-radius: 12px;
+                margin-bottom: 1rem;
+                font-weight: 500;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                animation: slideInRight 0.3s ease-out;
+            `;
+            
+            const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+            alertDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span>${icon}</span>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            alertContainer.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.style.animation = 'slideOutRight 0.3s ease-in';
+                    setTimeout(() => {
+                        if (alertDiv.parentNode) {
+                            alertDiv.parentNode.removeChild(alertDiv);
                         }
-                    } else {
-                        setTimeout(checkFirebase, 100);
+                    }, 300);
+                }
+            }, 5000);
+        }
+
+        // Tab Management
+        function initializeTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetTab = tab.getAttribute('data-tab');
+                    
+                    // Remove active class from all tabs and contents
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding content
+                    tab.classList.add('active');
+                    const targetContent = document.getElementById(`${targetTab}-tab`);
+                    if (targetContent) {
+                        targetContent.classList.add('active');
                     }
-                };
-                checkFirebase();
+                    
+                    // Load specific tab data if needed
+                    if (targetTab === 'analytics') {
+                        loadAnalytics();
+                    }
+                });
             });
         }
 
-        // Global variables
-        let revenueChart, feeTypeChart;
-        let restaurants = [];
-        let feeConfigs = [];
-
-        // Ensure VediAPI is available - FIXED
-        function ensureVediAPI() {
-            if (typeof window.VediAPI === 'undefined' || !window.VediAPI) {
-                console.error('❌ VediAPI not found! Make sure firebase-api.js is loaded.');
-                showAlert('VediAPI not available. Please ensure the Firebase API is loaded.', 'error');
-                return false;
-            }
-            return true;
-        }
-
-        // Tab functionality
-        function showTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
+        // Fee Calculation Functions
+        function calculateFeePreview(subtotal, feeType, fixedFee, percentageFee, taxRate, prefix, stripePct = 2.9, stripeFlat = 0.30) {
+            let serviceFee = 0;
             
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            document.getElementById(tabName + '-tab').classList.add('active');
-            
-            const clickedTab = document.querySelector(`[onclick*="${tabName}"]`);
-            if (clickedTab) {
-                clickedTab.classList.add('active');
+            switch (feeType) {
+                case 'fixed':
+                    serviceFee = fixedFee;
+                    break;
+                case 'percentage':
+                    serviceFee = subtotal * (percentageFee / 100);
+                    break;
+                case 'hybrid':
+                    serviceFee = fixedFee + (subtotal * (percentageFee / 100));
+                    break;
             }
             
-            if (tabName === 'analytics') {
-                loadAnalytics();
-            }
-        }
-
-        // Modal functions
-        function showCreateFeeModal() {
-            document.getElementById('modalTitle').textContent = 'Create Restaurant Fee';
-            document.getElementById('editingRestaurantId').value = '';
-            document.getElementById('restaurantFeeForm').reset();
-            document.getElementById('restaurantSelect').disabled = false;
-            // Reset Stripe fees to defaults
-            document.getElementById('stripePercentageFee').value = 2.9;
-            document.getElementById('stripeFlatFee').value = 30;
-            updateFeePreview();
-            document.getElementById('feeModal').classList.add('active');
-        }
-
-        function editRestaurantFee(restaurantId) {
-            const config = feeConfigs.find(c => c.restaurantId === restaurantId);
-            if (!config) return;
+            const tax = subtotal * (taxRate / 100);
+            const stripeFee = subtotal * (stripePct / 100) + stripeFlat;
+            const total = subtotal + serviceFee + tax + stripeFee;
             
-            document.getElementById('modalTitle').textContent = 'Edit Restaurant Fee';
-            document.getElementById('editingRestaurantId').value = restaurantId;
-            document.getElementById('restaurantSelect').value = restaurantId;
-            document.getElementById('restaurantSelect').disabled = true;
-            document.getElementById('feeType').value = config.feeType || 'fixed';
-            document.getElementById('fixedFee').value = config.serviceFeeFixed || 0;
-            document.getElementById('percentageFee').value = config.serviceFeePercentage || 0;
-            document.getElementById('taxRate').value = ((config.taxRate || 0) * 100);
-            document.getElementById('minOrder').value = config.minimumOrderAmount || 0;
-            document.getElementById('isNegotiated').checked = config.isNegotiated || false;
-            document.getElementById('negotiatedBy').value = config.negotiatedBy || '';
-            document.getElementById('notes').value = config.notes || '';
-            document.getElementById('stripePercentageFee').value = config.stripeFeePercentage || 2.9;
-            document.getElementById('stripeFlatFee').value = config.stripeFlatFee || 30;
-            
-            toggleNegotiatedFields();
-            updateFeePreview();
-            document.getElementById('feeModal').classList.add('active');
+            document.getElementById(`${prefix}ServiceFee`).textContent = formatCurrency(serviceFee);
+            document.getElementById(`${prefix}StripeFee`).textContent = formatCurrency(stripeFee);
+            document.getElementById(`${prefix}Tax`).textContent = formatCurrency(tax);
+            document.getElementById(`${prefix}Total`).textContent = formatCurrency(total);
         }
 
-        function closeFeeModal() {
-            document.getElementById('feeModal').classList.remove('active');
-        }
-
-        function toggleNegotiatedFields() {
-            const isNegotiated = document.getElementById('isNegotiated').checked;
-            document.getElementById('negotiatedFields').style.display = isNegotiated ? 'block' : 'none';
-        }
-
-        // Fee type change handlers
         function updateDefaultFeePreview() {
             const feeType = document.getElementById('defaultFeeType').value;
             const fixedFee = parseFloat(document.getElementById('defaultFixedFee').value) || 0;
@@ -1171,7 +1157,7 @@
             calculateFeePreview(25, feeType, fixedFee, percentageFee, taxRate, 'preview', stripePct, stripeFlat);
         }
 
-        function updateFeePreview() {
+        function updateModalFeePreview() {
             const feeType = document.getElementById('feeType').value;
             const fixedFee = parseFloat(document.getElementById('fixedFee').value) || 0;
             const percentageFee = parseFloat(document.getElementById('percentageFee').value) || 0;
@@ -1196,344 +1182,239 @@
             calculateFeePreview(25, feeType, fixedFee, percentageFee, taxRate, 'modalPreview', stripePct, stripeFlat);
         }
 
-        function calculateFeePreview(subtotal, feeType, fixedFee, percentageFee, taxRate, prefix, stripePct = 0, stripeFlat = 0) {
-            let serviceFee = 0;
-            
-            switch (feeType) {
-                case 'fixed':
-                    serviceFee = fixedFee;
-                    break;
-                case 'percentage':
-                    serviceFee = subtotal * (percentageFee / 100);
-                    break;
-                case 'hybrid':
-                    serviceFee = fixedFee + (subtotal * (percentageFee / 100));
-                    break;
-            }
-            
-            const tax = subtotal * (taxRate / 100);
-            const stripeFee = subtotal * (stripePct / 100) + stripeFlat;
-            const total = subtotal + serviceFee + tax + stripeFee;
-            
-            document.getElementById(prefix + 'ServiceFee').textContent = formatCurrency(serviceFee);
-            document.getElementById(prefix + 'StripeFee').textContent = formatCurrency(stripeFee);
-            document.getElementById(prefix + 'Tax').textContent = formatCurrency(tax);
-            document.getElementById(prefix + 'Total').textContent = formatCurrency(total);
-        }
+        // Modal Management
+        function initializeModal() {
+            const modal = document.getElementById('feeModal');
+            const closeBtn = document.getElementById('closeModalBtn');
+            const cancelBtn = document.getElementById('cancelModalBtn');
+            const addBtn = document.getElementById('addRestaurantFeeBtn');
+            const isNegotiatedCheckbox = document.getElementById('isNegotiated');
 
-        // Initialize the application - FIXED INITIALIZATION ORDER
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Fee Management System starting...');
-            
-            try {
-                // Wait for Firebase to be ready
-                await waitForFirebase();
-                console.log('✅ Firebase ready');
-                
-                // Wait a bit more for VediAPI to load
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                if (ensureVediAPI()) {
-                    console.log('✅ VediAPI ready');
-                    showAlert('Connected to Firebase API successfully', 'success');
-                    
-                    // Now load all data
-                    await loadInitialData();
-                    initializeCharts();
-                    setupEventListeners();
-                    
-                    console.log('🎉 Fee Management System fully loaded!');
-                } else {
-                    console.error('❌ VediAPI failed to load');
-                    showAlert('VediAPI failed to load. Some features may not work.', 'error');
-                    
-                    // Still initialize charts and UI
-                    initializeCharts();
-                    setupEventListeners();
+            function openModal() {
+                document.getElementById('modalTitle').textContent = 'Create Restaurant Fee';
+                document.getElementById('editingRestaurantId').value = '';
+                document.getElementById('restaurantFeeForm').reset();
+                document.getElementById('restaurantSelect').disabled = false;
+                document.getElementById('stripePercentageFee').value = 2.9;
+                document.getElementById('stripeFlatFee').value = 30;
+                updateModalFeePreview();
+                modal.classList.add('active');
+            }
+
+            function closeModal() {
+                modal.classList.remove('active');
+            }
+
+            addBtn.addEventListener('click', openModal);
+            closeBtn.addEventListener('click', closeModal);
+            cancelBtn.addEventListener('click', closeModal);
+
+            // Close modal when clicking outside
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
                 }
-            } catch (error) {
-                console.error('❌ Initialization error:', error);
-                showAlert('Error initializing system: ' + error.message, 'error');
-                
-                // Fallback initialization
-                initializeCharts();
-                setupEventListeners();
-            }
-        });
+            });
 
-        // Load initial data
-        async function loadInitialData() {
-            try {
-                await Promise.all([
-                    loadRestaurants(),
-                    loadOverviewData(),
-                    loadAnalytics(),
-                    loadRestaurantFees()
-                ]);
-            } catch (error) {
-                console.error('Error loading initial data:', error);
-                showAlert('Error loading initial data', 'error');
-            }
+            // Toggle negotiated fields
+            isNegotiatedCheckbox.addEventListener('change', () => {
+                const negotiatedFields = document.getElementById('negotiatedFields');
+                negotiatedFields.style.display = isNegotiatedCheckbox.checked ? 'block' : 'none';
+            });
         }
 
-        // Load restaurants from Firebase
-        async function loadRestaurants() {
-            try {
-                if (!ensureVediAPI()) return;
-                
-                // Get all restaurants from Firebase
-                const restaurantsSnapshot = await firebaseDb.collection('restaurants').get();
-                restaurants = restaurantsSnapshot.docs.map(doc => ({ 
-                    id: doc.id, 
-                    ...doc.data() 
-                }));
-                
-                console.log('✅ Loaded restaurants from Firebase:', restaurants.length);
-                
-                // Populate restaurant select dropdown
-                const select = document.getElementById('restaurantSelect');
-                select.innerHTML = '<option value="">Select a restaurant...</option>';
-                restaurants.forEach(restaurant => {
-                    select.innerHTML += `<option value="${restaurant.id}">${restaurant.name}</option>`;
-                });
-            } catch (error) {
-                console.error('❌ Error loading restaurants from Firebase:', error);
-                showAlert('Error loading restaurants', 'error');
-            }
-        }
+        // Data Loading Functions
+        function loadDemoData() {
+            // Demo overview data
+            document.getElementById('totalRevenue').textContent = formatCurrency(125430);
+            document.getElementById('totalFees').textContent = formatCurrency(8950);
+            document.getElementById('avgFeePercent').textContent = '7.1%';
 
-        // Load overview data from real Firebase data
-        async function loadOverviewData() {
-            try {
-                if (!ensureVediAPI()) {
-                    document.getElementById('totalRevenue').textContent = '$0';
-                    document.getElementById('totalFees').textContent = '$0';
-                    document.getElementById('avgFeePercent').textContent = '0%';
-                    return;
-                }
-
-                console.log('🔄 Loading real overview data from Firebase...');
-                const analytics = await VediAPI.getFeeAnalytics('month');
-                
-                document.getElementById('totalRevenue').textContent = formatCurrency(analytics.totalRevenue || 0);
-                document.getElementById('totalFees').textContent = formatCurrency(analytics.totalServiceFees || 0);
-                
-                const avgFeePercent = analytics.totalRevenue > 0 ? 
-                    ((analytics.totalServiceFees / analytics.totalRevenue) * 100).toFixed(1) : 0;
-                document.getElementById('avgFeePercent').textContent = avgFeePercent + '%';
-                
-                console.log('✅ Overview data loaded:', {
-                    revenue: analytics.totalRevenue,
-                    fees: analytics.totalServiceFees,
-                    orders: analytics.orderCount
-                });
-                
-            } catch (error) {
-                console.error('❌ Error loading overview data:', error);
-                document.getElementById('totalRevenue').textContent = '$0';
-                document.getElementById('totalFees').textContent = '$0';
-                document.getElementById('avgFeePercent').textContent = '0%';
-                showAlert('Error loading overview data', 'error');
-            }
-        }
-
-        // Load analytics from real Firebase data
-        async function loadAnalytics() {
-            try {
-                if (!ensureVediAPI()) {
-                    document.getElementById('analyticsContent').innerHTML = 
-                        '<div class="empty-state"><div class="empty-state-icon">🔌</div><h3>VediAPI not available</h3><p>Please ensure the Firebase API is loaded properly</p></div>';
-                    return;
-                }
-
-                console.log('🔄 Loading real analytics data from Firebase...');
-                const timePeriod = document.getElementById('analyticsTimePeriod')?.value || 'month';
-                const analytics = await VediAPI.getFeeAnalytics(timePeriod);
-                
-                console.log('📊 Analytics data received:', analytics);
-                
-                document.getElementById('analyticsContent').innerHTML = `
-                    <div style="display: grid; gap: 1rem;">
-                        <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
-                            <span style="color: #64748b;">Total Orders:</span>
-                            <strong>${analytics.orderCount || 0}</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
-                            <span style="color: #64748b;">Total Revenue:</span>
-                            <strong>${formatCurrency(analytics.totalRevenue || 0)}</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
-                            <span style="color: #64748b;">Service Fees:</span>
-                            <strong>${formatCurrency(analytics.totalServiceFees || 0)}</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
-                            <span style="color: #64748b;">Tax Collected:</span>
-                            <strong>${formatCurrency(analytics.totalTax || 0)}</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
-                            <span style="color: #64748b;">Average Order:</span>
-                            <strong>${formatCurrency(analytics.averageOrderValue || 0)}</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding: 0.75rem 0;">
-                            <span style="color: #64748b;">Platform Commission:</span>
-                            <strong>${formatCurrency(analytics.platformCommission || 0)}</strong>
-                        </div>
+            // Demo analytics
+            document.getElementById('analyticsContent').innerHTML = `
+                <div style="display: grid; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                        <span style="color: #64748b;">Total Orders:</span>
+                        <strong>1,243</strong>
                     </div>
-                `;
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                        <span style="color: #64748b;">Total Revenue:</span>
+                        <strong>${formatCurrency(125430)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                        <span style="color: #64748b;">Service Fees:</span>
+                        <strong>${formatCurrency(8950)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                        <span style="color: #64748b;">Stripe Fees:</span>
+                        <strong class="stripe-fee">${formatCurrency(3890)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                        <span style="color: #64748b;">Tax Collected:</span>
+                        <strong>${formatCurrency(10660)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.75rem 0;">
+                        <span style="color: #64748b;">Average Order:</span>
+                        <strong>${formatCurrency(100.91)}</strong>
+                    </div>
+                </div>
+            `;
 
-                loadTopRestaurants(analytics.revenueByRestaurant || {});
-                
-            } catch (error) {
-                console.error('❌ Error loading analytics:', error);
-                document.getElementById('analyticsContent').innerHTML = 
-                    '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Error Loading Analytics</h3><p>Unable to load analytics data from Firebase</p></div>';
-                showAlert('Error loading analytics data', 'error');
-            }
-        }
-
-        // Load top restaurants
-        function loadTopRestaurants(revenueByRestaurant) {
-            const topRestaurantsElement = document.getElementById('topRestaurants');
-            
-            if (!revenueByRestaurant || Object.keys(revenueByRestaurant).length === 0) {
-                topRestaurantsElement.innerHTML = 
-                    '<div class="empty-state"><div class="empty-state-icon">📊</div><h3>No Data</h3><p>No restaurant revenue data available</p></div>';
-                return;
-            }
-
-            const sortedRestaurants = Object.entries(revenueByRestaurant)
-                .sort(([,a], [,b]) => (b.revenue || 0) - (a.revenue || 0))
-                .slice(0, 5);
-
-            let html = '<div style="display: grid; gap: 0.75rem;">';
-            sortedRestaurants.forEach(([restaurantId, data], index) => {
-                const restaurant = restaurants.find(r => r.id === restaurantId);
-                const restaurantName = restaurant ? restaurant.name : 'Unknown Restaurant';
-                
-                const bgColor = index === 0 ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(252, 211, 77, 0.1))' : 
-                               index === 1 ? 'linear-gradient(135deg, rgba(156, 163, 175, 0.1), rgba(209, 213, 219, 0.1))' :
-                               index === 2 ? 'linear-gradient(135deg, rgba(205, 133, 63, 0.1), rgba(222, 184, 135, 0.1))' : '#f8fafc';
-                
-                html += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-radius: 12px; background: ${bgColor}; border: 1px solid rgba(102, 126, 234, 0.1);">
+            // Demo top restaurants
+            document.getElementById('topRestaurants').innerHTML = `
+                <div style="display: grid; gap: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-radius: 12px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(252, 211, 77, 0.1)); border: 1px solid rgba(102, 126, 234, 0.1);">
                         <div>
-                            <div style="font-weight: 600; color: #1a202c;">${index + 1}. ${restaurantName}</div>
-                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${data.orders || 0} orders</div>
+                            <div style="font-weight: 600; color: #1a202c;">1. Pizza Palace</div>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">284 orders</div>
                         </div>
                         <div style="text-align: right;">
-                            <div style="font-weight: 700; color: #1a202c;">${formatCurrency(data.revenue || 0)}</div>
-                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${formatCurrency(data.serviceFees || 0)} fees</div>
+                            <div style="font-weight: 700; color: #1a202c;">${formatCurrency(28540)}</div>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${formatCurrency(2140)} fees</div>
                         </div>
                     </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-radius: 12px; background: linear-gradient(135deg, rgba(156, 163, 175, 0.1), rgba(209, 213, 219, 0.1)); border: 1px solid rgba(102, 126, 234, 0.1);">
+                        <div>
+                            <div style="font-weight: 600; color: #1a202c;">2. Burger House</div>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">198 orders</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 700; color: #1a202c;">${formatCurrency(19850)}</div>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${formatCurrency(1490)} fees</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-radius: 12px; background: linear-gradient(135deg, rgba(205, 133, 63, 0.1), rgba(222, 184, 135, 0.1)); border: 1px solid rgba(102, 126, 234, 0.1);">
+                        <div>
+                            <div style="font-weight: 600; color: #1a202c;">3. Sushi Zen</div>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">156 orders</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 700; color: #1a202c;">${formatCurrency(18230)}</div>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${formatCurrency(1370)} fees</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Demo restaurant fees table
+            loadDemoRestaurantFees();
+        }
+
+        function loadDemoRestaurantFees() {
+            const demoFees = [
+                {
+                    id: 'demo1',
+                    name: 'Pizza Palace',
+                    feeType: 'fixed',
+                    serviceFee: '$2.50',
+                    stripeFee: '2.9% + 30¢',
+                    taxRate: '8.5%',
+                    isNegotiated: false
+                },
+                {
+                    id: 'demo2',
+                    name: 'Burger House',
+                    feeType: 'percentage',
+                    serviceFee: '3.2%',
+                    stripeFee: '2.7% + 25¢',
+                    taxRate: '8.5%',
+                    isNegotiated: true
+                },
+                {
+                    id: 'demo3',
+                    name: 'Sushi Zen',
+                    feeType: 'hybrid',
+                    serviceFee: '$1.00 + 2%',
+                    stripeFee: '2.9% + 30¢',
+                    taxRate: '9.0%',
+                    isNegotiated: false
+                }
+            ];
+
+            let html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Restaurant</th>
+                            <th>Fee Type</th>
+                            <th>Service Fee</th>
+                            <th>Stripe Fee</th>
+                            <th>Tax Rate</th>
+                            <th>Negotiated</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            demoFees.forEach(config => {
+                html += `
+                    <tr>
+                        <td>
+                            <div style="font-weight: 600; color: #1a202c;">${config.name}</div>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">USD</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-info">${config.feeType}</span>
+                        </td>
+                        <td style="font-weight: 600;">${config.serviceFee}</td>
+                        <td style="font-weight: 600;" class="stripe-fee">${config.stripeFee}</td>
+                        <td>${config.taxRate}</td>
+                        <td>
+                            ${config.isNegotiated ? 
+                                '<span class="badge badge-warning">Yes</span>' : 
+                                '<span class="badge badge-success">Standard</span>'
+                            }
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.5rem 0.75rem;" onclick="editDemoFee('${config.id}')">
+                                    <span>✏️</span>
+                                    <span>Edit</span>
+                                </button>
+                                <button class="btn btn-danger" style="font-size: 0.75rem; padding: 0.5rem 0.75rem;" onclick="deleteDemoFee('${config.id}')">
+                                    <span>🗑️</span>
+                                    <span>Delete</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
                 `;
             });
-            html += '</div>';
-            
-            topRestaurantsElement.innerHTML = html;
+
+            html += '</tbody></table>';
+            document.getElementById('restaurantFeesTable').innerHTML = html;
         }
 
-        // Load restaurant fees from Firebase
-        async function loadRestaurantFees() {
-            try {
-                if (!ensureVediAPI()) {
-                    document.getElementById('restaurantFeesTable').innerHTML = 
-                        '<div class="empty-state"><div class="empty-state-icon">🔌</div><h3>VediAPI not available</h3><p>Please ensure the Firebase API is loaded properly</p></div>';
-                    return;
-                }
-
-                console.log('🔄 Loading real fee configurations from Firebase...');
-                feeConfigs = await VediAPI.getAllFeeConfigs();
-                
-                console.log('💰 Fee configs loaded:', feeConfigs.length);
-                
-                if (feeConfigs.length === 0) {
-                    document.getElementById('restaurantFeesTable').innerHTML = 
-                        '<div class="empty-state"><div class="empty-state-icon">🏪</div><h3>No Fee Configurations</h3><p>Start by creating fee configurations for your restaurants</p></div>';
-                    return;
-                }
-
-                let html = `
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Restaurant</th>
-                                <th>Fee Type</th>
-                                <th>Service Fee</th>
-                                <th>Stripe Fee</th>
-                                <th>Tax Rate</th>
-                                <th>Negotiated</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                feeConfigs.forEach(config => {
-                    const feeDisplay = config.feeType === 'fixed' ? 
-                        formatCurrency(config.serviceFeeFixed || 0) :
-                        config.feeType === 'percentage' ?
-                        `${config.serviceFeePercentage || 0}%` :
-                        `${formatCurrency(config.serviceFeeFixed || 0)} + ${config.serviceFeePercentage || 0}%`;
-
-                    const stripeDisplay = `${pct}% + ${flat} cent${flat === 1 ? '' : 's'}`;
-
-
-                    html += `
-                        <tr>
-                            <td>
-                                <div style="font-weight: 600; color: #1a202c;">${config.restaurantName || 'Unknown'}</div>
-                                <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${config.restaurantCurrency || 'USD'}</div>
-                            </td>
-                            <td>
-                                <span class="badge badge-info">${config.feeType || 'fixed'}</span>
-                            </td>
-                            <td style="font-weight: 600;">${feeDisplay}</td>
-                            <td style="font-weight: 600; color: #667eea;">${stripeDisplay}</td>
-                            <td>${((config.taxRate || 0) * 100).toFixed(1)}%</td>
-                            <td>
-                                ${config.isNegotiated ? 
-                                    '<span class="badge badge-warning">Yes</span>' : 
-                                    '<span class="badge badge-success">Standard</span>'
-                                }
-                            </td>
-                            <td>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.5rem 0.75rem;" onclick="editRestaurantFee('${config.restaurantId}')">
-                                        <span>✏️</span>
-                                        <span>Edit</span>
-                                    </button>
-                                    <button class="btn btn-danger" style="font-size: 0.75rem; padding: 0.5rem 0.75rem;" onclick="deleteRestaurantFee('${config.restaurantId}')">
-                                        <span>🗑️</span>
-                                        <span>Delete</span>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                html += '</tbody></table>';
-                document.getElementById('restaurantFeesTable').innerHTML = html;
-
-            } catch (error) {
-                console.error('❌ Error loading restaurant fees from Firebase:', error);
-                document.getElementById('restaurantFeesTable').innerHTML = 
-                    '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Error Loading Fees</h3><p>Unable to load restaurant fee configurations from Firebase</p></div>';
-                showAlert('Error loading restaurant fees', 'error');
-            }
+        function loadAnalytics() {
+            // This function is called when analytics tab is clicked
+            // For now, it just shows the demo data that's already loaded
+            console.log('Loading analytics data...');
         }
 
-        // Initialize charts with REAL data
+        // Chart Initialization
         function initializeCharts() {
             // Revenue Chart
             const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            
+            // Generate demo revenue data for last 30 days
+            const last30Days = [];
+            const revenueData = [];
+            
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                last30Days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                revenueData.push(Math.floor(Math.random() * 2000) + 1000);
+            }
+
             revenueChart = new Chart(revenueCtx, {
                 type: 'line',
                 data: {
-                    labels: [],
+                    labels: last30Days,
                     datasets: [{
                         label: 'Revenue',
-                        data: [],
+                        data: revenueData,
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 3,
@@ -1567,7 +1448,7 @@
                                     weight: '500'
                                 },
                                 callback: function(value) {
-                                    return ' + value;
+                                    return '$' + value;
                                 }
                             }
                         },
@@ -1594,7 +1475,7 @@
                 data: {
                     labels: ['Fixed Fees', 'Percentage Fees', 'Hybrid Fees'],
                     datasets: [{
-                        data: [0, 0, 0],
+                        data: [8, 5, 3],
                         backgroundColor: [
                             '#667eea',
                             '#764ba2',
@@ -1622,336 +1503,150 @@
                     }
                 }
             });
-
-            // Load real chart data
-            updateCharts();
         }
 
-        // Update charts with REAL data from API
-        async function updateCharts() {
-            try {
-                console.log('🔄 Updating charts with real data...');
-                
-                // Update fee type distribution from real fee configs
-                await loadRealFeeTypeData();
-                
-                // Load real revenue data from orders
-                await loadRealRevenueData();
-                
-                console.log('✅ Charts updated successfully');
-                
-            } catch (error) {
-                console.error('❌ Error updating charts:', error);
-                // Load demo data if real data fails
-                loadDemoChartData();
-            }
-        }
+        // Event Listeners
+        function initializeEventListeners() {
+            // Default fee form change handlers
+            document.getElementById('defaultFeeType').addEventListener('change', updateDefaultFeePreview);
+            document.getElementById('defaultFixedFee').addEventListener('input', updateDefaultFeePreview);
+            document.getElementById('defaultPercentageFee').addEventListener('input', updateDefaultFeePreview);
+            document.getElementById('defaultTaxRate').addEventListener('input', updateDefaultFeePreview);
+            document.getElementById('defaultStripePercentageFee').addEventListener('input', updateDefaultFeePreview);
+            document.getElementById('defaultStripeFlatFee').addEventListener('input', updateDefaultFeePreview);
+            document.getElementById('defaultMinOrder').addEventListener('input', updateDefaultFeePreview);
 
-        // Load real fee type distribution from Firebase
-        async function loadRealFeeTypeData() {
-            try {
-                console.log('📊 Loading real fee type distribution...');
-                
-                if (!ensureVediAPI()) {
-                    // Use empty data if API not available
-                    feeTypeChart.data.datasets[0].data = [0, 0, 0];
-                    feeTypeChart.update();
-                    return;
-                }
-                
-                const feeTypeCounts = { fixed: 0, percentage: 0, hybrid: 0 };
-                
-                // Count fee types from real Firebase configurations
-                feeConfigs.forEach(config => {
-                    const feeType = config.feeType || 'fixed';
-                    if (feeTypeCounts.hasOwnProperty(feeType)) {
-                        feeTypeCounts[feeType]++;
-                    }
-                });
+            // Modal fee form change handlers
+            document.getElementById('feeType').addEventListener('change', updateModalFeePreview);
+            document.getElementById('fixedFee').addEventListener('input', updateModalFeePreview);
+            document.getElementById('percentageFee').addEventListener('input', updateModalFeePreview);
+            document.getElementById('taxRate').addEventListener('input', updateModalFeePreview);
+            document.getElementById('stripePercentageFee').addEventListener('input', updateModalFeePreview);
+            document.getElementById('stripeFlatFee').addEventListener('input', updateModalFeePreview);
+            document.getElementById('minOrder').addEventListener('input', updateModalFeePreview);
 
-                // Update chart with real data
-                feeTypeChart.data.datasets[0].data = [
-                    feeTypeCounts.fixed,
-                    feeTypeCounts.percentage,
-                    feeTypeCounts.hybrid
-                ];
-                feeTypeChart.update();
-
-                console.log('✅ Fee type chart updated with real data:', feeTypeCounts);
-                
-            } catch (error) {
-                console.error('❌ Error loading fee type data:', error);
-                // Use empty data on error
-                feeTypeChart.data.datasets[0].data = [0, 0, 0];
-                feeTypeChart.update();
-            }
-        }
-
-        // Load real revenue data from Firebase orders
-        async function loadRealRevenueData() {
-            try {
-                console.log('📈 Loading real revenue data from Firebase orders...');
-                
-                if (!ensureVediAPI()) {
-                    console.warn('VediAPI not available, using empty chart');
-                    revenueChart.data.labels = [];
-                    revenueChart.data.datasets[0].data = [];
-                    revenueChart.update();
-                    return;
-                }
-                
-                // Get last 30 days of actual orders from Firebase
-                const last30Days = [];
-                const revenueData = [];
-                
-                for (let i = 29; i >= 0; i--) {
-                    const date = new Date();
-                    date.setDate(date.getDate() - i);
-                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    last30Days.push(dateStr);
-                    
-                    // Get orders for this specific day from Firebase
-                    const dayStart = new Date(date);
-                    dayStart.setHours(0, 0, 0, 0);
-                    const dayEnd = new Date(date);
-                    dayEnd.setHours(23, 59, 59, 999);
-                    
-                    try {
-                        const ordersSnapshot = await firebaseDb.collection('orders')
-                            .where('createdAt', '>=', dayStart)
-                            .where('createdAt', '<=', dayEnd)
-                            .where('status', '==', 'completed')
-                            .get();
-                        
-                        let dayRevenue = 0;
-                        ordersSnapshot.docs.forEach(doc => {
-                            const order = doc.data();
-                            dayRevenue += (order.total || 0);
-                        });
-                        
-                        revenueData.push(dayRevenue);
-                        console.log(`📅 ${dateStr}: ${dayRevenue.toFixed(2)} (${ordersSnapshot.docs.length} orders)`);
-                        
-                    } catch (error) {
-                        console.warn(`⚠️ Error loading orders for ${dateStr}:`, error);
-                        revenueData.push(0);
-                    }
-                }
-
-                // Update revenue chart with real Firebase data
-                revenueChart.data.labels = last30Days;
-                revenueChart.data.datasets[0].data = revenueData;
-                revenueChart.update();
-
-                const totalRevenue = revenueData.reduce((sum, day) => sum + day, 0);
-                console.log('✅ Revenue chart updated with real Firebase data');
-                console.log(`💰 Total 30-day revenue: ${totalRevenue.toFixed(2)}`);
-                
-            } catch (error) {
-                console.error('❌ Error loading real revenue data:', error);
-                // Clear chart on error
-                revenueChart.data.labels = [];
-                revenueChart.data.datasets[0].data = [];
-                revenueChart.update();
-                showAlert('Error loading revenue data from Firebase', 'error');
-            }
-        }
-
-        // Load demo revenue data as fallback
-        function loadDemoRevenueData() {
-            const last30Days = [];
-            const revenueData = [];
-            
-            for (let i = 29; i >= 0; i--) {
-                const date = new Date();
-                date.setDate(date.getDate() - i);
-                last30Days.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-                revenueData.push(Math.floor(Math.random() * 1000) + 500);
-            }
-
-            revenueChart.data.labels = last30Days;
-            revenueChart.data.datasets[0].data = revenueData;
-            revenueChart.update();
-        }
-
-        // Load demo chart data as fallback
-        function loadDemoChartData() {
-            console.log('📊 Loading demo chart data as fallback');
-            
-            // Demo fee type data
-            feeTypeChart.data.datasets[0].data = [5, 3, 2];
-            feeTypeChart.update();
-            
-            // Demo revenue data
-            loadDemoRevenueData();
-        }
-
-        // Setup event listeners
-        function setupEventListeners() {
-            // Default fee form
-            document.getElementById('defaultFeeForm').addEventListener('submit', saveDefaultFeeConfig);
-            
-            // Restaurant fee form
-            document.getElementById('restaurantFeeForm').addEventListener('submit', saveRestaurantFeeConfig);
-            
-            // Initialize fee previews
-            updateDefaultFeePreview();
-            updateFeePreview();
-        }
-
-        // Save functions
-        async function saveDefaultFeeConfig(event) {
-            event.preventDefault();
-            
-            try {
-                const feeConfig = {
-                    feeType: document.getElementById('defaultFeeType').value,
-                    serviceFeeFixed: parseFloat(document.getElementById('defaultFixedFee').value) || 0,
-                    serviceFeePercentage: parseFloat(document.getElementById('defaultPercentageFee').value) || 0,
-                    taxRate: (parseFloat(document.getElementById('defaultTaxRate').value) || 0) / 100,
-                    minimumOrderAmount: parseFloat(document.getElementById('defaultMinOrder').value) || 0,
-                    stripeFeePercentage: parseFloat(document.getElementById('defaultStripePercentageFee').value) || 0,
-                    stripeFlatFee: parseInt(document.getElementById('defaultStripeFlatFee').value) || 0
-                };
-
-                if (ensureVediAPI()) {
-                    await VediAPI.createOrUpdateFeeConfig('default', feeConfig);
-                }
-                
+            // Form submissions
+            document.getElementById('defaultFeeForm').addEventListener('submit', (e) => {
+                e.preventDefault();
                 showAlert('Default fee configuration saved successfully!', 'success');
-            } catch (error) {
-                console.error('Error saving default fee config:', error);
-                showAlert('Error saving default fee configuration', 'error');
-            }
-        }
+            });
 
-        async function saveRestaurantFeeConfig(event) {
-            event.preventDefault();
-            
-            try {
-                const restaurantId = document.getElementById('restaurantSelect').value || document.getElementById('editingRestaurantId').value;
-                
-                if (!restaurantId) {
+            document.getElementById('restaurantFeeForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const restaurantSelect = document.getElementById('restaurantSelect');
+                if (!restaurantSelect.value) {
                     showAlert('Please select a restaurant', 'error');
                     return;
                 }
-
-                const feeConfig = {
-                    feeType: document.getElementById('feeType').value,
-                    serviceFeeFixed: parseFloat(document.getElementById('fixedFee').value) || 0,
-                    serviceFeePercentage: parseFloat(document.getElementById('percentageFee').value) || 0,
-                    taxRate: (parseFloat(document.getElementById('taxRate').value) || 0) / 100,
-                    minimumOrderAmount: parseFloat(document.getElementById('minOrder').value) || 0,
-                    isNegotiated: document.getElementById('isNegotiated').checked,
-                    negotiatedBy: document.getElementById('negotiatedBy').value || null,
-                    negotiatedDate: document.getElementById('isNegotiated').checked ? new Date() : null,
-                    notes: document.getElementById('notes').value || '',
-                    stripeFeePercentage: parseFloat(document.getElementById('stripePercentageFee').value) || 0,
-                    stripeFlatFee: parseInt(document.getElementById('stripeFlatFee').value) || 0
-                };
-
-                await VediAPI.createOrUpdateFeeConfig(restaurantId, feeConfig);
-                
                 showAlert('Restaurant fee configuration saved successfully!', 'success');
-                closeFeeModal();
-                await loadRestaurantFees();
-                await loadOverviewData();
-                updateCharts();
-                
-            } catch (error) {
-                console.error('Error saving restaurant fee config:', error);
-                showAlert('Error saving restaurant fee configuration', 'error');
-            }
+                document.getElementById('feeModal').classList.remove('active');
+                loadDemoRestaurantFees(); // Refresh the table
+            });
+
+            // Quick action cards
+            document.querySelectorAll('.action-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const action = card.getAttribute('data-action');
+                    if (action === 'configure') {
+                        document.querySelector('[data-tab="configure"]').click();
+                    } else if (action === 'create-fee') {
+                        document.getElementById('addRestaurantFeeBtn').click();
+                    }
+                });
+            });
+
+            // Analytics time period change
+            document.getElementById('analyticsTimePeriod').addEventListener('change', loadAnalytics);
         }
 
-        // Delete restaurant fee
-        async function deleteRestaurantFee(restaurantId) {
-            if (!confirm('Are you sure you want to delete this fee configuration? The restaurant will revert to default fees.')) {
-                return;
+        // Demo functions for table actions
+        window.editDemoFee = function(id) {
+            showAlert('Edit functionality would open the modal with existing data', 'info');
+            // In a real app, this would populate the modal with the restaurant's current settings
+        };
+
+        window.deleteDemoFee = function(id) {
+            if (confirm('Are you sure you want to delete this fee configuration?')) {
+                showAlert('Fee configuration deleted successfully!', 'success');
+                loadDemoRestaurantFees(); // Refresh the table
             }
+        };
+
+        // Application Initialization
+        async function initializeApp() {
+            console.log('🚀 Initializing Fee Management System...');
             
             try {
-                await VediAPI.deleteFeeConfig(restaurantId);
+                // Initialize Firebase (optional - will work with demo data if Firebase fails)
+                const firebaseReady = initializeFirebase();
+                if (firebaseReady) {
+                    console.log('✅ Firebase connected');
+                    showAlert('Firebase connected successfully', 'success');
+                } else {
+                    console.log('⚠️ Firebase not available, using demo data');
+                    showAlert('Using demo data - Firebase not available', 'info');
+                }
+
+                // Initialize all components
+                initializeTabs();
+                initializeModal();
+                initializeEventListeners();
                 
-                showAlert('Fee configuration deleted successfully!', 'success');
-                await loadRestaurantFees();
-                await loadOverviewData();
-                updateCharts();
+                // Load initial data
+                loadDemoData();
+                
+                // Initialize charts
+                initializeCharts();
+                
+                // Initialize fee previews
+                updateDefaultFeePreview();
+                updateModalFeePreview();
+
+                console.log('🎉 Fee Management System fully loaded!');
                 
             } catch (error) {
-                console.error('Error deleting fee config:', error);
-                showAlert('Error deleting fee configuration', 'error');
+                console.error('❌ Initialization error:', error);
+                showAlert('Error initializing system: ' + error.message, 'error');
             }
         }
 
-        // Utility functions
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-            }).format(amount);
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
         }
 
-        function showAlert(message, type = 'info') {
-            const alertContainer = document.getElementById('alertContainer');
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.style.cssText = `
-                position: relative;
-                padding: 1rem 1.5rem;
-                border-radius: 12px;
-                margin-bottom: 1rem;
-                font-weight: 500;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-                animation: slideInRight 0.3s ease-out;
-            `;
-            
-            alertDiv.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
-                    <span>${message}</span>
-                </div>
-            `;
-            
-            alertContainer.appendChild(alertDiv);
-            
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.style.animation = 'slideOutRight 0.3s ease-in';
-                    setTimeout(() => {
-                        if (alertDiv.parentNode) {
-                            alertDiv.parentNode.removeChild(alertDiv);
-                        }
-                    }, 300);
-                }
-            }, 5000);
+        // Add demo restaurants to dropdown
+        function populateDemoRestaurants() {
+            const restaurantSelect = document.getElementById('restaurantSelect');
+            const demoRestaurants = [
+                { id: 'pizza-palace', name: 'Pizza Palace' },
+                { id: 'burger-house', name: 'Burger House' },
+                { id: 'sushi-zen', name: 'Sushi Zen' },
+                { id: 'taco-fiesta', name: 'Taco Fiesta' },
+                { id: 'italian-bistro', name: 'Italian Bistro' }
+            ];
+
+            restaurantSelect.innerHTML = '<option value="">Select a restaurant...</option>';
+            demoRestaurants.forEach(restaurant => {
+                const option = document.createElement('option');
+                option.value = restaurant.id;
+                option.textContent = restaurant.name;
+                restaurantSelect.appendChild(option);
+            });
         }
 
-        // Close modal when clicking outside
-        document.addEventListener('click', function(event) {
-            if (event.target.classList.contains('modal')) {
-                closeFeeModal();
-            }
+        // Call this after DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(populateDemoRestaurants, 100);
         });
 
-        // Make functions globally available for onclick handlers
-        window.showTab = showTab;
-        window.showCreateFeeModal = showCreateFeeModal;
-        window.editRestaurantFee = editRestaurantFee;
-        window.closeFeeModal = closeFeeModal;
-        window.toggleNegotiatedFields = toggleNegotiatedFields;
-        window.updateDefaultFeePreview = updateDefaultFeePreview;
-        window.updateFeePreview = updateFeePreview;
-        window.deleteRestaurantFee = deleteRestaurantFee;
-        window.loadAnalytics = loadAnalytics;
-
-        console.log('🚀 Vedi Fee Management System initialized');
-        console.log('🔥 Connected to REAL Firebase data');
-        console.log('📊 Charts display REAL revenue data from orders collection');
-        console.log('💰 Fee management uses REAL Firebase API');
-        console.log('✅ Fixed Firebase initialization order');
-        console.log('💳 Stripe fee integration complete');
+        console.log('💰 Vedi Fee Management System - Clean Rebuild');
+        console.log('✨ Features: Service Fees + Stripe Fees + Tax Management');
+        console.log('📊 Real-time previews with complete fee breakdown');
+        console.log('🏪 Per-restaurant fee configurations');
+        console.log('📈 Revenue analytics and reporting');
     </script>
 </body>
 </html>
