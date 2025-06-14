@@ -1355,14 +1355,13 @@
             return phone;
         }
 
-        // Place order function
+        // UPDATED: Place order function - now redirects to payment.html
         async function placeOrder() {
-            console.log('📝 Placing order with calculated fees...');
+            console.log('📝 Preparing to redirect to payment...');
             
             const placeOrderBtn = document.getElementById('placeOrderBtn');
             const orderBtnText = document.getElementById('orderBtnText');
             const orderBtnSpinner = document.getElementById('orderBtnSpinner');
-            const specialInstructions = document.getElementById('specialInstructions').value.trim();
             
             // Disable button and show loading
             placeOrderBtn.disabled = true;
@@ -1382,120 +1381,39 @@
                     throw new Error('Order fees not calculated. Please refresh the page.');
                 }
 
-                // Calculate order details
-                const orderItems = [];
-
-                for (let itemId in cart) {
-                    if (cart[itemId] > 0 && menuItems[itemId]) {
-                        const item = menuItems[itemId];
-                        const quantity = cart[itemId];
-                        
-                        orderItems.push({
-                            id: itemId,
-                            name: item.name,
-                            description: item.description || '',
-                            price: item.price,
-                            quantity: quantity
-                        });
-                    }
-                }
-
-                if (orderItems.length === 0) {
+                // Check if cart has items
+                const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
+                if (cartItemsCount === 0) {
                     throw new Error('No items in cart to order');
                 }
 
-                const orderNumber = VediAPI.generateOrderNumber();
-                console.log('🔢 Generated order number:', orderNumber);
+                // Expose the required values
+                const restaurantId = customerData.restaurantId;
+                const currency = getRestaurantCurrency().code;
+                const subtotalDbl = orderFees.subtotal;
+                const subtotalCents = Math.round(subtotalDbl * 100);
 
-                const orderData = {
-                    orderNumber: orderNumber,
-                    restaurantId: customerData.restaurantId,
-                    customerName: customerData.name || 'Walk-in Customer',
-                    customerPhone: formatPhoneForStorage(customerData.phone) || currentUser.phoneNumber || '',
-                    customerUID: currentUser.uid,
-                    customerEmail: currentUser.email || '',
-                    authProvider: currentUser.providerData[0]?.providerId || 'unknown',
-                    tableNumber: customerData.tableNumber || 'counter',
-                    location: customerData.location || 'table',
-                    items: orderItems,
-                    specialInstructions: specialInstructions,
-                    subtotal: orderFees.subtotal,
-                    tax: orderFees.taxAmount,
-                    serviceFee: orderFees.serviceFee,
-                    total: orderFees.total,
-                    feeConfig: orderFees.feeConfig,
-                    taxRate: orderFees.taxRate,
-                    feeType: orderFees.breakdown?.serviceFeeType,
-                    isNegotiatedRate: orderFees.breakdown?.isNegotiated || false,
-                    status: 'pending',
-                    estimatedTime: '15-20 minutes',
-                    createdAt: new Date().toISOString()
-                };
+                // Create URL parameters
+                const params = new URLSearchParams({
+                    restaurantId,
+                    table: customerData.tableNumber,
+                    location: customerData.location,
+                    name: customerData.name,
+                    phone: customerData.phone,
+                    subtotalCents,
+                    currency
+                });
 
-                console.log('📋 Enhanced order with calculated fees prepared:', orderData);
-
-                const createdOrder = await VediAPI.createOrder(orderData);
-                console.log('✅ Order created successfully with calculated fees:', createdOrder);
-
-                try {
-                    await VediAPI.saveCustomerProfile(currentUser.uid, {
-                        name: customerData.name,
-                        email: currentUser.email,
-                        phone: customerData.phone,
-                        authProvider: currentUser.providerData[0]?.providerId || 'unknown',
-                        lastOrderRestaurant: currentRestaurant.name,
-                        lastOrderDate: new Date().toISOString()
-                    });
-                    console.log('👤 Customer profile updated with order info');
-                } catch (profileError) {
-                    console.warn('⚠️ Could not update customer profile:', profileError);
-                }
-
-                // Clear cart
-                cart = {};
-                sessionStorage.removeItem('customerCart');
-
-                const orderInfo = {
-                    orderNumber: orderNumber,
-                    orderId: createdOrder.id || createdOrder.orderNumber,
-                    restaurantId: customerData.restaurantId,
-                    restaurantName: currentRestaurant.name,
-                    customerName: customerData.name,
-                    customerPhone: customerData.phone,
-                    customerUID: currentUser.uid,
-                    customerEmail: currentUser.email,
-                    authProvider: currentUser.providerData[0]?.providerId,
-                    total: orderFees.total,
-                    createdAt: new Date().toISOString()
-                };
-                sessionStorage.setItem('lastOrderConfirmed', JSON.stringify(orderInfo));
-
-                showSuccess('Order placed successfully!');
+                console.log('🔄 Redirecting to payment with params:', params.toString());
                 
-                setTimeout(() => {
-                    console.log('🔄 Redirecting to order progress...');
-                    
-                    const params = new URLSearchParams();
-                    params.set('restaurant', customerData.restaurantId);
-                    params.set('orderNumber', orderNumber);
-                    
-                    if (customerData.name) params.set('name', customerData.name);
-                    if (customerData.phone) params.set('phone', customerData.phone);
-                    if (customerData.tableNumber) params.set('table', customerData.tableNumber);
-                    if (customerData.location) params.set('location', customerData.location);
-                    
-                    params.set('session', 'authenticated');
-                    
-                    const redirectUrl = `order-progress.html?${params.toString()}`;
-                    console.log('🎯 Redirect URL:', redirectUrl);
-                    
-                    window.location.href = redirectUrl;
-                }, 2000);
+                // Redirect to payment.html (same Customer folder)
+                window.location.href = `payment.html?${params.toString()}`;
 
             } catch (error) {
-                console.error('❌ Error placing order:', error);
-                showError('Failed to place order: ' + error.message);
+                console.error('❌ Error preparing payment redirect:', error);
+                showError('Failed to proceed to payment: ' + error.message);
                 
+                // Re-enable button
                 placeOrderBtn.disabled = false;
                 orderBtnText.style.display = 'block';
                 orderBtnSpinner.style.display = 'none';
@@ -1575,7 +1493,7 @@
             monitorAuthenticationState();
         }, 1000);
 
-        console.log('🛒 Enhanced customer checkout with immediate fee calculation loaded successfully');
+        console.log('🛒 Enhanced customer checkout with payment redirect loaded successfully');
     </script>
 </body>
 </html>
