@@ -12,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
+    <script src="available-status-api.js"></script>
     
     <style>
         * {
@@ -159,6 +160,287 @@
             background: #d1fae5;
             border-color: #10b981;
             color: #065f46;
+        }
+
+        /* Status Toggle Styles */
+        .status-toggle-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .status-toggle-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            color: #374151;
+            padding: 8px 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            min-width: 120px;
+            justify-content: space-between;
+        }
+
+        .status-toggle-btn:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+
+        .status-toggle-btn.online {
+            background: #d1fae5;
+            border-color: #10b981;
+            color: #065f46;
+        }
+
+        .status-toggle-btn.offline {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #6b7280;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.online {
+            background: #10b981;
+        }
+
+        .status-indicator.offline {
+            background: #ef4444;
+        }
+
+        .dropdown-arrow {
+            font-size: 0.7rem;
+            transition: transform 0.3s ease;
+        }
+
+        .status-toggle-btn.open .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .status-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 1000;
+            margin-top: 5px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+
+        .status-dropdown-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-item:hover {
+            background: #f8f9fa;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status-dot.online {
+            background: #10b981;
+        }
+
+        .status-dot.offline {
+            background: #ef4444;
+        }
+
+        .status-option {
+            flex: 1;
+        }
+
+        .status-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        .status-desc {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* Offline Modal Styles */
+        .offline-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .offline-modal-overlay.show {
+            display: flex;
+        }
+
+        .offline-modal {
+            background: white;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 2px solid #f1f3f4;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.3rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+            padding: 5px;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .modal-body p {
+            margin-bottom: 20px;
+            color: #666;
+        }
+
+        .offline-reasons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .reason-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .reason-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .reason-option input[type="radio"] {
+            margin: 0;
+            transform: scale(1.2);
+        }
+
+        .reason-option input[type="radio"]:checked {
+            accent-color: #667eea;
+        }
+
+        .reason-text {
+            flex: 1;
+        }
+
+        .reason-text strong {
+            color: #333;
+            font-size: 0.95rem;
+        }
+
+        .reason-text small {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .custom-reason-input {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .custom-reason-input label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .custom-reason-input input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .custom-reason-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            padding: 20px 25px;
+            border-top: 2px solid #f1f3f4;
         }
 
         .orders-section {
@@ -587,6 +869,25 @@
             .search-input {
                 min-width: auto;
             }
+
+            .status-toggle-btn {
+                min-width: 100px;
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+
+            .offline-modal {
+                width: 95%;
+                margin: 20px;
+            }
+
+            .modal-footer {
+                flex-direction: column;
+            }
+
+            .modal-footer .btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -649,6 +950,35 @@
                     <button class="sound-toggle" id="soundToggle" onclick="toggleSound()">
                         🔊 Sound On
                     </button>
+                    
+                    <!-- Status Toggle -->
+                    <div class="status-toggle-container">
+                        <div class="status-dropdown">
+                            <button class="status-toggle-btn" id="statusToggleBtn" onclick="toggleStatusDropdown()">
+                                <span class="status-indicator" id="statusIndicator"></span>
+                                <span class="status-text" id="statusText">Online</span>
+                                <span class="dropdown-arrow">▼</span>
+                            </button>
+                            
+                            <div class="status-dropdown-menu" id="statusDropdownMenu">
+                                <div class="dropdown-item" onclick="updateRestaurantStatus(true)">
+                                    <span class="status-dot online"></span>
+                                    <div class="status-option">
+                                        <div class="status-title">🟢 Online</div>
+                                        <div class="status-desc">Accept new orders</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="dropdown-item" onclick="showOfflineOptions()">
+                                    <span class="status-dot offline"></span>
+                                    <div class="status-option">
+                                        <div class="status-title">🔴 Offline</div>
+                                        <div class="status-desc">Stop accepting orders</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -758,6 +1088,80 @@
         </div>
     </div>
 
+    <!-- Offline Reason Modal -->
+    <div class="offline-modal-overlay" id="offlineModalOverlay" onclick="closeOfflineModal()">
+        <div class="offline-modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>📴 Going Offline</h3>
+                <button class="modal-close" onclick="closeOfflineModal()">×</button>
+            </div>
+            
+            <div class="modal-body">
+                <p>Please select a reason for going offline:</p>
+                
+                <div class="offline-reasons">
+                    <label class="reason-option">
+                        <input type="radio" name="offlineReason" value="break" checked>
+                        <span class="reason-text">
+                            <strong>⏰ Taking a Break</strong><br>
+                            <small>Short break, back soon</small>
+                        </span>
+                    </label>
+                    
+                    <label class="reason-option">
+                        <input type="radio" name="offlineReason" value="busy">
+                        <span class="reason-text">
+                            <strong>🍳 Too Busy</strong><br>
+                            <small>Currently overwhelmed with orders</small>
+                        </span>
+                    </label>
+                    
+                    <label class="reason-option">
+                        <input type="radio" name="offlineReason" value="kitchen">
+                        <span class="reason-text">
+                            <strong>👨‍🍳 Kitchen Issues</strong><br>
+                            <small>Equipment or staff problems</small>
+                        </span>
+                    </label>
+                    
+                    <label class="reason-option">
+                        <input type="radio" name="offlineReason" value="inventory">
+                        <span class="reason-text">
+                            <strong>📦 Out of Stock</strong><br>
+                            <small>Low on ingredients or supplies</small>
+                        </span>
+                    </label>
+                    
+                    <label class="reason-option">
+                        <input type="radio" name="offlineReason" value="closed">
+                        <span class="reason-text">
+                            <strong>🚪 Temporarily Closed</strong><br>
+                            <small>Closed for the day/maintenance</small>
+                        </span>
+                    </label>
+                    
+                    <label class="reason-option">
+                        <input type="radio" name="offlineReason" value="custom">
+                        <span class="reason-text">
+                            <strong>✏️ Custom Reason</strong><br>
+                            <small>Specify your own reason</small>
+                        </span>
+                    </label>
+                </div>
+                
+                <div class="custom-reason-input" id="customReasonInput" style="display: none;">
+                    <label>Custom reason:</label>
+                    <input type="text" id="customReasonText" placeholder="Enter your reason..." maxlength="100">
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeOfflineModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmGoOffline()">Go Offline</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification -->
     <div class="notification" id="notification">
         <strong>New Order!</strong> Table 5 has placed an order.
@@ -783,10 +1187,14 @@
         let orderUpdateListener = null;
         let connectionHealthy = false;
         
+        // Status management variables
+        let currentRestaurantStatus = { isOnline: true, offlineReason: '' };
+        let statusUpdateListener = null;
+        
         // Cache for menu items and settings
         const appCache = {
             menuItems: new Map(),
-            currency: { code: 'USD', symbol: '$' },
+            currency: { code: 'USD', symbol: ' },
             tableCount: 20,
             lastRefresh: 0,
             refreshCooldown: 2000
@@ -857,8 +1265,248 @@
             // Load today's completed stats immediately
             await loadTodayCompletedStatsFixed();
             
+            // Initialize restaurant status monitoring
+            showLoading('Setting up status monitoring...');
+            await initializeRestaurantStatus();
+            
             loadBackgroundData();
         }
+
+        // ============================================================================
+        // RESTAURANT STATUS MANAGEMENT
+        // ============================================================================
+
+        // Initialize restaurant status monitoring
+        async function initializeRestaurantStatus() {
+            try {
+                // Check if AvailabilityStatusAPI is loaded
+                if (typeof AvailabilityStatusAPI === 'undefined') {
+                    console.warn('⚠️ AvailabilityStatusAPI not loaded, status features disabled');
+                    updateStatusDisplay({ isOnline: true, offlineReason: '' });
+                    return;
+                }
+                
+                // Get initial status
+                const status = await AvailabilityStatusAPI.getRestaurantStatus(currentRestaurant.id);
+                updateStatusDisplay(status);
+                
+                // Start listening to status changes
+                statusUpdateListener = AvailabilityStatusAPI.listenToRestaurantStatus(currentRestaurant.id, (status) => {
+                    currentRestaurantStatus = status;
+                    updateStatusDisplay(status);
+                });
+                
+                console.log('✅ Restaurant status monitoring initialized');
+                
+            } catch (error) {
+                console.error('❌ Failed to initialize restaurant status:', error);
+                // Default to online if there's an error
+                updateStatusDisplay({ isOnline: true, offlineReason: '' });
+            }
+        }
+
+        // Update status display in the UI
+        function updateStatusDisplay(status) {
+            const statusBtn = document.getElementById('statusToggleBtn');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            if (!statusBtn || !statusIndicator || !statusText) {
+                console.warn('⚠️ Status UI elements not found');
+                return;
+            }
+            
+            currentRestaurantStatus = status;
+            
+            if (status.isOnline) {
+                statusBtn.className = 'status-toggle-btn online';
+                statusIndicator.className = 'status-indicator online';
+                statusText.textContent = 'Online';
+                console.log('🟢 Restaurant is ONLINE');
+            } else {
+                statusBtn.className = 'status-toggle-btn offline';
+                statusIndicator.className = 'status-indicator offline';
+                statusText.textContent = 'Offline';
+                console.log('🔴 Restaurant is OFFLINE:', status.offlineReason);
+            }
+            
+            // Update page title to reflect status
+            const originalTitle = document.title.replace(' (OFFLINE)', '');
+            if (!status.isOnline) {
+                document.title = originalTitle + ' (OFFLINE)';
+            } else {
+                document.title = originalTitle;
+            }
+        }
+
+        // Toggle status dropdown
+        function toggleStatusDropdown() {
+            const dropdown = document.getElementById('statusDropdownMenu');
+            const btn = document.getElementById('statusToggleBtn');
+            
+            if (!dropdown || !btn) return;
+            
+            const isOpen = dropdown.classList.contains('show');
+            
+            if (isOpen) {
+                dropdown.classList.remove('show');
+                btn.classList.remove('open');
+            } else {
+                dropdown.classList.add('show');
+                btn.classList.add('open');
+                
+                // Close dropdown when clicking outside
+                setTimeout(() => {
+                    document.addEventListener('click', closeDropdownOutside, { once: true });
+                }, 100);
+            }
+        }
+
+        // Close dropdown when clicking outside
+        function closeDropdownOutside(event) {
+            const dropdown = document.getElementById('statusDropdownMenu');
+            const btn = document.getElementById('statusToggleBtn');
+            
+            if (!dropdown || !btn) return;
+            
+            if (!dropdown.contains(event.target) && !btn.contains(event.target)) {
+                dropdown.classList.remove('show');
+                btn.classList.remove('open');
+            }
+        }
+
+        // Update restaurant status
+        async function updateRestaurantStatus(isOnline, reason = '') {
+            try {
+                if (typeof AvailabilityStatusAPI === 'undefined') {
+                    showNotification('Status management not available', 'error');
+                    return;
+                }
+                
+                // Close dropdown
+                const dropdown = document.getElementById('statusDropdownMenu');
+                const btn = document.getElementById('statusToggleBtn');
+                if (dropdown && btn) {
+                    dropdown.classList.remove('show');
+                    btn.classList.remove('open');
+                }
+                
+                // Show loading state
+                const statusText = document.getElementById('statusText');
+                if (statusText) {
+                    const originalText = statusText.textContent;
+                    statusText.textContent = 'Updating...';
+                    
+                    // Update status in Firebase
+                    await AvailabilityStatusAPI.updateRestaurantStatus(currentRestaurant.id, isOnline, reason);
+                    
+                    // Show success message
+                    const statusMessage = isOnline ? 'Restaurant is now ONLINE' : `Restaurant is now OFFLINE${reason ? ': ' + reason : ''}`;
+                    showNotification(statusMessage, 'success');
+                    
+                    console.log('✅ Restaurant status updated:', isOnline ? 'ONLINE' : 'OFFLINE');
+                }
+                
+            } catch (error) {
+                console.error('❌ Failed to update restaurant status:', error);
+                showNotification('Failed to update restaurant status', 'error');
+            }
+        }
+
+        // Show offline options modal
+        function showOfflineOptions() {
+            const modal = document.getElementById('offlineModalOverlay');
+            if (modal) {
+                modal.classList.add('show');
+                
+                // Reset form
+                const reasonRadios = document.querySelectorAll('input[name="offlineReason"]');
+                if (reasonRadios.length > 0) {
+                    reasonRadios[0].checked = true; // Default to first option
+                }
+                
+                const customInput = document.getElementById('customReasonInput');
+                const customText = document.getElementById('customReasonText');
+                if (customInput && customText) {
+                    customInput.style.display = 'none';
+                    customText.value = '';
+                }
+            }
+        }
+
+        // Close offline modal
+        function closeOfflineModal() {
+            const modal = document.getElementById('offlineModalOverlay');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+
+        // Handle custom reason radio selection
+        document.addEventListener('change', function(event) {
+            if (event.target.name === 'offlineReason') {
+                const customInput = document.getElementById('customReasonInput');
+                const customText = document.getElementById('customReasonText');
+                
+                if (customInput && customText) {
+                    if (event.target.value === 'custom') {
+                        customInput.style.display = 'block';
+                        customText.focus();
+                    } else {
+                        customInput.style.display = 'none';
+                    }
+                }
+            }
+        });
+
+        // Confirm going offline
+        async function confirmGoOffline() {
+            const selectedReason = document.querySelector('input[name="offlineReason"]:checked');
+            if (!selectedReason) {
+                showNotification('Please select a reason', 'error');
+                return;
+            }
+            
+            let offlineReason = '';
+            
+            switch (selectedReason.value) {
+                case 'break':
+                    offlineReason = 'Taking a short break';
+                    break;
+                case 'busy':
+                    offlineReason = 'Currently too busy with orders';
+                    break;
+                case 'kitchen':
+                    offlineReason = 'Kitchen issues - temporarily unavailable';
+                    break;
+                case 'inventory':
+                    offlineReason = 'Out of stock - restocking soon';
+                    break;
+                case 'closed':
+                    offlineReason = 'Temporarily closed';
+                    break;
+                case 'custom':
+                    const customText = document.getElementById('customReasonText');
+                    offlineReason = customText ? customText.value.trim() : '';
+                    if (!offlineReason) {
+                        showNotification('Please enter a custom reason', 'error');
+                        return;
+                    }
+                    break;
+                default:
+                    offlineReason = 'Temporarily unavailable';
+            }
+            
+            // Close modal
+            closeOfflineModal();
+            
+            // Update status
+            await updateRestaurantStatus(false, offlineReason);
+        }
+
+        // ============================================================================
+        // EXISTING ORDERS MANAGEMENT CODE (continued from original)
+        // ============================================================================
 
         async function getAuthenticatedUser() {
             try {
@@ -901,7 +1549,7 @@
                     throw new Error('No restaurant found');
                 }
                 
-                appCache.currency = restaurant.currency || { code: 'USD', symbol: '$' };
+                appCache.currency = restaurant.currency || { code: 'USD', symbol: ' };
                 appCache.tableCount = parseInt(restaurant.tableCount) || 20;
                 
                 return restaurant;
@@ -1017,12 +1665,17 @@
             console.log('🎯 Updating completed today stats:', { completedToday, revenueToday });
             
             // Update completed today count
-            document.getElementById('completedToday').textContent = completedToday;
+            const completedElement = document.getElementById('completedToday');
+            if (completedElement) {
+                completedElement.textContent = completedToday;
+            }
             
             // Update revenue today
             const revenueElement = document.getElementById('revenueToday');
-            revenueElement.setAttribute('data-amount', revenueToday);
-            revenueElement.textContent = formatPrice(revenueToday);
+            if (revenueElement) {
+                revenueElement.setAttribute('data-amount', revenueToday);
+                revenueElement.textContent = formatPrice(revenueToday);
+            }
             
             console.log('✅ Completed today stats updated');
         }
@@ -1046,8 +1699,11 @@
             console.log('📊 Live stats:', liveStats);
             
             // Update only live order counts
-            document.getElementById('pendingCount').textContent = liveStats.pending;
-            document.getElementById('preparingCount').textContent = liveStats.preparing;
+            const pendingElement = document.getElementById('pendingCount');
+            const preparingElement = document.getElementById('preparingCount');
+            
+            if (pendingElement) pendingElement.textContent = liveStats.pending;
+            if (preparingElement) preparingElement.textContent = liveStats.preparing;
             
             // Don't update completed/revenue here - they're handled separately
         }
@@ -1142,6 +1798,8 @@
 
         function renderLiveOrdersOptimized() {
             const grid = document.getElementById('liveOrdersGrid');
+            if (!grid) return;
+            
             const ordersArray = Array.from(liveOrders.values());
             
             filteredOrders = applyFiltersOptimized(ordersArray);
@@ -1351,11 +2009,13 @@
             
             console.log('🔢 Updating badge - Live orders count:', liveOrdersCount);
             
-            if (liveOrdersCount > 0) {
-                liveBadge.textContent = liveOrdersCount;
-                liveBadge.style.display = 'flex';
-            } else {
-                liveBadge.style.display = 'none';
+            if (liveBadge) {
+                if (liveOrdersCount > 0) {
+                    liveBadge.textContent = liveOrdersCount;
+                    liveBadge.style.display = 'flex';
+                } else {
+                    liveBadge.style.display = 'none';
+                }
             }
         }
 
@@ -1482,6 +2142,8 @@
         // ENHANCED: Better history rendering with strict date filtering logic
         function renderHistoryOrders() {
             const grid = document.getElementById('historyOrdersGrid');
+            if (!grid) return;
+            
             const ordersArray = Array.from(historyOrders.values());
             
             console.log('🎨 Rendering history orders:', ordersArray.length);
@@ -1601,14 +2263,21 @@
 
         // HELPER: Clear date filter and show all recent orders
         function clearDateFilter() {
-            document.getElementById('dateFilter').value = '';
-            loadHistoryOrders();
+            const dateFilter = document.getElementById('dateFilter');
+            if (dateFilter) {
+                dateFilter.value = '';
+                loadHistoryOrders();
+            }
         }
 
         // HELPER: Clear history filters
         function clearHistoryFilters() {
-            document.getElementById('historyTableFilter').value = 'all';
-            document.getElementById('historySearchInput').value = '';
+            const historyTableFilter = document.getElementById('historyTableFilter');
+            const historySearchInput = document.getElementById('historySearchInput');
+            
+            if (historyTableFilter) historyTableFilter.value = 'all';
+            if (historySearchInput) historySearchInput.value = '';
+            
             renderHistoryOrders();
         }
 
@@ -1617,9 +2286,9 @@
             console.log('🔍 === HISTORY DEBUG INFO ===');
             console.log('🔍 Current history orders count:', historyOrders.size);
             console.log('🔍 History orders:', Array.from(historyOrders.values()));
-            console.log('🔍 Date filter value:', document.getElementById('dateFilter').value);
-            console.log('🔍 Table filter value:', document.getElementById('historyTableFilter').value);
-            console.log('🔍 Search filter value:', document.getElementById('historySearchInput').value);
+            console.log('🔍 Date filter value:', document.getElementById('dateFilter')?.value);
+            console.log('🔍 Table filter value:', document.getElementById('historyTableFilter')?.value);
+            console.log('🔍 Search filter value:', document.getElementById('historySearchInput')?.value);
             console.log('🔍 Restaurant ID:', currentRestaurant?.id);
             
             // Test query to see what's in the database
@@ -1659,10 +2328,12 @@
         // UI Event Handlers
         function switchTab(tab) {
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`[data-section="${tab}"]`).classList.add('active');
+            const tabElement = document.querySelector(`[data-section="${tab}"]`);
+            if (tabElement) tabElement.classList.add('active');
             
             document.querySelectorAll('.orders-section').forEach(s => s.classList.remove('active'));
-            document.getElementById(tab).classList.add('active');
+            const sectionElement = document.getElementById(tab);
+            if (sectionElement) sectionElement.classList.add('active');
             
             currentTab = tab;
             
@@ -1749,18 +2420,27 @@
             );
             
             const avgOrderElement = document.getElementById('avgOrderValue');
-            avgOrderElement.setAttribute('data-amount', avgOrderValue);
-            avgOrderElement.textContent = formatPrice(avgOrderValue);
+            if (avgOrderElement) {
+                avgOrderElement.setAttribute('data-amount', avgOrderValue);
+                avgOrderElement.textContent = formatPrice(avgOrderValue);
+            }
             
-            document.getElementById('avgPrepTime').textContent = `${avgPrepTime} min`;
-            document.getElementById('totalOrders').textContent = totalOrders;
-            document.getElementById('popularTable').textContent = popularTable !== '-' ? `Table ${popularTable}` : '-';
+            const avgPrepTimeElement = document.getElementById('avgPrepTime');
+            if (avgPrepTimeElement) avgPrepTimeElement.textContent = `${avgPrepTime} min`;
+            
+            const totalOrdersElement = document.getElementById('totalOrders');
+            if (totalOrdersElement) totalOrdersElement.textContent = totalOrders;
+            
+            const popularTableElement = document.getElementById('popularTable');
+            if (popularTableElement) popularTableElement.textContent = popularTable !== '-' ? `Table ${popularTable}` : '-';
         }
 
         // Utility functions
         function populateTableFilters() {
             const liveTableFilter = document.getElementById('tableFilter');
             const historyTableFilter = document.getElementById('historyTableFilter');
+            
+            if (!liveTableFilter || !historyTableFilter) return;
             
             // Add Counter option first
             const counterOption = document.createElement('option');
@@ -1781,7 +2461,10 @@
 
         function setTodayDate() {
             const today = new Date().toISOString().split('T')[0];
-            document.getElementById('dateFilter').value = today;
+            const dateFilter = document.getElementById('dateFilter');
+            if (dateFilter) {
+                dateFilter.value = today;
+            }
         }
 
         function formatPrice(amount) {
@@ -1816,8 +2499,10 @@
 
         function updatePerformanceIndicator(text, status) {
             const indicator = document.getElementById('performanceIndicator');
-            indicator.textContent = text;
-            indicator.className = `performance-indicator ${status}`;
+            if (indicator) {
+                indicator.textContent = text;
+                indicator.className = `performance-indicator ${status}`;
+            }
         }
 
         function updateConnectionStatus(connected, text) {
@@ -1825,29 +2510,34 @@
             const statusDot = document.getElementById('connectionStatus');
             const statusText = document.getElementById('connectionText');
             
-            statusDot.className = connected ? 'status-dot' : 'status-dot error';
-            statusText.textContent = text;
+            if (statusDot) statusDot.className = connected ? 'status-dot' : 'status-dot error';
+            if (statusText) statusText.textContent = text;
             
-            if (connected) {
-                indicator.className = 'live-indicator connected';
-            } else {
-                indicator.className = 'live-indicator error';
+            if (indicator) {
+                if (connected) {
+                    indicator.className = 'live-indicator connected';
+                } else {
+                    indicator.className = 'live-indicator error';
+                }
             }
         }
 
         function showLoading(message = 'Loading...') {
             const overlay = document.getElementById('loadingOverlay');
             const text = document.getElementById('loadingText');
-            text.textContent = message;
-            overlay.style.display = 'flex';
+            if (overlay) overlay.style.display = 'flex';
+            if (text) text.textContent = message;
         }
 
         function hideLoading() {
-            document.getElementById('loadingOverlay').style.display = 'none';
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.style.display = 'none';
         }
 
         function showNotification(message, type = 'success') {
             const notification = document.getElementById('notification');
+            if (!notification) return;
+            
             notification.className = `notification ${type}`;
             notification.innerHTML = `<strong>${type === 'success' ? 'Success:' : 'Error:'}</strong> ${message}`;
             notification.classList.add('show');
@@ -1861,12 +2551,14 @@
             soundEnabled = !soundEnabled;
             const button = document.getElementById('soundToggle');
             
-            if (soundEnabled) {
-                button.textContent = '🔊 Sound On';
-                button.classList.add('enabled');
-            } else {
-                button.textContent = '🔇 Sound Off';
-                button.classList.remove('enabled');
+            if (button) {
+                if (soundEnabled) {
+                    button.textContent = '🔊 Sound On';
+                    button.classList.add('enabled');
+                } else {
+                    button.textContent = '🔇 Sound Off';
+                    button.classList.remove('enabled');
+                }
             }
             
             try {
@@ -1950,24 +2642,28 @@
 
         function renderEmptyState() {
             const grid = document.getElementById('liveOrdersGrid');
-            grid.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">🍽️</div>
-                    <h3>No active orders</h3>
-                    <p>New orders will appear here automatically</p>
-                </div>
-            `;
+            if (grid) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🍽️</div>
+                        <h3>No active orders</h3>
+                        <p>New orders will appear here automatically</p>
+                    </div>
+                `;
+            }
         }
 
         function renderErrorState(message) {
             const grid = document.getElementById('liveOrdersGrid');
-            grid.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">⚠️</div>
-                    <h3>Unable to load orders</h3>
-                    <p>${message}</p>
-                </div>
-            `;
+            if (grid) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <h3>Unable to load orders</h3>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
         }
 
         // Export functions (implement as needed)
@@ -1990,6 +2686,9 @@
             if (orderUpdateListener) {
                 orderUpdateListener();
             }
+            if (statusUpdateListener) {
+                statusUpdateListener();
+            }
             if (reconnectTimer) {
                 clearTimeout(reconnectTimer);
             }
@@ -2005,7 +2704,8 @@
             console.log('Could not load sound preference');
         }
 
-        console.log('🚀 Orders management (iframe optimized) loaded successfully');
+        console.log('🚀 Orders management with restaurant status control loaded successfully');
+        console.log('🟢🔴 Status features:', typeof AvailabilityStatusAPI !== 'undefined' ? 'ENABLED' : 'DISABLED');
     </script>
 </body>
 </html>
