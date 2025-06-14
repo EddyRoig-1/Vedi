@@ -559,31 +559,32 @@
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
         }
 
-        /* NEW: Stripe fee styling */
-        .stripe-section {
+        /* NEW: Stripe Fee Section Styling */
+        .stripe-fee-section {
             background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05));
-            border: 2px solid rgba(99, 102, 241, 0.2);
             border-radius: 16px;
             padding: 1.5rem;
             margin: 1.5rem 0;
+            border: 2px solid rgba(99, 102, 241, 0.1);
         }
 
-        .stripe-section h4 {
-            color: #4f46e5;
-            font-weight: 600;
+        .stripe-fee-section h4 {
+            color: #5b21b6;
             margin-bottom: 1rem;
+            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 0.5rem;
         }
 
-        .stripe-icon {
-            background: linear-gradient(135deg, #635bff, #5469d4);
-            color: white;
-            padding: 0.5rem;
+        .stripe-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1e40af;
+            padding: 0.75rem 1rem;
             border-radius: 8px;
-            font-weight: bold;
-            font-size: 0.75rem;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3b82f6;
         }
 
         @media (max-width: 768px) {
@@ -757,18 +758,17 @@
                         <input type="number" class="form-input" id="defaultMinOrder" value="0" step="0.01" onchange="updateDefaultFeePreview()">
                     </div>
 
-                    <!-- NEW: Stripe Fee Configuration -->
-                    <div class="stripe-section">
-                        <h4>
-                            <span class="stripe-icon">S</span>
-                            Stripe Processing Fees
-                        </h4>
+                    <!-- NEW: Default Stripe Fee Configuration -->
+                    <div class="stripe-fee-section">
+                        <h4>💳 Default Stripe Fee Configuration</h4>
+                        <div class="stripe-info">
+                            ℹ️ These are default Stripe processing fees. Individual restaurants can have custom rates based on negotiations with Stripe.
+                        </div>
                         <div class="grid grid-2">
                             <div class="form-group">
                                 <label class="form-label">Stripe % Fee</label>
                                 <input type="number" class="form-input" id="defaultStripePercentageFee" value="2.9" step="0.1" onchange="updateDefaultFeePreview()" required>
                             </div>
-                            
                             <div class="form-group">
                                 <label class="form-label">Stripe Flat Fee (cents)</label>
                                 <input type="number" class="form-input" id="defaultStripeFlatFee" value="30" step="1" onchange="updateDefaultFeePreview()" required>
@@ -927,17 +927,16 @@
                 </div>
 
                 <!-- NEW: Stripe Fee Configuration in Modal -->
-                <div class="stripe-section">
-                    <h4>
-                        <span class="stripe-icon">S</span>
-                        Stripe Processing Fees
-                    </h4>
+                <div class="stripe-fee-section">
+                    <h4>💳 Stripe Fee Configuration</h4>
+                    <div class="stripe-info">
+                        ℹ️ Customize Stripe processing fees for this restaurant. Default rates are applied if left unchanged.
+                    </div>
                     <div class="grid grid-2">
                         <div class="form-group">
                             <label class="form-label">Stripe % Fee</label>
                             <input type="number" class="form-input" id="stripePercentageFee" value="2.9" step="0.1" onchange="updateFeePreview()" required>
                         </div>
-                        
                         <div class="form-group">
                             <label class="form-label">Stripe Flat Fee (cents)</label>
                             <input type="number" class="form-input" id="stripeFlatFee" value="30" step="1" onchange="updateFeePreview()" required>
@@ -1102,6 +1101,11 @@
             document.getElementById('editingRestaurantId').value = '';
             document.getElementById('restaurantFeeForm').reset();
             document.getElementById('restaurantSelect').disabled = false;
+            
+            // Set default Stripe fee values
+            document.getElementById('stripePercentageFee').value = '2.9';
+            document.getElementById('stripeFlatFee').value = '30';
+            
             updateFeePreview();
             document.getElementById('feeModal').classList.add('active');
         }
@@ -1120,7 +1124,7 @@
             document.getElementById('taxRate').value = ((config.taxRate || 0) * 100);
             document.getElementById('minOrder').value = config.minimumOrderAmount || 0;
             
-            // NEW: Populate Stripe fee fields
+            // NEW: Load Stripe fee values
             document.getElementById('stripePercentageFee').value = config.stripeFeePercentage || 2.9;
             document.getElementById('stripeFlatFee').value = config.stripeFlatFee || 30;
             
@@ -1142,14 +1146,14 @@
             document.getElementById('negotiatedFields').style.display = isNegotiated ? 'block' : 'none';
         }
 
-        // Fee type change handlers - UPDATED WITH STRIPE FEES
+        // Fee type change handlers - UPDATED to include Stripe fees
         function updateDefaultFeePreview() {
             const feeType = document.getElementById('defaultFeeType').value;
             const fixedFee = parseFloat(document.getElementById('defaultFixedFee').value) || 0;
             const percentageFee = parseFloat(document.getElementById('defaultPercentageFee').value) || 0;
             const taxRate = parseFloat(document.getElementById('defaultTaxRate').value) || 0;
-            const stripePercentage = parseFloat(document.getElementById('defaultStripePercentageFee').value) || 0;
-            const stripeFlat = parseFloat(document.getElementById('defaultStripeFlatFee').value) || 0;
+            const stripePercentage = parseFloat(document.getElementById('defaultStripePercentageFee').value) || 2.9;
+            const stripeFlat = parseFloat(document.getElementById('defaultStripeFlatFee').value) || 30;
             
             const fixedGroup = document.getElementById('defaultFixedFeeGroup');
             const percentageGroup = document.getElementById('defaultPercentageFeeGroup');
@@ -1173,8 +1177,8 @@
             const fixedFee = parseFloat(document.getElementById('fixedFee').value) || 0;
             const percentageFee = parseFloat(document.getElementById('percentageFee').value) || 0;
             const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
-            const stripePercentage = parseFloat(document.getElementById('stripePercentageFee').value) || 0;
-            const stripeFlat = parseFloat(document.getElementById('stripeFlatFee').value) || 0;
+            const stripePercentage = parseFloat(document.getElementById('stripePercentageFee').value) || 2.9;
+            const stripeFlat = parseFloat(document.getElementById('stripeFlatFee').value) || 30;
             
             const fixedGroup = document.getElementById('fixedFeeGroup');
             const percentageGroup = document.getElementById('percentageFeeGroup');
@@ -1193,7 +1197,7 @@
             calculateFeePreview(25, feeType, fixedFee, percentageFee, taxRate, stripePercentage, stripeFlat, 'modalPreview');
         }
 
-        // UPDATED: Calculate fee preview with Stripe fees
+        // UPDATED: Calculate fee preview including Stripe fees
         function calculateFeePreview(subtotal, feeType, fixedFee, percentageFee, taxRate, stripePercentage, stripeFlat, prefix) {
             let serviceFee = 0;
             
@@ -1209,10 +1213,13 @@
                     break;
             }
             
-            // Calculate Stripe fees
+            // Calculate Stripe fee
             const stripeFee = (subtotal * (stripePercentage / 100)) + (stripeFlat / 100);
             
+            // Calculate tax
             const tax = subtotal * (taxRate / 100);
+            
+            // Calculate total
             const total = subtotal + serviceFee + stripeFee + tax;
             
             document.getElementById(prefix + 'ServiceFee').textContent = formatCurrency(serviceFee);
@@ -1368,7 +1375,7 @@
                         </div>
                         <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
                             <span style="color: #64748b;">Stripe Fees:</span>
-                            <strong style="color: #635bff;">${formatCurrency(analytics.totalStripeFees || 0)}</strong>
+                            <strong>${formatCurrency(analytics.totalStripeFees || 0)}</strong>
                         </div>
                         <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
                             <span style="color: #64748b;">Tax Collected:</span>
@@ -1436,7 +1443,7 @@
             topRestaurantsElement.innerHTML = html;
         }
 
-        // Load restaurant fees from Firebase - UPDATED TO SHOW STRIPE FEES
+        // Load restaurant fees from Firebase - UPDATED to show Stripe fees
         async function loadRestaurantFees() {
             try {
                 if (!ensureVediAPI()) {
@@ -1463,7 +1470,7 @@
                                 <th>Restaurant</th>
                                 <th>Fee Type</th>
                                 <th>Service Fee</th>
-                                <th>Stripe Fees</th>
+                                <th>Stripe Fee</th>
                                 <th>Tax Rate</th>
                                 <th>Negotiated</th>
                                 <th>Actions</th>
@@ -1479,7 +1486,7 @@
                         `${config.serviceFeePercentage || 0}%` :
                         `${formatCurrency(config.serviceFeeFixed || 0)} + ${config.serviceFeePercentage || 0}%`;
 
-                    const stripeDisplay = `${config.stripeFeePercentage || 2.9}% + ${config.stripeFlatFee || 30}¢`;
+                    const stripeFeeDisplay = `${config.stripeFeePercentage || 2.9}% + ${config.stripeFlatFee || 30}¢`;
 
                     html += `
                         <tr>
@@ -1491,7 +1498,7 @@
                                 <span class="badge badge-info">${config.feeType || 'fixed'}</span>
                             </td>
                             <td style="font-weight: 600;">${feeDisplay}</td>
-                            <td style="font-weight: 600; color: #635bff;">${stripeDisplay}</td>
+                            <td style="font-weight: 600; color: #6366f1;">${stripeFeeDisplay}</td>
                             <td>${((config.taxRate || 0) * 100).toFixed(1)}%</td>
                             <td>
                                 ${config.isNegotiated ? 
@@ -1814,7 +1821,7 @@
             }
         }
 
-        // UPDATED: Save restaurant fee config with Stripe fees
+        // UPDATED: Save restaurant fee config including Stripe fees
         async function saveRestaurantFeeConfig(event) {
             event.preventDefault();
             
@@ -1840,6 +1847,8 @@
                     negotiatedDate: document.getElementById('isNegotiated').checked ? new Date() : null,
                     notes: document.getElementById('notes').value || ''
                 };
+
+                console.log('💾 Saving fee config with Stripe fees:', feeConfig);
 
                 await VediAPI.createOrUpdateFeeConfig(restaurantId, feeConfig);
                 
@@ -1969,8 +1978,8 @@
         console.log('📊 Charts display REAL revenue data from orders collection');
         console.log('💰 Fee management uses REAL Firebase API');
         console.log('✅ Fixed Firebase initialization order');
-        console.log('💳 NEW: Stripe fee configuration support added');
-        console.log('🔧 UPDATED: Fee calculations now include Stripe processing fees');
+        console.log('💳 NEW: Stripe fee configuration added');
+        console.log('🎯 Step 2 Complete: Extended Fee Management with Stripe fees');
     </script>
 </body>
 </html>
