@@ -679,6 +679,7 @@
         // Check restaurant status using restaurant document directly
         async function checkRestaurantStatusDirect(restaurantId) {
             try {
+                console.log('🔍 Direct status check for restaurant:', restaurantId);
                 const db = firebase.firestore();
                 const doc = await db.collection('restaurants').doc(restaurantId).get();
                 
@@ -688,12 +689,15 @@
                 
                 const restaurant = doc.data();
                 
-                return {
+                const status = {
                     isOnline: restaurant.isOnline !== false, // Default to true if not set
                     offlineReason: restaurant.offlineReason || '',
                     restaurantName: restaurant.name,
                     success: true
                 };
+                
+                console.log('📊 Direct status check result:', status);
+                return status;
                 
             } catch (error) {
                 console.error('❌ Failed to check restaurant status:', error);
@@ -726,7 +730,7 @@
                                 timestamp: new Date().toISOString()
                             };
                             
-                            console.log('📡 Direct status update:', {
+                            console.log('📡 Direct status update received:', {
                                 restaurant: data.name,
                                 status: status.isOnline ? 'ONLINE' : 'OFFLINE',
                                 reason: status.offlineReason || 'N/A'
