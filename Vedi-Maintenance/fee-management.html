@@ -13,6 +13,9 @@
     <!-- Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
+    <!-- Firebase API - FIXED PATH -->
+    <script src="../firebase-api.js"></script>
+    
     <style>
         :root {
             --primary-gradient: linear-gradient(135deg, #667eea, #764ba2);
@@ -1144,25 +1147,52 @@
                     window.firebaseAuth = Firebase.auth;
                     window.firebaseDb = Firebase.db;
                     
-                    // Simple check for VediAPI - don't wait indefinitely
+                    // More comprehensive VediAPI detection
+                    let apiFound = false;
                     let attempts = 0;
-                    const maxAttempts = 20; // Max 2 seconds
+                    const maxAttempts = 30; // Max 3 seconds
                     
-                    while (attempts < maxAttempts) {
+                    while (attempts < maxAttempts && !apiFound) {
+                        // Check multiple possible API references
                         if (typeof window.VediAPI !== 'undefined' && window.VediAPI) {
-                            console.log('✅ VediAPI found after', attempts * 100, 'ms');
-                            AppState.isFirebaseReady = true;
-                            return true;
+                            console.log('✅ VediAPI found via window.VediAPI after', attempts * 100, 'ms');
+                            apiFound = true;
+                        } else if (typeof window.FirebaseAPI !== 'undefined' && window.FirebaseAPI) {
+                            console.log('✅ FirebaseAPI found via window.FirebaseAPI after', attempts * 100, 'ms');
+                            window.VediAPI = window.FirebaseAPI;
+                            apiFound = true;
+                        } else if (typeof VediAPI !== 'undefined') {
+                            console.log('✅ Global VediAPI found after', attempts * 100, 'ms');
+                            window.VediAPI = VediAPI;
+                            apiFound = true;
+                        } else if (typeof FirebaseAPI !== 'undefined') {
+                            console.log('✅ Global FirebaseAPI found after', attempts * 100, 'ms');
+                            window.VediAPI = FirebaseAPI;
+                            apiFound = true;
                         }
                         
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        attempts++;
+                        if (!apiFound) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        }
                     }
                     
-                    // If VediAPI not found, continue anyway but mark as not ready
-                    console.warn('⚠️ VediAPI not found after 2 seconds, continuing without it');
-                    AppState.isFirebaseReady = false;
-                    return false;
+                    if (apiFound) {
+                        AppState.isFirebaseReady = true;
+                        
+                        // Test the API to make sure it works
+                        if (typeof window.VediAPI.getAllFeeConfigs === 'function') {
+                            console.log('✅ VediAPI.getAllFeeConfigs method confirmed');
+                        } else {
+                            console.warn('⚠️ VediAPI.getAllFeeConfigs method not found');
+                        }
+                        
+                        return true;
+                    } else {
+                        console.warn('⚠️ No API found after 3 seconds');
+                        AppState.isFirebaseReady = false;
+                        return false;
+                    }
                     
                 } catch (error) {
                     console.error('❌ Firebase initialization failed:', error);
@@ -2053,14 +2083,56 @@
                     } else {
                         console.log('⚠️ VediAPI not available, checking alternative approach...');
                         
-                        // Try alternative approach - check if VediAPI exists at all
-                        if (typeof window.VediAPI !== 'undefined') {
-                            console.log('🔄 VediAPI exists, trying direct initialization...');
-                            AppState.isFirebaseReady = true;
-                            Utils.showAlert('VediAPI found, attempting data load...', 'info');
-                            await this.loadInitialData();
+                        // Try alternative approach - check multiple API references
+                        const apiSources = [
+                            { name: 'window.VediAPI', ref: window.VediAPI },
+                            { name: 'window.FirebaseAPI', ref: window.FirebaseAPI },
+                            { name: 'global VediAPI', ref: typeof VediAPI !== 'undefined' ? VediAPI : null },
+                            { name: 'global FirebaseAPI', ref: typeof FirebaseAPI !== 'undefined' ? FirebaseAPI : null }
+                        ];
+                        
+                        let foundAPI = null;
+                        
+                        for (const source of apiSources) {
+                            if (source.ref && typeof source.ref === 'object') {
+                                console.log(`🔍 Found API via ${source.name}`);
+                                foundAPI = source.ref;
+                                window.VediAPI = foundAPI;
+                                break;
+                            }
+                        }
+                        
+                        if (foundAPI) {
+                            console.log('🔄 Found API, checking methods...');
+                            
+                            // List key methods we need
+                            const requiredMethods = [
+                                'getAllFeeConfigs', 
+                                'getFeeAnalytics', 
+                                'createOrUpdateFeeConfig',
+                                'deleteFeeConfig'
+                            ];
+                            
+                            const availableMethods = requiredMethods.filter(method => 
+                                typeof foundAPI[method] === 'function'
+                            );
+                            
+                            console.log('📋 Required methods available:', availableMethods);
+                            console.log('📋 Missing methods:', requiredMethods.filter(method => 
+                                typeof foundAPI[method] !== 'function'
+                            ));
+                            
+                            if (availableMethods.length > 0) {
+                                AppState.isFirebaseReady = true;
+                                Utils.showAlert('API found with ' + availableMethods.length + ' methods available', 'info');
+                                await this.loadInitialData();
+                            } else {
+                                console.log('❌ No required methods found in API');
+                                Utils.showAlert('API found but required methods missing', 'error');
+                                UIManager.showEmptyStates();
+                            }
                         } else {
-                            console.log('❌ VediAPI completely unavailable');
+                            console.log('❌ No API completely unavailable');
                             Utils.showAlert('VediAPI not available - please ensure firebase-api.js is loaded', 'error');
                             UIManager.showEmptyStates();
                         }
@@ -2138,14 +2210,35 @@
             setTimeout(() => {
                 console.log('🔍 Checking script availability...');
                 console.log('Firebase available:', typeof firebase !== 'undefined');
-                console.log('VediAPI available:', typeof window.VediAPI !== 'undefined');
+                console.log('window.VediAPI available:', typeof window.VediAPI !== 'undefined');
+                console.log('window.FirebaseAPI available:', typeof window.FirebaseAPI !== 'undefined');
                 
+                // Check multiple possible references
                 if (typeof window.VediAPI !== 'undefined') {
+                    console.log('✅ VediAPI found via window.VediAPI');
                     console.log('VediAPI methods:', Object.keys(window.VediAPI).slice(0, 10), '...');
+                } else if (typeof window.FirebaseAPI !== 'undefined') {
+                    console.log('✅ FirebaseAPI found via window.FirebaseAPI (legacy)');
+                    console.log('FirebaseAPI methods:', Object.keys(window.FirebaseAPI).slice(0, 10), '...');
+                    // Create alias
+                    window.VediAPI = window.FirebaseAPI;
+                } else if (typeof VediAPI !== 'undefined') {
+                    console.log('✅ VediAPI found via global VediAPI');
+                    window.VediAPI = VediAPI;
+                } else if (typeof FirebaseAPI !== 'undefined') {
+                    console.log('✅ FirebaseAPI found via global FirebaseAPI');
+                    window.VediAPI = FirebaseAPI;
+                } else {
+                    console.log('❌ No VediAPI or FirebaseAPI found');
+                    console.log('Available globals:', Object.keys(window).filter(key => 
+                        key.toLowerCase().includes('api') || 
+                        key.toLowerCase().includes('firebase') || 
+                        key.toLowerCase().includes('vedi')
+                    ));
                 }
                 
                 App.initialize();
-            }, 1000); // Wait 1 second for all scripts to load
+            }, 2000); // Wait 2 seconds for all scripts to load
         }
 
         if (document.readyState === 'loading') {
