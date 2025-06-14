@@ -9,6 +9,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
@@ -424,6 +425,52 @@
             font-weight: 700;
         }
 
+        /* Service Fee Breakdown */
+        .fee-breakdown {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 8px;
+            border: 1px solid #e2e8f0;
+            font-size: 0.85rem;
+        }
+
+        .fee-breakdown-title {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .fee-breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            color: #718096;
+        }
+
+        .fee-breakdown-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .breakdown-label {
+            font-size: 0.8rem;
+        }
+
+        .breakdown-value {
+            font-weight: 600;
+        }
+
+        .your-margin {
+            color: #10b981;
+        }
+
+        .stripe-fees {
+            color: #6366f1;
+        }
+
         /* Special Instructions */
         .form-textarea {
             width: 100%;
@@ -591,18 +638,6 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
-        /* Fee info badge */
-        .fee-info-badge {
-            background: rgba(34, 197, 94, 0.1);
-            color: #16a34a;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-left: 8px;
-            border: 1px solid rgba(34, 197, 94, 0.2);
-        }
-
         /* Responsive Design */
         @media (max-width: 480px) {
             .container {
@@ -708,6 +743,25 @@
                         <span id="serviceFeeLabel">Service Fee:</span>
                         <span id="serviceFee">$0.00</span>
                     </div>
+                    <!-- Service Fee Breakdown for Testing -->
+                    <div class="fee-breakdown" id="feeBreakdown" style="display: none;">
+                        <div class="fee-breakdown-title">
+                            <span>🔍</span>
+                            <span>Fee Breakdown (Testing)</span>
+                        </div>
+                        <div class="fee-breakdown-item">
+                            <span class="breakdown-label your-margin">• Your Margin:</span>
+                            <span class="breakdown-value your-margin" id="yourMargin">$0.00</span>
+                        </div>
+                        <div class="fee-breakdown-item">
+                            <span class="breakdown-label stripe-fees">• Stripe Fees:</span>
+                            <span class="breakdown-value stripe-fees" id="stripeFees">$0.00</span>
+                        </div>
+                        <div class="fee-breakdown-item">
+                            <span class="breakdown-label">• Gross-up Amount:</span>
+                            <span class="breakdown-value" id="grossupAmount">$0.00</span>
+                        </div>
+                    </div>
                     <div class="summary-row total">
                         <span>Total:</span>
                         <span id="total">$0.00</span>
@@ -800,7 +854,7 @@
                 loadCartData();
                 loadAllergenInfo();
                 
-                // Step 5: CRITICAL - Calculate protected pricing FIRST
+                // Step 5: CRITICAL - Calculate protected pricing via BACKEND
                 await calculateProtectedPricing();
                 
                 // Step 6: Update UI elements
@@ -820,7 +874,7 @@
             }
         }
 
-        // MAIN: Calculate protected pricing with gross-up formula (FRONTEND)
+        // UPDATED: Calculate protected pricing using BACKEND Cloud Function
         async function calculateProtectedPricing() {
             const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
             
@@ -838,92 +892,45 @@
             }
 
             try {
-                console.log('💰 Calculating protected pricing (frontend):', customerData.restaurantId);
-                console.log('📊 Subtotal:', subtotal);
+                console.log('🔄 Calculating protected pricing via BACKEND Cloud Function...');
+                console.log('📊 Restaurant ID:', customerData.restaurantId);
+                console.log('💰 Subtotal:', subtotal);
                 
-                // Get fee configuration from database
-                const feeConfig = await VediAPI.getFeeConfig(customerData.restaurantId);
-                console.log('⚙️ Fee config loaded:', feeConfig);
-
-                // Step 1: Calculate desired service fee (what you want to keep)
-                let desiredServiceFee = 0;
-                if (feeConfig.feeType === 'fixed') {
-                    desiredServiceFee = feeConfig.serviceFeeFixed || 0;
-                } else if (feeConfig.feeType === 'percentage') {
-                    const percentage = (feeConfig.serviceFeePercentage || 0) / 100;
-                    desiredServiceFee = subtotal * percentage;
-                } else if (feeConfig.feeType === 'hybrid') {
-                    const percentage = (feeConfig.serviceFeePercentage || 0) / 100;
-                    desiredServiceFee = (feeConfig.serviceFeeFixed || 0) + (subtotal * percentage);
-                }
-
-                console.log('💵 Desired service fee (what you want to keep):', desiredServiceFee);
-
-                // Step 2: Calculate tax
-                const taxRate = (feeConfig.taxRate || 8.5) / 100;
-                const taxAmount = subtotal * taxRate;
-
-                console.log('🏛️ Tax amount:', taxAmount, `(${(taxRate * 100).toFixed(1)}%)`);
-
-                // Step 3: Calculate base amount you want to keep after payment
-                const baseAmount = subtotal + taxAmount + desiredServiceFee;
-                console.log('📦 Base amount to protect:', baseAmount);
-
-                // Step 4: Get Stripe fees for this restaurant
-                const stripePct = (feeConfig.stripeFeePercentage || 2.9) / 100; // Convert to decimal
-                const stripeFlatCents = feeConfig.stripeFlatFee || 30; // In cents
-                const stripeFlat = stripeFlatCents / 100; // Convert to dollars
-
-                console.log('💳 Stripe fees:', {
-                    percentage: stripePct * 100 + '%',
-                    flat: '$' + stripeFlat
+                // Call the backend Cloud Function instead of frontend calculation
+                const cf = firebase.functions().httpsCallable('calculateProtectedPricing');
+                const { data } = await cf({
+                    restaurantId: customerData.restaurantId,
+                    subtotalCents: Math.round(subtotal * 100)
                 });
-
-                // Step 5: GROSS-UP FORMULA - Calculate what customer needs to pay
-                const customerTotal = (baseAmount + stripeFlat) / (1 - stripePct);
-
-                console.log('🧮 Gross-up calculation:');
-                console.log('   Customer pays:', customerTotal);
-                console.log('   Stripe takes:', (customerTotal * stripePct) + stripeFlat);
-                console.log('   You receive:', customerTotal - ((customerTotal * stripePct) + stripeFlat));
-
-                // Step 6: Calculate what shows as "Service Fee" to customer
-                const displayedServiceFee = customerTotal - subtotal - taxAmount;
                 
-                // Step 7: Calculate dynamic service fee percentage
-                const serviceFeePercentage = (displayedServiceFee / subtotal) * 100;
-
-                console.log('📊 Final breakdown:');
-                console.log('   Subtotal:', subtotal);
-                console.log('   Tax:', taxAmount);
-                console.log('   Displayed Service Fee:', displayedServiceFee);
-                console.log('   Service Fee %:', serviceFeePercentage.toFixed(1) + '%');
-                console.log('   Total:', customerTotal);
-
-                // Store the protected pricing
+                console.log('✅ Backend calculation successful:', data);
+                
+                // Use the backend-calculated values
+                const quote = data.quote;
                 orderBreakdown = {
-                    subtotal: subtotal,
-                    taxAmount: taxAmount,
-                    taxRate: taxRate * 100, // Store as percentage for display
-                    serviceFee: displayedServiceFee, // What customer sees
-                    serviceFeePercentage: serviceFeePercentage, // Dynamic percentage
-                    desiredServiceFee: desiredServiceFee, // What you actually want
-                    total: customerTotal, // Final protected price
-                    feeConfig: feeConfig,
-                    stripeFees: {
-                        percentage: stripePct * 100,
-                        flat: stripeFlat
-                    }
+                    subtotal: quote.subtotalCents / 100,
+                    taxAmount: quote.taxCents / 100,
+                    taxRate: quote.taxRate, // This will be the correct 7.0% from your config
+                    serviceFee: quote.serviceFeCents / 100, // What customer sees
+                    serviceFeePercentage: quote.serviceFeePercentage, // Dynamic percentage
+                    total: quote.totalCents / 100, // Final protected price
+                    
+                    // Backend breakdown data for testing
+                    backendData: data.quote || {},
+                    marginProtected: true
                 };
 
                 protectedPricingCalculated = true;
                 
-                console.log('✅ Protected pricing calculated successfully:', orderBreakdown);
+                console.log('🛡️ Using backend protected pricing:', orderBreakdown);
+                console.log('📊 Tax rate from backend:', quote.taxRate + '%');
+                console.log('💰 Customer total:', orderBreakdown.total);
                 
             } catch (error) {
-                console.error('❌ Error calculating protected pricing:', error);
+                console.error('❌ Backend calculation failed:', error);
                 
-                // Fallback to basic calculation
+                // Fallback to basic calculation only if backend fails
+                console.log('⚠️ Using fallback calculation...');
                 const defaultTaxRate = 0.085;
                 const defaultServiceFee = 2.00;
                 const tax = subtotal * defaultTaxRate;
@@ -936,19 +943,16 @@
                     serviceFee: defaultServiceFee,
                     serviceFeePercentage: (defaultServiceFee / subtotal) * 100,
                     total: total,
-                    feeConfig: { 
-                        feeType: 'fixed',
-                        serviceFeeFixed: defaultServiceFee
-                    }
+                    backendData: null,
+                    marginProtected: false
                 };
                 protectedPricingCalculated = true;
                 
                 console.log('⚠️ Using fallback protected pricing:', orderBreakdown);
+                showError('Using fallback pricing - backend calculation failed');
             }
         }
 
-        // [Include all the existing authentication, data loading, and utility functions from previous version...]
-        
         // ENHANCED: Authentication check
         async function checkAuthenticationAndSession() {
             return new Promise((resolve, reject) => {
@@ -1239,11 +1243,11 @@
             }
         }
 
-        // UPDATED: Main render function with protected pricing
+        // UPDATED: Main render function with backend protected pricing
         function renderCheckout() {
             const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
             
-            console.log('🎨 Rendering checkout with protected pricing:', protectedPricingCalculated);
+            console.log('🎨 Rendering checkout with backend protected pricing:', protectedPricingCalculated);
             
             if (cartItemsCount === 0) {
                 showEmptyCart();
@@ -1252,7 +1256,7 @@
 
             renderCartItems();
             
-            // Display the protected pricing immediately
+            // Display the backend-calculated pricing immediately
             displayProtectedPricing();
             
             // Show checkout content and place order button
@@ -1260,38 +1264,67 @@
             document.getElementById('placeOrderSection').style.display = 'block';
         }
 
-        // NEW: Display the protected pricing
+        // UPDATED: Display the backend-calculated protected pricing with fee breakdown
         function displayProtectedPricing() {
             if (!protectedPricingCalculated || !orderBreakdown) {
                 console.warn('⚠️ Protected pricing not calculated yet');
                 return;
             }
 
-            console.log('💰 Displaying protected pricing:', orderBreakdown);
+            console.log('💰 Displaying backend protected pricing:', orderBreakdown);
 
-            // Update display with protected values
+            // Update display with backend values
             document.getElementById('subtotal').textContent = formatPrice(orderBreakdown.subtotal);
             document.getElementById('tax').textContent = formatPrice(orderBreakdown.taxAmount);
             document.getElementById('serviceFee').textContent = formatPrice(orderBreakdown.serviceFee);
             document.getElementById('total').textContent = formatPrice(orderBreakdown.total);
 
-            // Update labels with dynamic rates
+            // Update labels with actual rates from backend
             const taxRate = orderBreakdown.taxRate.toFixed(1);
             document.getElementById('taxLabel').innerHTML = `Tax (${taxRate}%):`;
 
-            // Update service fee label with dynamic percentage
+            // Update service fee label with dynamic percentage (no green badge)
             const serviceFeePercentage = orderBreakdown.serviceFeePercentage.toFixed(1);
-            let serviceFeeLabel = `Service Fee (${serviceFeePercentage}%):`;
-            
-            // Add protection badge
-            const protectionBadge = '<span class="fee-info-badge">Margin Protected</span>';
-            document.getElementById('serviceFeeLabel').innerHTML = serviceFeeLabel + protectionBadge;
+            document.getElementById('serviceFeeLabel').innerHTML = `Service Fee (${serviceFeePercentage}%):`;
+
+            // Show fee breakdown for testing if we have backend data
+            if (orderBreakdown.backendData) {
+                displayFeeBreakdown();
+            }
 
             // Update place order button text
             document.getElementById('orderBtnText').textContent = `Place Order • ${formatPrice(orderBreakdown.total)}`;
 
-            console.log('✅ Protected pricing displayed - Customer pays:', formatPrice(orderBreakdown.total));
-            console.log('🛡️ Your protected margin:', formatPrice(orderBreakdown.desiredServiceFee));
+            console.log('✅ Backend protected pricing displayed - Customer pays:', formatPrice(orderBreakdown.total));
+            console.log('🏛️ Tax rate from backend:', taxRate + '%');
+        }
+
+        // NEW: Display detailed fee breakdown for testing
+        function displayFeeBreakdown() {
+            const breakdown = orderBreakdown.backendData;
+            if (!breakdown) return;
+
+            const feeBreakdownElement = document.getElementById('feeBreakdown');
+            
+            // Calculate the breakdown amounts
+            const yourMargin = (breakdown.desiredServiceFeeCents || 0) / 100;
+            const stripeFees = (breakdown.stripeFeePercentage || 2.9) * orderBreakdown.subtotal / 100 + (breakdown.stripeFlatFee || 30) / 100;
+            const grossupAmount = orderBreakdown.serviceFee - yourMargin;
+
+            // Update the breakdown display
+            document.getElementById('yourMargin').textContent = formatPrice(yourMargin);
+            document.getElementById('stripeFees').textContent = formatPrice(stripeFees);
+            document.getElementById('grossupAmount').textContent = formatPrice(grossupAmount);
+
+            // Show the breakdown
+            feeBreakdownElement.style.display = 'block';
+
+            console.log('🔍 Fee breakdown displayed:', {
+                yourMargin: formatPrice(yourMargin),
+                stripeFees: formatPrice(stripeFees),
+                grossupAmount: formatPrice(grossupAmount),
+                totalServiceFee: formatPrice(orderBreakdown.serviceFee)
+            });
         }
 
         // Show empty cart
@@ -1338,7 +1371,7 @@
             cartItemsList.innerHTML = html;
         }
 
-        // UPDATED: Update quantity function - recalculates protected pricing
+        // UPDATED: Update quantity function - recalculates using backend
         async function updateQuantity(itemId, change) {
             console.log(`🔢 Updating quantity for item ${itemId} by ${change}`);
             
@@ -1352,24 +1385,24 @@
 
             saveCart();
             
-            // Recalculate protected pricing immediately
+            // Recalculate protected pricing via backend immediately
             await calculateProtectedPricing();
             
-            // Re-render with new protected pricing
+            // Re-render with new backend pricing
             renderCheckout();
         }
 
-        // UPDATED: Remove item function - recalculates protected pricing
+        // UPDATED: Remove item function - recalculates using backend
         async function removeItem(itemId) {
             if (confirm('Remove this item from your cart?')) {
                 console.log(`🗑️ Removing item ${itemId}`);
                 delete cart[itemId];
                 saveCart();
                 
-                // Recalculate protected pricing immediately
+                // Recalculate protected pricing via backend immediately
                 await calculateProtectedPricing();
                 
-                // Re-render with new protected pricing
+                // Re-render with new backend pricing
                 renderCheckout();
             }
         }
@@ -1385,9 +1418,9 @@
             sessionStorage.setItem('customerCart', JSON.stringify(cartData));
         }
 
-        // UPDATED: Place order function - passes exact protected total to payment
+        // UPDATED: Place order function - passes exact backend-calculated total to payment
         async function placeOrder() {
-            console.log('📝 Preparing to redirect to payment with protected pricing...');
+            console.log('📝 Preparing to redirect to payment with backend protected pricing...');
             
             const placeOrderBtn = document.getElementById('placeOrderBtn');
             const orderBtnText = document.getElementById('orderBtnText');
@@ -1404,7 +1437,7 @@
                 }
 
                 if (!orderBreakdown || !protectedPricingCalculated) {
-                    throw new Error('Protected pricing not calculated. Please refresh the page.');
+                    throw new Error('Backend pricing not calculated. Please refresh the page.');
                 }
 
                 // Check if cart has items
@@ -1413,19 +1446,19 @@
                     throw new Error('No items in cart to order');
                 }
 
-                // Use the protected pricing values
+                // Use the backend-calculated protected pricing values
                 const restaurantId = customerData.restaurantId;
                 const currency = getRestaurantCurrency().code;
-                const totalCents = Math.round(orderBreakdown.total * 100); // Use protected total
+                const totalCents = Math.round(orderBreakdown.total * 100); // Use backend total
 
-                // Create URL parameters with protected pricing (pass ALL amounts)
+                // Create URL parameters with backend protected pricing
                 const params = new URLSearchParams({
                     restaurantId,
                     table: customerData.tableNumber || '',
                     location: customerData.location || '',
                     name: customerData.name || '',
                     phone: customerData.phone || '',
-                    totalCents, // Pass exact protected total
+                    totalCents, // Pass exact backend total
                     subtotalCents: Math.round(orderBreakdown.subtotal * 100),
                     taxCents: Math.round(orderBreakdown.taxAmount * 100),
                     serviceFeCents: Math.round(orderBreakdown.serviceFee * 100),
@@ -1434,15 +1467,16 @@
                     currency
                 });
 
-                console.log('🔄 Redirecting to payment with protected pricing:', {
+                console.log('🔄 Redirecting to payment with backend protected pricing:', {
                     total: formatPrice(orderBreakdown.total),
                     subtotal: formatPrice(orderBreakdown.subtotal),
                     tax: formatPrice(orderBreakdown.taxAmount),
                     serviceFee: formatPrice(orderBreakdown.serviceFee),
-                    protectedMargin: formatPrice(orderBreakdown.desiredServiceFee)
+                    taxRate: orderBreakdown.taxRate + '%',
+                    source: 'backend-calculation'
                 });
                 
-                // Redirect to payment.html with protected pricing
+                // Redirect to payment.html with backend protected pricing
                 window.location.href = `payment.html?${params.toString()}`;
 
             } catch (error) {
@@ -1512,11 +1546,13 @@
             showNotification(message, 'error');
         }
 
-        console.log('🛒✅ Frontend protected pricing checkout loaded successfully');
-        console.log('🛡️ Margins protected using frontend gross-up calculation');
-        console.log('📊 Dynamic service fee percentage displays by order size');
-        console.log('💰 Payment page will receive exact totals from checkout');
+        console.log('🛒✅ Backend-powered protected pricing checkout loaded');
+        console.log('🔄 Uses backend Cloud Function for all pricing calculations');
+        console.log('🛡️ Margins protected using backend gross-up calculation');
+        console.log('📊 Displays actual tax rates from fee configurations');
+        console.log('💰 Payment page receives exact totals from backend');
         console.log('🎯 Consistent pricing throughout customer journey');
+        console.log('🔍 Testing: Fee breakdown shows your margin vs Stripe fees');
     </script>
 </body>
 </html>
