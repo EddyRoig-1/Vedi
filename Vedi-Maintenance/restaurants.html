@@ -14,6 +14,7 @@
     <script src="../firebase-api.js"></script>
     
     <style>
+        /* Keep all existing styles from the original file */
         :root {
             --primary-gradient: linear-gradient(135deg, #667eea, #764ba2);
             --primary-color: #667eea;
@@ -87,16 +88,41 @@
             margin-bottom: 1rem;
         }
 
-        /* Layout Components */
-        .grid {
-            display: grid;
-            gap: 1.5rem;
+        /* Table */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
         }
 
-        .grid-2 {
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        .table th,
+        .table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
         }
 
+        .table th {
+            background: var(--bg-secondary);
+            font-weight: 700;
+            color: #374151;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .table tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        .table tbody tr:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* Card */
         .card {
             background: var(--bg-primary);
             border-radius: var(--border-radius-lg);
@@ -147,6 +173,28 @@
             transform: translateY(-2px);
         }
 
+        /* Venue Fee Display Styles */
+        .venue-fee-display {
+            color: #7c3aed;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .venue-fee-readonly {
+            background: #f8fafc;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            display: inline-block;
+        }
+
+        .venue-fee-note {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+            font-style: italic;
+        }
+
         /* Form Components */
         .form-group {
             margin-bottom: 1.5rem;
@@ -179,22 +227,6 @@
             border-color: var(--primary-color);
             box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
             background: white;
-        }
-
-        .form-select {
-            cursor: pointer;
-        }
-
-        textarea.form-input {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        input[type="checkbox"] {
-            width: 1.2rem;
-            height: 1.2rem;
-            margin-right: 0.5rem;
-            accent-color: var(--primary-color);
         }
 
         /* Buttons */
@@ -260,40 +292,6 @@
         .btn-sm {
             padding: 0.5rem 0.75rem;
             font-size: 0.75rem;
-        }
-
-        /* Table */
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            border-radius: var(--border-radius);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .table th,
-        .table td {
-            padding: 1rem;
-            text-align: left;
-            border-bottom: 1px solid #f1f5f9;
-        }
-
-        .table th {
-            background: var(--bg-secondary);
-            font-weight: 700;
-            color: #374151;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .table tbody tr {
-            transition: all 0.2s ease;
-        }
-
-        .table tbody tr:hover {
-            background: var(--bg-secondary);
         }
 
         /* Badges */
@@ -488,6 +486,16 @@
             border-color: rgba(59, 130, 246, 0.2);
         }
 
+        /* Grid */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
@@ -648,6 +656,15 @@
                     </div>
                 </div>
 
+                <!-- NEW: Venue Fee Section -->
+                <div class="form-group">
+                    <label class="form-label">Venue Fee (%)</label>
+                    <input type="number" class="form-input" id="venueFeePercentage" value="0" step="0.1" min="0" max="10">
+                    <div class="venue-fee-note">
+                        Percentage of order value that goes to the venue (if restaurant is part of a venue)
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label class="form-label">
                         <input type="checkbox" id="isNegotiated"> 
@@ -679,6 +696,10 @@
                             <strong id="modalPreviewServiceFee">$2.00</strong>
                         </div>
                         <div class="fee-preview-item">
+                            <span>Venue Fee:</span>
+                            <strong id="modalPreviewVenueFee">$0.00</strong>
+                        </div>
+                        <div class="fee-preview-item">
                             <span class="stripe-fee">Stripe Fee:</span>
                             <strong id="modalPreviewStripeFee" class="stripe-fee">$1.03</strong>
                         </div>
@@ -708,9 +729,7 @@
     <div id="alertContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 1001;"></div>
 
     <script>
-        // =============================================================================
-        // APPLICATION STATE AND CONFIGURATION
-        // =============================================================================
+        // Updated JavaScript with venue fee support in feeConfigurations collection
         
         const AppState = {
             isFirebaseReady: false,
@@ -732,10 +751,6 @@
             auth: null
         };
 
-        // =============================================================================
-        // UTILITY FUNCTIONS
-        // =============================================================================
-        
         const Utils = {
             formatCurrency(amount) {
                 return new Intl.NumberFormat('en-US', {
@@ -806,10 +821,6 @@
             }
         };
 
-        // =============================================================================
-        // FIREBASE INITIALIZATION
-        // =============================================================================
-        
         const FirebaseManager = {
             async initialize() {
                 try {
@@ -882,12 +893,8 @@
             }
         };
 
-        // =============================================================================
-        // FEE CALCULATION ENGINE (FIXED FOR DOLLAR AMOUNTS)
-        // =============================================================================
-        
         const FeeCalculator = {
-            calculate(subtotal, feeType, fixedFee, percentageFee, taxRate, stripePct = 2.9, stripeFlat = 0.30) {
+            calculate(subtotal, feeType, fixedFee, percentageFee, taxRate, venueFeePercentage = 0, stripePct = 2.9, stripeFlat = 0.30) {
                 let serviceFee = 0;
                 
                 switch (feeType) {
@@ -902,13 +909,15 @@
                         break;
                 }
                 
+                const venueFee = subtotal * (venueFeePercentage / 100);
                 const tax = subtotal * (taxRate / 100);
-                const stripeFee = subtotal * (stripePct / 100) + stripeFlat; // stripeFlat now in dollars
-                const total = subtotal + serviceFee + tax + stripeFee;
+                const stripeFee = subtotal * (stripePct / 100) + stripeFlat;
+                const total = subtotal + serviceFee + venueFee + tax + stripeFee;
                 
                 return {
                     subtotal,
                     serviceFee,
+                    venueFee,
                     stripeFee,
                     tax,
                     total
@@ -920,8 +929,9 @@
                 const fixedFee = parseFloat(document.getElementById('fixedFee').value) || 0;
                 const percentageFee = parseFloat(document.getElementById('percentageFee').value) || 0;
                 const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
+                const venueFeePercentage = parseFloat(document.getElementById('venueFeePercentage').value) || 0;
                 const stripePct = parseFloat(document.getElementById('stripePercentageFee').value) || 0;
-                const stripeFlat = parseFloat(document.getElementById('stripeFlatFee').value) || 0; // Now in dollars
+                const stripeFlat = parseFloat(document.getElementById('stripeFlatFee').value) || 0;
                 
                 // Show/hide fee input groups
                 const fixedGroup = document.getElementById('fixedFeeGroup');
@@ -939,19 +949,16 @@
                 }
                 
                 // Calculate and display fees
-                const fees = this.calculate(25, feeType, fixedFee, percentageFee, taxRate, stripePct, stripeFlat);
+                const fees = this.calculate(25, feeType, fixedFee, percentageFee, taxRate, venueFeePercentage, stripePct, stripeFlat);
                 
                 document.getElementById('modalPreviewServiceFee').textContent = Utils.formatCurrency(fees.serviceFee);
+                document.getElementById('modalPreviewVenueFee').textContent = Utils.formatCurrency(fees.venueFee);
                 document.getElementById('modalPreviewStripeFee').textContent = Utils.formatCurrency(fees.stripeFee);
                 document.getElementById('modalPreviewTax').textContent = Utils.formatCurrency(fees.tax);
                 document.getElementById('modalPreviewTotal').textContent = Utils.formatCurrency(fees.total);
             }
         };
 
-        // =============================================================================
-        // DATA MANAGEMENT
-        // =============================================================================
-        
         const DataManager = {
             async loadRestaurants() {
                 try {
@@ -1022,6 +1029,7 @@
                                 <th>Service Fee</th>
                                 <th>Stripe Fee</th>
                                 <th>Tax Rate</th>
+                                <th>Venue Fee</th>
                                 <th>Negotiated</th>
                                 <th>Actions</th>
                             </tr>
@@ -1036,8 +1044,12 @@
                         `${config.serviceFeePercentage || 0}%` :
                         `${Utils.formatCurrency(config.serviceFeeFixed || 0)} + ${config.serviceFeePercentage || 0}%`;
 
-                    // FIXED: Display Stripe fee in dollars
                     const stripeDisplay = `${config.stripeFeePercentage || 2.9}% + $${(config.stripeFlatFee || 0.30).toFixed(2)}`;
+                    
+                    // NEW: Venue fee display (read-only)
+                    const venueFeeDisplay = config.venueFeePercentage ? 
+                        `${config.venueFeePercentage.toFixed(1)}%` : 
+                        '0.0%';
 
                     html += `
                         <tr>
@@ -1051,6 +1063,12 @@
                             <td style="font-weight: 600;">${feeDisplay}</td>
                             <td style="font-weight: 600;" class="stripe-fee">${stripeDisplay}</td>
                             <td>${((config.taxRate || 0) * 100).toFixed(1)}%</td>
+                            <td>
+                                <div class="venue-fee-display">
+                                    <div class="venue-fee-readonly">${venueFeeDisplay}</div>
+                                    <div class="venue-fee-note">Managed by venue</div>
+                                </div>
+                            </td>
                             <td>
                                 ${config.isNegotiated ? 
                                     '<span class="badge badge-warning">Yes</span>' : 
@@ -1078,10 +1096,6 @@
             }
         };
 
-        // =============================================================================
-        // FEE MANAGEMENT
-        // =============================================================================
-        
         const FeeManager = {
             openModal() {
                 document.getElementById('modalTitle').textContent = 'Create Restaurant Fee';
@@ -1089,7 +1103,8 @@
                 document.getElementById('restaurantFeeForm').reset();
                 document.getElementById('restaurantSelect').disabled = false;
                 document.getElementById('stripePercentageFee').value = 2.9;
-                document.getElementById('stripeFlatFee').value = 0.30; // FIXED: Default to dollars
+                document.getElementById('stripeFlatFee').value = 0.30;
+                document.getElementById('venueFeePercentage').value = 0; // NEW: Reset venue fee
                 FeeCalculator.updatePreview();
                 document.getElementById('feeModal').classList.add('active');
             },
@@ -1119,7 +1134,8 @@
                     document.getElementById('negotiatedBy').value = config.negotiatedBy || '';
                     document.getElementById('notes').value = config.notes || '';
                     document.getElementById('stripePercentageFee').value = config.stripeFeePercentage || 2.9;
-                    // FIXED: Handle both old (cents) and new (dollars) data
+                    document.getElementById('venueFeePercentage').value = config.venueFeePercentage || 0; // NEW: Load venue fee
+                    
                     const stripeFlatValue = config.stripeFlatFee || 0.30;
                     document.getElementById('stripeFlatFee').value = stripeFlatValue > 10 ? (stripeFlatValue / 100).toFixed(2) : stripeFlatValue.toFixed(2);
                     
@@ -1172,7 +1188,7 @@
                         return;
                     }
 
-                    // FIXED: Save Stripe flat fee in dollars
+                    // NEW: Include venue fee percentage in the fee configuration
                     const feeConfig = {
                         feeType: document.getElementById('feeType').value,
                         serviceFeeFixed: parseFloat(document.getElementById('fixedFee').value) || 0,
@@ -1184,7 +1200,8 @@
                         negotiatedDate: document.getElementById('isNegotiated').checked ? new Date() : null,
                         notes: document.getElementById('notes').value || '',
                         stripeFeePercentage: parseFloat(document.getElementById('stripePercentageFee').value) || 2.9,
-                        stripeFlatFee: parseFloat(document.getElementById('stripeFlatFee').value) || 0.30 // FIXED: Save in dollars
+                        stripeFlatFee: parseFloat(document.getElementById('stripeFlatFee').value) || 0.30,
+                        venueFeePercentage: parseFloat(document.getElementById('venueFeePercentage').value) || 0 // NEW: Venue fee
                     };
 
                     console.log('💾 Saving fee config for restaurant:', restaurantId, feeConfig);
@@ -1215,10 +1232,6 @@
             }
         };
 
-        // =============================================================================
-        // UI MANAGEMENT
-        // =============================================================================
-        
         const UIManager = {
             initializeModal() {
                 const modal = document.getElementById('feeModal');
@@ -1244,7 +1257,7 @@
                 // Modal fee form change handlers
                 const modalInputs = [
                     'feeType', 'fixedFee', 'percentageFee', 
-                    'taxRate', 'stripePercentageFee', 'stripeFlatFee', 'minOrder'
+                    'taxRate', 'stripePercentageFee', 'stripeFlatFee', 'minOrder', 'venueFeePercentage' // NEW: Added venue fee
                 ];
                 
                 modalInputs.forEach(id => {
@@ -1272,33 +1285,24 @@
             }
         };
 
-        // =============================================================================
-        // APPLICATION INITIALIZATION
-        // =============================================================================
-        
         const App = {
             async initialize() {
                 console.log('🚀 Initializing Restaurant Fee Management Page...');
                 
                 try {
-                    // Initialize UI components first
                     UIManager.initializeModal();
                     UIManager.initializeEventListeners();
                     
-                    // Initialize fee preview
                     FeeCalculator.updatePreview();
                     
-                    // Show loading states
                     UIManager.showLoadingStates();
                     
-                    // Initialize Firebase
                     const firebaseReady = await FirebaseManager.initialize();
                     
                     if (firebaseReady) {
                         console.log('✅ Firebase ready, loading data...');
                         Utils.showAlert('Firebase connected successfully', 'success');
                         
-                        // Load real data
                         await this.loadInitialData();
                         
                     } else {
@@ -1320,14 +1324,12 @@
                 try {
                     console.log('📊 Loading initial data...');
                     
-                    // Test VediAPI first
                     if (typeof window.VediAPI === 'undefined') {
                         throw new Error('VediAPI not available');
                     }
                     
                     console.log('🔍 VediAPI methods available:', Object.keys(window.VediAPI));
                     
-                    // Load data step by step with error handling
                     try {
                         await DataManager.loadRestaurants();
                     } catch (error) {
@@ -1350,10 +1352,6 @@
             }
         };
 
-        // =============================================================================
-        // APPLICATION STARTUP
-        // =============================================================================
-        
         function startApp() {
             setTimeout(() => {
                 console.log('🔍 Checking script availability...');
@@ -1361,7 +1359,6 @@
                 console.log('window.VediAPI available:', typeof window.VediAPI !== 'undefined');
                 console.log('window.FirebaseAPI available:', typeof window.FirebaseAPI !== 'undefined');
                 
-                // Check multiple possible references
                 if (typeof window.VediAPI !== 'undefined') {
                     console.log('✅ VediAPI found via window.VediAPI');
                 } else if (typeof window.FirebaseAPI !== 'undefined') {
@@ -1387,11 +1384,14 @@
             startApp();
         }
 
-        // Make functions globally available for onclick handlers
         window.FeeManager = FeeManager;
         window.DataManager = DataManager;
 
-        console.log('🏪 Restaurant Fee Management Page Loaded - FIXED ALL DOLLARS');
+        console.log('🏪 Restaurant Fee Management Page Loaded - WITH VENUE FEE SUPPORT');
+        console.log('🏢 NEW: Venue fees now stored in feeConfigurations collection');
+        console.log('📊 NEW: Venue fee column added to restaurant fee table');
+        console.log('⚙️ NEW: Venue fee percentage can be configured per restaurant');
+        console.log('🔒 NOTE: Venue fees are read-only in this interface (managed by venue dashboard)');
     </script>
 </body>
 </html>
