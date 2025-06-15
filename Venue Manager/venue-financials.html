@@ -938,8 +938,8 @@
 
                 // DEBUG: Check Firebase connection
                 console.log('🔗 Firebase connection check:', {
-                    dbAvailable: !!Firebase.db,
-                    authAvailable: !!Firebase.auth,
+                    dbAvailable: !!window.firebaseDb,
+                    firebaseAvailable: typeof firebase !== 'undefined',
                     vediAPIAvailable: !!window.VediAPI
                 });
 
@@ -1135,9 +1135,11 @@
             console.log('🕵️ Starting comprehensive fee data debugging...');
             
             try {
+                const db = getDb();
+                
                 // 1. Check feeConfigurations collection
                 console.log('📋 1. Checking feeConfigurations collection...');
-                const feeConfigsSnapshot = await Firebase.db.collection('feeConfigurations').get();
+                const feeConfigsSnapshot = await db.collection('feeConfigurations').get();
                 console.log(`Found ${feeConfigsSnapshot.docs.length} documents in feeConfigurations:`);
                 feeConfigsSnapshot.docs.forEach(doc => {
                     console.log(`  - ${doc.id}:`, doc.data());
@@ -1157,7 +1159,7 @@
                 
                 // 3. Check venues collection for fee data  
                 console.log('📋 3. Checking venues collection for fee fields...');
-                const venueDoc = await Firebase.db.collection('venues').doc(currentVenue.id).get();
+                const venueDoc = await db.collection('venues').doc(currentVenue.id).get();
                 if (venueDoc.exists) {
                     const venueData = venueDoc.data();
                     const venueFeeFields = {};
@@ -1169,16 +1171,12 @@
                     console.log(`  - ${currentVenue.name} fee fields:`, venueFeeFields);
                 }
                 
-                // 4. Check for any other fee-related collections
+                // 4. Try specific collections that might contain fee data
                 console.log('📋 4. Checking for other fee-related collections...');
-                const collections = await Firebase.db.listCollections();
-                console.log('Available collections:', collections.map(c => c.id));
-                
-                // Try specific collections that might contain fee data
                 const possibleCollections = ['venueFeeConfigurations', 'venueConfigs', 'defaultFees', 'platformFees'];
                 for (const collectionName of possibleCollections) {
                     try {
-                        const snapshot = await Firebase.db.collection(collectionName).limit(5).get();
+                        const snapshot = await db.collection(collectionName).limit(5).get();
                         if (!snapshot.empty) {
                             console.log(`Found data in ${collectionName}:`, snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
                         }
@@ -2127,13 +2125,13 @@
         }
 
         // Utility functions
-        function formatPrice(amount, currency = null) {
-            if (!currency) {
-            currency = { symbol: '$', code: 'USD' };
-            }
-            const formattedAmount = Number(amount || 0).toFixed(2);
-            return `${currency.symbol}${formattedAmount}`;
-        }
+       function formatPrice(amount, currency = null) {
+    if (!currency) {
+        currency = { symbol: '$', code: 'USD' };
+    }
+    const formattedAmount = Number(amount || 0).toFixed(2);
+    return `${currency.symbol}${formattedAmount}`;
+}
 
         function showLoading(message = 'Loading...') {
             console.log('⏳ Showing loading:', message);
