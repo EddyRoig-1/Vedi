@@ -364,7 +364,7 @@
                         <div class="grid grid-2">
                             <div class="form-group">
                                 <label class="form-label">Fee Type</label>
-                                <select class="form-select" id="defaultFeeType">
+                                <select class="form-select" id="defaultFeeType" name="defaultFeeType">
                                     <option value="fixed">Fixed Amount</option>
                                     <option value="percentage">Percentage</option>
                                     <option value="hybrid">Fixed + Percentage</option>
@@ -373,36 +373,36 @@
                             
                             <div class="form-group">
                                 <label class="form-label">Tax Rate (%)</label>
-                                <input type="number" class="form-input" id="defaultTaxRate" value="8.5" step="0.1">
+                                <input type="number" class="form-input" id="defaultTaxRate" name="defaultTaxRate" value="8.5" step="0.1">
                             </div>
                         </div>
 
                         <div class="grid grid-2">
                             <div class="form-group" id="defaultFixedFeeGroup">
                                 <label class="form-label">Fixed Service Fee ($)</label>
-                                <input type="number" class="form-input" id="defaultFixedFee" value="2.00" step="0.01">
+                                <input type="number" class="form-input" id="defaultFixedFee" name="defaultFixedFee" value="2.00" step="0.01">
                             </div>
                             
                             <div class="form-group" id="defaultPercentageFeeGroup" style="display: none;">
                                 <label class="form-label">Percentage Fee (%)</label>
-                                <input type="number" class="form-input" id="defaultPercentageFee" value="3" step="0.1">
+                                <input type="number" class="form-input" id="defaultPercentageFee" name="defaultPercentageFee" value="3" step="0.1">
                             </div>
                         </div>
 
                         <div class="grid grid-2">
                             <div class="form-group">
                                 <label class="form-label">Stripe Percentage Fee (%)</label>
-                                <input type="number" class="form-input" id="defaultStripePercentageFee" value="2.9" step="0.1" required>
+                                <input type="number" class="form-input" id="defaultStripePercentageFee" name="defaultStripePercentageFee" value="2.9" step="0.1" required>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Stripe Flat Fee (cents)</label>
-                                <input type="number" class="form-input" id="defaultStripeFlatFee" value="30" step="1" required>
+                                <label class="form-label">Stripe Flat Fee ($)</label>
+                                <input type="number" class="form-input" id="defaultStripeFlatFee" name="defaultStripeFlatFee" value="0.30" step="0.01" required>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">Minimum Order Amount ($)</label>
-                            <input type="number" class="form-input" id="defaultMinOrder" value="0" step="0.01">
+                            <input type="number" class="form-input" id="defaultMinOrder" name="defaultMinOrder" value="0" step="0.01">
                         </div>
 
                         <div class="fee-preview">
@@ -593,7 +593,7 @@
         };
 
         // =============================================================================
-        // FEE CALCULATION ENGINE
+        // FEE CALCULATION ENGINE (FIXED FOR DOLLAR AMOUNTS)
         // =============================================================================
         
         const FeeCalculator = {
@@ -613,7 +613,7 @@
                 }
                 
                 const tax = subtotal * (taxRate / 100);
-                const stripeFee = subtotal * (stripePct / 100) + stripeFlat;
+                const stripeFee = subtotal * (stripePct / 100) + stripeFlat; // stripeFlat is now in dollars
                 const total = subtotal + serviceFee + tax + stripeFee;
                 
                 return {
@@ -631,7 +631,7 @@
                 const percentageFee = parseFloat(document.getElementById('defaultPercentageFee').value) || 0;
                 const taxRate = parseFloat(document.getElementById('defaultTaxRate').value) || 0;
                 const stripePct = parseFloat(document.getElementById('defaultStripePercentageFee').value) || 0;
-                const stripeFlat = (parseInt(document.getElementById('defaultStripeFlatFee').value) || 0) / 100;
+                const stripeFlat = parseFloat(document.getElementById('defaultStripeFlatFee').value) || 0; // Now in dollars
                 
                 // Show/hide fee input groups
                 const fixedGroup = document.getElementById('defaultFixedFeeGroup');
@@ -659,7 +659,7 @@
         };
 
         // =============================================================================
-        // FEE MANAGEMENT
+        // FEE MANAGEMENT (FIXED FOR DOLLAR AMOUNTS)
         // =============================================================================
         
         const FeeManager = {
@@ -676,7 +676,7 @@
                         taxRate: (parseFloat(formData.get('defaultTaxRate')) || 0) / 100,
                         minimumOrderAmount: parseFloat(formData.get('defaultMinOrder')) || 0,
                         stripeFeePercentage: parseFloat(formData.get('defaultStripePercentageFee')) || 0,
-                        stripeFlatFee: parseInt(formData.get('defaultStripeFlatFee')) || 0
+                        stripeFlatFee: parseFloat(formData.get('defaultStripeFlatFee')) || 0 // Now in dollars, not cents
                     };
 
                     await window.VediAPI.createOrUpdateFeeConfig('default', feeConfig);
@@ -778,7 +778,7 @@
             startApp();
         }
 
-        console.log('⚙️ Fee Configuration Page Loaded');
+        console.log('⚙️ Fee Configuration Page Loaded - FIXED for Dollar Amounts');
     </script>
 </body>
 </html>
