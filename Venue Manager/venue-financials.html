@@ -745,7 +745,7 @@
         <div class="header">
             <div class="header-content">
                 <div class="header-info">
-                    <h1> <span id="venueName">Venue Financials</span></h1>
+                    <h1>💰 <span id="venueName">Venue Financials</span></h1>
                     <p>Manage restaurant fee splits and revenue projections</p>
                 </div>
                 <a href="venue-admin-dashboard.html" class="back-btn">
@@ -969,24 +969,102 @@
             }
         }
 
-        // Load global fee configuration
+        // Load restaurant-specific fee configuration from Firestore
         async function loadGlobalFeeConfig() {
             try {
-                console.log('⚙️ Loading global fee configuration...');
-                const feeConfig = await VediAPI.getFeeConfig();
+                console.log('⚙️ Loading fee configuration from Firestore...');
+                console.log('🔍 Available VediAPI methods:', Object.keys(window.VediAPI || {}));
+                
+                // Try to get restaurant-specific fee config first
+                let feeConfig = null;
+                
+                // Method 1: Try VediAPI methods
+                if (window.VediAPI) {
+                    console.log('📋 Trying VediAPI.getFeeConfig()...');
+                    try {
+                        feeConfig = await window.VediAPI.getFeeConfig();
+                        console.log('📋 VediAPI.getFeeConfig() result:', feeConfig);
+                    } catch (error) {
+                        console.log('⚠️ VediAPI.getFeeConfig() failed:', error.message);
+                    }
+                    
+                    // Try different method names
+                    if (!feeConfig && typeof window.VediAPI.getDefaultFeeConfig === 'function') {
+                        console.log('📋 Trying VediAPI.getDefaultFeeConfig()...');
+                        try {
+                            feeConfig = await window.VediAPI.getDefaultFeeConfig();
+                            console.log('📋 getDefaultFeeConfig() result:', feeConfig);
+                        } catch (error) {
+                            console.log('⚠️ getDefaultFeeConfig() failed:', error.message);
+                        }
+                    }
+                }
+                
+                // Method 2: Direct Firestore query to feeConfigurations collection
+                if (!feeConfig && Firebase.db) {
+                    console.log('📋 Trying direct Firestore query to feeConfigurations...');
+                    try {
+                        // Try to get the specific restaurant's fee config first
+                        if (allRestaurants.length > 0) {
+                            const restaurantId = allRestaurants[0].id; // Use first restaurant as example
+                            console.log('🔍 Looking for fee config for restaurant:', restaurantId);
+                            
+                            const restaurantConfigDoc = await Firebase.db.collection('feeConfigurations').doc(restaurantId).get();
+                            if (restaurantConfigDoc.exists) {
+                                feeConfig = restaurantConfigDoc.data();
+                                console.log('✅ Found restaurant-specific fee config:', feeConfig);
+                            }
+                        }
+                        
+                        // If no restaurant-specific config, try default
+                        if (!feeConfig) {
+                            console.log('🔍 Looking for default fee configuration...');
+                            const defaultConfigDoc = await Firebase.db.collection('feeConfigurations').doc('default').get();
+                            if (defaultConfigDoc.exists) {
+                                feeConfig = defaultConfigDoc.data();
+                                console.log('✅ Found default fee config:', feeConfig);
+                            }
+                        }
+                        
+                        // If no default, get any fee config from the collection
+                        if (!feeConfig) {
+                            console.log('🔍 Looking for any fee configuration in collection...');
+                            const feeConfigsSnapshot = await Firebase.db.collection('feeConfigurations').limit(1).get();
+                            if (!feeConfigsSnapshot.empty) {
+                                feeConfig = feeConfigsSnapshot.docs[0].data();
+                                console.log('✅ Found fee config from collection:', feeConfig);
+                            }
+                        }
+                    } catch (firestoreError) {
+                        console.error('❌ Direct Firestore query failed:', firestoreError);
+                    }
+                }
+                
                 if (feeConfig) {
                     globalFeeConfig = {
                         stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9,
                         stripeFlatFee: feeConfig.stripeFlatFee || 30,
-                        serviceFeePercentage: feeConfig.serviceFeePercentage || 3.5,
-                        serviceFeeFixed: feeConfig.serviceFeeFixed || 0.50,
+                        serviceFeePercentage: feeConfig.serviceFeePercentage || 6, // Use actual value from Firestore
+                        serviceFeeFixed: feeConfig.serviceFeeFixed || 0.5, // Use actual value from Firestore
                         feeType: feeConfig.feeType || 'hybrid',
-                        isNegotiated: feeConfig.isNegotiated || false
+                        isNegotiated: feeConfig.isNegotiated || false,
+                        taxRate: feeConfig.taxRate || 0.09,
+                        minimumOrderAmount: feeConfig.minimumOrderAmount || 0
                     };
-                    console.log('✅ Global fee config loaded:', globalFeeConfig);
+                    console.log('✅ Global fee config loaded from Firestore:', globalFeeConfig);
+                    console.log('💡 Platform fee will display as:', globalFeeConfig.serviceFeeFixed ? `${globalFeeConfig.serviceFeeFixed.toFixed(2)}` : '', 
+                               globalFeeConfig.serviceFeePercentage ? `${globalFeeConfig.serviceFeePercentage}%` : '');
+                } else {
+                    console.error('❌ NO FEE CONFIG FOUND - USING HARDCODED DEFAULTS');
+                    console.error('❌ This is why you see hardcoded values in the UI!');
+                    console.log('🔍 Debug info:');
+                    console.log('   - VediAPI available:', typeof window.VediAPI !== 'undefined');
+                    console.log('   - Firebase.db available:', !!Firebase.db);
+                    console.log('   - Restaurants loaded:', allRestaurants.length);
                 }
             } catch (error) {
-                console.warn('⚠️ Could not load global fee config, using defaults:', error);
+                console.error('❌ Error loading fee config:', error);
+                console.error('❌ FALLING BACK TO HARDCODED DEFAULTS - THIS IS THE PROBLEM!');
             }
         }
 
