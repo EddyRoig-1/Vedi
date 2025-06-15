@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vedi Fee Management - Configure</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase API -->
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea, #764ba2);
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+            --text-primary: #1a202c;
+            --text-secondary: #64748b;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --border-color: #e2e8f0;
+            --border-radius: 12px;
+            --border-radius-lg: 20px;
+            --shadow-sm: 0 4px 20px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 10px 40px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 25px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            color: var(--text-primary);
+            padding: 1rem;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Typography */
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        /* Layout Components */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .card {
+            background: var(--bg-primary);
+            border-radius: var(--border-radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--bg-secondary);
+        }
+
+        /* Navigation */
+        .nav {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .nav-link {
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: var(--border-radius);
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-link:hover {
+            background: var(--primary-gradient);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Form Components */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            background: var(--bg-secondary);
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+
+        .form-select {
+            cursor: pointer;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color), #059669);
+            color: white;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        }
+
+        /* Fee Preview */
+        .fee-preview {
+            background: linear-gradient(135deg, var(--bg-secondary), #e2e8f0);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 2px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .fee-preview h4 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .fee-preview-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem 0;
+        }
+
+        .fee-preview-total {
+            border-top: 2px solid rgba(102, 126, 234, 0.2);
+            padding-top: 0.75rem;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .stripe-fee {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.375rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1e40af;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            border: 1px solid;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #065f46;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #991b1b;
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1e40af;
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0.5rem;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .nav {
+                flex-direction: column;
+            }
+
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .btn {
+                padding: 0.75rem 1.5rem;
+                font-size: 0.8rem;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">⚙️ Default Fee Configuration</h1>
+                <p class="page-subtitle">Set up default fee structure for new restaurants</p>
+            </header>
+
+            <!-- Navigation -->
+            <nav class="nav">
+                <a href="fee-management.html" class="nav-link">
+                    <span>📊</span>
+                    <span>Overview</span>
+                </a>
+                <a href="configure.html" class="nav-link">
+                    <span>⚙️</span>
+                    <span>Configure</span>
+                </a>
+                <a href="analytics.html" class="nav-link">
+                    <span>📈</span>
+                    <span>Analytics</span>
+                </a>
+                <a href="restaurants.html" class="nav-link">
+                    <span>🏪</span>
+                    <span>Restaurants</span>
+                </a>
+            </nav>
+
+            <!-- Configure Content -->
+            <section id="configure-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="section-title">⚙️ Default Fee Configuration</h3>
+                        <span class="badge badge-info">Applied to new restaurants</span>
+                    </div>
+                    
+                    <form id="defaultFeeForm">
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Fee Type</label>
+                                <select class="form-select" id="defaultFeeType">
+                                    <option value="fixed">Fixed Amount</option>
+                                    <option value="percentage">Percentage</option>
+                                    <option value="hybrid">Fixed + Percentage</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Tax Rate (%)</label>
+                                <input type="number" class="form-input" id="defaultTaxRate" value="8.5" step="0.1">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-2">
+                            <div class="form-group" id="defaultFixedFeeGroup">
+                                <label class="form-label">Fixed Service Fee ($)</label>
+                                <input type="number" class="form-input" id="defaultFixedFee" value="2.00" step="0.01">
+                            </div>
+                            
+                            <div class="form-group" id="defaultPercentageFeeGroup" style="display: none;">
+                                <label class="form-label">Percentage Fee (%)</label>
+                                <input type="number" class="form-input" id="defaultPercentageFee" value="3" step="0.1">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Stripe Percentage Fee (%)</label>
+                                <input type="number" class="form-input" id="defaultStripePercentageFee" value="2.9" step="0.1" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Stripe Flat Fee (cents)</label>
+                                <input type="number" class="form-input" id="defaultStripeFlatFee" value="30" step="1" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Minimum Order Amount ($)</label>
+                            <input type="number" class="form-input" id="defaultMinOrder" value="0" step="0.01">
+                        </div>
+
+                        <div class="fee-preview">
+                            <h4>📊 Fee Preview (on $25 order)</h4>
+                            <div id="defaultFeePreview">
+                                <div class="fee-preview-item">
+                                    <span>Subtotal:</span>
+                                    <strong>$25.00</strong>
+                                </div>
+                                <div class="fee-preview-item">
+                                    <span>Service Fee:</span>
+                                    <strong id="previewServiceFee">$2.00</strong>
+                                </div>
+                                <div class="fee-preview-item">
+                                    <span class="stripe-fee">Stripe Fee:</span>
+                                    <strong id="previewStripeFee" class="stripe-fee">$1.03</strong>
+                                </div>
+                                <div class="fee-preview-item">
+                                    <span>Tax:</span>
+                                    <strong id="previewTax">$2.13</strong>
+                                </div>
+                                <div class="fee-preview-item fee-preview-total">
+                                    <span><strong>Total:</strong></span>
+                                    <strong id="previewTotal">$30.16</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success">
+                            <span>💾</span>
+                            <span>Save Default Configuration</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alertContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 1001;"></div>
+
+    <script>
+        // =============================================================================
+        // APPLICATION STATE AND CONFIGURATION
+        // =============================================================================
+        
+        const AppState = {
+            isFirebaseReady: false
+        };
+
+        const Firebase = {
+            config: {
+                apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
+                authDomain: "vedi00.firebaseapp.com", 
+                projectId: "vedi00",
+                storageBucket: "vedi00.firebasestorage.app",
+                messagingSenderId: "136867441640",
+                appId: "1:136867441640:web:9ec709b63f5690f628125d",
+                measurementId: "G-ZS0FKPTEY2"
+            },
+            db: null,
+            auth: null
+        };
+
+        // =============================================================================
+        // UTILITY FUNCTIONS
+        // =============================================================================
+        
+        const Utils = {
+            formatCurrency(amount) {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD'
+                }).format(amount || 0);
+            },
+
+            showAlert(message, type = 'info') {
+                const alertContainer = document.getElementById('alertContainer');
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.cssText = `
+                    position: relative;
+                    padding: 1rem 1.5rem;
+                    border-radius: var(--border-radius);
+                    margin-bottom: 1rem;
+                    font-weight: 500;
+                    box-shadow: var(--shadow-md);
+                    animation: slideInRight 0.3s ease-out;
+                `;
+                
+                const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+                alertDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span>${icon}</span>
+                        <span>${message}</span>
+                    </div>
+                `;
+                
+                alertContainer.appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.style.animation = 'slideOutRight 0.3s ease-in';
+                        setTimeout(() => {
+                            if (alertDiv.parentNode) {
+                                alertDiv.parentNode.removeChild(alertDiv);
+                            }
+                        }, 300);
+                    }
+                }, 5000);
+            }
+        };
+
+        // =============================================================================
+        // FIREBASE INITIALIZATION
+        // =============================================================================
+        
+        const FirebaseManager = {
+            async initialize() {
+                try {
+                    console.log('🔄 Initializing Firebase...');
+                    
+                    if (typeof firebase === 'undefined') {
+                        throw new Error('Firebase SDK not loaded');
+                    }
+
+                    if (!firebase.apps || firebase.apps.length === 0) {
+                        firebase.initializeApp(Firebase.config);
+                    }
+
+                    Firebase.auth = firebase.auth();
+                    Firebase.db = firebase.firestore();
+                    
+                    window.firebaseAuth = Firebase.auth;
+                    window.firebaseDb = Firebase.db;
+                    
+                    let apiFound = false;
+                    let attempts = 0;
+                    const maxAttempts = 30;
+                    
+                    while (attempts < maxAttempts && !apiFound) {
+                        if (typeof window.VediAPI !== 'undefined' && window.VediAPI) {
+                            console.log('✅ VediAPI found via window.VediAPI after', attempts * 100, 'ms');
+                            apiFound = true;
+                        } else if (typeof window.FirebaseAPI !== 'undefined' && window.FirebaseAPI) {
+                            console.log('✅ FirebaseAPI found via window.FirebaseAPI after', attempts * 100, 'ms');
+                            window.VediAPI = window.FirebaseAPI;
+                            apiFound = true;
+                        } else if (typeof VediAPI !== 'undefined') {
+                            console.log('✅ Global VediAPI found after', attempts * 100, 'ms');
+                            window.VediAPI = VediAPI;
+                            apiFound = true;
+                        } else if (typeof FirebaseAPI !== 'undefined') {
+                            console.log('✅ Global FirebaseAPI found after', attempts * 100, 'ms');
+                            window.VediAPI = FirebaseAPI;
+                            apiFound = true;
+                        }
+                        
+                        if (!apiFound) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        }
+                    }
+                    
+                    if (apiFound) {
+                        AppState.isFirebaseReady = true;
+                        return true;
+                    } else {
+                        console.warn('⚠️ No API found after 3 seconds');
+                        AppState.isFirebaseReady = false;
+                        return false;
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Firebase initialization failed:', error);
+                    AppState.isFirebaseReady = false;
+                    return false;
+                }
+            },
+
+            isReady() {
+                return AppState.isFirebaseReady && 
+                       typeof window.VediAPI !== 'undefined' && 
+                       window.VediAPI &&
+                       Firebase.db &&
+                       Firebase.auth;
+            }
+        };
+
+        // =============================================================================
+        // FEE CALCULATION ENGINE
+        // =============================================================================
+        
+        const FeeCalculator = {
+            calculate(subtotal, feeType, fixedFee, percentageFee, taxRate, stripePct = 2.9, stripeFlat = 0.30) {
+                let serviceFee = 0;
+                
+                switch (feeType) {
+                    case 'fixed':
+                        serviceFee = fixedFee;
+                        break;
+                    case 'percentage':
+                        serviceFee = subtotal * (percentageFee / 100);
+                        break;
+                    case 'hybrid':
+                        serviceFee = fixedFee + (subtotal * (percentageFee / 100));
+                        break;
+                }
+                
+                const tax = subtotal * (taxRate / 100);
+                const stripeFee = subtotal * (stripePct / 100) + stripeFlat;
+                const total = subtotal + serviceFee + tax + stripeFee;
+                
+                return {
+                    subtotal,
+                    serviceFee,
+                    stripeFee,
+                    tax,
+                    total
+                };
+            },
+
+            updatePreview() {
+                const feeType = document.getElementById('defaultFeeType').value;
+                const fixedFee = parseFloat(document.getElementById('defaultFixedFee').value) || 0;
+                const percentageFee = parseFloat(document.getElementById('defaultPercentageFee').value) || 0;
+                const taxRate = parseFloat(document.getElementById('defaultTaxRate').value) || 0;
+                const stripePct = parseFloat(document.getElementById('defaultStripePercentageFee').value) || 0;
+                const stripeFlat = (parseInt(document.getElementById('defaultStripeFlatFee').value) || 0) / 100;
+                
+                // Show/hide fee input groups
+                const fixedGroup = document.getElementById('defaultFixedFeeGroup');
+                const percentageGroup = document.getElementById('defaultPercentageFeeGroup');
+                
+                if (feeType === 'fixed') {
+                    fixedGroup.style.display = 'block';
+                    percentageGroup.style.display = 'none';
+                } else if (feeType === 'percentage') {
+                    fixedGroup.style.display = 'none';
+                    percentageGroup.style.display = 'block';
+                } else {
+                    fixedGroup.style.display = 'block';
+                    percentageGroup.style.display = 'block';
+                }
+                
+                // Calculate and display fees
+                const fees = this.calculate(25, feeType, fixedFee, percentageFee, taxRate, stripePct, stripeFlat);
+                
+                document.getElementById('previewServiceFee').textContent = Utils.formatCurrency(fees.serviceFee);
+                document.getElementById('previewStripeFee').textContent = Utils.formatCurrency(fees.stripeFee);
+                document.getElementById('previewTax').textContent = Utils.formatCurrency(fees.tax);
+                document.getElementById('previewTotal').textContent = Utils.formatCurrency(fees.total);
+            }
+        };
+
+        // =============================================================================
+        // FEE MANAGEMENT
+        // =============================================================================
+        
+        const FeeManager = {
+            async saveDefaultFee(formData) {
+                try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase API not available');
+                    }
+                    
+                    const feeConfig = {
+                        feeType: formData.get('defaultFeeType'),
+                        serviceFeeFixed: parseFloat(formData.get('defaultFixedFee')) || 0,
+                        serviceFeePercentage: parseFloat(formData.get('defaultPercentageFee')) || 0,
+                        taxRate: (parseFloat(formData.get('defaultTaxRate')) || 0) / 100,
+                        minimumOrderAmount: parseFloat(formData.get('defaultMinOrder')) || 0,
+                        stripeFeePercentage: parseFloat(formData.get('defaultStripePercentageFee')) || 0,
+                        stripeFlatFee: parseInt(formData.get('defaultStripeFlatFee')) || 0
+                    };
+
+                    await window.VediAPI.createOrUpdateFeeConfig('default', feeConfig);
+                    Utils.showAlert('Default fee configuration saved successfully!', 'success');
+                    
+                } catch (error) {
+                    console.error('Error saving default config:', error);
+                    Utils.showAlert('Error saving configuration: ' + error.message, 'error');
+                    throw error;
+                }
+            }
+        };
+
+        // =============================================================================
+        // UI MANAGEMENT
+        // =============================================================================
+        
+        const UIManager = {
+            initializeEventListeners() {
+                // Default fee form change handlers
+                const defaultInputs = [
+                    'defaultFeeType', 'defaultFixedFee', 'defaultPercentageFee', 
+                    'defaultTaxRate', 'defaultStripePercentageFee', 'defaultStripeFlatFee', 'defaultMinOrder'
+                ];
+                
+                defaultInputs.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('change', () => FeeCalculator.updatePreview());
+                        element.addEventListener('input', () => FeeCalculator.updatePreview());
+                    }
+                });
+
+                // Form submission
+                document.getElementById('defaultFeeForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    await FeeManager.saveDefaultFee(formData);
+                });
+            }
+        };
+
+        // =============================================================================
+        // APPLICATION INITIALIZATION
+        // =============================================================================
+        
+        const App = {
+            async initialize() {
+                console.log('🚀 Initializing Fee Configuration Page...');
+                
+                try {
+                    // Initialize UI components
+                    UIManager.initializeEventListeners();
+                    
+                    // Initialize fee preview
+                    FeeCalculator.updatePreview();
+                    
+                    // Initialize Firebase
+                    const firebaseReady = await FirebaseManager.initialize();
+                    
+                    if (firebaseReady) {
+                        console.log('✅ Firebase ready');
+                        Utils.showAlert('Firebase connected successfully', 'success');
+                    } else {
+                        console.log('⚠️ Firebase not available');
+                        Utils.showAlert('VediAPI not available - please ensure firebase-api.js is loaded', 'error');
+                    }
+                    
+                    console.log('🎉 Configuration page initialization complete!');
+                    
+                } catch (error) {
+                    console.error('❌ Initialization error:', error);
+                    Utils.showAlert('Error initializing system: ' + error.message, 'error');
+                }
+            }
+        };
+
+        // =============================================================================
+        // APPLICATION STARTUP
+        // =============================================================================
+        
+        function startApp() {
+            setTimeout(() => {
+                if (typeof window.VediAPI === 'undefined' && typeof window.FirebaseAPI !== 'undefined') {
+                    window.VediAPI = window.FirebaseAPI;
+                } else if (typeof window.VediAPI === 'undefined' && typeof VediAPI !== 'undefined') {
+                    window.VediAPI = VediAPI;
+                } else if (typeof window.VediAPI === 'undefined' && typeof FirebaseAPI !== 'undefined') {
+                    window.VediAPI = FirebaseAPI;
+                }
+                
+                App.initialize();
+            }, 2000);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startApp);
+        } else {
+            startApp();
+        }
+
+        console.log('⚙️ Fee Configuration Page Loaded');
+    </script>
+</body>
+</html>
