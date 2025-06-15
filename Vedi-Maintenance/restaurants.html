@@ -182,17 +182,34 @@
 
         .venue-fee-readonly {
             background: #f8fafc;
-            padding: 0.5rem 0.75rem;
+            padding: 0.75rem 1rem;
             border-radius: 8px;
-            border: 1px solid #e2e8f0;
+            border: 2px solid #e2e8f0;
             display: inline-block;
+            font-weight: 600;
+            color: #7c3aed;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .venue-fee-readonly-large {
+            background: #f8fafc;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            display: block;
+            font-weight: 600;
+            color: #7c3aed;
+            text-align: center;
+            font-size: 1rem;
         }
 
         .venue-fee-note {
             font-size: 0.75rem;
             color: #64748b;
-            margin-top: 0.25rem;
+            margin-top: 0.5rem;
             font-style: italic;
+            text-align: center;
         }
 
         /* Form Components */
@@ -656,13 +673,15 @@
                     </div>
                 </div>
 
-                <!-- NEW: Venue Fee Section -->
+                <!-- READ-ONLY Venue Fee Section -->
                 <div class="form-group">
                     <label class="form-label">Venue Fee (%)</label>
-                    <input type="number" class="form-input" id="venueFeePercentage" value="0" step="0.1" min="0" max="10">
+                    <div class="venue-fee-readonly-large" id="venueFeeDisplay">0.0%</div>
                     <div class="venue-fee-note">
-                        Percentage of order value that goes to the venue (if restaurant is part of a venue)
+                        🔒 Venue fees are managed by venue managers. This value is read-only and automatically synced.
                     </div>
+                    <!-- Hidden input to store the value for calculations -->
+                    <input type="hidden" id="venueFeePercentage" value="0">
                 </div>
 
                 <div class="form-group">
@@ -729,7 +748,7 @@
     <div id="alertContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 1001;"></div>
 
     <script>
-        // Updated JavaScript with venue fee support in feeConfigurations collection
+        // Updated JavaScript with read-only venue fee support
         
         const AppState = {
             isFirebaseReady: false,
@@ -1046,7 +1065,7 @@
 
                     const stripeDisplay = `${config.stripeFeePercentage || 2.9}% + $${(config.stripeFlatFee || 0.30).toFixed(2)}`;
                     
-                    // NEW: Venue fee display (read-only)
+                    // Venue fee display (read-only)
                     const venueFeeDisplay = config.venueFeePercentage ? 
                         `${config.venueFeePercentage.toFixed(1)}%` : 
                         '0.0%';
@@ -1066,7 +1085,7 @@
                             <td>
                                 <div class="venue-fee-display">
                                     <div class="venue-fee-readonly">${venueFeeDisplay}</div>
-                                    <div class="venue-fee-note">Managed by venue</div>
+                                    <div class="venue-fee-note">🔒 Venue managed</div>
                                 </div>
                             </td>
                             <td>
@@ -1104,7 +1123,9 @@
                 document.getElementById('restaurantSelect').disabled = false;
                 document.getElementById('stripePercentageFee').value = 2.9;
                 document.getElementById('stripeFlatFee').value = 0.30;
-                document.getElementById('venueFeePercentage').value = 0; // NEW: Reset venue fee
+                // Reset venue fee display to default
+                document.getElementById('venueFeePercentage').value = 0;
+                document.getElementById('venueFeeDisplay').textContent = '0.0%';
                 FeeCalculator.updatePreview();
                 document.getElementById('feeModal').classList.add('active');
             },
@@ -1134,7 +1155,11 @@
                     document.getElementById('negotiatedBy').value = config.negotiatedBy || '';
                     document.getElementById('notes').value = config.notes || '';
                     document.getElementById('stripePercentageFee').value = config.stripeFeePercentage || 2.9;
-                    document.getElementById('venueFeePercentage').value = config.venueFeePercentage || 0; // NEW: Load venue fee
+                    
+                    // Load venue fee as read-only
+                    const venueFee = config.venueFeePercentage || 0;
+                    document.getElementById('venueFeePercentage').value = venueFee;
+                    document.getElementById('venueFeeDisplay').textContent = `${venueFee.toFixed(1)}%`;
                     
                     const stripeFlatValue = config.stripeFlatFee || 0.30;
                     document.getElementById('stripeFlatFee').value = stripeFlatValue > 10 ? (stripeFlatValue / 100).toFixed(2) : stripeFlatValue.toFixed(2);
@@ -1188,7 +1213,7 @@
                         return;
                     }
 
-                    // NEW: Include venue fee percentage in the fee configuration
+                    // Get venue fee from hidden input (read-only value)
                     const feeConfig = {
                         feeType: document.getElementById('feeType').value,
                         serviceFeeFixed: parseFloat(document.getElementById('fixedFee').value) || 0,
@@ -1201,7 +1226,7 @@
                         notes: document.getElementById('notes').value || '',
                         stripeFeePercentage: parseFloat(document.getElementById('stripePercentageFee').value) || 2.9,
                         stripeFlatFee: parseFloat(document.getElementById('stripeFlatFee').value) || 0.30,
-                        venueFeePercentage: parseFloat(document.getElementById('venueFeePercentage').value) || 0 // NEW: Venue fee
+                        venueFeePercentage: parseFloat(document.getElementById('venueFeePercentage').value) || 0 // Read-only value
                     };
 
                     console.log('💾 Saving fee config for restaurant:', restaurantId, feeConfig);
@@ -1254,10 +1279,10 @@
             },
 
             initializeEventListeners() {
-                // Modal fee form change handlers
+                // Modal fee form change handlers (excluding venue fee since it's read-only)
                 const modalInputs = [
                     'feeType', 'fixedFee', 'percentageFee', 
-                    'taxRate', 'stripePercentageFee', 'stripeFlatFee', 'minOrder', 'venueFeePercentage' // NEW: Added venue fee
+                    'taxRate', 'stripePercentageFee', 'stripeFlatFee', 'minOrder'
                 ];
                 
                 modalInputs.forEach(id => {
@@ -1387,11 +1412,11 @@
         window.FeeManager = FeeManager;
         window.DataManager = DataManager;
 
-        console.log('🏪 Restaurant Fee Management Page Loaded - WITH VENUE FEE SUPPORT');
-        console.log('🏢 NEW: Venue fees now stored in feeConfigurations collection');
-        console.log('📊 NEW: Venue fee column added to restaurant fee table');
-        console.log('⚙️ NEW: Venue fee percentage can be configured per restaurant');
-        console.log('🔒 NOTE: Venue fees are read-only in this interface (managed by venue dashboard)');
+        console.log('🏪 Restaurant Fee Management Page Loaded - WITH READ-ONLY VENUE FEE');
+        console.log('🔒 NEW: Venue fee is now read-only in restaurant modal');
+        console.log('📊 NEW: Venue fee displays current value but cannot be edited');
+        console.log('🏢 NOTE: Venue fees must be managed through venue dashboard');
+        console.log('🔄 NOTE: Venue fee values are automatically synced from venue settings');
     </script>
 </body>
 </html>
