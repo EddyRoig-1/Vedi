@@ -325,6 +325,7 @@
         .action-buttons {
             display: flex;
             gap: 8px;
+            flex-direction: column;
         }
 
         .action-btn {
@@ -335,6 +336,7 @@
             font-weight: 500;
             font-size: 0.8rem;
             transition: all 0.3s ease;
+            white-space: nowrap;
         }
 
         .action-btn.save {
@@ -372,7 +374,7 @@
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
 
-        /* Enhanced Fee Breakdown Styling */
+        /* Fee Breakdown Styling */
         .fee-breakdown-container {
             position: relative;
         }
@@ -412,15 +414,6 @@
         .earnings-breakdown .projected-amount {
             font-size: 1.1rem;
             font-weight: 700;
-        }
-
-        /* Enhanced table styling for better breakdown visibility */
-        .restaurant-table th:nth-child(2) {
-            min-width: 280px;
-        }
-
-        .restaurant-table th:nth-child(4) {
-            min-width: 200px;
         }
 
         /* Enhanced Revenue Calculator */
@@ -537,87 +530,6 @@
             font-weight: 700;
         }
 
-        /* Compact Modal Styling */
-        .revenue-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            backdrop-filter: blur(5px);
-        }
-
-        .revenue-modal-content {
-            background: white;
-            border-radius: 16px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-        }
-
-        .modal-header {
-            position: sticky;
-            top: 0;
-            background: white;
-            padding: 20px 24px;
-            border-bottom: 2px solid #f1f5f9;
-            border-radius: 16px 16px 0 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 1;
-        }
-
-        .modal-body {
-            padding: 24px;
-        }
-
-        .modal-close-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #64748b;
-            padding: 4px;
-            border-radius: 4px;
-            transition: background-color 0.2s ease;
-        }
-
-        .modal-close-btn:hover {
-            background-color: #f1f5f9;
-        }
-
-        /* Compact breakdown table */
-        .breakdown-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1.5rem;
-        }
-
-        .breakdown-table th,
-        .breakdown-table td {
-            padding: 8px 12px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 0.875rem;
-        }
-
-        .breakdown-table th {
-            background: #f8fafc;
-            font-weight: 600;
-            color: #4a5568;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
         /* Loading and notifications */
         .loading-overlay {
             position: fixed;
@@ -715,11 +627,6 @@
                 flex-direction: column;
                 align-items: stretch;
             }
-
-            .revenue-modal-content {
-                margin: 20px;
-                max-height: calc(100vh - 40px);
-            }
         }
 
         @media (max-width: 1024px) {
@@ -800,9 +707,10 @@
                 <thead>
                     <tr>
                         <th>Restaurant</th>
-                        <th>Current Fee</th>
+                        <th>Your Venue Fee</th>
+                        <th>Platform Fees</th>
                         <th>Monthly Revenue</th>
-                        <th>Your Monthly Earnings</th>
+                        <th>Your Earnings</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -872,16 +780,10 @@
         let currentUser = null;
         let currentVenue = null;
         let allRestaurants = [];
+        let restaurantFeeConfigs = {}; // Store fee configs by restaurant ID
         let originalFeeRates = {};
         let pendingChanges = {};
         let monthlyRevenueData = {};
-        let globalFeeConfig = {
-            stripeFeePercentage: 2.9,
-            stripeFlatFee: 30,
-            serviceFeePercentage: 3.5,
-            serviceFeeFixed: 0.50,
-            feeType: 'hybrid'
-        };
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
@@ -892,20 +794,14 @@
                 await initializeFinancials();
             } catch (error) {
                 console.error('❌ Error loading venue financials:', error);
-                console.error('❌ Error details:', {
-                    message: error.message,
-                    stack: error.stack,
-                    timestamp: new Date().toISOString()
-                });
                 showError('Failed to load venue financials: ' + error.message);
                 hideLoading();
             }
         });
 
-        // Enhanced initialization with comprehensive debugging
+        // Enhanced initialization with real fee data integration
         async function initializeFinancials() {
             console.log('🚀 Starting venue financials initialization...');
-            console.log('🕐 Timestamp:', new Date().toISOString());
             
             showLoading();
             
@@ -920,7 +816,7 @@
                 }
                 console.log('✅ User authenticated:', currentUser.id);
 
-                // Load venue data using VediAPI
+                // Load venue data
                 console.log('🏢 Loading venue data for manager:', currentUser.id);
                 currentVenue = await VediAPI.getVenueByManager(currentUser.id);
                 if (!currentVenue) {
@@ -936,34 +832,13 @@
                 });
                 document.getElementById('venueName').textContent = currentVenue.name + ' Financials';
 
-                // DEBUG: Check Firebase connection
-                console.log('🔗 Firebase connection check:', {
-                    dbAvailable: !!window.firebaseDb,
-                    firebaseAvailable: typeof firebase !== 'undefined',
-                    vediAPIAvailable: !!window.VediAPI
-                });
-
-                // Load restaurants using VenueSync
+                // Load restaurants and their fee configurations
                 console.log('🏪 Loading restaurants data...');
                 await loadRestaurantsData();
                 
                 // Load revenue data
                 console.log('💰 Loading revenue data...');
                 await loadRevenueData();
-                
-                // DEBUG: Show what data we actually loaded
-                console.log('📊 DEBUGGING - Final loaded data:');
-                console.log('   - Restaurants:', allRestaurants.length);
-                console.log('   - Global fee config:', globalFeeConfig);
-                allRestaurants.forEach((restaurant, index) => {
-                    console.log(`   - Restaurant ${index + 1}:`, {
-                        name: restaurant.name,
-                        id: restaurant.id,
-                        venueFeePercentage: restaurant.venueFeePercentage,
-                        feeConfig: restaurant.feeConfig,
-                        venueId: restaurant.venueId
-                    });
-                });
                 
                 // Update UI
                 console.log('🔄 Updating UI components...');
@@ -977,263 +852,72 @@
                 
             } catch (error) {
                 console.error('❌ Financials initialization error:', error);
-                console.error('❌ Full error details:', {
-                    message: error.message,
-                    stack: error.stack,
-                    timestamp: new Date().toISOString(),
-                    venue: currentVenue?.id || 'not loaded',
-                    user: currentUser?.id || 'not loaded'
-                });
                 showError('Failed to load venue financials: ' + error.message);
                 hideLoading();
             }
         }
 
-        // Load restaurant-specific fee configuration from Firestore
-        async function loadGlobalFeeConfig() {
-            try {
-                console.log('⚙️ Loading fee configuration from Firestore...');
-                console.log('🔍 Available VediAPI methods:', Object.keys(window.VediAPI || {}));
-                
-                // Try to get restaurant-specific fee config first
-                let feeConfig = null;
-                
-                // Method 1: Try VediAPI methods
-                if (window.VediAPI) {
-                    console.log('📋 Trying VediAPI.getFeeConfig()...');
-                    try {
-                        feeConfig = await window.VediAPI.getFeeConfig();
-                        console.log('📋 VediAPI.getFeeConfig() result:', feeConfig);
-                    } catch (error) {
-                        console.log('⚠️ VediAPI.getFeeConfig() failed:', error.message);
-                    }
-                    
-                    // Try different method names
-                    if (!feeConfig && typeof window.VediAPI.getDefaultFeeConfig === 'function') {
-                        console.log('📋 Trying VediAPI.getDefaultFeeConfig()...');
-                        try {
-                            feeConfig = await window.VediAPI.getDefaultFeeConfig();
-                            console.log('📋 getDefaultFeeConfig() result:', feeConfig);
-                        } catch (error) {
-                            console.log('⚠️ getDefaultFeeConfig() failed:', error.message);
-                        }
-                    }
-                }
-                
-                // Method 2: Direct Firestore query to feeConfigurations collection
-                if (!feeConfig && Firebase.db) {
-                    console.log('📋 Trying direct Firestore query to feeConfigurations...');
-                    try {
-                        // Try to get the specific restaurant's fee config first
-                        if (allRestaurants.length > 0) {
-                            const restaurantId = allRestaurants[0].id; // Use first restaurant as example
-                            console.log('🔍 Looking for fee config for restaurant:', restaurantId);
-                            
-                            const restaurantConfigDoc = await Firebase.db.collection('feeConfigurations').doc(restaurantId).get();
-                            if (restaurantConfigDoc.exists) {
-                                feeConfig = restaurantConfigDoc.data();
-                                console.log('✅ Found restaurant-specific fee config:', feeConfig);
-                            }
-                        }
-                        
-                        // If no restaurant-specific config, try default
-                        if (!feeConfig) {
-                            console.log('🔍 Looking for default fee configuration...');
-                            const defaultConfigDoc = await Firebase.db.collection('feeConfigurations').doc('default').get();
-                            if (defaultConfigDoc.exists) {
-                                feeConfig = defaultConfigDoc.data();
-                                console.log('✅ Found default fee config:', feeConfig);
-                            }
-                        }
-                        
-                        // If no default, get any fee config from the collection
-                        if (!feeConfig) {
-                            console.log('🔍 Looking for any fee configuration in collection...');
-                            const feeConfigsSnapshot = await Firebase.db.collection('feeConfigurations').limit(1).get();
-                            if (!feeConfigsSnapshot.empty) {
-                                feeConfig = feeConfigsSnapshot.docs[0].data();
-                                console.log('✅ Found fee config from collection:', feeConfig);
-                            }
-                        }
-                    } catch (firestoreError) {
-                        console.error('❌ Direct Firestore query failed:', firestoreError);
-                    }
-                }
-                
-                if (feeConfig) {
-                    globalFeeConfig = {
-                        stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9,
-                        stripeFlatFee: feeConfig.stripeFlatFee || 30,
-                        serviceFeePercentage: feeConfig.serviceFeePercentage || 6, // Use actual value from Firestore
-                        serviceFeeFixed: feeConfig.serviceFeeFixed || 0.5, // Use actual value from Firestore
-                        feeType: feeConfig.feeType || 'hybrid',
-                        isNegotiated: feeConfig.isNegotiated || false,
-                        taxRate: feeConfig.taxRate || 0.09,
-                        minimumOrderAmount: feeConfig.minimumOrderAmount || 0
-                    };
-                    console.log('✅ Global fee config loaded from Firestore:', globalFeeConfig);
-                    console.log('💡 Platform fee will display as:', globalFeeConfig.serviceFeeFixed ? `${globalFeeConfig.serviceFeeFixed.toFixed(2)}` : '', 
-                               globalFeeConfig.serviceFeePercentage ? `${globalFeeConfig.serviceFeePercentage}%` : '');
-                } else {
-                    console.error('❌ NO FEE CONFIG FOUND - USING HARDCODED DEFAULTS');
-                    console.error('❌ This is why you see hardcoded values in the UI!');
-                    console.log('🔍 Debug info:');
-                    console.log('   - VediAPI available:', typeof window.VediAPI !== 'undefined');
-                    console.log('   - Firebase.db available:', !!Firebase.db);
-                    console.log('   - Restaurants loaded:', allRestaurants.length);
-                }
-            } catch (error) {
-                console.error('❌ Error loading fee config:', error);
-                console.error('❌ FALLING BACK TO HARDCODED DEFAULTS - THIS IS THE PROBLEM!');
-            }
-        }
-
-        // DEBUGGING: Load and explore all possible fee data sources
+        // Load restaurants and their fee configurations from feeConfigurations collection
         async function loadRestaurantsData() {
             console.log('📊 Loading restaurants data for venue:', currentVenue.id);
             
             try {
-                // Get restaurants associated with this venue using VediAPI
+                // Get restaurants associated with this venue
                 allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
                 console.log('📍 Found restaurants:', allRestaurants.length);
                 
-                // DEBUGGING: Let's see ALL the data on each restaurant
-                console.log('🔍 DEBUGGING - Complete restaurant data:');
-                allRestaurants.forEach((restaurant, index) => {
-                    console.log(`Restaurant ${index + 1} (${restaurant.name}):`, restaurant);
-                });
+                // Load fee configurations for each restaurant from feeConfigurations collection
+                for (const restaurant of allRestaurants) {
+                    try {
+                        console.log(`📋 Loading fee config for ${restaurant.name} (${restaurant.id})`);
+                        const feeConfig = await VediAPI.getFeeConfig(restaurant.id);
+                        restaurantFeeConfigs[restaurant.id] = feeConfig;
+                        
+                        // Get venue fee from fee config (now stored in feeConfigurations)
+                        const venueFeePercentage = feeConfig.venueFeePercentage || currentVenue.defaultFeePercentage || 0;
+                        originalFeeRates[restaurant.id] = venueFeePercentage;
+                        
+                        console.log(`💳 ${restaurant.name}: ${venueFeePercentage}% venue fee, Platform: ${feeConfig.feeType} ${feeConfig.serviceFeeFixed || 0}/${feeConfig.serviceFeePercentage || 0}%, Stripe: ${feeConfig.stripeFeePercentage}% + $${feeConfig.stripeFlatFee}`);
+                        
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to load fee config for ${restaurant.name}:`, error);
+                        // Use default fee config
+                        restaurantFeeConfigs[restaurant.id] = {
+                            serviceFeeFixed: 2.00,
+                            serviceFeePercentage: 0,
+                            feeType: 'fixed',
+                            stripeFeePercentage: 2.9,
+                            stripeFlatFee: 0.30,
+                            venueFeePercentage: currentVenue.defaultFeePercentage || 0,
+                            taxRate: 0.085,
+                            isDefault: true
+                        };
+                        originalFeeRates[restaurant.id] = currentVenue.defaultFeePercentage || 0;
+                    }
+                }
                 
-                // Store original fee rates
-                allRestaurants.forEach(restaurant => {
-                    const currentFee = restaurant.venueFeePercentage || currentVenue.defaultFeePercentage || 1.0;
-                    originalFeeRates[restaurant.id] = currentFee;
-                    console.log(`💳 ${restaurant.name}: ${currentFee}% venue fee rate`);
-                });
-                
-                // DEBUGGING: Try to load from ALL possible collections
-                console.log('🔍 DEBUGGING - Checking all possible fee data sources...');
-                await debugFeeDataSources();
-                
-                console.log('✅ Loaded restaurants for financials:', {
-                    count: allRestaurants.length,
-                    originalFeeRates: originalFeeRates
-                });
+                console.log('✅ Loaded fee configurations for all restaurants');
                 
             } catch (error) {
                 console.error('❌ Error loading restaurants:', error);
-                console.error('❌ Restaurant loading error details:', {
-                    venueId: currentVenue.id,
-                    error: error.message,
-                    timestamp: new Date().toISOString()
-                });
                 allRestaurants = [];
             }
         }
 
-        // DEBUGGING: Check all possible sources of fee data
-        async function debugFeeDataSources() {
-            console.log('🕵️ Starting comprehensive fee data debugging...');
-            
-            try {
-                const db = getDb();
-                
-                // 1. Check feeConfigurations collection
-                console.log('📋 1. Checking feeConfigurations collection...');
-                const feeConfigsSnapshot = await db.collection('feeConfigurations').get();
-                console.log(`Found ${feeConfigsSnapshot.docs.length} documents in feeConfigurations:`);
-                feeConfigsSnapshot.docs.forEach(doc => {
-                    console.log(`  - ${doc.id}:`, doc.data());
-                });
-                
-                // 2. Check restaurants collection for fee data
-                console.log('📋 2. Checking restaurants collection for fee fields...');
-                allRestaurants.forEach(restaurant => {
-                    const feeFields = {};
-                    Object.keys(restaurant).forEach(key => {
-                        if (key.toLowerCase().includes('fee') || key.toLowerCase().includes('percentage')) {
-                            feeFields[key] = restaurant[key];
-                        }
-                    });
-                    console.log(`  - ${restaurant.name} fee fields:`, feeFields);
-                });
-                
-                // 3. Check venues collection for fee data  
-                console.log('📋 3. Checking venues collection for fee fields...');
-                const venueDoc = await db.collection('venues').doc(currentVenue.id).get();
-                if (venueDoc.exists) {
-                    const venueData = venueDoc.data();
-                    const venueFeeFields = {};
-                    Object.keys(venueData).forEach(key => {
-                        if (key.toLowerCase().includes('fee') || key.toLowerCase().includes('percentage')) {
-                            venueFeeFields[key] = venueData[key];
-                        }
-                    });
-                    console.log(`  - ${currentVenue.name} fee fields:`, venueFeeFields);
-                }
-                
-                // 4. Try specific collections that might contain fee data
-                console.log('📋 4. Checking for other fee-related collections...');
-                const possibleCollections = ['venueFeeConfigurations', 'venueConfigs', 'defaultFees', 'platformFees'];
-                for (const collectionName of possibleCollections) {
-                    try {
-                        const snapshot = await db.collection(collectionName).limit(5).get();
-                        if (!snapshot.empty) {
-                            console.log(`Found data in ${collectionName}:`, snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
-                        }
-                    } catch (error) {
-                        console.log(`Collection ${collectionName} doesn't exist or no permission`);
-                    }
-                }
-                
-                // 5. Try to get fee config using VediAPI methods
-                console.log('📋 5. Testing VediAPI fee methods...');
-                if (allRestaurants.length > 0) {
-                    const testRestaurantId = allRestaurants[0].id;
-                    console.log(`Testing with restaurant ID: ${testRestaurantId}`);
-                    
-                    try {
-                        const feeConfig = await window.VediAPI.getFeeConfig(testRestaurantId);
-                        console.log('VediAPI.getFeeConfig result:', feeConfig);
-                        
-                        // Store this as our global config if we found it
-                        if (feeConfig && !feeConfig.isDefault) {
-                            globalFeeConfig = {
-                                stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9,
-                                stripeFlatFee: feeConfig.stripeFlatFee || 30,
-                                serviceFeePercentage: feeConfig.serviceFeePercentage || 6,
-                                serviceFeeFixed: feeConfig.serviceFeeFixed || 0.5,
-                                feeType: feeConfig.feeType || 'hybrid',
-                                isNegotiated: feeConfig.isNegotiated || false,
-                                taxRate: feeConfig.taxRate || 0.09
-                            };
-                            console.log('✅ Updated global fee config from VediAPI:', globalFeeConfig);
-                        }
-                    } catch (error) {
-                        console.log('VediAPI.getFeeConfig failed:', error.message);
-                    }
-                }
-                
-            } catch (error) {
-                console.error('❌ Error in fee data debugging:', error);
-            }
-        }
-
-        // Load revenue data for each restaurant using VediAPI
+        // Load revenue data for each restaurant
         async function loadRevenueData() {
             console.log('💰 Starting revenue data loading for', allRestaurants.length, 'restaurants');
             
             try {
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                console.log('📅 Loading orders from:', thirtyDaysAgo.toISOString());
                 
                 for (const restaurant of allRestaurants) {
                     try {
                         console.log(`📊 Loading orders for ${restaurant.name} (${restaurant.id})`);
                         
-                        // Get orders for the last 30 days using VediAPI
                         const orders = await VediAPI.getOrders(restaurant.id, {
-                            limit: 1000, // Get more orders for better data
+                            limit: 1000,
                             orderBy: 'createdAt'
                         });
                         
@@ -1261,218 +945,119 @@
                 
             } catch (error) {
                 console.error('❌ Error loading revenue data:', error);
-                console.error('❌ Revenue loading error details:', {
-                    restaurantCount: allRestaurants.length,
-                    error: error.message,
-                    timestamp: new Date().toISOString()
-                });
             }
         }
 
-        // Enhanced fee calculation using global fee config
-        async function calculateCompleteFeeSplit(restaurantId, displayFee, monthlyRevenue) {
-            console.log('🧮 Calculating complete fee split for:', { restaurantId, displayFee, monthlyRevenue });
+        // Calculate fee breakdown using real fee configuration data
+        function calculateFeeSplit(restaurantId, venueFeePercentage, averageOrderValue) {
+            const feeConfig = restaurantFeeConfigs[restaurantId];
+            if (!feeConfig) {
+                console.warn('No fee config found for restaurant:', restaurantId);
+                return getDefaultFeeSplit(venueFeePercentage, averageOrderValue);
+            }
             
-            try {
-                // Calculate based on actual order data
-                const totalOrders = 40; // Use actual data from your venue financials
-                const averageOrderValue = totalOrders > 0 ? monthlyRevenue / totalOrders : 77.31; // Fallback to your data
-                
-                console.log('📊 Using order data:', { averageOrderValue, totalOrders });
-                
-                // Step 1: Calculate Stripe fees (always percentage + flat fee)
-                const stripeFeePercentage = globalFeeConfig.stripeFeePercentage / 100;
-                const stripeFlatFee = globalFeeConfig.stripeFlatFee / 100; // Convert cents to dollars
-                const stripeFeeAmount = (averageOrderValue * stripeFeePercentage) + stripeFlatFee;
-                const netAfterStripe = averageOrderValue - stripeFeeAmount;
-                
-                console.log('💳 Stripe calculation:', {
-                    percentage: `${globalFeeConfig.stripeFeePercentage}%`,
-                    flatFee: `${globalFeeConfig.stripeFlatFee}¢`,
-                    totalStripeFee: stripeFeeAmount,
-                    netAfterStripe: netAfterStripe
-                });
-                
-                // Step 2: Calculate platform/service fee
-                let platformFeeAmount = 0;
-                let platformFeeDisplay = '';
-                
-                // Dynamic platform fee display logic
-                const hasFixed = globalFeeConfig.serviceFeeFixed && globalFeeConfig.serviceFeeFixed > 0;
-                const hasPercentage = globalFeeConfig.serviceFeePercentage && globalFeeConfig.serviceFeePercentage > 0;
-                
-                if (hasFixed && hasPercentage) {
-                    // Hybrid: both fixed and percentage
-                    const fixedPart = globalFeeConfig.serviceFeeFixed;
-                    const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-                    platformFeeAmount = fixedPart + percentagePart;
-                    platformFeeDisplay = `${fixedPart.toFixed(2)} + ${globalFeeConfig.serviceFeePercentage}%`;
-                } else if (hasFixed && !hasPercentage) {
-                    // Fixed only
-                    platformFeeAmount = globalFeeConfig.serviceFeeFixed;
-                    platformFeeDisplay = `${globalFeeConfig.serviceFeeFixed.toFixed(2)}`;
-                } else if (!hasFixed && hasPercentage) {
-                    // Percentage only
-                    platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-                    platformFeeDisplay = `${globalFeeConfig.serviceFeePercentage}%`;
-                } else {
-                    // Fallback to default
-                    platformFeeAmount = netAfterStripe * 0.035;
-                    platformFeeDisplay = '3.5% (default)';
-                }
-                
-                console.log('⚡ Platform fee calculation:', {
-                    type: globalFeeConfig.feeType,
-                    amount: platformFeeAmount,
-                    display: platformFeeDisplay
-                });
-                
-                // Step 3: Calculate venue fee (always percentage)
-                const venueFeeAmount = netAfterStripe * (displayFee / 100);
-                
-                // Step 4: Restaurant gets the remainder
-                const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
-                
-                // Calculate percentages for display purposes
-                const breakdown = {
-                    restaurant: {
-                        percentage: (restaurantAmount / averageOrderValue) * 100,
-                        amount: restaurantAmount,
-                        monthlyAmount: monthlyRevenue * (restaurantAmount / averageOrderValue)
-                    },
-                    venue: {
-                        percentage: (venueFeeAmount / averageOrderValue) * 100,
-                        amount: venueFeeAmount,
-                        monthlyAmount: monthlyRevenue * (venueFeeAmount / averageOrderValue),
-                        configuredPercentage: displayFee,
-                        displayText: `${displayFee}%`
-                    },
-                    platform: {
-                        percentage: (platformFeeAmount / averageOrderValue) * 100,
-                        amount: platformFeeAmount,
-                        monthlyAmount: monthlyRevenue * (platformFeeAmount / averageOrderValue),
-                        displayText: platformFeeDisplay,
-                        // Dynamic fee structure - same logic as calculation
-                        hasFixed: hasFixed,
-                        hasPercentage: hasPercentage,
-                        configuredFixed: globalFeeConfig.serviceFeeFixed || 0,
-                        configuredPercentage: globalFeeConfig.serviceFeePercentage || 0
-                    },
-                    stripe: {
-                        percentage: (stripeFeeAmount / averageOrderValue) * 100,
-                        amount: stripeFeeAmount,
-                        monthlyAmount: monthlyRevenue * (stripeFeeAmount / averageOrderValue),
-                        configuredPercentage: globalFeeConfig.stripeFeePercentage,
-                        configuredFlatFee: globalFeeConfig.stripeFlatFee,
-                        isNegotiated: globalFeeConfig.isNegotiated,
-                        displayText: `${globalFeeConfig.stripeFeePercentage}% + ${globalFeeConfig.stripeFlatFee}¢`
-                    },
-                    averageOrderValue: averageOrderValue,
-                    totalOrders: totalOrders,
-                    netAfterStripe: netAfterStripe,
-                    feeConfig: globalFeeConfig
-                };
-                
-                console.log('💰 Complete fee breakdown calculated:', breakdown);
-                return breakdown;
-                
-            } catch (error) {
-                console.error('❌ Error calculating fee split:', error);
-                return getDefaultFeeBreakdown(displayFee, monthlyRevenue);
+            // Step 1: Calculate Stripe fees first (from order total)
+            const stripeFeeRate = (feeConfig.stripeFeePercentage || 2.9) / 100;
+            const stripeFlatFee = feeConfig.stripeFlatFee || 0.30; // In dollars
+            const stripeFeeAmount = (averageOrderValue * stripeFeeRate) + stripeFlatFee;
+            const netAfterStripe = averageOrderValue - stripeFeeAmount;
+            
+            // Step 2: Calculate platform service fee
+            let platformFeeAmount = 0;
+            const feeType = feeConfig.feeType || 'fixed';
+            
+            switch (feeType) {
+                case 'fixed':
+                    platformFeeAmount = feeConfig.serviceFeeFixed || 0;
+                    break;
+                case 'percentage':
+                    platformFeeAmount = netAfterStripe * ((feeConfig.serviceFeePercentage || 0) / 100);
+                    break;
+                case 'hybrid':
+                    platformFeeAmount = (feeConfig.serviceFeeFixed || 0) + 
+                                      (netAfterStripe * ((feeConfig.serviceFeePercentage || 0) / 100));
+                    break;
             }
-        }
-
-        // Enhanced default breakdown for error cases
-        function getDefaultFeeBreakdown(displayFee, monthlyRevenue) {
+            
+            // Step 3: Calculate venue fee (from net after stripe)
+            const venueFeeAmount = netAfterStripe * (venueFeePercentage / 100);
+            
+            // Step 4: Restaurant gets the remainder
+            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
+            
+            // Create display strings for platform fee
+            let platformFeeDisplay = '';
+            if (feeType === 'fixed') {
+                platformFeeDisplay = `$${(feeConfig.serviceFeeFixed || 0).toFixed(2)}`;
+            } else if (feeType === 'percentage') {
+                platformFeeDisplay = `${(feeConfig.serviceFeePercentage || 0).toFixed(1)}%`;
+            } else {
+                platformFeeDisplay = `$${(feeConfig.serviceFeeFixed || 0).toFixed(2)} + ${(feeConfig.serviceFeePercentage || 0).toFixed(1)}%`;
+            }
+            
+            const stripeDisplay = `${(feeConfig.stripeFeePercentage || 2.9).toFixed(1)}% + $${(feeConfig.stripeFlatFee || 0.30).toFixed(2)}`;
+            
             return {
-                restaurant: { 
-                    percentage: 85, 
-                    amount: 85, 
-                    monthlyAmount: monthlyRevenue * 0.85 
+                restaurant: {
+                    amount: restaurantAmount,
+                    percentage: (restaurantAmount / averageOrderValue) * 100
                 },
-                venue: { 
-                    percentage: displayFee, 
-                    amount: displayFee, 
-                    monthlyAmount: monthlyRevenue * (displayFee / 100),
-                    configuredPercentage: displayFee,
-                    displayText: `${displayFee}%`
+                venue: {
+                    amount: venueFeeAmount,
+                    percentage: venueFeePercentage,
+                    display: `${venueFeePercentage.toFixed(1)}%`
                 },
-                platform: { 
-                    percentage: 3.5, 
-                    amount: 3.5, 
-                    monthlyAmount: monthlyRevenue * 0.035,
-                    displayText: '$0.50 (default)',
-                    feeType: 'fixed',
-                    configuredFixed: 0.50,
-                    configuredPercentage: 3.5
+                platform: {
+                    amount: platformFeeAmount,
+                    percentage: (platformFeeAmount / averageOrderValue) * 100,
+                    display: platformFeeDisplay,
+                    type: feeType
                 },
-                stripe: { 
-                    percentage: 3.2, 
-                    amount: 3.2, 
-                    monthlyAmount: monthlyRevenue * 0.032,
-                    configuredPercentage: 2.9,
-                    configuredFlatFee: 30,
-                    isNegotiated: false,
-                    displayText: '2.9% + 30¢ (default)'
+                stripe: {
+                    amount: stripeFeeAmount,
+                    percentage: (stripeFeeAmount / averageOrderValue) * 100,
+                    display: stripeDisplay
                 },
-                netAfterStripe: 96.8,
-                feeConfig: globalFeeConfig
+                feeConfig: feeConfig
             };
         }
 
-        // Update the fee breakdown display to show actual fee structures
-        async function updateFeeBreakdown(restaurantId, displayFee, monthlyRevenue, orderCount = 0) {
-            console.log('🔄 Updating fee breakdown UI for:', restaurantId);
+        // Default fee split for when fee config is not available
+        function getDefaultFeeSplit(venueFeePercentage, averageOrderValue) {
+            const stripeFeeAmount = (averageOrderValue * 0.029) + 0.30;
+            const netAfterStripe = averageOrderValue - stripeFeeAmount;
+            const platformFeeAmount = 2.00; // Default fixed fee
+            const venueFeeAmount = netAfterStripe * (venueFeePercentage / 100);
+            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
             
-            try {
-                const breakdown = await calculateCompleteFeeSplit(restaurantId, displayFee, monthlyRevenue);
-                
-                // Update restaurant percentage (calculated)
-                document.getElementById(`restaurant-split-${restaurantId}`).textContent = 
-                    breakdown.restaurant.percentage.toFixed(1) + '%';
-                
-                // Update venue percentage (user-configurable)
-                document.getElementById(`venue-split-${restaurantId}`).textContent = 
-                    breakdown.venue.displayText;
-                
-                // Update platform fee showing actual structure from admin settings
-                document.getElementById(`platform-split-${restaurantId}`).textContent = 
-                    breakdown.platform.displayText;
-                
-                // Update Stripe fee showing actual structure from admin settings
-                document.getElementById(`stripe-split-${restaurantId}`).textContent = 
-                    breakdown.stripe.displayText;
-                
-                console.log('💳 Displaying dynamic fee structure from admin settings:', {
-                    platform: breakdown.platform.displayText,
-                    stripe: breakdown.stripe.displayText,
-                    venue: breakdown.venue.displayText,
-                    restaurant: breakdown.restaurant.percentage.toFixed(1) + '%'
-                });
-                
-                // Update monthly earnings breakdown
-                document.getElementById(`restaurant-earnings-${restaurantId}`).textContent = 
-                    formatPrice(breakdown.restaurant.monthlyAmount);
-                document.getElementById(`platform-earnings-${restaurantId}`).textContent = 
-                    formatPrice(breakdown.platform.monthlyAmount);
-                
-                // Update order statistics
-                document.getElementById(`order-count-${restaurantId}`).textContent = orderCount;
-                document.getElementById(`avg-order-${restaurantId}`).textContent = 
-                    formatPrice(breakdown.averageOrderValue);
-                
-                console.log('✅ Fee breakdown UI updated with admin-configured fees');
-                
-            } catch (error) {
-                console.error('❌ Error updating fee breakdown:', error);
-            }
+            return {
+                restaurant: {
+                    amount: restaurantAmount,
+                    percentage: (restaurantAmount / averageOrderValue) * 100
+                },
+                venue: {
+                    amount: venueFeeAmount,
+                    percentage: venueFeePercentage,
+                    display: `${venueFeePercentage.toFixed(1)}%`
+                },
+                platform: {
+                    amount: platformFeeAmount,
+                    percentage: (platformFeeAmount / averageOrderValue) * 100,
+                    display: '$2.00 (default)',
+                    type: 'fixed'
+                },
+                stripe: {
+                    amount: stripeFeeAmount,
+                    percentage: (stripeFeeAmount / averageOrderValue) * 100,
+                    display: '2.9% + $0.30 (default)'
+                }
+            };
         }
 
         // Update overview cards
         function updateOverviewCards() {
             console.log('📊 Updating overview cards...');
             
-            // Calculate total venue revenue
             let totalVenueRevenue = 0;
             let totalFeeRate = 0;
             let activeCount = 0;
@@ -1481,22 +1066,15 @@
                 const revenue = monthlyRevenueData[restaurant.id] || 0;
                 const feeRate = (pendingChanges[restaurant.id] !== undefined ? 
                     pendingChanges[restaurant.id] : 
-                    originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0) / 100;
+                    originalFeeRates[restaurant.id] || 0) / 100;
                 
                 totalVenueRevenue += revenue * feeRate;
-                totalFeeRate += originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
+                totalFeeRate += originalFeeRates[restaurant.id] || 0;
                 activeCount++;
             });
 
             const averageFeeRate = activeCount > 0 ? totalFeeRate / activeCount : 0;
             const pendingChangesCount = Object.keys(pendingChanges).length;
-
-            console.log('📈 Overview calculations:', {
-                totalVenueRevenue,
-                averageFeeRate,
-                activeCount,
-                pendingChangesCount
-            });
 
             // Update cards
             document.getElementById('monthlyVenueRevenue').textContent = formatPrice(totalVenueRevenue);
@@ -1512,20 +1090,17 @@
             } else {
                 saveBtn.textContent = 'Save All Changes';
             }
-
-            console.log('✅ Overview cards updated');
         }
 
-        // Render restaurants table with real data and proper fee displays
+        // Render restaurants table with real fee data
         function renderRestaurantsTable() {
             console.log('🏪 Rendering restaurants table...');
             const tbody = document.getElementById('restaurantsTableBody');
             
             if (allRestaurants.length === 0) {
-                console.log('⚠️ No restaurants to display');
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 40px; color: #718096;">
+                        <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
                             <div style="font-size: 3rem; margin-bottom: 16px;">🏪</div>
                             <div style="font-weight: 600; margin-bottom: 8px;">No restaurants connected</div>
                             <div>Use the restaurant-venue sync system to connect restaurants to your venue</div>
@@ -1535,415 +1110,223 @@
                 return;
             }
 
-            // Create async function to handle platform fee loading
-            const renderRows = async () => {
-                console.log('🔄 Building restaurant table rows...');
+            const rows = allRestaurants.map(restaurant => {
+                const currentFee = originalFeeRates[restaurant.id] || 0;
+                const pendingFee = pendingChanges[restaurant.id];
+                const displayFee = pendingFee !== undefined ? pendingFee : currentFee;
+                const monthlyRevenue = monthlyRevenueData[restaurant.id] || 0;
+                const monthlyEarnings = monthlyRevenue * (displayFee / 100);
+                const hasChanges = pendingFee !== undefined;
+                const currency = restaurant.currency || { symbol: '$', code: 'USD' };
                 
-                const rows = await Promise.all(allRestaurants.map(async (restaurant) => {
-                    const currentFee = originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
-                    const pendingFee = pendingChanges[restaurant.id];
-                    const displayFee = pendingFee !== undefined ? pendingFee : currentFee;
-                    const monthlyRevenue = monthlyRevenueData[restaurant.id] || 0;
-                    const monthlyEarnings = monthlyRevenue * (displayFee / 100);
-                    const hasChanges = pendingFee !== undefined;
-                    const currency = restaurant.currency || { symbol: '$', code: 'USD' };
-                    
-                    console.log(`🏪 Building row for ${restaurant.name}:`, {
-                        currentFee,
-                        displayFee,
-                        monthlyRevenue,
-                        monthlyEarnings,
-                        hasChanges
-                    });
-
-                    return `
-                        <tr>
-                            <td>
-                                <div class="restaurant-info">
-                                    <div class="restaurant-avatar">
-                                        ${restaurant.name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div class="restaurant-details">
-                                        <h4>${restaurant.name}</h4>
-                                        <div class="restaurant-meta">
-                                            ${restaurant.cuisineType || 'Restaurant'} • 
-                                            ${currency.code} • 
-                                            ${restaurant.status || 'Active'}
-                                            ${restaurant.address ? ` • ${restaurant.address}` : ''}
-                                        </div>
-                                    </div>
+                // Get fee configuration
+                const feeConfig = restaurantFeeConfigs[restaurant.id];
+                const averageOrderValue = monthlyRevenue > 0 ? monthlyRevenue / 40 : 25; // Estimate based on data
+                const feeSplit = calculateFeeSplit(restaurant.id, displayFee, averageOrderValue);
+                
+                return `
+                    <tr>
+                        <td>
+                            <div class="restaurant-info">
+                                <div class="restaurant-avatar">
+                                    ${restaurant.name.charAt(0).toUpperCase()}
                                 </div>
-                            </td>
-                            <td>
-                                <div class="fee-breakdown-container">
-                                    <div class="fee-control">
-                                        <label style="font-size: 0.75rem; color: #4a5568; font-weight: 600; text-transform: uppercase;">Venue Fee</label>
-                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                            <input 
-                                                type="number" 
-                                                class="fee-input ${hasChanges ? 'changed' : ''}" 
-                                                value="${displayFee.toFixed(1)}" 
-                                                step="0.1" 
-                                                min="0" 
-                                                max="10"
-                                                onchange="handleFeeChange('${restaurant.id}', this.value)"
-                                                id="fee-${restaurant.id}"
-                                            >
-                                            <span class="fee-suffix">%</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="revenue-split-breakdown" style="background: #f8fafc; border-radius: 8px; padding: 12px; margin-top: 8px; border: 1px solid #e2e8f0;">
-                                        <div style="font-size: 0.75rem; font-weight: 600; color: #4a5568; margin-bottom: 8px; text-transform: uppercase;">Revenue Split per Avg Order</div>
-                                        <div class="split-items">
-                                            <div class="split-item" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                                <span style="font-size: 0.8rem; color: #2d3748;">Restaurant:</span>
-                                                <span style="font-size: 0.8rem; font-weight: 600; color: #2d3748;" id="restaurant-split-${restaurant.id}">Loading...</span>
-                                            </div>
-                                            <div class="split-item" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                                <span style="font-size: 0.8rem; color: #667eea;">Venue:</span>
-                                                <span style="font-size: 0.8rem; font-weight: 600; color: #667eea;" id="venue-split-${restaurant.id}">${displayFee}%</span>
-                                            </div>
-                                            <div class="split-item" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                                <span style="font-size: 0.8rem; color: #f59e0b;">Platform:</span>
-                                                <span style="font-size: 0.8rem; font-weight: 600; color: #f59e0b;" id="platform-split-${restaurant.id}">Loading...</span>
-                                            </div>
-                                            <div class="split-item" style="display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-                                                <span style="font-size: 0.8rem; color: #6b7280;">Stripe:</span>
-                                                <span style="font-size: 0.8rem; font-weight: 600; color: #6b7280;" id="stripe-split-${restaurant.id}">Loading...</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="revenue-amount">${formatPrice(monthlyRevenue, currency)}</div>
-                                <span class="revenue-period">Last 30 days</span>
-                                <div style="margin-top: 8px; font-size: 0.8rem; color: #4a5568;">
-                                    <div>Orders: <span id="order-count-${restaurant.id}">0</span></div>
-                                    <div>Avg Order: <span id="avg-order-${restaurant.id}">$0</span></div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="earnings-breakdown">
-                                    <div class="projected-amount">${formatPrice(monthlyEarnings, currency)}</div>
-                                    <span class="revenue-period">${hasChanges ? '• Projected' : '• Current'}</span>
-                                    
-                                    <div style="margin-top: 12px; background: #f0f9ff; border-radius: 6px; padding: 8px; border: 1px solid #bae6fd;">
-                                        <div style="font-size: 0.75rem; font-weight: 600; color: #0369a1; margin-bottom: 6px;">Monthly Breakdown</div>
-                                        <div style="font-size: 0.8rem; color: #0369a1; display: flex; justify-content: space-between;">
-                                            <span>Your Share:</span>
-                                            <span style="font-weight: 600;">${formatPrice(monthlyEarnings, currency)}</span>
-                                        </div>
-                                        <div style="font-size: 0.8rem; color: #6b7280; display: flex; justify-content: space-between;">
-                                            <span>Restaurant:</span>
-                                            <span id="restaurant-earnings-${restaurant.id}">$0</span>
-                                        </div>
-                                        <div style="font-size: 0.8rem; color: #6b7280; display: flex; justify-content: space-between;">
-                                            <span>Platform:</span>
-                                            <span id="platform-earnings-${restaurant.id}">$0</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="status-badge ${hasChanges ? 'changed' : 'active'}">
-                                    ${hasChanges ? 'Changed' : 'Active'}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="action-buttons">
-                                    ${hasChanges ? `
-                                        <button class="action-btn save" onclick="saveRestaurantFee('${restaurant.id}')">
-                                            Save
-                                        </button>
-                                        <button class="action-btn cancel" onclick="cancelRestaurantChange('${restaurant.id}')">
-                                            Cancel
-                                        </button>
-                                    ` : `
-                                        <button class="action-btn view-details" onclick="showRevenueDetails('${restaurant.id}')" 
-                                                style="background: #667eea; color: white; margin-bottom: 4px;">
-                                            Details
-                                        </button>
-                                        <button class="action-btn" onclick="resetRestaurantFee('${restaurant.id}')" 
-                                                style="background: #f7fafc; color: #4a5568;">
-                                            Reset
-                                        </button>
-                                    `}
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                }));
-
-                tbody.innerHTML = rows.join('');
-                console.log('✅ Restaurant table rendered with', rows.length, 'rows');
-                
-                // Update fee breakdowns for all restaurants
-                for (const restaurant of allRestaurants) {
-                    const displayFee = pendingChanges[restaurant.id] !== undefined ? 
-                        pendingChanges[restaurant.id] : 
-                        originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
-                    const monthlyRevenue = monthlyRevenueData[restaurant.id] || 0;
-                    
-                    // Get order count for this restaurant
-                    try {
-                        const orders = await VediAPI.getOrders(restaurant.id, { limit: 1000 });
-                        const thirtyDaysAgo = new Date();
-                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                        
-                        const recentCompletedOrders = orders.filter(order => {
-                            const orderDate = VediAPI.timestampToDate(order.createdAt);
-                            return orderDate >= thirtyDaysAgo && order.status === 'completed';
-                        });
-                        
-                        await updateFeeBreakdown(restaurant.id, displayFee, monthlyRevenue, recentCompletedOrders.length);
-                    } catch (error) {
-                        console.warn('Could not load order count for', restaurant.name, error);
-                        await updateFeeBreakdown(restaurant.id, displayFee, monthlyRevenue, 0);
-                    }
-                }
-            };
-
-            renderRows();
-        }
-
-        // Show detailed revenue breakdown modal with compact design
-        async function showRevenueDetails(restaurantId) {
-            console.log('📊 Showing revenue details for:', restaurantId);
-            
-            try {
-                const restaurant = allRestaurants.find(r => r.id === restaurantId);
-                if (!restaurant) return;
-                
-                const displayFee = pendingChanges[restaurantId] !== undefined ? 
-                    pendingChanges[restaurantId] : 
-                    originalFeeRates[restaurantId] || currentVenue.defaultFeePercentage || 1.0;
-                
-                const monthlyRevenue = monthlyRevenueData[restaurantId] || 0;
-                const breakdown = await calculateCompleteFeeSplit(restaurantId, displayFee, monthlyRevenue);
-                
-                // Create compact modal
-                const modal = document.createElement('div');
-                modal.id = 'revenue-details-modal';
-                modal.className = 'revenue-modal';
-                
-                modal.innerHTML = `
-                    <div class="revenue-modal-content">
-                        <div class="modal-header">
-                            <h3 style="font-size: 1.25rem; font-weight: 700; color: #2d3748; margin: 0;">💰 ${restaurant.name} Revenue Details</h3>
-                            <button class="modal-close-btn" onclick="closeRevenueModal()">×</button>
-                        </div>
-                        
-                        <div class="modal-body">
-                            <div style="margin-bottom: 1.5rem;">
-                                <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #4a5568;">Revenue Split Breakdown</h4>
-                                <table class="breakdown-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Fee Component</th>
-                                            <th>Structure</th>
-                                            <th>Effective %</th>
-                                            <th>Monthly $</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td style="font-weight: 600; color: #059669;">🏪 Restaurant Net</td>
-                                            <td style="color: #6b7280;">After all fees</td>
-                                            <td style="font-weight: 600; color: #059669;">${breakdown.restaurant.percentage.toFixed(1)}%</td>
-                                            <td style="font-weight: 600; color: #059669;">${formatPrice(breakdown.restaurant.monthlyAmount)}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="font-weight: 600; color: #667eea;">🏢 Venue Fee</td>
-                                            <td style="font-weight: 600; color: #667eea;">${breakdown.venue.displayText}</td>
-                                            <td style="font-weight: 600; color: #667eea;">${breakdown.venue.percentage.toFixed(1)}%</td>
-                                            <td style="font-weight: 600; color: #667eea;">${formatPrice(breakdown.venue.monthlyAmount)}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="font-weight: 600; color: #f59e0b;">⚡ Platform Fee</td>
-                                            <td style="font-weight: 600; color: #f59e0b;">${breakdown.platform.displayText}</td>
-                                            <td style="font-weight: 600; color: #f59e0b;">${breakdown.platform.percentage.toFixed(1)}%</td>
-                                            <td style="font-weight: 600; color: #f59e0b;">${formatPrice(breakdown.platform.monthlyAmount)}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="font-weight: 600; color: #6b7280;">💳 Stripe Processing</td>
-                                            <td style="font-weight: 600; color: #6b7280;">${breakdown.stripe.displayText}</td>
-                                            <td style="font-weight: 600; color: #6b7280;">${breakdown.stripe.percentage.toFixed(1)}%</td>
-                                            <td style="font-weight: 600; color: #6b7280;">${formatPrice(breakdown.stripe.monthlyAmount)}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            
-                            <div style="margin-bottom: 1.5rem;">
-                                <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #4a5568;">Fee Configuration Details</h4>
-                                <div style="background: #fef7ff; border-radius: 8px; padding: 1rem; border: 1px solid #e9d5ff;">
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                                        <div>
-                                            <div style="font-size: 0.8rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.25rem;">Platform Service Fee</div>
-                                            <div style="font-size: 0.75rem; color: #64748b;">Type: ${breakdown.feeConfig?.feeType || 'percentage'}</div>
-                                            ${breakdown.platform.configuredPercentage ? `<div style="font-size: 0.75rem; color: #64748b;">Rate: ${breakdown.platform.configuredPercentage}%</div>` : ''}
-                                            ${breakdown.platform.configuredFixed ? `<div style="font-size: 0.75rem; color: #64748b;">Fixed: ${breakdown.platform.configuredFixed.toFixed(2)}</div>` : ''}
-                                        </div>
-                                        <div>
-                                            <div style="font-size: 0.8rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.25rem;">Stripe Processing</div>
-                                            <div style="font-size: 0.75rem; color: #64748b;">Rate: ${breakdown.stripe.configuredPercentage}%</div>
-                                            <div style="font-size: 0.75rem; color: #64748b;">Flat: ${breakdown.stripe.configuredFlatFee}¢</div>
-                                            <div style="font-size: 0.75rem; color: #64748b;">${breakdown.stripe.isNegotiated ? 'Negotiated' : 'Standard'}</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div style="padding-top: 0.75rem; border-top: 1px solid #e9d5ff;">
-                                        <div style="font-size: 0.8rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.25rem;">Venue Fee (Your Control)</div>
-                                        <div style="font-size: 0.75rem; color: #64748b;">Rate: ${breakdown.venue.configuredPercentage}% (editable) • Applied to net after Stripe</div>
+                                <div class="restaurant-details">
+                                    <h4>${restaurant.name}</h4>
+                                    <div class="restaurant-meta">
+                                        ${restaurant.cuisineType || 'Restaurant'} • 
+                                        ${currency.code} • 
+                                        ${restaurant.status || 'Active'}
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div style="background: #f0f9ff; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; border: 1px solid #bae6fd;">
-                                <div style="font-size: 0.8rem; color: #0369a1;">📝 Platform and Stripe fees are configured in admin dashboard. Only venue fees can be adjusted here.</div>
+                        </td>
+                        <td>
+                            <div class="fee-control">
+                                <input 
+                                    type="number" 
+                                    class="fee-input ${hasChanges ? 'changed' : ''}" 
+                                    value="${displayFee.toFixed(1)}" 
+                                    step="0.1" 
+                                    min="0" 
+                                    max="10"
+                                    onchange="handleFeeChange('${restaurant.id}', this.value)"
+                                    id="fee-${restaurant.id}"
+                                >
+                                <span class="fee-suffix">%</span>
                             </div>
-                            
-                            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-                                <button onclick="closeRevenueModal()" style="padding: 0.5rem 1rem; background: #f1f5f9; border: none; border-radius: 6px; color: #4a5568; font-weight: 600; cursor: pointer; font-size: 0.875rem;">
-                                    Close
-                                </button>
+                            <div style="font-size: 0.8rem; color: #667eea; margin-top: 4px;">
+                                Your share: ${feeSplit.venue.display}
                             </div>
-                        </div>
-                    </div>
+                        </td>
+                        <td>
+                            <div style="margin-bottom: 8px;">
+                                <div style="font-size: 0.8rem; color: #f59e0b; font-weight: 600;">Platform Service</div>
+                                <div style="font-size: 0.9rem; font-weight: 600;">${feeSplit.platform.display}</div>
+                                <div style="font-size: 0.75rem; color: #6b7280;">${feeSplit.platform.type}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.8rem; color: #6b7280; font-weight: 600;">Stripe Processing</div>
+                                <div style="font-size: 0.9rem; font-weight: 600;">${feeSplit.stripe.display}</div>
+                                <div style="font-size: 0.75rem; color: #6b7280;">${feeConfig?.isNegotiated ? 'Negotiated' : 'Standard'}</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="revenue-amount">${formatPrice(monthlyRevenue, currency)}</div>
+                            <span class="revenue-period">Last 30 days</span>
+                            <div style="margin-top: 8px; font-size: 0.8rem; color: #4a5568;">
+                                <div>Avg Order: ${formatPrice(averageOrderValue, currency)}</div>
+                                <div>Restaurant Net: ${formatPrice(feeSplit.restaurant.amount * 40, currency)}</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="earnings-breakdown">
+                                <div class="projected-amount">${formatPrice(monthlyEarnings, currency)}</div>
+                                <span class="revenue-period">${hasChanges ? '• Projected' : '• Current'}</span>
+                                
+                                <div style="margin-top: 12px; background: #f0f9ff; border-radius: 6px; padding: 8px; border: 1px solid #bae6fd;">
+                                    <div style="font-size: 0.75rem; font-weight: 600; color: #0369a1; margin-bottom: 6px;">Monthly Breakdown</div>
+                                    <div style="font-size: 0.8rem; color: #0369a1; display: flex; justify-content: space-between;">
+                                        <span>Your Share:</span>
+                                        <span style="font-weight: 600;">${formatPrice(monthlyEarnings, currency)}</span>
+                                    </div>
+                                    <div style="font-size: 0.8rem; color: #6b7280; display: flex; justify-content: space-between;">
+                                        <span>Platform:</span>
+                                        <span>${formatPrice(feeSplit.platform.amount * 40, currency)}</span>
+                                    </div>
+                                    <div style="font-size: 0.8rem; color: #6b7280; display: flex; justify-content: space-between;">
+                                        <span>Stripe:</span>
+                                        <span>${formatPrice(feeSplit.stripe.amount * 40, currency)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="status-badge ${hasChanges ? 'changed' : 'active'}">
+                                ${hasChanges ? 'Changed' : 'Active'}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                ${hasChanges ? `
+                                    <button class="action-btn save" onclick="saveRestaurantFee('${restaurant.id}')">
+                                        Save
+                                    </button>
+                                    <button class="action-btn cancel" onclick="cancelRestaurantChange('${restaurant.id}')">
+                                        Cancel
+                                    </button>
+                                ` : `
+                                    <button class="action-btn view-details" onclick="showFeeDetails('${restaurant.id}')">
+                                        Details
+                                    </button>
+                                    <button class="action-btn" onclick="resetRestaurantFee('${restaurant.id}')">
+                                        Reset
+                                    </button>
+                                `}
+                            </div>
+                        </td>
+                    </tr>
                 `;
-                
-                document.body.appendChild(modal);
-                
-                // Close modal when clicking outside
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) {
-                        closeRevenueModal();
-                    }
-                });
-                
-            } catch (error) {
-                console.error('❌ Error showing revenue details:', error);
-                showError('Failed to load revenue details');
-            }
+            });
+
+            tbody.innerHTML = rows.join('');
+            console.log('✅ Restaurant table rendered with real fee data');
         }
 
-        // Close revenue details modal
-        function closeRevenueModal() {
-            const modal = document.getElementById('revenue-details-modal');
-            if (modal) {
-                modal.remove();
-            }
+        // Show fee configuration details for a restaurant
+        function showFeeDetails(restaurantId) {
+            const restaurant = allRestaurants.find(r => r.id === restaurantId);
+            const feeConfig = restaurantFeeConfigs[restaurantId];
+            
+            if (!restaurant || !feeConfig) return;
+            
+            const venueFee = originalFeeRates[restaurantId] || 0;
+            const monthlyRevenue = monthlyRevenueData[restaurantId] || 0;
+            const averageOrderValue = monthlyRevenue > 0 ? monthlyRevenue / 40 : 25;
+            const feeSplit = calculateFeeSplit(restaurantId, venueFee, averageOrderValue);
+            
+            alert(`Fee Configuration for ${restaurant.name}:
+            
+Venue Fee: ${venueFee.toFixed(1)}% (Your earnings)
+Platform Service Fee: ${feeSplit.platform.display} (${feeConfig.feeType})
+Stripe Processing: ${feeSplit.stripe.display}
+Tax Rate: ${((feeConfig.taxRate || 0.085) * 100).toFixed(1)}%
+
+Monthly Breakdown:
+- Restaurant Net: ${formatPrice(feeSplit.restaurant.amount * 40)}
+- Your Earnings: ${formatPrice(feeSplit.venue.amount * 40)}
+- Platform Fee: ${formatPrice(feeSplit.platform.amount * 40)}
+- Stripe Fee: ${formatPrice(feeSplit.stripe.amount * 40)}
+
+${feeConfig.isNegotiated ? 'This restaurant has negotiated rates.' : 'This restaurant uses standard rates.'}`);
         }
 
         // Handle fee change for a restaurant
         function handleFeeChange(restaurantId, newFee) {
-            console.log('💰 Fee change triggered:', { restaurantId, newFee });
-            
             const originalFee = originalFeeRates[restaurantId];
             const feeValue = parseFloat(newFee);
             
-            console.log('🔄 Comparing fees:', { originalFee, feeValue });
-            
             if (Math.abs(feeValue - originalFee) < 0.01) {
-                // Fee is back to original, remove from pending changes
                 delete pendingChanges[restaurantId];
-                console.log('✅ Fee reset to original, removed from pending changes');
             } else {
-                // Fee has changed, add to pending changes
                 pendingChanges[restaurantId] = feeValue;
-                console.log('📝 Fee changed, added to pending changes');
             }
             
-            console.log('📊 Current pending changes:', pendingChanges);
-            
-            // Update UI
             updateOverviewCards();
             renderRestaurantsTable();
         }
 
-        // Save individual restaurant fee
+        // Save individual restaurant fee using the new API method
         async function saveRestaurantFee(restaurantId) {
-            console.log('💾 Saving fee for restaurant:', restaurantId);
-            
             try {
                 const newFee = pendingChanges[restaurantId];
-                if (newFee === undefined) {
-                    console.log('⚠️ No pending fee change found for restaurant:', restaurantId);
-                    return;
-                }
+                if (newFee === undefined) return;
                 
-                console.log('📝 Updating restaurant with new fee:', { restaurantId, newFee });
+                console.log('💾 Updating venue fee percentage for restaurant:', restaurantId, newFee);
                 
-                // Update restaurant venue fee using VediAPI
-                await VediAPI.updateRestaurant(restaurantId, {
-                    venueFeePercentage: newFee,
-                    feeLastUpdated: new Date().toISOString(),
-                    feeUpdatedBy: currentUser.id
-                });
+                // Use the new updateVenueFeePercentage method that updates feeConfigurations
+                await VediAPI.updateVenueFeePercentage(restaurantId, newFee, currentUser.id);
                 
-                // Update original fee and remove from pending
+                // Update local state
                 originalFeeRates[restaurantId] = newFee;
+                restaurantFeeConfigs[restaurantId].venueFeePercentage = newFee;
                 delete pendingChanges[restaurantId];
                 
-                console.log('✅ Fee saved successfully for restaurant:', restaurantId);
-                
-                // Update UI
                 updateOverviewCards();
                 renderRestaurantsTable();
                 
-                showSuccess(`Fee updated for restaurant`);
+                showSuccess(`Venue fee updated to ${newFee.toFixed(1)}%`);
                 
             } catch (error) {
                 console.error('❌ Error saving restaurant fee:', error);
-                console.error('❌ Save error details:', {
-                    restaurantId,
-                    newFee: pendingChanges[restaurantId],
-                    error: error.message,
-                    timestamp: new Date().toISOString()
-                });
                 showError('Failed to save fee: ' + error.message);
             }
         }
 
         // Cancel individual restaurant change
         function cancelRestaurantChange(restaurantId) {
-            console.log('❌ Cancelling fee change for restaurant:', restaurantId);
-            
             delete pendingChanges[restaurantId];
             
-            // Reset the input value
             const input = document.getElementById(`fee-${restaurantId}`);
             if (input) {
                 input.value = originalFeeRates[restaurantId].toFixed(1);
-                console.log('🔄 Reset input value to:', originalFeeRates[restaurantId]);
             }
             
             updateOverviewCards();
             renderRestaurantsTable();
-            
             showSuccess('Changes cancelled');
         }
 
         // Reset restaurant fee to venue default
         async function resetRestaurantFee(restaurantId) {
-            console.log('🔄 Resetting fee to venue default for restaurant:', restaurantId);
-            
             try {
-                const defaultFee = currentVenue.defaultFeePercentage || 1.0;
-                console.log('📋 Using venue default fee:', defaultFee);
+                const defaultFee = currentVenue.defaultFeePercentage || 0;
                 
-                await VediAPI.updateRestaurant(restaurantId, {
-                    venueFeePercentage: defaultFee,
-                    feeLastUpdated: new Date().toISOString(),
-                    feeUpdatedBy: currentUser.id
-                });
+                await VediAPI.updateVenueFeePercentage(restaurantId, defaultFee, currentUser.id);
                 
                 originalFeeRates[restaurantId] = defaultFee;
+                restaurantFeeConfigs[restaurantId].venueFeePercentage = defaultFee;
                 delete pendingChanges[restaurantId];
-                
-                console.log('✅ Fee reset to venue default successfully');
                 
                 updateOverviewCards();
                 renderRestaurantsTable();
@@ -1952,65 +1335,40 @@
                 
             } catch (error) {
                 console.error('❌ Error resetting restaurant fee:', error);
-                console.error('❌ Reset error details:', {
-                    restaurantId,
-                    defaultFee: currentVenue.defaultFeePercentage,
-                    error: error.message,
-                    timestamp: new Date().toISOString()
-                });
                 showError('Failed to reset fee: ' + error.message);
             }
         }
 
-        // Save all pending changes
+        // Save all pending changes using syncVenueFeeAcrossRestaurants for efficiency
         async function saveAllChanges() {
-            console.log('💾 Saving all pending changes...');
-            
             try {
                 const changeCount = Object.keys(pendingChanges).length;
-                if (changeCount === 0) {
-                    console.log('⚠️ No pending changes to save');
-                    return;
-                }
+                if (changeCount === 0) return;
                 
-                console.log('📝 Saving changes for', changeCount, 'restaurants:', pendingChanges);
                 showLoading(`Saving ${changeCount} changes...`);
                 
-                // Save all changes in parallel
-                const savePromises = Object.entries(pendingChanges).map(([restaurantId, newFee]) => {
-                    console.log(`💾 Preparing to save ${restaurantId}: ${newFee}%`);
-                    return VediAPI.updateRestaurant(restaurantId, {
-                        venueFeePercentage: newFee,
-                        feeLastUpdated: new Date().toISOString(),
-                        feeUpdatedBy: currentUser.id
-                    });
-                });
+                // Save all changes individually (could be optimized with batch operations)
+                const savePromises = Object.entries(pendingChanges).map(([restaurantId, newFee]) => 
+                    VediAPI.updateVenueFeePercentage(restaurantId, newFee, currentUser.id)
+                );
                 
                 await Promise.all(savePromises);
-                console.log('✅ All save operations completed');
                 
-                // Update original fees and clear pending changes
+                // Update local state
                 Object.entries(pendingChanges).forEach(([restaurantId, newFee]) => {
                     originalFeeRates[restaurantId] = newFee;
-                    console.log(`📝 Updated original fee for ${restaurantId}: ${newFee}%`);
+                    restaurantFeeConfigs[restaurantId].venueFeePercentage = newFee;
                 });
                 pendingChanges = {};
                 
-                // Update UI
                 updateOverviewCards();
                 renderRestaurantsTable();
                 
                 hideLoading();
-                console.log('✅ All changes saved successfully!');
                 showSuccess(`All ${changeCount} changes saved successfully!`);
                 
             } catch (error) {
                 console.error('❌ Error saving all changes:', error);
-                console.error('❌ Bulk save error details:', {
-                    pendingChanges: Object.keys(pendingChanges),
-                    error: error.message,
-                    timestamp: new Date().toISOString()
-                });
                 showError('Failed to save changes: ' + error.message);
                 hideLoading();
             }
@@ -2018,123 +1376,78 @@
 
         // Reset all pending changes
         function resetAllChanges() {
-            console.log('🔄 Resetting all pending changes...');
+            if (Object.keys(pendingChanges).length === 0) return;
             
-            if (Object.keys(pendingChanges).length === 0) {
-                console.log('⚠️ No pending changes to reset');
-                return;
-            }
+            if (!confirm('Are you sure you want to reset all pending changes?')) return;
             
-            if (!confirm('Are you sure you want to reset all pending changes?')) {
-                console.log('❌ User cancelled reset operation');
-                return;
-            }
-            
-            console.log('📝 Resetting pending changes:', pendingChanges);
             pendingChanges = {};
             
-            // Reset all input values
             allRestaurants.forEach(restaurant => {
                 const input = document.getElementById(`fee-${restaurant.id}`);
                 if (input) {
                     input.value = originalFeeRates[restaurant.id].toFixed(1);
-                    console.log(`🔄 Reset input for ${restaurant.name}: ${originalFeeRates[restaurant.id]}%`);
                 }
             });
             
             updateOverviewCards();
             renderRestaurantsTable();
-            
-            console.log('✅ All changes reset');
             showSuccess('All changes reset');
         }
 
-        // Enhanced revenue calculator with all fee components
-        async function updateCalculation() {
-            console.log('🧮 Updating revenue calculation...');
-            
+        // Enhanced revenue calculator with real fee data
+        function updateCalculation() {
             const orderValue = parseFloat(document.getElementById('calcOrderValue').value) || 0;
             const ordersPerDay = parseInt(document.getElementById('calcOrdersPerDay').value) || 0;
             const feeRate = parseFloat(document.getElementById('calcVenueFeeRate').value) || 0;
             
             const dailyRevenue = orderValue * ordersPerDay;
-            const monthlyRevenue = dailyRevenue * 30;
             
-            // Calculate fees using global config
-            const stripeFeePercentage = globalFeeConfig.stripeFeePercentage / 100;
-            const stripeFlatFee = globalFeeConfig.stripeFlatFee / 100;
-            const stripeFeeAmount = (orderValue * stripeFeePercentage) + stripeFlatFee;
-            const netAfterStripe = orderValue - stripeFeeAmount;
-            
-            // Platform fee calculation - dynamic display like Stripe
-            let platformFeeAmount = 0;
-            const hasFixed = globalFeeConfig.serviceFeeFixed && globalFeeConfig.serviceFeeFixed > 0;
-            const hasPercentage = globalFeeConfig.serviceFeePercentage && globalFeeConfig.serviceFeePercentage > 0;
-            
-            if (hasFixed && hasPercentage) {
-                // Hybrid: both fixed and percentage
-                const fixedPart = globalFeeConfig.serviceFeeFixed;
-                const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-                platformFeeAmount = fixedPart + percentagePart;
-            } else if (hasFixed && !hasPercentage) {
-                // Fixed only
-                platformFeeAmount = globalFeeConfig.serviceFeeFixed;
-            } else if (!hasFixed && hasPercentage) {
-                // Percentage only
-                platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-            } else {
-                // Fallback
-                platformFeeAmount = netAfterStripe * 0.035;
+            // Use real fee configuration for calculation if available
+            let sampleFeeConfig = null;
+            if (Object.keys(restaurantFeeConfigs).length > 0) {
+                sampleFeeConfig = Object.values(restaurantFeeConfigs)[0];
             }
             
-            // Venue fee and restaurant net
-            const venueFeeAmount = netAfterStripe * (feeRate / 100);
-            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
-            
-            // Daily calculations
-            const dailyStripe = stripeFeeAmount * ordersPerDay;
-            const dailyPlatform = platformFeeAmount * ordersPerDay;
-            const dailyVenue = venueFeeAmount * ordersPerDay;
-            const dailyRestaurant = restaurantAmount * ordersPerDay;
-            
-            // Monthly calculations
-            const monthlyVenue = dailyVenue * 30;
-            
-            console.log('📊 Calculator values:', {
-                orderValue,
-                ordersPerDay,
-                feeRate,
-                dailyRevenue,
-                dailyStripe,
-                dailyPlatform,
-                dailyVenue,
-                dailyRestaurant,
-                monthlyRevenue,
-                monthlyVenue
-            });
-            
-            // Update display
-            document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
-            document.getElementById('calcRestaurantDaily').textContent = formatPrice(dailyRestaurant);
-            document.getElementById('calcDailyEarnings').textContent = formatPrice(dailyVenue);
-            document.getElementById('calcPlatformDaily').textContent = formatPrice(dailyPlatform);
-            document.getElementById('calcStripeDaily').textContent = formatPrice(dailyStripe);
-            document.getElementById('calcMonthlyEarnings').textContent = formatPrice(monthlyVenue);
-            
-            console.log('✅ Enhanced calculator updated with all fee components');
+            if (sampleFeeConfig) {
+                const feeSplit = calculateFeeSplit(Object.keys(restaurantFeeConfigs)[0], feeRate, orderValue);
+                
+                const dailyStripe = feeSplit.stripe.amount * ordersPerDay;
+                const dailyPlatform = feeSplit.platform.amount * ordersPerDay;
+                const dailyVenue = feeSplit.venue.amount * ordersPerDay;
+                const dailyRestaurant = feeSplit.restaurant.amount * ordersPerDay;
+                
+                document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
+                document.getElementById('calcRestaurantDaily').textContent = formatPrice(dailyRestaurant);
+                document.getElementById('calcDailyEarnings').textContent = formatPrice(dailyVenue);
+                document.getElementById('calcPlatformDaily').textContent = formatPrice(dailyPlatform);
+                document.getElementById('calcStripeDaily').textContent = formatPrice(dailyStripe);
+                document.getElementById('calcMonthlyEarnings').textContent = formatPrice(dailyVenue * 30);
+            } else {
+                // Fallback calculation
+                const stripeFee = (orderValue * 0.029 + 0.30) * ordersPerDay;
+                const platformFee = 2.00 * ordersPerDay;
+                const venueFee = (orderValue * (feeRate / 100)) * ordersPerDay;
+                const restaurantNet = dailyRevenue - stripeFee - platformFee - venueFee;
+                
+                document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
+                document.getElementById('calcRestaurantDaily').textContent = formatPrice(restaurantNet);
+                document.getElementById('calcDailyEarnings').textContent = formatPrice(venueFee);
+                document.getElementById('calcPlatformDaily').textContent = formatPrice(platformFee);
+                document.getElementById('calcStripeDaily').textContent = formatPrice(stripeFee);
+                document.getElementById('calcMonthlyEarnings').textContent = formatPrice(venueFee * 30);
+            }
         }
 
         // Utility functions
-       function formatPrice(amount, currency = null) {
-    if (!currency) {
-        currency = { symbol: '$', code: 'USD' };
-    }
-    const formattedAmount = Number(amount || 0).toFixed(2);
-    return `${currency.symbol}${formattedAmount}`;
-}
+        function formatPrice(amount, currency = null) {
+            if (!currency) {
+                currency = { symbol: '$', code: 'USD' };
+            }
+            const formattedAmount = Number(amount || 0).toFixed(2);
+            return `${currency.symbol}${formattedAmount}`;
+        }
 
         function showLoading(message = 'Loading...') {
-            console.log('⏳ Showing loading:', message);
             const overlay = document.getElementById('loadingOverlay');
             const text = overlay.querySelector('.loading-text');
             text.textContent = message;
@@ -2142,12 +1455,10 @@
         }
 
         function hideLoading() {
-            console.log('✅ Hiding loading overlay');
             document.getElementById('loadingOverlay').style.display = 'none';
         }
 
         function showNotification(message, type = 'success') {
-            console.log(`📢 Showing ${type} notification:`, message);
             const notification = document.getElementById('notification');
             notification.className = `notification ${type}`;
             notification.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
@@ -2166,11 +1477,10 @@
             showNotification(message, 'error');
         }
 
-        console.log('💰 Enhanced Venue Financials page loaded');
-        console.log('🔧 Features: Restaurant fee management, enhanced revenue calculator, bulk operations');
-        console.log('📊 Integration: VenueSync API, real-time fee updates, Stripe payment splitting');
-        console.log('💳 Enhanced: Dynamic fee display with admin dashboard configuration');
-        console.log('🧮 Calculator: Now shows all fee components (Restaurant, Venue, Platform, Stripe)');
+        console.log('💰 Enhanced Venue Financials page loaded with real fee data integration');
+        console.log('🔧 Features: Real-time fee reading from feeConfigurations, venue fee sync across pages');
+        console.log('📊 Integration: Uses updateVenueFeePercentage API for cross-page sync');
+        console.log('💳 Enhanced: Displays actual platform and Stripe fees from restaurant configurations');
     </script>
 </body>
 </html>
