@@ -936,7 +936,7 @@
 
                 // Load global fee configuration
                 await loadGlobalFeeConfig();
-
+                
                 // Load restaurants using VenueSync
                 console.log('🏪 Loading restaurants data...');
                 await loadRestaurantsData();
@@ -1081,13 +1081,17 @@
                 allRestaurants.forEach(restaurant => {
                     const currentFee = restaurant.venueFeePercentage || currentVenue.defaultFeePercentage || 1.0;
                     originalFeeRates[restaurant.id] = currentFee;
-                    console.log(`💳 ${restaurant.name}: ${currentFee}% fee rate`);
+                    console.log(`💳 ${restaurant.name}: ${currentFee}% venue fee rate`);
                 });
                 
                 console.log('✅ Loaded restaurants for financials:', {
                     count: allRestaurants.length,
                     originalFeeRates: originalFeeRates
                 });
+                
+                // IMPORTANT: Load fee configurations for all restaurants after loading restaurants
+                console.log('📋 Loading fee configurations for all restaurants...');
+                await loadFeeConfigsForRestaurants();
                 
             } catch (error) {
                 console.error('❌ Error loading restaurants:', error);
@@ -1097,6 +1101,78 @@
                     timestamp: new Date().toISOString()
                 });
                 allRestaurants = [];
+            }
+        }
+
+        // NEW: Load fee configurations for all restaurants in the venue
+        async function loadFeeConfigsForRestaurants() {
+            console.log('🔧 Loading fee configurations for', allRestaurants.length, 'restaurants');
+            
+            try {
+                for (const restaurant of allRestaurants) {
+                    console.log(`📋 Loading fee config for ${restaurant.name} (${restaurant.id})`);
+                    
+                    try {
+                        // Try to get restaurant-specific fee config
+                        const restaurantConfigDoc = await Firebase.db.collection('feeConfigurations').doc(restaurant.id).get();
+                        
+                        if (restaurantConfigDoc.exists) {
+                            const feeConfig = restaurantConfigDoc.data();
+                            console.log(`✅ Found fee config for ${restaurant.name}:`, feeConfig);
+                            
+                            // Store the fee config for this restaurant
+                            restaurant.feeConfig = feeConfig;
+                        } else {
+                            console.log(`⚠️ No specific fee config for ${restaurant.name}, will use default`);
+                            
+                            // Set default fee config
+                            restaurant.feeConfig = {
+                                serviceFeeFixed: 0.5,
+                                serviceFeePercentage: 6,
+                                feeType: 'hybrid',
+                                stripeFeePercentage: 2.9,
+                                stripeFlatFee: 30,
+                                taxRate: 0.09,
+                                isDefault: true
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error loading fee config for ${restaurant.name}:`, error);
+                        
+                        // Set fallback fee config
+                        restaurant.feeConfig = {
+                            serviceFeeFixed: 0.5,
+                            serviceFeePercentage: 6,
+                            feeType: 'hybrid',
+                            stripeFeePercentage: 2.9,
+                            stripeFlatFee: 30,
+                            taxRate: 0.09,
+                            isDefault: true,
+                            isFallback: true
+                        };
+                    }
+                }
+                
+                console.log('✅ Loaded fee configurations for all restaurants');
+                
+                // Update global config with the first restaurant's config as default
+                if (allRestaurants.length > 0 && allRestaurants[0].feeConfig) {
+                    const firstConfig = allRestaurants[0].feeConfig;
+                    globalFeeConfig = {
+                        stripeFeePercentage: firstConfig.stripeFeePercentage || 2.9,
+                        stripeFlatFee: firstConfig.stripeFlatFee || 30,
+                        serviceFeePercentage: firstConfig.serviceFeePercentage || 6,
+                        serviceFeeFixed: firstConfig.serviceFeeFixed || 0.5,
+                        feeType: firstConfig.feeType || 'hybrid',
+                        isNegotiated: firstConfig.isNegotiated || false,
+                        taxRate: firstConfig.taxRate || 0.09
+                    };
+                    
+                    console.log('🔄 Updated global fee config from restaurant data:', globalFeeConfig);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error loading fee configurations for restaurants:', error);
             }
         }
 
