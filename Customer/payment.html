@@ -12,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
+    <script src="../vediapi-pricing-extensions.js"></script>
     
     <!-- Stripe Scripts -->
     <script src="https://js.stripe.com/v3/"></script>
@@ -175,6 +176,29 @@
             gap: 8px;
         }
 
+        /* Venue Info Section */
+        .venue-info {
+            background: linear-gradient(135deg, #e6fffa, #b2f5ea);
+            border: 1px solid #38b2ac;
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .venue-info.show {
+            display: block;
+        }
+
+        .venue-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #2c7a7b;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
         /* Order Summary */
         .order-summary {
             background: white;
@@ -206,6 +230,40 @@
             border-radius: 0 0 20px 20px;
             font-size: 1.2rem;
             font-weight: 700;
+        }
+
+        /* Fee Breakdown */
+        .fee-breakdown {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+            font-size: 0.85rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .fee-breakdown-title {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .fee-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            color: #6b7280;
+        }
+
+        .fee-row:last-child {
+            margin-bottom: 0;
+            padding-top: 8px;
+            border-top: 1px solid #e2e8f0;
+            color: #374151;
+            font-weight: 600;
         }
 
         /* Payment Form */
@@ -426,7 +484,7 @@
         <div class="loading-card">
             <div class="loading-spinner"></div>
             <div class="loading-text">Initializing secure payment...</div>
-            <div class="loading-subtext">Setting up encryption</div>
+            <div class="loading-subtext">Setting up encryption & calculating splits</div>
         </div>
     </div>
 
@@ -447,6 +505,15 @@
 
         <!-- Main Content -->
         <div class="payment-content" id="paymentContent" style="display: none;">
+            
+            <!-- Venue Info (shown when applicable) -->
+            <div class="venue-info" id="venueInfo">
+                <div class="venue-badge">
+                    <span>🏢</span>
+                    <span id="venueText">Dining at venue location</span>
+                </div>
+            </div>
+
             <!-- Order Summary -->
             <div class="section">
                 <h2 class="section-title">📊 Order Summary</h2>
@@ -467,13 +534,37 @@
                         <span>Total:</span>
                         <span id="total">$0.00</span>
                     </div>
+                    
+                    <!-- Fee Breakdown -->
+                    <div class="fee-breakdown" id="feeBreakdown" style="display: none;">
+                        <div class="fee-breakdown-title">
+                            <span>📈</span>
+                            <span>Payment Distribution</span>
+                        </div>
+                        <div class="fee-row">
+                            <span>Restaurant receives:</span>
+                            <span id="restaurantAmount">$0.00</span>
+                        </div>
+                        <div class="fee-row" id="venueAmountRow" style="display: none;">
+                            <span>Venue receives:</span>
+                            <span id="venueAmount">$0.00</span>
+                        </div>
+                        <div class="fee-row">
+                            <span>Platform fee:</span>
+                            <span id="platformAmount">$0.00</span>
+                        </div>
+                        <div class="fee-row">
+                            <span>Payment processing:</span>
+                            <span id="stripeAmount">$0.00</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Security Notice -->
             <div class="security-notice">
                 <span class="security-icon">🛡️</span>
-                <span>Your payment information is encrypted and secure. We never store your card details.</span>
+                <span>Your payment information is encrypted and secure. Funds are automatically distributed to restaurant and venue partners.</span>
             </div>
 
             <!-- Payment Form -->
@@ -526,7 +617,8 @@
         let cardBrand = null;
         let orderParams = {};
         let currentRestaurant = null;
-        let orderBreakdown = null;
+        let currentVenue = null;
+        let paymentSplit = null;
 
         // Parse URL parameters (passed from checkout with protected pricing)
         const params = new URLSearchParams(window.location.search);
@@ -563,7 +655,7 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Payment page initializing with protected pricing...');
+            console.log('🚀 Enhanced payment page initializing with three-way splitting...');
             console.log('📋 Order parameters:', orderParams);
             
             try {
@@ -593,7 +685,7 @@
                     serviceFeCents
                 });
 
-                // Load restaurant data
+                // Load restaurant and venue data
                 await loadRestaurantData();
                 
                 // Initialize Stripe
@@ -602,13 +694,16 @@
                 // Display the protected pricing (no calculation needed)
                 displayProtectedPricing();
                 
+                // Show venue info if applicable
+                displayVenueInfo();
+                
                 // Show content
                 document.getElementById('paymentContent').style.display = 'block';
                 document.getElementById('paySection').style.display = 'block';
                 
                 hideLoading();
                 
-                console.log('✅ Payment page loaded with protected pricing');
+                console.log('✅ Enhanced payment page loaded with protected pricing');
                 
             } catch (error) {
                 console.error('Payment page initialization error:', error);
@@ -617,11 +712,22 @@
             }
         }
 
-        // Load restaurant data
+        // Load restaurant and venue data
         async function loadRestaurantData() {
             try {
                 currentRestaurant = await VediAPI.getRestaurant(restaurantId);
                 console.log('🏪 Loaded restaurant for payment:', currentRestaurant.name);
+                
+                // Load venue data if restaurant is associated with a venue
+                if (currentRestaurant.venueId) {
+                    try {
+                        currentVenue = await VediAPI.getVenue(currentRestaurant.venueId);
+                        console.log('🏢 Loaded venue for payment:', currentVenue.name);
+                    } catch (venueError) {
+                        console.warn('Could not load venue data:', venueError);
+                        // Continue without venue data
+                    }
+                }
             } catch (error) {
                 console.error('Error loading restaurant data:', error);
                 throw new Error('Unable to load restaurant information');
@@ -667,7 +773,19 @@
             }
         }
 
-        // Display the protected pricing (passed from checkout)
+        // Display venue information if applicable
+        function displayVenueInfo() {
+            const venueInfo = document.getElementById('venueInfo');
+            const venueText = document.getElementById('venueText');
+            
+            if (currentVenue) {
+                venueText.textContent = `Dining at ${currentVenue.name}`;
+                venueInfo.classList.add('show');
+                console.log('🏢 Venue info displayed:', currentVenue.name);
+            }
+        }
+
+        // Display the protected pricing and payment breakdown
         function displayProtectedPricing() {
             console.log('💰 Displaying protected pricing from checkout:', orderParams);
 
@@ -676,16 +794,6 @@
             const tax = taxCents / 100;
             const serviceFee = serviceFeCents / 100;
             const total = totalCents / 100;
-
-            // Store breakdown for later use
-            orderBreakdown = {
-                subtotal,
-                taxAmount: tax,
-                serviceFee,
-                total,
-                taxRate,
-                serviceFeePercentage
-            };
 
             // Update display with exact values from checkout
             document.getElementById('subtotal').textContent = formatPrice(subtotal);
@@ -704,8 +812,45 @@
             // Update pay button text
             document.getElementById('payBtnText').textContent = `Pay ${formatPrice(total)}`;
 
+            // Show fee breakdown with estimated distribution
+            displayFeeBreakdown();
+
             console.log('✅ Protected pricing displayed - Customer pays:', formatPrice(total));
             console.log('🛡️ Same total as checkout - no price surprises!');
+        }
+
+        // Display fee breakdown showing where money goes
+        function displayFeeBreakdown() {
+            const feeBreakdown = document.getElementById('feeBreakdown');
+            const total = totalCents / 100;
+            
+            // Estimate payment distribution (exact amounts calculated on backend)
+            const estimatedStripeFee = (total * 0.029) + 0.30; // ~2.9% + 30¢
+            const platformFee = serviceFeCents / 100;
+            const venueFee = currentVenue ? total * 0.01 : 0; // Example: 1% if venue exists
+            const restaurantAmount = total - estimatedStripeFee - platformFee - venueFee;
+            
+            // Update breakdown display
+            document.getElementById('restaurantAmount').textContent = formatPrice(restaurantAmount);
+            document.getElementById('platformAmount').textContent = formatPrice(platformFee);
+            document.getElementById('stripeAmount').textContent = formatPrice(estimatedStripeFee);
+            
+            // Show venue amount if applicable
+            const venueAmountRow = document.getElementById('venueAmountRow');
+            if (currentVenue && venueFee > 0) {
+                document.getElementById('venueAmount').textContent = formatPrice(venueFee);
+                venueAmountRow.style.display = 'flex';
+            }
+            
+            feeBreakdown.style.display = 'block';
+            
+            console.log('📊 Fee breakdown displayed (estimated):', {
+                restaurant: restaurantAmount,
+                platform: platformFee,
+                venue: venueFee,
+                stripe: estimatedStripeFee,
+                total: total
+            });
         }
 
         // Handle card input changes
@@ -732,7 +877,6 @@
                 brandText.textContent = `${getCardBrandName(event.brand)} detected`;
                 
                 console.log('💳 Card brand detected:', event.brand);
-                // Note: Card brand doesn't affect pricing since it's already calculated
                 
             } else {
                 cardBrandDiv.classList.add('hidden');
@@ -770,7 +914,7 @@
             return `${curr.symbol}${formattedAmount}`;
         }
 
-        // UPDATED: Handle payment button click - uses simplified Cloud Function
+        // Handle payment button click with enhanced three-way splitting
         document.getElementById('payBtn').addEventListener('click', async () => {
             const payBtn = document.getElementById('payBtn');
             const payBtnText = document.getElementById('payBtnText');
@@ -782,20 +926,32 @@
             payBtnSpinner.style.display = 'block';
             
             try {
-                console.log('💳 Processing payment with protected pricing...');
+                console.log('💳 Processing payment with three-way splitting...');
                 
-                // Call simplified Cloud Function - just creates payment intent with provided total
+                // Create payment intent with enhanced backend
                 const cf = firebase.functions().httpsCallable('createPaymentIntent');
                 const { data } = await cf({
                     restaurantId,
-                    totalCents, // Pass the protected total from checkout
+                    totalCents,
                     currency,
-                    cardBrand: cardBrand || 'standard'
+                    orderDetails: {
+                        table,
+                        location: tableLocation,
+                        name,
+                        phone,
+                        itemCount: 1 // You might want to pass this from checkout
+                    }
                 });
                 
-                console.log('🔑 Payment intent created with protected total:', data);
+                console.log('🔑 Payment intent created with splitting:', data);
+                paymentSplit = data.paymentSplit;
                 
-                // Confirm the payment using the protected pricing
+                // Update fee breakdown with actual amounts
+                if (paymentSplit) {
+                    updateActualFeeBreakdown(paymentSplit);
+                }
+                
+                // Confirm the payment
                 const result = await stripe.confirmCardPayment(data.clientSecret, {
                     payment_method: {
                         card: cardElement,
@@ -809,11 +965,16 @@
                     console.error('❌ Payment failed:', result.error);
                     throw new Error(result.error.message);
                 } else {
-                    console.log('✅ Payment succeeded with protected pricing:', result.paymentIntent);
+                    console.log('✅ Payment succeeded with three-way splitting:', result.paymentIntent);
+                    
+                    // Process the successful payment on the backend
+                    const processPayment = firebase.functions().httpsCallable('handlePaymentSuccess');
+                    await processPayment({ paymentIntentId: result.paymentIntent.id });
                     
                     // Create the order record
                     const orderData = {
                         restaurantId,
+                        venueId: currentVenue?.id || null,
                         table,
                         location: tableLocation,
                         name,
@@ -826,7 +987,8 @@
                             totalCents,
                             serviceFeePercentage,
                             taxRate,
-                            marginProtected: true
+                            marginProtected: true,
+                            paymentSplit: paymentSplit
                         },
                         status: 'paid',
                         paymentIntentId: result.paymentIntent.id,
@@ -834,10 +996,10 @@
                     };
                     
                     await VediAPI.createOrder(orderData);
-                    console.log('📝 Order created successfully with protected pricing');
+                    console.log('📝 Order created successfully with payment splitting');
                     
                     // Show success and redirect
-                    showSuccess('Payment successful! Your order is confirmed.');
+                    showSuccess('Payment successful! Funds distributed automatically.');
                     
                     setTimeout(() => {
                         window.location.href = `order-progress.html?orderNumber=${orderData.orderNumber}`;
@@ -854,6 +1016,24 @@
                 payBtnSpinner.style.display = 'none';
             }
         });
+
+        // Update fee breakdown with actual payment split amounts
+        function updateActualFeeBreakdown(split) {
+            document.getElementById('restaurantAmount').textContent = formatPrice(split.restaurantAmount);
+            document.getElementById('platformAmount').textContent = formatPrice(split.platformFee);
+            
+            if (split.venueEnabled && split.venueFee > 0) {
+                document.getElementById('venueAmount').textContent = formatPrice(split.venueFee);
+                document.getElementById('venueAmountRow').style.display = 'flex';
+            }
+            
+            // Calculate estimated Stripe fee
+            const total = totalCents / 100;
+            const estimatedStripeFee = total - split.restaurantAmount - split.platformFee - (split.venueFee || 0);
+            document.getElementById('stripeAmount').textContent = formatPrice(estimatedStripeFee);
+            
+            console.log('📊 Fee breakdown updated with actual amounts:', split);
+        }
 
         // Navigation function
         function goBackToCheckout() {
@@ -910,9 +1090,10 @@
             showNotification(message, 'error');
         }
 
-        console.log('💳 Payment page with protected pricing loaded');
-        console.log('🛡️ Displays exact totals from checkout');
-        console.log('📊 No price recalculation - consistent pricing');
+        console.log('💳 Enhanced Payment page with three-way splitting loaded');
+        console.log('🛡️ Features: Protected pricing, venue splitting, real-time distribution');
+        console.log('📊 Displays exact totals from checkout with payment breakdown');
+        console.log('🏢 Automatically handles venue splits when applicable');
         console.log('✅ Customer sees same total throughout journey');
     </script>
 </body>
