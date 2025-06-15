@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venue Financials - Restaurant Fee Management</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    <script src="../firebase-api.js"></script>
+    <script src="../restaurant-venue-sync.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 32px;
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-info h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-info p {
+            color: #718096;
+            font-size: 1.1rem;
+        }
+
+        .back-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Financial Overview Cards */
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .overview-card {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .overview-card h3 {
+            font-size: 1.1rem;
+            color: #718096;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .overview-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .overview-description {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        /* Restaurant Management Table */
+        .restaurants-section {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .bulk-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .bulk-action-btn {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            color: #4a5568;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .bulk-action-btn:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
+        .bulk-action-btn.primary {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            border-color: transparent;
+        }
+
+        .bulk-action-btn.primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+        }
+
+        /* Restaurant Table */
+        .restaurant-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .restaurant-table th {
+            background: #f8fafc;
+            color: #4a5568;
+            font-weight: 600;
+            padding: 16px;
+            text-align: left;
+            border-bottom: 2px solid #e2e8f0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .restaurant-table td {
+            padding: 20px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .restaurant-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .restaurant-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .restaurant-avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .restaurant-details h4 {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .restaurant-meta {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .fee-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .fee-input {
+            width: 80px;
+            padding: 8px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .fee-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .fee-input.changed {
+            border-color: #f6ad55;
+            background: #fef5e7;
+        }
+
+        .fee-suffix {
+            color: #718096;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.active {
+            background: linear-gradient(135deg, #e6fffa, #b2f5ea);
+            color: #2c7a7b;
+            border: 1px solid #38b2ac;
+        }
+
+        .status-badge.pending {
+            background: linear-gradient(135deg, #fef5e7, #fed7aa);
+            color: #c05621;
+            border: 1px solid #f6ad55;
+        }
+
+        .status-badge.changed {
+            background: linear-gradient(135deg, #fff5f5, #fed7d7);
+            color: #c53030;
+            border: 1px solid #fc8181;
+        }
+
+        .revenue-amount {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 1rem;
+        }
+
+        .revenue-period {
+            color: #718096;
+            font-size: 0.8rem;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .projected-amount {
+            color: #48bb78;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn.save {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .action-btn.save:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+        }
+
+        .action-btn.cancel {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .action-btn.cancel:hover {
+            background: #cbd5e0;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Revenue Calculator */
+        .calculator-section {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .calculator-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            margin-top: 24px;
+        }
+
+        .calc-input-group {
+            margin-bottom: 20px;
+        }
+
+        .calc-label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .calc-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .calc-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .calc-results {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .calc-result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .calc-result-item:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            color: #2d3748;
+            padding-top: 16px;
+            margin-top: 8px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .calc-result-label {
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .calc-result-value {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        /* Loading and notifications */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            max-width: 320px;
+            width: 90%;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.3s ease;
+            transform: translateX(100%);
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .overview-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .calculator-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .restaurant-table {
+                font-size: 0.9rem;
+            }
+
+            .restaurant-table th,
+            .restaurant-table td {
+                padding: 12px 8px;
+            }
+
+            .bulk-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .restaurant-table {
+                overflow-x: auto;
+                display: block;
+                white-space: nowrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading venue financials...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-info">
+                    <h1>💰 <span id="venueName">Venue Financials</span></h1>
+                    <p>Manage restaurant fee splits and revenue projections</p>
+                </div>
+                <a href="venue-admin-dashboard.html" class="back-btn">
+                    <span>←</span>
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Financial Overview -->
+        <div class="overview-grid">
+            <div class="overview-card">
+                <h3>Monthly Venue Revenue</h3>
+                <div class="overview-value" id="monthlyVenueRevenue">$0.00</div>
+                <div class="overview-description">Your share from all restaurants</div>
+            </div>
+            <div class="overview-card">
+                <h3>Average Fee Rate</h3>
+                <div class="overview-value" id="averageFeeRate">0.0%</div>
+                <div class="overview-description">Across all connected restaurants</div>
+            </div>
+            <div class="overview-card">
+                <h3>Active Restaurants</h3>
+                <div class="overview-value" id="activeRestaurants">0</div>
+                <div class="overview-description">Currently connected to venue</div>
+            </div>
+            <div class="overview-card">
+                <h3>Pending Changes</h3>
+                <div class="overview-value" id="pendingChanges">0</div>
+                <div class="overview-description">Unsaved fee modifications</div>
+            </div>
+        </div>
+
+        <!-- Restaurant Fee Management -->
+        <div class="restaurants-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <span>🏪</span>
+                    Restaurant Fee Management
+                </h2>
+                <div class="bulk-actions">
+                    <button class="bulk-action-btn" onclick="resetAllChanges()">
+                        Reset All
+                    </button>
+                    <button class="bulk-action-btn primary" onclick="saveAllChanges()" id="saveAllBtn" disabled>
+                        Save All Changes
+                    </button>
+                </div>
+            </div>
+
+            <table class="restaurant-table">
+                <thead>
+                    <tr>
+                        <th>Restaurant</th>
+                        <th>Current Fee</th>
+                        <th>Monthly Revenue</th>
+                        <th>Your Monthly Earnings</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="restaurantsTableBody">
+                    <!-- Restaurant rows will be populated here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Revenue Calculator -->
+        <div class="calculator-section">
+            <h2 class="section-title">
+                <span>🧮</span>
+                Revenue Calculator
+            </h2>
+            <div class="calculator-grid">
+                <div>
+                    <div class="calc-input-group">
+                        <label class="calc-label" for="calcOrderValue">Average Order Value ($)</label>
+                        <input type="number" id="calcOrderValue" class="calc-input" value="25.00" step="0.01" onchange="updateCalculation()">
+                    </div>
+                    <div class="calc-input-group">
+                        <label class="calc-label" for="calcOrdersPerDay">Orders Per Day</label>
+                        <input type="number" id="calcOrdersPerDay" class="calc-input" value="50" onchange="updateCalculation()">
+                    </div>
+                    <div class="calc-input-group">
+                        <label class="calc-label" for="calcVenueFeeRate">Your Fee Rate (%)</label>
+                        <input type="number" id="calcVenueFeeRate" class="calc-input" value="2.0" step="0.1" onchange="updateCalculation()">
+                    </div>
+                </div>
+                <div class="calc-results">
+                    <div class="calc-result-item">
+                        <span class="calc-result-label">Daily Restaurant Revenue:</span>
+                        <span class="calc-result-value" id="calcDailyRevenue">$1,250.00</span>
+                    </div>
+                    <div class="calc-result-item">
+                        <span class="calc-result-label">Your Daily Earnings:</span>
+                        <span class="calc-result-value" id="calcDailyEarnings">$25.00</span>
+                    </div>
+                    <div class="calc-result-item">
+                        <span class="calc-result-label">Monthly Restaurant Revenue:</span>
+                        <span class="calc-result-value" id="calcMonthlyRevenue">$37,500.00</span>
+                    </div>
+                    <div class="calc-result-item">
+                        <span class="calc-result-label">Your Monthly Earnings:</span>
+                        <span class="calc-result-value" id="calcMonthlyEarnings">$750.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentVenue = null;
+        let allRestaurants = [];
+        let originalFeeRates = {};
+        let pendingChanges = {};
+        let monthlyRevenueData = {};
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('💰 Venue Financials loading...');
+            
+            try {
+                await initializeFinancials();
+            } catch (error) {
+                console.error('Error loading venue financials:', error);
+                showError('Failed to load venue financials: ' + error.message);
+                hideLoading();
+            }
+        });
+
+        // Main initialization function
+        async function initializeFinancials() {
+            showLoading();
+            
+            try {
+                // Check authentication
+                currentUser = await VediAPI.getCurrentUser();
+                if (!currentUser) {
+                    window.location.href = '../Landing-Signup-Login/login.html';
+                    return;
+                }
+
+                // Check if user is venue manager
+                if (currentUser.accountType !== 'venue') {
+                    showError('Access denied. This page is for venue managers only.');
+                    setTimeout(() => {
+                        window.location.href = '../Owner/dashboard.html';
+                    }, 2000);
+                    return;
+                }
+
+                // Load venue data
+                currentVenue = await VediAPI.getVenueByManager(currentUser.id);
+                if (!currentVenue) {
+                    window.location.href = '../Landing-Signup-Login/venue-setup.html';
+                    return;
+                }
+
+                console.log('✅ Loaded venue:', currentVenue.name);
+                document.getElementById('venueName').textContent = currentVenue.name + ' Financials';
+
+                // Load restaurants using VenueSync
+                await loadRestaurantsData();
+                
+                // Load revenue data
+                await loadRevenueData();
+                
+                // Update UI
+                updateOverviewCards();
+                renderRestaurantsTable();
+                updateCalculation();
+                
+                hideLoading();
+                showSuccess('Venue financials loaded successfully!');
+                
+            } catch (error) {
+                console.error('❌ Financials initialization error:', error);
+                showError('Failed to load venue financials: ' + error.message);
+                hideLoading();
+            }
+        }
+
+        // Load restaurants data using VenueSync
+        async function loadRestaurantsData() {
+            try {
+                // Get restaurants associated with this venue
+                allRestaurants = await VenueSync.getVenueRestaurants(currentVenue.id);
+                
+                // Store original fee rates
+                allRestaurants.forEach(restaurant => {
+                    const currentFee = restaurant.venueFeePercentage || currentVenue.defaultFeePercentage || 1.0;
+                    originalFeeRates[restaurant.id] = currentFee;
+                });
+                
+                console.log('✅ Loaded restaurants for financials:', allRestaurants.length);
+                
+            } catch (error) {
+                console.error('❌ Error loading restaurants:', error);
+                allRestaurants = [];
+            }
+        }
+
+        // Load revenue data for each restaurant
+        async function loadRevenueData() {
+            try {
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                
+                for (const restaurant of allRestaurants) {
+                    try {
+                        // Get orders for the last 30 days
+                        const orders = await VediAPI.getOrders(restaurant.id, {
+                            startDate: thirtyDaysAgo.toISOString(),
+                            endDate: new Date().toISOString(),
+                            status: 'completed'
+                        });
+                        
+                        // Calculate monthly revenue
+                        const monthlyRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+                        monthlyRevenueData[restaurant.id] = monthlyRevenue;
+                        
+                    } catch (error) {
+                        console.warn(`Failed to load revenue for ${restaurant.name}:`, error);
+                        monthlyRevenueData[restaurant.id] = 0;
+                    }
+                }
+                
+                console.log('✅ Loaded revenue data for restaurants');
+                
+            } catch (error) {
+                console.error('❌ Error loading revenue data:', error);
+            }
+        }
+
+        // Update overview cards
+        function updateOverviewCards() {
+            // Calculate total venue revenue
+            let totalVenueRevenue = 0;
+            let totalFeeRate = 0;
+            let activeCount = 0;
+
+            allRestaurants.forEach(restaurant => {
+                const revenue = monthlyRevenueData[restaurant.id] || 0;
+                const feeRate = (pendingChanges[restaurant.id] !== undefined ? 
+                    pendingChanges[restaurant.id] : 
+                    originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0) / 100;
+                
+                totalVenueRevenue += revenue * feeRate;
+                totalFeeRate += originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
+                activeCount++;
+            });
+
+            const averageFeeRate = activeCount > 0 ? totalFeeRate / activeCount : 0;
+            const pendingChangesCount = Object.keys(pendingChanges).length;
+
+            // Update cards
+            document.getElementById('monthlyVenueRevenue').textContent = formatPrice(totalVenueRevenue);
+            document.getElementById('averageFeeRate').textContent = averageFeeRate.toFixed(1) + '%';
+            document.getElementById('activeRestaurants').textContent = activeCount.toString();
+            document.getElementById('pendingChanges').textContent = pendingChangesCount.toString();
+
+            // Update save button state
+            const saveBtn = document.getElementById('saveAllBtn');
+            saveBtn.disabled = pendingChangesCount === 0;
+            if (pendingChangesCount > 0) {
+                saveBtn.textContent = `Save ${pendingChangesCount} Changes`;
+            } else {
+                saveBtn.textContent = 'Save All Changes';
+            }
+        }
+
+        // Render restaurants table
+        function renderRestaurantsTable() {
+            const tbody = document.getElementById('restaurantsTableBody');
+            
+            if (allRestaurants.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #718096;">
+                            <div style="font-size: 3rem; margin-bottom: 16px;">🏪</div>
+                            <div style="font-weight: 600; margin-bottom: 8px;">No restaurants connected</div>
+                            <div>Restaurants need to join your venue to appear here</div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = allRestaurants.map(restaurant => {
+                const currentFee = originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
+                const pendingFee = pendingChanges[restaurant.id];
+                const displayFee = pendingFee !== undefined ? pendingFee : currentFee;
+                const monthlyRevenue = monthlyRevenueData[restaurant.id] || 0;
+                const monthlyEarnings = monthlyRevenue * (displayFee / 100);
+                const hasChanges = pendingFee !== undefined;
+                const currency = restaurant.currency || { symbol: '$', code: 'USD' };
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="restaurant-info">
+                                <div class="restaurant-avatar">
+                                    ${restaurant.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div class="restaurant-details">
+                                    <h4>${restaurant.name}</h4>
+                                    <div class="restaurant-meta">
+                                        ${restaurant.cuisineType || 'Restaurant'} • 
+                                        ${currency.code} • 
+                                        ${restaurant.status || 'Active'}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fee-control">
+                                <input 
+                                    type="number" 
+                                    class="fee-input ${hasChanges ? 'changed' : ''}" 
+                                    value="${displayFee.toFixed(1)}" 
+                                    step="0.1" 
+                                    min="0" 
+                                    max="10"
+                                    onchange="handleFeeChange('${restaurant.id}', this.value)"
+                                    id="fee-${restaurant.id}"
+                                >
+                                <span class="fee-suffix">%</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="revenue-amount">${formatPrice(monthlyRevenue, currency)}</div>
+                            <span class="revenue-period">Last 30 days</span>
+                        </td>
+                        <td>
+                            <div class="projected-amount">${formatPrice(monthlyEarnings, currency)}</div>
+                            ${hasChanges ? '<span class="revenue-period">• Projected</span>' : '<span class="revenue-period">• Current</span>'}
+                        </td>
+                        <td>
+                            <span class="status-badge ${hasChanges ? 'changed' : 'active'}">
+                                ${hasChanges ? 'Changed' : 'Active'}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                ${hasChanges ? `
+                                    <button class="action-btn save" onclick="saveRestaurantFee('${restaurant.id}')">
+                                        Save
+                                    </button>
+                                    <button class="action-btn cancel" onclick="cancelRestaurantChange('${restaurant.id}')">
+                                        Cancel
+                                    </button>
+                                ` : `
+                                    <button class="action-btn" onclick="resetRestaurantFee('${restaurant.id}')" 
+                                            style="background: #f7fafc; color: #4a5568;">
+                                        Reset
+                                    </button>
+                                `}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Handle fee change
+        function handleFeeChange(restaurantId, newFee) {
+            const originalFee = originalFeeRates[restaurantId];
+            const feeValue = parseFloat(newFee);
+            
+            if (Math.abs(feeValue - originalFee) < 0.01) {
+                // Fee is back to original, remove from pending changes
+                delete pendingChanges[restaurantId];
+            } else {
+                // Fee has changed, add to pending changes
+                pendingChanges[restaurantId] = feeValue;
+            }
+            
+            console.log('💰 Fee changed for', restaurantId, ':', feeValue);
+            
+            // Update UI
+            updateOverviewCards();
+            renderRestaurantsTable();
+        }
+
+        // Save individual restaurant fee
+        async function saveRestaurantFee(restaurantId) {
+            try {
+                const newFee = pendingChanges[restaurantId];
+                if (newFee === undefined) return;
+                
+                console.log('💾 Saving fee for restaurant:', restaurantId, newFee);
+                
+                // Update restaurant venue fee using VediAPI
+                await VediAPI.updateRestaurant(restaurantId, {
+                    venueFeePercentage: newFee,
+                    feeLastUpdated: new Date().toISOString(),
+                    feeUpdatedBy: currentUser.id
+                });
+                
+                // Update original fee and remove from pending
+                originalFeeRates[restaurantId] = newFee;
+                delete pendingChanges[restaurantId];
+                
+                // Update UI
+                updateOverviewCards();
+                renderRestaurantsTable();
+                
+                showSuccess(`Fee updated for restaurant`);
+                
+            } catch (error) {
+                console.error('❌ Error saving restaurant fee:', error);
+                showError('Failed to save fee: ' + error.message);
+            }
+        }
+
+        // Cancel individual restaurant change
+        function cancelRestaurantChange(restaurantId) {
+            delete pendingChanges[restaurantId];
+            
+            // Reset the input value
+            const input = document.getElementById(`fee-${restaurantId}`);
+            if (input) {
+                input.value = originalFeeRates[restaurantId].toFixed(1);
+            }
+            
+            updateOverviewCards();
+            renderRestaurantsTable();
+            
+            showSuccess('Changes cancelled');
+        }
+
+        // Reset restaurant fee to venue default
+        async function resetRestaurantFee(restaurantId) {
+            try {
+                const defaultFee = currentVenue.defaultFeePercentage || 1.0;
+                
+                await VediAPI.updateRestaurant(restaurantId, {
+                    venueFeePercentage: defaultFee,
+                    feeLastUpdated: new Date().toISOString(),
+                    feeUpdatedBy: currentUser.id
+                });
+                
+                originalFeeRates[restaurantId] = defaultFee;
+                delete pendingChanges[restaurantId];
+                
+                updateOverviewCards();
+                renderRestaurantsTable();
+                
+                showSuccess('Fee reset to venue default');
+                
+            } catch (error) {
+                console.error('❌ Error resetting restaurant fee:', error);
+                showError('Failed to reset fee: ' + error.message);
+            }
+        }
+
+        // Save all pending changes
+        async function saveAllChanges() {
+            try {
+                const changeCount = Object.keys(pendingChanges).length;
+                if (changeCount === 0) return;
+                
+                showLoading(`Saving ${changeCount} changes...`);
+                
+                // Save all changes in parallel
+                const savePromises = Object.entries(pendingChanges).map(([restaurantId, newFee]) => 
+                    VediAPI.updateRestaurant(restaurantId, {
+                        venueFeePercentage: newFee,
+                        feeLastUpdated: new Date().toISOString(),
+                        feeUpdatedBy: currentUser.id
+                    })
+                );
+                
+                await Promise.all(savePromises);
+                
+                // Update original fees and clear pending changes
+                Object.entries(pendingChanges).forEach(([restaurantId, newFee]) => {
+                    originalFeeRates[restaurantId] = newFee;
+                });
+                pendingChanges = {};
+                
+                // Update UI
+                updateOverviewCards();
+                renderRestaurantsTable();
+                
+                hideLoading();
+                showSuccess(`All ${changeCount} changes saved successfully!`);
+                
+            } catch (error) {
+                console.error('❌ Error saving all changes:', error);
+                showError('Failed to save changes: ' + error.message);
+                hideLoading();
+            }
+        }
+
+        // Reset all pending changes
+        function resetAllChanges() {
+            if (Object.keys(pendingChanges).length === 0) return;
+            
+            if (!confirm('Are you sure you want to reset all pending changes?')) {
+                return;
+            }
+            
+            pendingChanges = {};
+            
+            // Reset all input values
+            allRestaurants.forEach(restaurant => {
+                const input = document.getElementById(`fee-${restaurant.id}`);
+                if (input) {
+                    input.value = originalFeeRates[restaurant.id].toFixed(1);
+                }
+            });
+            
+            updateOverviewCards();
+            renderRestaurantsTable();
+            
+            showSuccess('All changes reset');
+        }
+
+        // Update revenue calculator
+        function updateCalculation() {
+            const orderValue = parseFloat(document.getElementById('calcOrderValue').value) || 0;
+            const ordersPerDay = parseInt(document.getElementById('calcOrdersPerDay').value) || 0;
+            const feeRate = parseFloat(document.getElementById('calcVenueFeeRate').value) || 0;
+            
+            const dailyRevenue = orderValue * ordersPerDay;
+            const dailyEarnings = dailyRevenue * (feeRate / 100);
+            const monthlyRevenue = dailyRevenue * 30;
+            const monthlyEarnings = dailyEarnings * 30;
+            
+            document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
+            document.getElementById('calcDailyEarnings').textContent = formatPrice(dailyEarnings);
+            document.getElementById('calcMonthlyRevenue').textContent = formatPrice(monthlyRevenue);
+            document.getElementById('calcMonthlyEarnings').textContent = formatPrice(monthlyEarnings);
+        }
+
+        // Utility functions
+        function formatPrice(amount, currency = null) {
+            if (!currency) {
+                currency = { symbol: '$', code: 'USD' };
+            }
+            const formattedAmount = Number(amount || 0).toFixed(2);
+            return `${currency.symbol}${formattedAmount}`;
+        }
+
+        function showLoading(message = 'Loading...') {
+            const overlay = document.getElementById('loadingOverlay');
+            const text = overlay.querySelector('.loading-text');
+            text.textContent = message;
+            overlay.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        console.log('💰 Venue Financials page loaded');
+        console.log('🔧 Features: Restaurant fee management, revenue calculator, bulk operations');
+        console.log('📊 Integration: VenueSync API, real-time fee updates, Stripe payment splitting');
+    </script>
+</body>
+</html>
