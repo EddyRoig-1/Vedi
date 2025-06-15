@@ -510,6 +510,10 @@
             color: #6b7280;
         }
 
+        .calc-result-item.tax {
+            color: #dc2626;
+        }
+
         .calc-result-item.restaurant .calc-result-value {
             color: #059669;
             font-weight: 700;
@@ -527,6 +531,11 @@
 
         .calc-result-item.stripe .calc-result-value {
             color: #6b7280;
+            font-weight: 700;
+        }
+
+        .calc-result-item.tax .calc-result-value {
+            color: #dc2626;
             font-weight: 700;
         }
 
@@ -709,6 +718,7 @@
                         <th>Restaurant</th>
                         <th>Your Venue Fee</th>
                         <th>Platform Fees</th>
+                        <th>Tax</th>
                         <th>Monthly Revenue</th>
                         <th>Your Earnings</th>
                         <th>Status</th>
@@ -762,6 +772,10 @@
                     <div class="calc-result-item stripe">
                         <span class="calc-result-label">💳 Stripe Daily Fee:</span>
                         <span class="calc-result-value" id="calcStripeDaily">$0.00</span>
+                    </div>
+                    <div class="calc-result-item tax">
+                        <span class="calc-result-label">🧾 Tax Daily Fee:</span>
+                        <span class="calc-result-value" id="calcTaxDaily">$0.00</span>
                     </div>
                     <div class="calc-result-item">
                         <span class="calc-result-label">Your Monthly Earnings:</span>
@@ -877,7 +891,7 @@
                         const venueFeePercentage = feeConfig.venueFeePercentage || currentVenue.defaultFeePercentage || 0;
                         originalFeeRates[restaurant.id] = venueFeePercentage;
                         
-                        console.log(`💳 ${restaurant.name}: ${venueFeePercentage}% venue fee, Platform: ${feeConfig.feeType} ${feeConfig.serviceFeeFixed || 0}/${feeConfig.serviceFeePercentage || 0}%, Stripe: ${feeConfig.stripeFeePercentage}% + $${feeConfig.stripeFlatFee}`);
+                        console.log(`💳 ${restaurant.name}: ${venueFeePercentage}% venue fee, Platform: ${feeConfig.feeType} ${feeConfig.serviceFeeFixed || 0}/${feeConfig.serviceFeePercentage || 0}%, Stripe: ${feeConfig.stripeFeePercentage}% + $${feeConfig.stripeFlatFee}, Tax: ${((feeConfig.taxRate || 0.085) * 100).toFixed(1)}%`);
                         
                     } catch (error) {
                         console.warn(`⚠️ Failed to load fee config for ${restaurant.name}:`, error);
@@ -889,7 +903,7 @@
                             stripeFeePercentage: 2.9,
                             stripeFlatFee: 0.30,
                             venueFeePercentage: currentVenue.defaultFeePercentage || 0,
-                            taxRate: 0.085,
+                            taxRate: 0.085, // Default 8.5% tax rate
                             isDefault: true
                         };
                         originalFeeRates[restaurant.id] = currentVenue.defaultFeePercentage || 0;
@@ -948,7 +962,7 @@
             }
         }
 
-        // Calculate fee breakdown using real fee configuration data
+        // Calculate fee breakdown using real fee configuration data with tax included
         function calculateFeeSplit(restaurantId, venueFeePercentage, averageOrderValue) {
             const feeConfig = restaurantFeeConfigs[restaurantId];
             if (!feeConfig) {
@@ -956,13 +970,18 @@
                 return getDefaultFeeSplit(venueFeePercentage, averageOrderValue);
             }
             
-            // Step 1: Calculate Stripe fees first (from order total)
+            // Step 1: Calculate base order values (before tax)
+            const taxRate = feeConfig.taxRate || 0.085; // Default 8.5%
+            const subtotalBeforeTax = averageOrderValue / (1 + taxRate); // Remove tax to get subtotal
+            const taxAmount = averageOrderValue - subtotalBeforeTax;
+            
+            // Step 2: Calculate Stripe fees (from total order amount including tax)
             const stripeFeeRate = (feeConfig.stripeFeePercentage || 2.9) / 100;
             const stripeFlatFee = feeConfig.stripeFlatFee || 0.30; // In dollars
             const stripeFeeAmount = (averageOrderValue * stripeFeeRate) + stripeFlatFee;
             const netAfterStripe = averageOrderValue - stripeFeeAmount;
             
-            // Step 2: Calculate platform service fee
+            // Step 3: Calculate platform service fee (from subtotal before tax)
             let platformFeeAmount = 0;
             const feeType = feeConfig.feeType || 'fixed';
             
@@ -971,19 +990,19 @@
                     platformFeeAmount = feeConfig.serviceFeeFixed || 0;
                     break;
                 case 'percentage':
-                    platformFeeAmount = netAfterStripe * ((feeConfig.serviceFeePercentage || 0) / 100);
+                    platformFeeAmount = subtotalBeforeTax * ((feeConfig.serviceFeePercentage || 0) / 100);
                     break;
                 case 'hybrid':
                     platformFeeAmount = (feeConfig.serviceFeeFixed || 0) + 
-                                      (netAfterStripe * ((feeConfig.serviceFeePercentage || 0) / 100));
+                                      (subtotalBeforeTax * ((feeConfig.serviceFeePercentage || 0) / 100));
                     break;
             }
             
-            // Step 3: Calculate venue fee (from net after stripe)
-            const venueFeeAmount = netAfterStripe * (venueFeePercentage / 100);
+            // Step 4: Calculate venue fee (from subtotal before tax)
+            const venueFeeAmount = subtotalBeforeTax * (venueFeePercentage / 100);
             
-            // Step 4: Restaurant gets the remainder
-            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
+            // Step 5: Restaurant gets the remainder (net after all fees and tax)
+            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount - taxAmount;
             
             // Create display strings for platform fee
             let platformFeeDisplay = '';
@@ -996,6 +1015,7 @@
             }
             
             const stripeDisplay = `${(feeConfig.stripeFeePercentage || 2.9).toFixed(1)}% + $${(feeConfig.stripeFlatFee || 0.30).toFixed(2)}`;
+            const taxDisplay = `${(taxRate * 100).toFixed(1)}%`;
             
             return {
                 restaurant: {
@@ -1018,17 +1038,28 @@
                     percentage: (stripeFeeAmount / averageOrderValue) * 100,
                     display: stripeDisplay
                 },
+                tax: {
+                    amount: taxAmount,
+                    percentage: (taxAmount / averageOrderValue) * 100,
+                    rate: taxRate,
+                    display: taxDisplay
+                },
+                subtotal: subtotalBeforeTax,
                 feeConfig: feeConfig
             };
         }
 
         // Default fee split for when fee config is not available
         function getDefaultFeeSplit(venueFeePercentage, averageOrderValue) {
+            const taxRate = 0.085; // Default 8.5%
+            const subtotalBeforeTax = averageOrderValue / (1 + taxRate);
+            const taxAmount = averageOrderValue - subtotalBeforeTax;
+            
             const stripeFeeAmount = (averageOrderValue * 0.029) + 0.30;
             const netAfterStripe = averageOrderValue - stripeFeeAmount;
             const platformFeeAmount = 2.00; // Default fixed fee
-            const venueFeeAmount = netAfterStripe * (venueFeePercentage / 100);
-            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
+            const venueFeeAmount = subtotalBeforeTax * (venueFeePercentage / 100);
+            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount - taxAmount;
             
             return {
                 restaurant: {
@@ -1050,7 +1081,14 @@
                     amount: stripeFeeAmount,
                     percentage: (stripeFeeAmount / averageOrderValue) * 100,
                     display: '2.9% + $0.30 (default)'
-                }
+                },
+                tax: {
+                    amount: taxAmount,
+                    percentage: (taxAmount / averageOrderValue) * 100,
+                    rate: taxRate,
+                    display: '8.5% (default)'
+                },
+                subtotal: subtotalBeforeTax
             };
         }
 
@@ -1092,7 +1130,7 @@
             }
         }
 
-        // Render restaurants table with real fee data
+        // Render restaurants table with real fee data including tax
         function renderRestaurantsTable() {
             console.log('🏪 Rendering restaurants table...');
             const tbody = document.getElementById('restaurantsTableBody');
@@ -1100,7 +1138,7 @@
             if (allRestaurants.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
+                        <td colspan="8" style="text-align: center; padding: 40px; color: #718096;">
                             <div style="font-size: 3rem; margin-bottom: 16px;">🏪</div>
                             <div style="font-weight: 600; margin-bottom: 8px;">No restaurants connected</div>
                             <div>Use the restaurant-venue sync system to connect restaurants to your venue</div>
@@ -1172,11 +1210,21 @@
                             </div>
                         </td>
                         <td>
+                            <div style="margin-bottom: 4px;">
+                                <div style="font-size: 0.8rem; color: #dc2626; font-weight: 600;">Tax Rate</div>
+                                <div style="font-size: 0.9rem; font-weight: 600;">${feeSplit.tax.display}</div>
+                            </div>
+                            <div style="font-size: 0.75rem; color: #6b7280;">
+                                Monthly: ${formatPrice(feeSplit.tax.amount * 40, currency)}
+                            </div>
+                        </td>
+                        <td>
                             <div class="revenue-amount">${formatPrice(monthlyRevenue, currency)}</div>
                             <span class="revenue-period">Last 30 days</span>
                             <div style="margin-top: 8px; font-size: 0.8rem; color: #4a5568;">
                                 <div>Avg Order: ${formatPrice(averageOrderValue, currency)}</div>
                                 <div>Restaurant Net: ${formatPrice(feeSplit.restaurant.amount * 40, currency)}</div>
+                                <div>Subtotal: ${formatPrice(feeSplit.subtotal * 40, currency)}</div>
                             </div>
                         </td>
                         <td>
@@ -1197,6 +1245,10 @@
                                     <div style="font-size: 0.8rem; color: #6b7280; display: flex; justify-content: space-between;">
                                         <span>Stripe:</span>
                                         <span>${formatPrice(feeSplit.stripe.amount * 40, currency)}</span>
+                                    </div>
+                                    <div style="font-size: 0.8rem; color: #dc2626; display: flex; justify-content: space-between;">
+                                        <span>Tax:</span>
+                                        <span>${formatPrice(feeSplit.tax.amount * 40, currency)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1230,10 +1282,10 @@
             });
 
             tbody.innerHTML = rows.join('');
-            console.log('✅ Restaurant table rendered with real fee data');
+            console.log('✅ Restaurant table rendered with real fee data including tax');
         }
 
-        // Show fee configuration details for a restaurant
+        // Show fee configuration details for a restaurant including tax
         function showFeeDetails(restaurantId) {
             const restaurant = allRestaurants.find(r => r.id === restaurantId);
             const feeConfig = restaurantFeeConfigs[restaurantId];
@@ -1250,13 +1302,14 @@
 Venue Fee: ${venueFee.toFixed(1)}% (Your earnings)
 Platform Service Fee: ${feeSplit.platform.display} (${feeConfig.feeType})
 Stripe Processing: ${feeSplit.stripe.display}
-Tax Rate: ${((feeConfig.taxRate || 0.085) * 100).toFixed(1)}%
+Tax Rate: ${feeSplit.tax.display}
 
-Monthly Breakdown:
+Monthly Breakdown (40 orders average):
 - Restaurant Net: ${formatPrice(feeSplit.restaurant.amount * 40)}
 - Your Earnings: ${formatPrice(feeSplit.venue.amount * 40)}
 - Platform Fee: ${formatPrice(feeSplit.platform.amount * 40)}
 - Stripe Fee: ${formatPrice(feeSplit.stripe.amount * 40)}
+- Tax Collected: ${formatPrice(feeSplit.tax.amount * 40)}
 
 ${feeConfig.isNegotiated ? 'This restaurant has negotiated rates.' : 'This restaurant uses standard rates.'}`);
         }
@@ -1394,7 +1447,7 @@ ${feeConfig.isNegotiated ? 'This restaurant has negotiated rates.' : 'This resta
             showSuccess('All changes reset');
         }
 
-        // Enhanced revenue calculator with real fee data
+        // Enhanced revenue calculator with real fee data including tax
         function updateCalculation() {
             const orderValue = parseFloat(document.getElementById('calcOrderValue').value) || 0;
             const ordersPerDay = parseInt(document.getElementById('calcOrdersPerDay').value) || 0;
@@ -1415,25 +1468,33 @@ ${feeConfig.isNegotiated ? 'This restaurant has negotiated rates.' : 'This resta
                 const dailyPlatform = feeSplit.platform.amount * ordersPerDay;
                 const dailyVenue = feeSplit.venue.amount * ordersPerDay;
                 const dailyRestaurant = feeSplit.restaurant.amount * ordersPerDay;
+                const dailyTax = feeSplit.tax.amount * ordersPerDay;
                 
                 document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
                 document.getElementById('calcRestaurantDaily').textContent = formatPrice(dailyRestaurant);
                 document.getElementById('calcDailyEarnings').textContent = formatPrice(dailyVenue);
                 document.getElementById('calcPlatformDaily').textContent = formatPrice(dailyPlatform);
                 document.getElementById('calcStripeDaily').textContent = formatPrice(dailyStripe);
+                document.getElementById('calcTaxDaily').textContent = formatPrice(dailyTax);
                 document.getElementById('calcMonthlyEarnings').textContent = formatPrice(dailyVenue * 30);
             } else {
-                // Fallback calculation
+                // Fallback calculation with tax
+                const taxRate = 0.085; // Default 8.5%
+                const subtotalBeforeTax = orderValue / (1 + taxRate);
+                const taxAmount = orderValue - subtotalBeforeTax;
+                
                 const stripeFee = (orderValue * 0.029 + 0.30) * ordersPerDay;
                 const platformFee = 2.00 * ordersPerDay;
-                const venueFee = (orderValue * (feeRate / 100)) * ordersPerDay;
-                const restaurantNet = dailyRevenue - stripeFee - platformFee - venueFee;
+                const venueFee = (subtotalBeforeTax * (feeRate / 100)) * ordersPerDay;
+                const dailyTax = taxAmount * ordersPerDay;
+                const restaurantNet = dailyRevenue - stripeFee - platformFee - venueFee - dailyTax;
                 
                 document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
                 document.getElementById('calcRestaurantDaily').textContent = formatPrice(restaurantNet);
                 document.getElementById('calcDailyEarnings').textContent = formatPrice(venueFee);
                 document.getElementById('calcPlatformDaily').textContent = formatPrice(platformFee);
                 document.getElementById('calcStripeDaily').textContent = formatPrice(stripeFee);
+                document.getElementById('calcTaxDaily').textContent = formatPrice(dailyTax);
                 document.getElementById('calcMonthlyEarnings').textContent = formatPrice(venueFee * 30);
             }
         }
@@ -1477,10 +1538,13 @@ ${feeConfig.isNegotiated ? 'This restaurant has negotiated rates.' : 'This resta
             showNotification(message, 'error');
         }
 
-        console.log('💰 Enhanced Venue Financials page loaded with real fee data integration');
+        console.log('💰 Enhanced Venue Financials page loaded with real fee data integration INCLUDING TAX');
         console.log('🔧 Features: Real-time fee reading from feeConfigurations, venue fee sync across pages');
         console.log('📊 Integration: Uses updateVenueFeePercentage API for cross-page sync');
-        console.log('💳 Enhanced: Displays actual platform and Stripe fees from restaurant configurations');
+        console.log('💳 Enhanced: Displays actual platform, Stripe fees, and TAX from restaurant configurations');
+        console.log('🧾 NEW: Tax calculations integrated from restaurant tax rates');
+        console.log('📊 NEW: Tax column added to management table with monthly breakdown');
+        console.log('🧮 NEW: Tax included in revenue calculator with proper fee separation');
     </script>
 </body>
 </html>
