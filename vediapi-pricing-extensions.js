@@ -1,10 +1,10 @@
-// vediapi-pricing-extensions.js - Enhanced with Venue Fee Management
-// UPDATED VERSION with venue fee configuration and calculation support
+// vediapi-pricing-extensions.js - UPDATED VERSION with Enhanced Venue Fee Management
+// VENUE FEE INTEGRATION: Now reads venue fees from feeConfigurations collection
 
 /**
- * VediAPI Extensions for Protected Pricing with Venue Fee Support (Browser Version)
+ * VediAPI Extensions for Protected Pricing with Enhanced Venue Fee Support
  * Ensures your platform margin is preserved from Stripe processing fees
- * NOW INCLUDES: Venue fee management and calculation
+ * NOW INCLUDES: Enhanced venue fee management from feeConfigurations collection
  */
 const VediAPIPricingExtensions = {
   
@@ -42,7 +42,7 @@ const VediAPIPricingExtensions = {
   },
 
   /**
-   * Get complete fee configuration including venue fees
+   * Get complete fee configuration including venue fees from feeConfigurations collection
    * @param {string} restaurantId - Restaurant ID
    * @returns {Promise<Object>} Complete fee configuration
    */
@@ -50,37 +50,32 @@ const VediAPIPricingExtensions = {
     try {
       this.debug('📋 Getting complete fee configuration for restaurant:', restaurantId);
       
-      // Get base fee config from VediAPI
-      const baseFeeConfig = await VediAPI.getFeeConfig(restaurantId);
-      this.debug('📋 Base fee config:', baseFeeConfig);
+      // Get fee config from feeConfigurations collection (now includes venue fees)
+      const feeConfig = await VediAPI.getFeeConfig(restaurantId);
+      this.debug('📋 Fee config from feeConfigurations:', feeConfig);
       
-      // Try to get venue-specific configuration
-      let venueFeeConfig = null;
-      if (baseFeeConfig.venueId) {
-        try {
-          // Check if restaurant belongs to a venue and get venue fee configuration
-          const restaurant = await VediAPI.getRestaurant(restaurantId);
-          if (restaurant.venueId) {
-            venueFeeConfig = await VediAPI.getVenueFeeConfig(restaurant.venueId);
-            this.debug('🏢 Venue fee config:', venueFeeConfig);
-          }
-        } catch (error) {
-          this.debug('⚠️ No venue fee config found:', error.message);
-        }
+      // Get restaurant data for additional context
+      let restaurantData = null;
+      try {
+        restaurantData = await VediAPI.getRestaurant(restaurantId);
+        this.debug('🏪 Restaurant data:', restaurantData);
+      } catch (error) {
+        this.debug('⚠️ Could not fetch restaurant data:', error.message);
       }
       
-      // Combine configurations
+      // Combine configurations - venue fees now come from feeConfigurations
       const completeFeeConfig = {
-        ...baseFeeConfig,
-        // Venue fee configuration
-        venueFeePercentage: venueFeeConfig?.defaultFeePercentage || baseFeeConfig.venueFeePercentage || 0,
-        venueId: venueFeeConfig?.venueId || null,
-        venueName: venueFeeConfig?.venueName || null,
-        // Override with restaurant-specific venue fee if set
-        restaurantVenueFeeOverride: baseFeeConfig.venueFeePercentage || null
+        ...feeConfig,
+        // Venue fee information (now stored in feeConfigurations)
+        venueFeePercentage: feeConfig.venueFeePercentage || 0,
+        venueId: feeConfig.venueId || restaurantData?.venueId || null,
+        venueName: feeConfig.venueName || restaurantData?.venueName || null,
+        // Restaurant context
+        restaurantName: restaurantData?.name || 'Unknown Restaurant',
+        restaurantCurrency: restaurantData?.currency || 'USD'
       };
       
-      this.debug('✅ Complete fee configuration:', completeFeeConfig);
+      this.debug('✅ Complete fee configuration with venue fees:', completeFeeConfig);
       return completeFeeConfig;
       
     } catch (error) {
@@ -90,7 +85,7 @@ const VediAPIPricingExtensions = {
   },
 
   /**
-   * Calculate protected pricing with venue fee support
+   * Calculate protected pricing with enhanced venue fee support
    * @param {string} restaurantId - Restaurant ID
    * @param {number} subtotalCents - Subtotal in cents
    * @returns {Promise<Object>} Protected pricing breakdown including venue fees
@@ -151,7 +146,7 @@ const VediAPIPricingExtensions = {
       
       this.debug('💵 Desired platform service fee:', desiredServiceFee);
 
-      // Step 2: Calculate venue fee
+      // Step 2: Calculate venue fee (now from feeConfigurations collection)
       let desiredVenueFee = 0;
       const venueFeePercentage = feeConfig.venueFeePercentage || 0;
       
@@ -173,11 +168,10 @@ const VediAPIPricingExtensions = {
 
       // Step 5: Get Stripe fees for this restaurant
       const stripePct = (feeConfig.stripeFeePercentage || 2.9) / 100;
-      const stripeFlat = (feeConfig.stripeFlatFee || 30) / 100;
+      const stripeFlat = (feeConfig.stripeFlatFee || 0.30);
       this.debug('💳 Stripe fees:', { 
         percentage: stripePct * 100 + '%', 
-        flat: stripeFlat,
-        flatCents: feeConfig.stripeFlatFee || 30
+        flat: stripeFlat
       });
 
       // Step 6: GROSS-UP FORMULA - Calculate what customer needs to pay
@@ -221,18 +215,18 @@ const VediAPIPricingExtensions = {
           subtotalCents: Math.round(subtotal * 100),
           taxCents: Math.round(taxAmount * 100),
           serviceFeCents: Math.round(displayedServiceFee * 100),
-          venueFeCents: Math.round(displayedVenueFee * 100), // NEW: Venue fee
+          venueFeCents: Math.round(displayedVenueFee * 100), // Venue fee
           totalCents: Math.round(customerTotal * 100),
           serviceFeePercentage: Number(serviceFeePercentage.toFixed(2)),
-          venueFeePercentage: Number(venueFeeDisplayPercentage.toFixed(2)), // NEW: Venue fee percentage
+          venueFeePercentage: Number(venueFeeDisplayPercentage.toFixed(2)), // Venue fee percentage
           taxRate: Number((taxRate * 100).toFixed(2)),
           desiredServiceFeeCents: Math.round(desiredServiceFee * 100),
-          desiredVenueFeeCents: Math.round(desiredVenueFee * 100), // NEW: Desired venue fee
+          desiredVenueFeeCents: Math.round(desiredVenueFee * 100), // Desired venue fee
           stripeFeePercentage: Number((stripePct * 100).toFixed(2)),
-          stripeFlatFee: feeConfig.stripeFlatFee || 30,
+          stripeFlatFee: Number((stripeFlat * 100).toFixed(0)), // In cents for display
           marginProtected: true,
-          venueId: feeConfig.venueId, // NEW: Venue information
-          venueName: feeConfig.venueName, // NEW: Venue name
+          venueId: feeConfig.venueId, // Venue information
+          venueName: feeConfig.venueName, // Venue name
           calculationTimestamp: new Date().toISOString()
         }
       };
@@ -271,33 +265,34 @@ const VediAPIPricingExtensions = {
         subtotal: quote.subtotalCents / 100,
         taxAmount: quote.taxCents / 100,
         serviceFee: quote.serviceFeCents / 100,
-        venueFee: quote.venueFeCents / 100, // NEW: Venue fee
+        venueFee: quote.venueFeCents / 100, // Venue fee
         total: quote.totalCents / 100,
         
         // Display percentages
         taxRate: quote.taxRate,
         serviceFeePercentage: quote.serviceFeePercentage,
-        venueFeePercentage: quote.venueFeePercentage, // NEW: Venue fee percentage
+        venueFeePercentage: quote.venueFeePercentage, // Venue fee percentage
         
         // Behind-the-scenes breakdown (for testing/admin)
         breakdown: {
           desiredServiceFee: quote.desiredServiceFeeCents / 100,
-          desiredVenueFee: quote.desiredVenueFeeCents / 100, // NEW: Desired venue fee
+          desiredVenueFee: quote.desiredVenueFeeCents / 100, // Desired venue fee
           actualServiceFee: quote.serviceFeCents / 100,
-          actualVenueFee: quote.venueFeCents / 100, // NEW: Actual venue fee
+          actualVenueFee: quote.venueFeCents / 100, // Actual venue fee
           stripeFeePercentage: quote.stripeFeePercentage,
           stripeFlatFee: quote.stripeFlatFee,
           grossUpAmount: ((quote.serviceFeCents + quote.venueFeCents) - (quote.desiredServiceFeeCents + quote.desiredVenueFeeCents)) / 100,
           marginProtected: quote.marginProtected,
-          calculationMethod: 'vediapi-extensions-with-venue'
+          calculationMethod: 'vediapi-extensions-with-enhanced-venue'
         },
         
-        // Venue information
+        // Enhanced venue information
         venue: {
           venueId: quote.venueId,
           venueName: quote.venueName,
           feePercentage: quote.venueFeePercentage,
-          monthlyEarnings: (quote.venueFeCents / 100) * 30 // Estimated monthly earnings
+          monthlyEarnings: (quote.venueFeCents / 100) * 30, // Estimated monthly earnings
+          feeSource: 'feeConfigurations' // NEW: Indicates fees come from feeConfigurations collection
         },
         
         // Configuration used
@@ -306,22 +301,24 @@ const VediAPIPricingExtensions = {
           feeType: feeConfig.feeType,
           serviceFeeFixed: feeConfig.serviceFeeFixed,
           serviceFeePercentage: feeConfig.serviceFeePercentage,
-          venueFeePercentage: feeConfig.venueFeePercentage, // NEW: Venue fee config
+          venueFeePercentage: feeConfig.venueFeePercentage, // Venue fee config
           taxRate: feeConfig.taxRate,
           stripeFeePercentage: feeConfig.stripeFeePercentage,
           stripeFlatFee: feeConfig.stripeFlatFee,
-          isNegotiated: feeConfig.isNegotiated || false
+          isNegotiated: feeConfig.isNegotiated || false,
+          dataSource: 'feeConfigurations' // NEW: Indicates all fees from one collection
         },
         
         // Metadata
         meta: {
           timestamp: quote.calculationTimestamp,
-          version: '2.1.0', // Updated version with venue support
-          includesVenueFees: true
+          version: '2.2.0', // Updated version with enhanced venue support
+          includesVenueFees: true,
+          venueFeeSource: 'feeConfigurations'
         }
       };
       
-      this.debug('✅ Pricing breakdown with venue fees complete:', breakdown);
+      this.debug('✅ Pricing breakdown with enhanced venue fees complete:', breakdown);
       return breakdown;
       
     } catch (error) {
@@ -335,7 +332,7 @@ const VediAPIPricingExtensions = {
    */
   async testPricingCalculation(restaurantId) {
     try {
-      console.log('🧪 Testing VediAPI pricing calculation with venue fees...');
+      console.log('🧪 Testing VediAPI pricing calculation with enhanced venue fees...');
       
       const testAmounts = [2500, 4600, 10000]; // $25, $46, $100
       
@@ -347,10 +344,11 @@ const VediAPIPricingExtensions = {
             subtotal: `$${result.subtotal}`,
             tax: `$${result.taxAmount} (${result.taxRate}%)`,
             serviceFee: `$${result.serviceFee} (${result.serviceFeePercentage.toFixed(1)}%)`,
-            venueFee: `$${result.venueFee} (${result.venueFeePercentage.toFixed(1)}%)`, // NEW
+            venueFee: `$${result.venueFee} (${result.venueFeePercentage.toFixed(1)}%)`, // Enhanced venue fee display
             total: `$${result.total}`,
             marginProtected: result.breakdown.marginProtected,
-            venue: result.venue.venueName || 'No venue'
+            venue: result.venue.venueName || 'No venue',
+            venueFeeSource: result.venue.feeSource
           });
         } catch (error) {
           console.error(`  ❌ Test failed for $${amount/100}:`, error.message);
@@ -363,7 +361,7 @@ const VediAPIPricingExtensions = {
   },
 
   /**
-   * Get diagnostic information about the current state including venue support
+   * Get diagnostic information about the current state including enhanced venue support
    */
   getDiagnostics() {
     const diagnostics = {
@@ -371,7 +369,8 @@ const VediAPIPricingExtensions = {
       vediAPIAvailable: typeof VediAPI !== 'undefined',
       vediAPIMethods: typeof VediAPI !== 'undefined' ? Object.keys(VediAPI) : [],
       extensionsLoaded: typeof this.calculateProtectedPricing === 'function',
-      venueFeeSupportEnabled: true, // NEW: Indicates venue fee support
+      enhancedVenueFeeSupportEnabled: true, // Enhanced venue fee support
+      venueFeeDataSource: 'feeConfigurations', // NEW: Indicates data source
       windowVediAPI: typeof window.VediAPI !== 'undefined',
       globalVediAPI: typeof globalThis.VediAPI !== 'undefined'
     };
@@ -379,7 +378,8 @@ const VediAPIPricingExtensions = {
     if (typeof VediAPI !== 'undefined') {
       diagnostics.requiredMethods = {
         getFeeConfig: typeof VediAPI.getFeeConfig === 'function',
-        getVenueFeeConfig: typeof VediAPI.getVenueFeeConfig === 'function', // NEW
+        updateVenueFeePercentage: typeof VediAPI.updateVenueFeePercentage === 'function', // NEW
+        syncVenueFeeAcrossRestaurants: typeof VediAPI.syncVenueFeeAcrossRestaurants === 'function', // NEW
         calculateProtectedPricing: typeof VediAPI.calculateProtectedPricing === 'function',
         getProtectedPricingBreakdown: typeof VediAPI.getProtectedPricingBreakdown === 'function'
       };
@@ -389,12 +389,12 @@ const VediAPIPricingExtensions = {
   }
 };
 
-// Rest of the extension manager code remains the same...
+// Keep the existing extension manager code but update the version info
 const VediAPIExtensionManager = {
   
   DEBUG: true,
-  maxAttempts: 150, // 15 seconds max wait time
-  attemptInterval: 100, // Check every 100ms
+  maxAttempts: 150,
+  attemptInterval: 100,
   
   log(...args) {
     if (this.DEBUG) {
@@ -402,9 +402,6 @@ const VediAPIExtensionManager = {
     }
   },
 
-  /**
-   * Find VediAPI in various possible locations
-   */
   findVediAPI() {
     const possibleLocations = [
       () => window.VediAPI,
@@ -430,9 +427,6 @@ const VediAPIExtensionManager = {
     return null;
   },
 
-  /**
-   * Extend VediAPI with pricing methods including venue support
-   */
   extendVediAPI() {
     const vediAPI = this.findVediAPI();
     
@@ -440,7 +434,7 @@ const VediAPIExtensionManager = {
       return false;
     }
     
-    // Extend the API with our methods including venue support
+    // Extend the API with our methods including enhanced venue support
     Object.assign(vediAPI, VediAPIPricingExtensions);
     
     // Ensure it's available in all possible locations
@@ -456,7 +450,7 @@ const VediAPIExtensionManager = {
                          typeof vediAPI.getProtectedPricingBreakdown === 'function';
     
     if (hasExtensions) {
-      this.log('✅ VediAPI successfully extended with pricing methods including venue fee support');
+      this.log('✅ VediAPI successfully extended with pricing methods including enhanced venue fee support');
       this.log('📊 Total VediAPI methods:', Object.keys(vediAPI).length);
       return true;
     } else {
@@ -465,9 +459,6 @@ const VediAPIExtensionManager = {
     }
   },
 
-  /**
-   * Wait for VediAPI to become available and extend it
-   */
   async waitForVediAPIAndExtend() {
     return new Promise((resolve, reject) => {
       let attempts = 0;
@@ -498,12 +489,9 @@ const VediAPIExtensionManager = {
     });
   },
 
-  /**
-   * Initialize the extensions with comprehensive error handling
-   */
   async initialize() {
     try {
-      this.log('🚀 Initializing VediAPI Pricing Extensions with Venue Fee Support...');
+      this.log('🚀 Initializing VediAPI Pricing Extensions with Enhanced Venue Fee Support...');
       
       // Try immediate extension first
       if (this.extendVediAPI()) {
@@ -521,7 +509,7 @@ const VediAPIExtensionManager = {
       this.log('📊 Extension diagnostics:', diagnostics);
       
       if (diagnostics.extensionsLoaded && diagnostics.requiredMethods?.getFeeConfig) {
-        this.log('🎉 VediAPI Pricing Extensions with Venue Fee Support fully initialized and verified!');
+        this.log('🎉 VediAPI Pricing Extensions with Enhanced Venue Fee Support fully initialized and verified!');
         return true;
       } else {
         throw new Error('Extension verification failed');
@@ -558,8 +546,10 @@ window.initializeVediAPIExtensions = () => VediAPIExtensionManager.initialize();
 window.testVediAPIPricing = (restaurantId) => VediAPIPricingExtensions.testPricingCalculation(restaurantId);
 window.getVediAPIDiagnostics = () => VediAPIPricingExtensions.getDiagnostics();
 
-console.log('💰 VediAPI Pricing Extensions v2.1.0 loaded');
-console.log('🛡️ Features: Protected margin calculation, venue fee support, comprehensive debugging, robust loading');
-console.log('🏢 NEW: Full venue fee management and calculation support');
+console.log('💰 VediAPI Pricing Extensions v2.2.0 loaded');
+console.log('🛡️ Features: Protected margin calculation, enhanced venue fee support, comprehensive debugging, robust loading');
+console.log('🏢 ENHANCED: Venue fees now read from feeConfigurations collection');
+console.log('📊 NEW: All fees (platform, venue, stripe) managed in single collection');
 console.log('🔧 Debug functions: window.testVediAPIPricing(restaurantId), window.getVediAPIDiagnostics()');
 console.log('🔄 Manual init: window.initializeVediAPIExtensions()');
+console.log('📋 IMPROVED: Single source of truth for all fee configurations');
