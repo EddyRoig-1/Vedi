@@ -1,6 +1,5 @@
-// firebase-api.js - FIXED VERSION: All fees stored consistently in dollars
-// CRITICAL FIX: Stripe fees now stored in dollars, not cents
-// This eliminates confusion and makes fee calculations consistent
+// firebase-api.js - COMPLETE VERSION: Enhanced with venue fee support in feeConfigurations
+// CRITICAL FIX: All fees stored consistently in dollars, venue fees integrated into feeConfigurations collection
 
 // ============================================================================
 // FIREBASE REFERENCE INITIALIZATION (CRITICAL FIX)
@@ -568,6 +567,39 @@ const VediAPI = {
       
     } catch (error) {
       console.error('❌ Get restaurants by venue error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get all restaurants (for admin purposes)
+   * @param {Object} options - Query options
+   * @returns {Promise<Array>} Array of all restaurants
+   */
+  getAllRestaurants: withTracking('getAllRestaurants', async function(options = {}) {
+    try {
+      const db = getFirebaseDb();
+      
+      let query = db.collection('restaurants');
+      
+      if (options.orderBy) {
+        query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
+      } else {
+        query = query.orderBy('createdAt', 'desc');
+      }
+      
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      const querySnapshot = await query.get();
+      const restaurants = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      console.log('✅ Retrieved all restaurants:', restaurants.length);
+      return restaurants;
+      
+    } catch (error) {
+      console.error('❌ Get all restaurants error:', error);
       throw error;
     }
   }),
@@ -1232,13 +1264,13 @@ const VediAPI = {
   }),
 
   // ============================================================================
-  // DYNAMIC FEE MANAGEMENT SYSTEM - FIXED FOR CONSISTENT DOLLAR AMOUNTS
+  // ENHANCED FEE MANAGEMENT SYSTEM WITH VENUE FEES IN FEECONFIGURATIONS
   // ============================================================================
 
   /**
-   * Create or update fee configuration for a restaurant (FIXED: ALL FEES IN DOLLARS)
+   * Create or update fee configuration for a restaurant - ENHANCED with venue fee support
    * @param {string} restaurantId - Restaurant ID
-   * @param {Object} feeConfig - Fee configuration
+   * @param {Object} feeConfig - Fee configuration including venue fees
    * @returns {Promise<Object>} Created/updated fee config
    */
   createOrUpdateFeeConfig: withTracking('createOrUpdateFeeConfig', async function(restaurantId, feeConfig) {
@@ -1246,21 +1278,39 @@ const VediAPI = {
       const db = getFirebaseDb();
       const auth = getFirebaseAuth();
       
+      // Get restaurant data to include venue information
+      let restaurantData = null;
+      try {
+        restaurantData = await this.getRestaurant(restaurantId);
+      } catch (error) {
+        console.warn('Could not fetch restaurant data:', error);
+      }
+      
       const config = {
         restaurantId,
-        serviceFeeFixed: feeConfig.serviceFeeFixed || 0, // Fixed amount like $2.00
-        serviceFeePercentage: feeConfig.serviceFeePercentage || 0, // Percentage like 3%
-        feeType: feeConfig.feeType || 'fixed', // 'fixed', 'percentage', or 'hybrid'
-        taxRate: feeConfig.taxRate || 0.085, // Default 8.5%
+        
+        // Platform/Service fees (managed by app admin)
+        serviceFeeFixed: feeConfig.serviceFeeFixed || 0,
+        serviceFeePercentage: feeConfig.serviceFeePercentage || 0,
+        feeType: feeConfig.feeType || 'fixed',
+        taxRate: feeConfig.taxRate || 0.085,
         minimumOrderAmount: feeConfig.minimumOrderAmount || 0,
-        // FIXED: Stripe fee configuration - ALL IN DOLLARS
-        stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9, // Default 2.9%
-        stripeFlatFee: feeConfig.stripeFlatFee || 0.30, // FIXED: Default $0.30 (was 30 cents)
+        
+        // Stripe fee configuration (managed by app admin)
+        stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9,
+        stripeFlatFee: feeConfig.stripeFlatFee || 0.30,
+        
+        // ENHANCED: Venue fee configuration (stored here but managed by venue dashboard)
+        venueFeePercentage: feeConfig.venueFeePercentage || 0,
+        venueId: restaurantData?.venueId || feeConfig.venueId || null,
+        venueName: restaurantData?.venueName || feeConfig.venueName || null,
+        
         // Negotiated rates
         isNegotiated: feeConfig.isNegotiated || false,
-        negotiatedBy: feeConfig.negotiatedBy || null, // Admin user ID
+        negotiatedBy: feeConfig.negotiatedBy || null,
         negotiatedDate: feeConfig.negotiatedDate || null,
         notes: feeConfig.notes || '',
+        
         // Metadata
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1270,7 +1320,7 @@ const VediAPI = {
       // Use restaurant ID as document ID for easy lookup
       await db.collection('feeConfigurations').doc(restaurantId).set(config, { merge: true });
       
-      console.log('✅ Fee configuration saved for restaurant (FIXED - all dollars):', restaurantId);
+      console.log('✅ Fee configuration saved with venue fees:', restaurantId);
       return config;
       
     } catch (error) {
@@ -1280,9 +1330,51 @@ const VediAPI = {
   }),
 
   /**
-   * Get fee configuration for a restaurant (FIXED: CONSISTENT DOLLAR DEFAULTS)
+   * Update venue fee percentage for a restaurant (called from venue dashboard)
    * @param {string} restaurantId - Restaurant ID
-   * @returns {Promise<Object|null>} Fee configuration or default
+   * @param {number} venueFeePercentage - New venue fee percentage
+   * @param {string} updatedBy - User ID who made the change
+   * @returns {Promise<Object>} Updated fee configuration
+   */
+  updateVenueFeePercentage: withTracking('updateVenueFeePercentage', async function(restaurantId, venueFeePercentage, updatedBy = null) {
+    try {
+      const db = getFirebaseDb();
+      const auth = getFirebaseAuth();
+      
+      // Get current fee config or create default if doesn't exist
+      let currentConfig = await this.getFeeConfig(restaurantId);
+      
+      // If it's a default config, create a real one
+      if (currentConfig.isDefault) {
+        delete currentConfig.isDefault;
+        delete currentConfig.id;
+        currentConfig.restaurantId = restaurantId;
+      }
+      
+      // Update venue fee percentage
+      const updateData = {
+        ...currentConfig,
+        venueFeePercentage: venueFeePercentage || 0,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        venueFeeUpdatedBy: updatedBy || auth.currentUser?.uid,
+        venueFeeUpdatedDate: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      await db.collection('feeConfigurations').doc(restaurantId).set(updateData, { merge: true });
+      
+      console.log('✅ Venue fee percentage updated:', restaurantId, venueFeePercentage + '%');
+      return updateData;
+      
+    } catch (error) {
+      console.error('❌ Update venue fee percentage error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Get fee configuration for a restaurant - ENHANCED with venue fee defaults
+   * @param {string} restaurantId - Restaurant ID
+   * @returns {Promise<Object|null>} Fee configuration including venue fees
    */
   getFeeConfig: withTracking('getFeeConfig', async function(restaurantId) {
     try {
@@ -1291,26 +1383,17 @@ const VediAPI = {
       const doc = await db.collection('feeConfigurations').doc(restaurantId).get();
       
       if (doc.exists) {
-        return { id: doc.id, ...doc.data() };
+        const config = { id: doc.id, ...doc.data() };
+        
+        // Ensure venue fee percentage is included
+        if (config.venueFeePercentage === undefined) {
+          config.venueFeePercentage = 0;
+        }
+        
+        return config;
       }
       
-      // Return default configuration if none exists (FIXED: CONSISTENT DOLLAR DEFAULTS)
-      return {
-        restaurantId,
-        serviceFeeFixed: 2.00, // Default $2.00
-        serviceFeePercentage: 0,
-        feeType: 'fixed',
-        taxRate: 0.085, // Default 8.5%
-        minimumOrderAmount: 0,
-        stripeFeePercentage: 2.9, // Default Stripe 2.9%
-        stripeFlatFee: 0.30, // FIXED: Default $0.30 (was 30 cents)
-        isNegotiated: false,
-        isDefault: true
-      };
-      
-    } catch (error) {
-      console.error('❌ Get fee config error:', error);
-      // Return default on error (FIXED: CONSISTENT DOLLAR DEFAULTS)
+      // Return default configuration if none exists - ENHANCED with venue fee
       return {
         restaurantId,
         serviceFeeFixed: 2.00,
@@ -1319,46 +1402,44 @@ const VediAPI = {
         taxRate: 0.085,
         minimumOrderAmount: 0,
         stripeFeePercentage: 2.9,
-        stripeFlatFee: 0.30, // FIXED: Default $0.30 (was 30 cents)
+        stripeFlatFee: 0.30,
+        venueFeePercentage: 0, // ENHANCED: Default venue fee
+        venueId: null,
+        venueName: null,
+        isNegotiated: false,
+        isDefault: true
+      };
+      
+    } catch (error) {
+      console.error('❌ Get fee config error:', error);
+      // Return default on error - ENHANCED with venue fee
+      return {
+        restaurantId,
+        serviceFeeFixed: 2.00,
+        serviceFeePercentage: 0,
+        feeType: 'fixed',
+        taxRate: 0.085,
+        minimumOrderAmount: 0,
+        stripeFeePercentage: 2.9,
+        stripeFlatFee: 0.30,
+        venueFeePercentage: 0, // ENHANCED: Default venue fee
         isDefault: true
       };
     }
   }),
 
   /**
-   * Get fee configuration for a venue (affects all restaurants in venue)
-   * @param {string} venueId - Venue ID
-   * @returns {Promise<Object|null>} Venue fee configuration
-   */
-  getVenueFeeConfig: withTracking('getVenueFeeConfig', async function(venueId) {
-    try {
-      const db = getFirebaseDb();
-      
-      const doc = await db.collection('venueFeeConfigurations').doc(venueId).get();
-      
-      if (doc.exists) {
-        return { id: doc.id, ...doc.data() };
-      }
-      
-      return null; // No venue-level configuration
-      
-    } catch (error) {
-      console.error('❌ Get venue fee config error:', error);
-      return null;
-    }
-  }),
-
-  /**
-   * Calculate fees for an order (FIXED: CONSISTENT DOLLAR CALCULATIONS)
+   * Calculate fees for an order - ENHANCED to include venue fees
    * @param {string} restaurantId - Restaurant ID
    * @param {number} subtotal - Order subtotal
-   * @returns {Promise<Object>} Calculated fees
+   * @returns {Promise<Object>} Calculated fees including venue fees
    */
   calculateOrderFees: withTracking('calculateOrderFees', async function(restaurantId, subtotal) {
     try {
       const feeConfig = await this.getFeeConfig(restaurantId);
       
       let serviceFee = 0;
+      let venueFee = 0;
       let stripeFee = 0;
       let taxAmount = 0;
       
@@ -1377,26 +1458,30 @@ const VediAPI = {
           serviceFee = feeConfig.serviceFeeFixed || 2.00;
       }
       
+      // ENHANCED: Calculate venue fee
+      venueFee = (subtotal * ((feeConfig.venueFeePercentage || 0) / 100));
+      
       // Apply minimum order amount logic
       if (subtotal < feeConfig.minimumOrderAmount) {
         const shortfall = feeConfig.minimumOrderAmount - subtotal;
         serviceFee += shortfall; // Add shortfall to service fee
       }
       
-      // FIXED: Calculate Stripe fees (stripeFlatFee now in dollars)
+      // Calculate Stripe fees
       const stripePercentage = (feeConfig.stripeFeePercentage || 2.9) / 100;
-      const stripeFlatDollars = feeConfig.stripeFlatFee || 0.30; // Now in dollars
+      const stripeFlatDollars = feeConfig.stripeFlatFee || 0.30;
       stripeFee = (subtotal * stripePercentage) + stripeFlatDollars;
       
       // Calculate tax
       taxAmount = subtotal * (feeConfig.taxRate || 0.085);
       
-      const total = subtotal + serviceFee + stripeFee + taxAmount;
+      const total = subtotal + serviceFee + venueFee + stripeFee + taxAmount;
       
       return {
         subtotal,
-        serviceFee: Math.round(serviceFee * 100) / 100, // Round to 2 decimals
-        stripeFee: Math.round(stripeFee * 100) / 100, // Round to 2 decimals
+        serviceFee: Math.round(serviceFee * 100) / 100,
+        venueFee: Math.round(venueFee * 100) / 100, // ENHANCED: Venue fee
+        stripeFee: Math.round(stripeFee * 100) / 100,
         taxAmount: Math.round(taxAmount * 100) / 100,
         taxRate: feeConfig.taxRate || 0.085,
         total: Math.round(total * 100) / 100,
@@ -1405,8 +1490,10 @@ const VediAPI = {
           serviceFeeType: feeConfig.feeType,
           serviceFeeFixed: feeConfig.serviceFeeFixed,
           serviceFeePercentage: feeConfig.serviceFeePercentage,
+          venueFeePercentage: feeConfig.venueFeePercentage, // ENHANCED: Venue fee percentage
+          venueId: feeConfig.venueId, // ENHANCED: Venue ID
           stripeFeePercentage: feeConfig.stripeFeePercentage,
-          stripeFlatFee: feeConfig.stripeFlatFee, // Now in dollars
+          stripeFlatFee: feeConfig.stripeFlatFee,
           isNegotiated: feeConfig.isNegotiated
         }
       };
@@ -1418,9 +1505,9 @@ const VediAPI = {
   }),
 
   /**
-   * Get all fee configurations (for admin dashboard)
+   * Get all fee configurations - ENHANCED to include venue fee information
    * @param {Object} options - Query options
-   * @returns {Promise<Array>} Array of fee configurations
+   * @returns {Promise<Array>} Array of fee configurations with venue fees
    */
   getAllFeeConfigs: withTracking('getAllFeeConfigs', async function(options = {}) {
     try {
@@ -1441,25 +1528,34 @@ const VediAPI = {
       const querySnapshot = await query.get();
       const configs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Enrich with restaurant data
+      // Enrich with restaurant data and ensure venue fee is included
       const enrichedConfigs = await Promise.all(configs.map(async (config) => {
         try {
           const restaurant = await this.getRestaurant(config.restaurantId);
+          
+          // Ensure venue fee percentage is included
+          if (config.venueFeePercentage === undefined) {
+            config.venueFeePercentage = 0;
+          }
+          
           return {
             ...config,
             restaurantName: restaurant.name,
-            restaurantCurrency: restaurant.currency || 'USD'
+            restaurantCurrency: restaurant.currency || 'USD',
+            venueId: restaurant.venueId || config.venueId,
+            venueName: restaurant.venueName || config.venueName
           };
         } catch (error) {
           return {
             ...config,
             restaurantName: 'Unknown Restaurant',
-            restaurantCurrency: 'USD'
+            restaurantCurrency: 'USD',
+            venueFeePercentage: config.venueFeePercentage || 0
           };
         }
       }));
       
-      console.log('✅ Retrieved fee configurations (FIXED - consistent dollars):', enrichedConfigs.length);
+      console.log('✅ Retrieved fee configurations with venue fees:', enrichedConfigs.length);
       return enrichedConfigs;
       
     } catch (error) {
@@ -1485,10 +1581,10 @@ const VediAPI = {
   }),
 
   /**
-   * Get fee analytics (revenue tracking) - FIXED FOR CONSISTENT DOLLAR CALCULATIONS
+   * Get fee analytics - ENHANCED to include venue fee revenue tracking
    * @param {string} timePeriod - Time period (today, week, month, year)
    * @param {string} restaurantId - Optional restaurant filter
-   * @returns {Promise<Object>} Fee analytics
+   * @returns {Promise<Object>} Fee analytics including venue fees
    */
   getFeeAnalytics: withTracking('getFeeAnalytics', async function(timePeriod = 'month', restaurantId = null) {
     try {
@@ -1509,54 +1605,123 @@ const VediAPI = {
       
       let totalRevenue = 0;
       let totalServiceFees = 0;
-      let totalStripeFees = 0; // Track Stripe fees
+      let totalVenueFees = 0; // ENHANCED: Track venue fees
+      let totalStripeFees = 0;
       let totalTax = 0;
       let orderCount = 0;
       const revenueByRestaurant = {};
+      const revenueByVenue = {}; // ENHANCED: Track venue revenue
       
       ordersSnapshot.docs.forEach(doc => {
         const order = doc.data();
         if (order.status === 'completed') {
           totalRevenue += order.total || 0;
           totalServiceFees += order.serviceFee || 0;
-          totalStripeFees += order.stripeFee || 0; // Add Stripe fees
+          totalVenueFees += order.venueFee || 0; // ENHANCED: Add venue fees
+          totalStripeFees += order.stripeFee || 0;
           totalTax += order.tax || 0;
           orderCount++;
           
           const restId = order.restaurantId;
+          const venueId = order.venueId; // ENHANCED: Get venue ID from order
+          
           if (!revenueByRestaurant[restId]) {
             revenueByRestaurant[restId] = {
               revenue: 0,
               serviceFees: 0,
-              stripeFees: 0, // Track Stripe fees per restaurant
+              venueFees: 0, // ENHANCED: Track venue fees per restaurant
+              stripeFees: 0,
               orders: 0
             };
           }
           
           revenueByRestaurant[restId].revenue += order.total || 0;
           revenueByRestaurant[restId].serviceFees += order.serviceFee || 0;
+          revenueByRestaurant[restId].venueFees += order.venueFee || 0; // ENHANCED
           revenueByRestaurant[restId].stripeFees += order.stripeFee || 0;
           revenueByRestaurant[restId].orders++;
+          
+          // ENHANCED: Track venue revenue if venue exists
+          if (venueId) {
+            if (!revenueByVenue[venueId]) {
+              revenueByVenue[venueId] = {
+                revenue: 0,
+                venueFees: 0,
+                orders: 0,
+                restaurants: new Set()
+              };
+            }
+            
+            revenueByVenue[venueId].revenue += order.total || 0;
+            revenueByVenue[venueId].venueFees += order.venueFee || 0;
+            revenueByVenue[venueId].orders++;
+            revenueByVenue[venueId].restaurants.add(restId);
+          }
         }
+      });
+      
+      // Convert venue restaurant sets to counts
+      Object.keys(revenueByVenue).forEach(venueId => {
+        revenueByVenue[venueId].restaurantCount = revenueByVenue[venueId].restaurants.size;
+        delete revenueByVenue[venueId].restaurants;
       });
       
       return {
         timePeriod,
         totalRevenue,
         totalServiceFees,
-        totalStripeFees, // Include Stripe fees in analytics
+        totalVenueFees, // ENHANCED: Include venue fees
+        totalStripeFees,
         totalTax,
         orderCount,
         averageOrderValue: orderCount > 0 ? totalRevenue / orderCount : 0,
         averageServiceFee: orderCount > 0 ? totalServiceFees / orderCount : 0,
+        averageVenueFee: orderCount > 0 ? totalVenueFees / orderCount : 0, // ENHANCED
         averageStripeFee: orderCount > 0 ? totalStripeFees / orderCount : 0,
         revenueByRestaurant,
-        platformCommission: totalServiceFees, // This is your revenue
+        revenueByVenue, // ENHANCED: Venue revenue breakdown
+        platformCommission: totalServiceFees, // Your platform revenue
+        venueCommission: totalVenueFees, // ENHANCED: Venue revenue
         stripeCommission: totalStripeFees // Stripe's revenue
       };
       
     } catch (error) {
       console.error('❌ Get fee analytics error:', error);
+      throw error;
+    }
+  }),
+
+  /**
+   * Sync venue fee changes across all restaurants in a venue
+   * @param {string} venueId - Venue ID
+   * @param {number} newVenueFeePercentage - New venue fee percentage
+   * @param {string} updatedBy - User ID who made the change
+   * @returns {Promise<Array>} Array of updated restaurant fee configs
+   */
+  syncVenueFeeAcrossRestaurants: withTracking('syncVenueFeeAcrossRestaurants', async function(venueId, newVenueFeePercentage, updatedBy = null) {
+    try {
+      console.log('🔄 Syncing venue fee across all restaurants in venue:', venueId);
+      
+      // Get all restaurants in this venue
+      const restaurants = await this.getRestaurantsByVenue(venueId);
+      
+      if (restaurants.length === 0) {
+        console.log('⚠️ No restaurants found in venue:', venueId);
+        return [];
+      }
+      
+      // Update venue fee for each restaurant
+      const updatePromises = restaurants.map(restaurant => 
+        this.updateVenueFeePercentage(restaurant.id, newVenueFeePercentage, updatedBy)
+      );
+      
+      const updatedConfigs = await Promise.all(updatePromises);
+      
+      console.log('✅ Venue fee synced across', restaurants.length, 'restaurants');
+      return updatedConfigs;
+      
+    } catch (error) {
+      console.error('❌ Sync venue fee error:', error);
       throw error;
     }
   }),
@@ -2177,7 +2342,7 @@ window.VediAPI = VediAPI;
 // Legacy support - also make it available as FirebaseAPI for backward compatibility
 window.FirebaseAPI = VediAPI;
 
-console.log('🍽️ FIXED Enhanced Vedi Firebase API loaded successfully');
+console.log('🍽️ COMPLETE Enhanced Vedi Firebase API loaded successfully');
 console.log('📚 Available methods:', Object.keys(VediAPI).length, 'total methods');
 console.log('📊 API tracking: ENABLED for all methods');
 console.log('🔐 Enhanced authentication support:');
@@ -2187,25 +2352,28 @@ console.log('   📘 Facebook social authentication');
 console.log('   🍎 Apple social authentication');
 console.log('   👤 Customer profile management');
 console.log('   🔒 UID-based order security');
-console.log('   ❌ Phone authentication REMOVED');
-console.log('   ❌ SMS verification REMOVED');
-console.log('   ❌ reCAPTCHA REMOVED');
-console.log('💰 Dynamic Fee Management System:');
+console.log('💰 Enhanced Fee Management System:');
 console.log('   ⚙️ Custom fee configurations per restaurant');
 console.log('   📊 Fixed, percentage, and hybrid fee structures');
 console.log('   🤝 Negotiated rate tracking and management');
 console.log('   📈 Platform revenue analytics and tracking');
 console.log('   🏛️ Custom tax rates and minimum order amounts');
+console.log('🏢 ENHANCED: Venue Fee Management:');
+console.log('   📋 Venue fees stored in feeConfigurations collection');
+console.log('   🔄 updateVenueFeePercentage() for venue dashboard updates');
+console.log('   🔗 syncVenueFeeAcrossRestaurants() for bulk venue updates');
+console.log('   📊 Enhanced analytics with venue revenue tracking');
+console.log('   💰 All fees (platform, venue, stripe) in single collection');
 console.log('💳 FIXED: Stripe Fee Management:');
 console.log('   🔧 ALL FEES NOW STORED IN DOLLARS (not cents)');
 console.log('   📊 Consistent fee calculations throughout system');
 console.log('   💰 stripeFlatFee: $0.30 instead of 30 cents');
 console.log('   📈 Enhanced revenue analytics with consistent calculations');
 console.log('   ✅ No more cents/dollars conversion confusion');
-console.log('🔥 Ready for production use with FIXED consistent dollar amounts!');
+console.log('🔥 Ready for production use with ENHANCED venue fee support!');
 console.log('✅ FIXED: Loss incident creation now handles undefined values properly');
 console.log('🔧 FIXED: Firebase database references properly initialized');
-console.log('💡 FIXED: Dynamic fee system now uses consistent dollar amounts');
+console.log('💡 ENHANCED: Venue fees integrated into feeConfigurations collection');
 console.log('🧹 CLEANED: Removed phone auth, SMS verification, and reCAPTCHA functionality');
-console.log('💳 CRITICAL FIX: All Stripe fees now stored and calculated in dollars consistently');
-console.log('🎯 SOLUTION: Your existing 30 cent data will display as $30 - you need to update to $0.30');
+console.log('💳 CRITICAL ENHANCEMENT: Venue fees now managed alongside platform and Stripe fees');
+console.log('🎯 COMPLETE: Single source of truth for all fee configurations');
