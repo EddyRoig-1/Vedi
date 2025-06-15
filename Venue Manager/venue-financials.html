@@ -902,9 +902,11 @@
             }
         });
 
-        // Load venue data using VediAPI
+        // Enhanced initialization with comprehensive debugging
         async function initializeFinancials() {
             console.log('🚀 Starting venue financials initialization...');
+            console.log('🕐 Timestamp:', new Date().toISOString());
+            
             showLoading();
             
             try {
@@ -934,9 +936,13 @@
                 });
                 document.getElementById('venueName').textContent = currentVenue.name + ' Financials';
 
-                // Load global fee configuration
-                await loadGlobalFeeConfig();
-                
+                // DEBUG: Check Firebase connection
+                console.log('🔗 Firebase connection check:', {
+                    dbAvailable: !!Firebase.db,
+                    authAvailable: !!Firebase.auth,
+                    vediAPIAvailable: !!window.VediAPI
+                });
+
                 // Load restaurants using VenueSync
                 console.log('🏪 Loading restaurants data...');
                 await loadRestaurantsData();
@@ -944,6 +950,20 @@
                 // Load revenue data
                 console.log('💰 Loading revenue data...');
                 await loadRevenueData();
+                
+                // DEBUG: Show what data we actually loaded
+                console.log('📊 DEBUGGING - Final loaded data:');
+                console.log('   - Restaurants:', allRestaurants.length);
+                console.log('   - Global fee config:', globalFeeConfig);
+                allRestaurants.forEach((restaurant, index) => {
+                    console.log(`   - Restaurant ${index + 1}:`, {
+                        name: restaurant.name,
+                        id: restaurant.id,
+                        venueFeePercentage: restaurant.venueFeePercentage,
+                        feeConfig: restaurant.feeConfig,
+                        venueId: restaurant.venueId
+                    });
+                });
                 
                 // Update UI
                 console.log('🔄 Updating UI components...');
@@ -1068,7 +1088,7 @@
             }
         }
 
-        // Load restaurants data using VediAPI
+        // DEBUGGING: Load and explore all possible fee data sources
         async function loadRestaurantsData() {
             console.log('📊 Loading restaurants data for venue:', currentVenue.id);
             
@@ -1077,6 +1097,12 @@
                 allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
                 console.log('📍 Found restaurants:', allRestaurants.length);
                 
+                // DEBUGGING: Let's see ALL the data on each restaurant
+                console.log('🔍 DEBUGGING - Complete restaurant data:');
+                allRestaurants.forEach((restaurant, index) => {
+                    console.log(`Restaurant ${index + 1} (${restaurant.name}):`, restaurant);
+                });
+                
                 // Store original fee rates
                 allRestaurants.forEach(restaurant => {
                     const currentFee = restaurant.venueFeePercentage || currentVenue.defaultFeePercentage || 1.0;
@@ -1084,14 +1110,14 @@
                     console.log(`💳 ${restaurant.name}: ${currentFee}% venue fee rate`);
                 });
                 
+                // DEBUGGING: Try to load from ALL possible collections
+                console.log('🔍 DEBUGGING - Checking all possible fee data sources...');
+                await debugFeeDataSources();
+                
                 console.log('✅ Loaded restaurants for financials:', {
                     count: allRestaurants.length,
                     originalFeeRates: originalFeeRates
                 });
-                
-                // IMPORTANT: Load fee configurations for all restaurants after loading restaurants
-                console.log('📋 Loading fee configurations for all restaurants...');
-                await loadFeeConfigsForRestaurants();
                 
             } catch (error) {
                 console.error('❌ Error loading restaurants:', error);
@@ -1104,75 +1130,93 @@
             }
         }
 
-        // NEW: Load fee configurations for all restaurants in the venue
-        async function loadFeeConfigsForRestaurants() {
-            console.log('🔧 Loading fee configurations for', allRestaurants.length, 'restaurants');
+        // DEBUGGING: Check all possible sources of fee data
+        async function debugFeeDataSources() {
+            console.log('🕵️ Starting comprehensive fee data debugging...');
             
             try {
-                for (const restaurant of allRestaurants) {
-                    console.log(`📋 Loading fee config for ${restaurant.name} (${restaurant.id})`);
-                    
+                // 1. Check feeConfigurations collection
+                console.log('📋 1. Checking feeConfigurations collection...');
+                const feeConfigsSnapshot = await Firebase.db.collection('feeConfigurations').get();
+                console.log(`Found ${feeConfigsSnapshot.docs.length} documents in feeConfigurations:`);
+                feeConfigsSnapshot.docs.forEach(doc => {
+                    console.log(`  - ${doc.id}:`, doc.data());
+                });
+                
+                // 2. Check restaurants collection for fee data
+                console.log('📋 2. Checking restaurants collection for fee fields...');
+                allRestaurants.forEach(restaurant => {
+                    const feeFields = {};
+                    Object.keys(restaurant).forEach(key => {
+                        if (key.toLowerCase().includes('fee') || key.toLowerCase().includes('percentage')) {
+                            feeFields[key] = restaurant[key];
+                        }
+                    });
+                    console.log(`  - ${restaurant.name} fee fields:`, feeFields);
+                });
+                
+                // 3. Check venues collection for fee data  
+                console.log('📋 3. Checking venues collection for fee fields...');
+                const venueDoc = await Firebase.db.collection('venues').doc(currentVenue.id).get();
+                if (venueDoc.exists) {
+                    const venueData = venueDoc.data();
+                    const venueFeeFields = {};
+                    Object.keys(venueData).forEach(key => {
+                        if (key.toLowerCase().includes('fee') || key.toLowerCase().includes('percentage')) {
+                            venueFeeFields[key] = venueData[key];
+                        }
+                    });
+                    console.log(`  - ${currentVenue.name} fee fields:`, venueFeeFields);
+                }
+                
+                // 4. Check for any other fee-related collections
+                console.log('📋 4. Checking for other fee-related collections...');
+                const collections = await Firebase.db.listCollections();
+                console.log('Available collections:', collections.map(c => c.id));
+                
+                // Try specific collections that might contain fee data
+                const possibleCollections = ['venueFeeConfigurations', 'venueConfigs', 'defaultFees', 'platformFees'];
+                for (const collectionName of possibleCollections) {
                     try {
-                        // Try to get restaurant-specific fee config
-                        const restaurantConfigDoc = await Firebase.db.collection('feeConfigurations').doc(restaurant.id).get();
-                        
-                        if (restaurantConfigDoc.exists) {
-                            const feeConfig = restaurantConfigDoc.data();
-                            console.log(`✅ Found fee config for ${restaurant.name}:`, feeConfig);
-                            
-                            // Store the fee config for this restaurant
-                            restaurant.feeConfig = feeConfig;
-                        } else {
-                            console.log(`⚠️ No specific fee config for ${restaurant.name}, will use default`);
-                            
-                            // Set default fee config
-                            restaurant.feeConfig = {
-                                serviceFeeFixed: 0.5,
-                                serviceFeePercentage: 6,
-                                feeType: 'hybrid',
-                                stripeFeePercentage: 2.9,
-                                stripeFlatFee: 30,
-                                taxRate: 0.09,
-                                isDefault: true
-                            };
+                        const snapshot = await Firebase.db.collection(collectionName).limit(5).get();
+                        if (!snapshot.empty) {
+                            console.log(`Found data in ${collectionName}:`, snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })));
                         }
                     } catch (error) {
-                        console.error(`❌ Error loading fee config for ${restaurant.name}:`, error);
-                        
-                        // Set fallback fee config
-                        restaurant.feeConfig = {
-                            serviceFeeFixed: 0.5,
-                            serviceFeePercentage: 6,
-                            feeType: 'hybrid',
-                            stripeFeePercentage: 2.9,
-                            stripeFlatFee: 30,
-                            taxRate: 0.09,
-                            isDefault: true,
-                            isFallback: true
-                        };
+                        console.log(`Collection ${collectionName} doesn't exist or no permission`);
                     }
                 }
                 
-                console.log('✅ Loaded fee configurations for all restaurants');
-                
-                // Update global config with the first restaurant's config as default
-                if (allRestaurants.length > 0 && allRestaurants[0].feeConfig) {
-                    const firstConfig = allRestaurants[0].feeConfig;
-                    globalFeeConfig = {
-                        stripeFeePercentage: firstConfig.stripeFeePercentage || 2.9,
-                        stripeFlatFee: firstConfig.stripeFlatFee || 30,
-                        serviceFeePercentage: firstConfig.serviceFeePercentage || 6,
-                        serviceFeeFixed: firstConfig.serviceFeeFixed || 0.5,
-                        feeType: firstConfig.feeType || 'hybrid',
-                        isNegotiated: firstConfig.isNegotiated || false,
-                        taxRate: firstConfig.taxRate || 0.09
-                    };
+                // 5. Try to get fee config using VediAPI methods
+                console.log('📋 5. Testing VediAPI fee methods...');
+                if (allRestaurants.length > 0) {
+                    const testRestaurantId = allRestaurants[0].id;
+                    console.log(`Testing with restaurant ID: ${testRestaurantId}`);
                     
-                    console.log('🔄 Updated global fee config from restaurant data:', globalFeeConfig);
+                    try {
+                        const feeConfig = await window.VediAPI.getFeeConfig(testRestaurantId);
+                        console.log('VediAPI.getFeeConfig result:', feeConfig);
+                        
+                        // Store this as our global config if we found it
+                        if (feeConfig && !feeConfig.isDefault) {
+                            globalFeeConfig = {
+                                stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9,
+                                stripeFlatFee: feeConfig.stripeFlatFee || 30,
+                                serviceFeePercentage: feeConfig.serviceFeePercentage || 6,
+                                serviceFeeFixed: feeConfig.serviceFeeFixed || 0.5,
+                                feeType: feeConfig.feeType || 'hybrid',
+                                isNegotiated: feeConfig.isNegotiated || false,
+                                taxRate: feeConfig.taxRate || 0.09
+                            };
+                            console.log('✅ Updated global fee config from VediAPI:', globalFeeConfig);
+                        }
+                    } catch (error) {
+                        console.log('VediAPI.getFeeConfig failed:', error.message);
+                    }
                 }
                 
             } catch (error) {
-                console.error('❌ Error loading fee configurations for restaurants:', error);
+                console.error('❌ Error in fee data debugging:', error);
             }
         }
 
@@ -2083,13 +2127,13 @@
         }
 
         // Utility functions
-       function formatPrice(amount, currency = null) {
-    if (!currency) {
-        currency = { symbol: '$', code: 'USD' };
-    }
-    const formattedAmount = Number(amount || 0).toFixed(2);
-    return `${currency.symbol}${formattedAmount}`;
-}
+        function formatPrice(amount, currency = null) {
+            if (!currency) {
+            currency = { symbol: '$', code: 'USD' };
+            }
+            const formattedAmount = Number(amount || 0).toFixed(2);
+            return `${currency.symbol}${formattedAmount}`;
+        }
 
         function showLoading(message = 'Loading...') {
             console.log('⏳ Showing loading:', message);
