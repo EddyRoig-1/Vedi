@@ -745,7 +745,7 @@
         <div class="header">
             <div class="header-content">
                 <div class="header-info">
-                    <h1><span id="venueName">Venue Financials</span></h1>
+                    <h1> <span id="venueName">Venue Financials</span></h1>
                     <p>Manage restaurant fee splits and revenue projections</p>
                 </div>
                 <a href="venue-admin-dashboard.html" class="back-btn">
@@ -1101,27 +1101,28 @@
                 let platformFeeAmount = 0;
                 let platformFeeDisplay = '';
                 
-                switch (globalFeeConfig.feeType) {
-                    case 'fixed':
-                        platformFeeAmount = globalFeeConfig.serviceFeeFixed || 0;
-                        platformFeeDisplay = `$${platformFeeAmount.toFixed(2)}`;
-                        break;
-                        
-                    case 'percentage':
-                        platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-                        platformFeeDisplay = `${globalFeeConfig.serviceFeePercentage}%`;
-                        break;
-                        
-                    case 'hybrid':
-                        const fixedPart = globalFeeConfig.serviceFeeFixed || 0;
-                        const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-                        platformFeeAmount = fixedPart + percentagePart;
-                        platformFeeDisplay = `${globalFeeConfig.serviceFeePercentage}% + $${fixedPart.toFixed(2)}`;
-                        break;
-                        
-                    default:
-                        platformFeeAmount = netAfterStripe * 0.035;
-                        platformFeeDisplay = '3.5%';
+                // Dynamic platform fee display logic
+                const hasFixed = globalFeeConfig.serviceFeeFixed && globalFeeConfig.serviceFeeFixed > 0;
+                const hasPercentage = globalFeeConfig.serviceFeePercentage && globalFeeConfig.serviceFeePercentage > 0;
+                
+                if (hasFixed && hasPercentage) {
+                    // Hybrid: both fixed and percentage
+                    const fixedPart = globalFeeConfig.serviceFeeFixed;
+                    const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
+                    platformFeeAmount = fixedPart + percentagePart;
+                    platformFeeDisplay = `${fixedPart.toFixed(2)} + ${globalFeeConfig.serviceFeePercentage}%`;
+                } else if (hasFixed && !hasPercentage) {
+                    // Fixed only
+                    platformFeeAmount = globalFeeConfig.serviceFeeFixed;
+                    platformFeeDisplay = `${globalFeeConfig.serviceFeeFixed.toFixed(2)}`;
+                } else if (!hasFixed && hasPercentage) {
+                    // Percentage only
+                    platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
+                    platformFeeDisplay = `${globalFeeConfig.serviceFeePercentage}%`;
+                } else {
+                    // Fallback to default
+                    platformFeeAmount = netAfterStripe * 0.035;
+                    platformFeeDisplay = '3.5% (default)';
                 }
                 
                 console.log('⚡ Platform fee calculation:', {
@@ -1155,9 +1156,11 @@
                         amount: platformFeeAmount,
                         monthlyAmount: monthlyRevenue * (platformFeeAmount / averageOrderValue),
                         displayText: platformFeeDisplay,
-                        feeType: globalFeeConfig.feeType,
-                        configuredFixed: globalFeeConfig.serviceFeeFixed,
-                        configuredPercentage: globalFeeConfig.serviceFeePercentage
+                        // Dynamic fee structure - same logic as calculation
+                        hasFixed: hasFixed,
+                        hasPercentage: hasPercentage,
+                        configuredFixed: globalFeeConfig.serviceFeeFixed || 0,
+                        configuredPercentage: globalFeeConfig.serviceFeePercentage || 0
                     },
                     stripe: {
                         percentage: (stripeFeeAmount / averageOrderValue) * 100,
@@ -1867,20 +1870,25 @@
             const stripeFeeAmount = (orderValue * stripeFeePercentage) + stripeFlatFee;
             const netAfterStripe = orderValue - stripeFeeAmount;
             
-            // Platform fee calculation
+            // Platform fee calculation - dynamic display like Stripe
             let platformFeeAmount = 0;
-            switch (globalFeeConfig.feeType) {
-                case 'fixed':
-                    platformFeeAmount = globalFeeConfig.serviceFeeFixed || 0;
-                    break;
-                case 'percentage':
-                    platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-                    break;
-                case 'hybrid':
-                    const fixedPart = globalFeeConfig.serviceFeeFixed || 0;
-                    const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
-                    platformFeeAmount = fixedPart + percentagePart;
-                    break;
+            const hasFixed = globalFeeConfig.serviceFeeFixed && globalFeeConfig.serviceFeeFixed > 0;
+            const hasPercentage = globalFeeConfig.serviceFeePercentage && globalFeeConfig.serviceFeePercentage > 0;
+            
+            if (hasFixed && hasPercentage) {
+                // Hybrid: both fixed and percentage
+                const fixedPart = globalFeeConfig.serviceFeeFixed;
+                const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
+                platformFeeAmount = fixedPart + percentagePart;
+            } else if (hasFixed && !hasPercentage) {
+                // Fixed only
+                platformFeeAmount = globalFeeConfig.serviceFeeFixed;
+            } else if (!hasFixed && hasPercentage) {
+                // Percentage only
+                platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
+            } else {
+                // Fallback
+                platformFeeAmount = netAfterStripe * 0.035;
             }
             
             // Venue fee and restaurant net
