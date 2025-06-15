@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vedi Fee Management - Analytics</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Firebase API -->
+    <script src="../firebase-api.js"></script>
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea, #764ba2);
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+            --text-primary: #1a202c;
+            --text-secondary: #64748b;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --border-color: #e2e8f0;
+            --border-radius: 12px;
+            --border-radius-lg: 20px;
+            --shadow-sm: 0 4px 20px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 10px 40px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 25px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            color: var(--text-primary);
+            padding: 1rem;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Typography */
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        /* Layout Components */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .card {
+            background: var(--bg-primary);
+            border-radius: var(--border-radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--bg-secondary);
+        }
+
+        /* Navigation */
+        .nav {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .nav-link {
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: var(--border-radius);
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-link:hover {
+            background: var(--primary-gradient);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Form Components */
+        .form-select {
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            background: var(--bg-secondary);
+            cursor: pointer;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            height: 350px;
+            position: relative;
+            margin-top: 1rem;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin-right: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            border: 1px solid;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #065f46;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #991b1b;
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1e40af;
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0.5rem;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .nav {
+                flex-direction: column;
+            }
+
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">📈 Fee Analytics</h1>
+                <p class="page-subtitle">Revenue analytics and performance metrics</p>
+            </header>
+
+            <!-- Navigation -->
+            <nav class="nav">
+                <a href="fee-management.html" class="nav-link">
+                    <span>📊</span>
+                    <span>Overview</span>
+                </a>
+                <a href="configure.html" class="nav-link">
+                    <span>⚙️</span>
+                    <span>Configure</span>
+                </a>
+                <a href="analytics.html" class="nav-link">
+                    <span>📈</span>
+                    <span>Analytics</span>
+                </a>
+                <a href="restaurants.html" class="nav-link">
+                    <span>🏪</span>
+                    <span>Restaurants</span>
+                </a>
+            </nav>
+
+            <!-- Analytics Content -->
+            <section id="analytics-content">
+                <div class="grid grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="section-title">📊 Revenue Analytics</h3>
+                            <select id="analyticsTimePeriod" class="form-select" style="width: auto;">
+                                <option value="week">Last 7 Days</option>
+                                <option value="month" selected>Last 30 Days</option>
+                                <option value="quarter">Last 90 Days</option>
+                                <option value="year">Last Year</option>
+                            </select>
+                        </div>
+                        <div id="analyticsContent">
+                            <div class="loading">
+                                <div class="loading-spinner"></div>
+                                Loading analytics...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="section-title">🏆 Top Performing Restaurants</h3>
+                        </div>
+                        <div id="topRestaurants">
+                            <div class="loading">
+                                <div class="loading-spinner"></div>
+                                Loading restaurant data...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="section-title">📈 Revenue by Fee Type</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="feeTypeChart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alertContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 1001;"></div>
+
+    <script>
+        // =============================================================================
+        // APPLICATION STATE AND CONFIGURATION
+        // =============================================================================
+        
+        const AppState = {
+            isFirebaseReady: false,
+            restaurants: [],
+            feeConfigs: [],
+            charts: {
+                feeType: null
+            }
+        };
+
+        const Firebase = {
+            config: {
+                apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
+                authDomain: "vedi00.firebaseapp.com", 
+                projectId: "vedi00",
+                storageBucket: "vedi00.firebasestorage.app",
+                messagingSenderId: "136867441640",
+                appId: "1:136867441640:web:9ec709b63f5690f628125d",
+                measurementId: "G-ZS0FKPTEY2"
+            },
+            db: null,
+            auth: null
+        };
+
+        // =============================================================================
+        // UTILITY FUNCTIONS
+        // =============================================================================
+        
+        const Utils = {
+            formatCurrency(amount) {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD'
+                }).format(amount || 0);
+            },
+
+            showAlert(message, type = 'info') {
+                const alertContainer = document.getElementById('alertContainer');
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.style.cssText = `
+                    position: relative;
+                    padding: 1rem 1.5rem;
+                    border-radius: var(--border-radius);
+                    margin-bottom: 1rem;
+                    font-weight: 500;
+                    box-shadow: var(--shadow-md);
+                    animation: slideInRight 0.3s ease-out;
+                `;
+                
+                const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+                alertDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span>${icon}</span>
+                        <span>${message}</span>
+                    </div>
+                `;
+                
+                alertContainer.appendChild(alertDiv);
+                
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.style.animation = 'slideOutRight 0.3s ease-in';
+                        setTimeout(() => {
+                            if (alertDiv.parentNode) {
+                                alertDiv.parentNode.removeChild(alertDiv);
+                            }
+                        }, 300);
+                    }
+                }, 5000);
+            },
+
+            showLoading(containerId) {
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = `
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                            Loading...
+                        </div>
+                    `;
+                }
+            },
+
+            showEmptyState(containerId, icon, title, description) {
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">${icon}</div>
+                            <h3>${title}</h3>
+                            <p>${description}</p>
+                        </div>
+                    `;
+                }
+            }
+        };
+
+        // =============================================================================
+        // FIREBASE INITIALIZATION
+        // =============================================================================
+        
+        const FirebaseManager = {
+            async initialize() {
+                try {
+                    console.log('🔄 Initializing Firebase...');
+                    
+                    if (typeof firebase === 'undefined') {
+                        throw new Error('Firebase SDK not loaded');
+                    }
+
+                    if (!firebase.apps || firebase.apps.length === 0) {
+                        firebase.initializeApp(Firebase.config);
+                    }
+
+                    Firebase.auth = firebase.auth();
+                    Firebase.db = firebase.firestore();
+                    
+                    window.firebaseAuth = Firebase.auth;
+                    window.firebaseDb = Firebase.db;
+                    
+                    let apiFound = false;
+                    let attempts = 0;
+                    const maxAttempts = 30;
+                    
+                    while (attempts < maxAttempts && !apiFound) {
+                        if (typeof window.VediAPI !== 'undefined' && window.VediAPI) {
+                            console.log('✅ VediAPI found via window.VediAPI after', attempts * 100, 'ms');
+                            apiFound = true;
+                        } else if (typeof window.FirebaseAPI !== 'undefined' && window.FirebaseAPI) {
+                            console.log('✅ FirebaseAPI found via window.FirebaseAPI after', attempts * 100, 'ms');
+                            window.VediAPI = window.FirebaseAPI;
+                            apiFound = true;
+                        } else if (typeof VediAPI !== 'undefined') {
+                            console.log('✅ Global VediAPI found after', attempts * 100, 'ms');
+                            window.VediAPI = VediAPI;
+                            apiFound = true;
+                        } else if (typeof FirebaseAPI !== 'undefined') {
+                            console.log('✅ Global FirebaseAPI found after', attempts * 100, 'ms');
+                            window.VediAPI = FirebaseAPI;
+                            apiFound = true;
+                        }
+                        
+                        if (!apiFound) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        }
+                    }
+                    
+                    if (apiFound) {
+                        AppState.isFirebaseReady = true;
+                        return true;
+                    } else {
+                        console.warn('⚠️ No API found after 3 seconds');
+                        AppState.isFirebaseReady = false;
+                        return false;
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Firebase initialization failed:', error);
+                    AppState.isFirebaseReady = false;
+                    return false;
+                }
+            },
+
+            isReady() {
+                return AppState.isFirebaseReady && 
+                       typeof window.VediAPI !== 'undefined' && 
+                       window.VediAPI &&
+                       Firebase.db &&
+                       Firebase.auth;
+            }
+        };
+
+        // =============================================================================
+        // DATA MANAGEMENT
+        // =============================================================================
+        
+        const DataManager = {
+            async loadRestaurants() {
+                try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase not ready');
+                    }
+
+                    console.log('🏪 Loading restaurants from Firebase...');
+                    const restaurantsSnapshot = await Firebase.db.collection('restaurants').get();
+                    AppState.restaurants = restaurantsSnapshot.docs.map(doc => ({ 
+                        id: doc.id, 
+                        ...doc.data() 
+                    }));
+                    
+                    console.log('✅ Loaded restaurants:', AppState.restaurants.length);
+                    
+                } catch (error) {
+                    console.error('❌ Error loading restaurants:', error);
+                    throw error;
+                }
+            },
+
+            async loadFeeConfigs() {
+                try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase not ready');
+                    }
+
+                    console.log('💰 Loading restaurant fee configurations...');
+                    AppState.feeConfigs = await window.VediAPI.getAllFeeConfigs();
+                    
+                    console.log('✅ Restaurant fees loaded:', AppState.feeConfigs.length);
+                    
+                } catch (error) {
+                    console.error('❌ Error loading restaurant fees:', error);
+                    throw error;
+                }
+            },
+
+            async loadAnalytics() {
+                try {
+                    if (!FirebaseManager.isReady()) {
+                        throw new Error('Firebase not ready');
+                    }
+
+                    console.log('📈 Loading analytics data...');
+                    const timePeriod = document.getElementById('analyticsTimePeriod')?.value || 'month';
+                    const analytics = await window.VediAPI.getFeeAnalytics(timePeriod);
+                    
+                    console.log('📊 Analytics data:', analytics);
+                    
+                    document.getElementById('analyticsContent').innerHTML = `
+                        <div style="display: grid; gap: 1rem;">
+                            <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="color: var(--text-secondary);">Total Orders:</span>
+                                <strong>${analytics.orderCount || 0}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="color: var(--text-secondary);">Total Revenue:</span>
+                                <strong>${Utils.formatCurrency(analytics.totalRevenue || 0)}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="color: var(--text-secondary);">Service Fees:</span>
+                                <strong>${Utils.formatCurrency(analytics.totalServiceFees || 0)}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="color: var(--text-secondary);">Stripe Fees:</span>
+                                <strong class="stripe-fee">${Utils.formatCurrency(analytics.totalStripeFees || 0)}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
+                                <span style="color: var(--text-secondary);">Tax Collected:</span>
+                                <strong>${Utils.formatCurrency(analytics.totalTax || 0)}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 0.75rem 0;">
+                                <span style="color: var(--text-secondary);">Average Order:</span>
+                                <strong>${Utils.formatCurrency(analytics.averageOrderValue || 0)}</strong>
+                            </div>
+                        </div>
+                    `;
+
+                    this.loadTopRestaurants(analytics.revenueByRestaurant || {});
+                    
+                } catch (error) {
+                    console.error('❌ Error loading analytics:', error);
+                    Utils.showEmptyState('analyticsContent', '⚠️', 'Error Loading Analytics', 'Unable to load analytics data: ' + error.message);
+                    Utils.showEmptyState('topRestaurants', '📊', 'No Data', 'Error loading restaurant data: ' + error.message);
+                    throw error;
+                }
+            },
+
+            loadTopRestaurants(revenueByRestaurant) {
+                const topRestaurantsElement = document.getElementById('topRestaurants');
+                
+                if (!revenueByRestaurant || Object.keys(revenueByRestaurant).length === 0) {
+                    Utils.showEmptyState('topRestaurants', '📊', 'No Data', 'No restaurant revenue data available');
+                    return;
+                }
+
+                const sortedRestaurants = Object.entries(revenueByRestaurant)
+                    .sort(([,a], [,b]) => (b.revenue || 0) - (a.revenue || 0))
+                    .slice(0, 5);
+
+                let html = '<div style="display: grid; gap: 0.75rem;">';
+                sortedRestaurants.forEach(([restaurantId, data], index) => {
+                    const restaurant = AppState.restaurants.find(r => r.id === restaurantId);
+                    const restaurantName = restaurant ? restaurant.name : 'Unknown Restaurant';
+                    
+                    const bgColor = index === 0 ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(252, 211, 77, 0.1))' : 
+                                   index === 1 ? 'linear-gradient(135deg, rgba(156, 163, 175, 0.1), rgba(209, 213, 219, 0.1))' :
+                                   index === 2 ? 'linear-gradient(135deg, rgba(205, 133, 63, 0.1), rgba(222, 184, 135, 0.1))' : '#f8fafc';
+                    
+                    html += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-radius: var(--border-radius); background: ${bgColor}; border: 1px solid rgba(102, 126, 234, 0.1);">
+                            <div>
+                                <div style="font-weight: 600; color: var(--text-primary);">${index + 1}. ${restaurantName}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">${data.orders || 0} orders</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 700; color: var(--text-primary);">${Utils.formatCurrency(data.revenue || 0)}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">${Utils.formatCurrency(data.serviceFees || 0)} fees</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                topRestaurantsElement.innerHTML = html;
+            }
+        };
+
+        // =============================================================================
+        // CHART MANAGEMENT
+        // =============================================================================
+        
+        const ChartManager = {
+            initializeChart() {
+                this.createFeeTypeChart();
+                this.loadFeeTypeData();
+            },
+
+            createFeeTypeChart() {
+                const ctx = document.getElementById('feeTypeChart').getContext('2d');
+                
+                AppState.charts.feeType = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Fixed Fees', 'Percentage Fees', 'Hybrid Fees'],
+                        datasets: [{
+                            data: [0, 0, 0],
+                            backgroundColor: [
+                                'var(--primary-color)',
+                                'var(--secondary-color)',
+                                '#f093fb'
+                            ],
+                            borderWidth: 0,
+                            cutout: '70%'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    usePointStyle: true,
+                                    font: {
+                                        size: 12,
+                                        weight: '500'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+
+            async loadFeeTypeData() {
+                try {
+                    if (AppState.feeConfigs.length === 0) {
+                        await DataManager.loadFeeConfigs();
+                    }
+
+                    const feeTypeCounts = { fixed: 0, percentage: 0, hybrid: 0 };
+                    
+                    AppState.feeConfigs.forEach(config => {
+                        const feeType = config.feeType || 'fixed';
+                        if (feeTypeCounts.hasOwnProperty(feeType)) {
+                            feeTypeCounts[feeType]++;
+                        }
+                    });
+
+                    AppState.charts.feeType.data.datasets[0].data = [
+                        feeTypeCounts.fixed,
+                        feeTypeCounts.percentage,
+                        feeTypeCounts.hybrid
+                    ];
+                    AppState.charts.feeType.update();
+
+                    console.log('✅ Fee type chart updated:', feeTypeCounts);
+                    
+                } catch (error) {
+                    console.error('❌ Error loading fee type data:', error);
+                }
+            }
+        };
+
+        // =============================================================================
+        // UI MANAGEMENT
+        // =============================================================================
+        
+        const UIManager = {
+            initializeEventListeners() {
+                // Analytics time period change
+                document.getElementById('analyticsTimePeriod').addEventListener('change', () => {
+                    DataManager.loadAnalytics();
+                });
+            }
+        };
+
+        // =============================================================================
+        // APPLICATION INITIALIZATION
+        // =============================================================================
+        
+        const App = {
+            async initialize() {
+                console.log('🚀 Initializing Fee Analytics Page...');
+                
+                try {
+                    // Initialize UI components
+                    UIManager.initializeEventListeners();
+                    
+                    // Initialize chart
+                    ChartManager.initializeChart();
+                    
+                    // Initialize Firebase
+                    const firebaseReady = await FirebaseManager.initialize();
+                    
+                    if (firebaseReady) {
+                        console.log('✅ Firebase ready, loading data...');
+                        Utils.showAlert('Firebase connected successfully', 'success');
+                        
+                        // Load data
+                        await DataManager.loadRestaurants();
+                        await DataManager.loadAnalytics();
+                        
+                    } else {
+                        console.log('⚠️ Firebase not available');
+                        Utils.showAlert('VediAPI not available - please ensure firebase-api.js is loaded', 'error');
+                        
+                        Utils.showEmptyState('analyticsContent', '📊', 'No Data Available', 'Connect to Firebase to see analytics');
+                        Utils.showEmptyState('topRestaurants', '🏪', 'No Restaurants', 'Add restaurants to see performance data');
+                    }
+                    
+                    console.log('🎉 Analytics page initialization complete!');
+                    
+                } catch (error) {
+                    console.error('❌ Initialization error:', error);
+                    Utils.showAlert('Error initializing system: ' + error.message, 'error');
+                }
+            }
+        };
+
+        // =============================================================================
+        // APPLICATION STARTUP
+        // =============================================================================
+        
+        function startApp() {
+            setTimeout(() => {
+                if (typeof window.VediAPI === 'undefined' && typeof window.FirebaseAPI !== 'undefined') {
+                    window.VediAPI = window.FirebaseAPI;
+                } else if (typeof window.VediAPI === 'undefined' && typeof VediAPI !== 'undefined') {
+                    window.VediAPI = VediAPI;
+                } else if (typeof window.VediAPI === 'undefined' && typeof FirebaseAPI !== 'undefined') {
+                    window.VediAPI = FirebaseAPI;
+                }
+                
+                App.initialize();
+            }, 2000);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startApp);
+        } else {
+            startApp();
+        }
+
+        console.log('📈 Fee Analytics Page Loaded');
+    </script>
+</body>
+</html>
