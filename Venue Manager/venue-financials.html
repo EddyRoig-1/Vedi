@@ -12,7 +12,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
-    <script src="../restaurant-venue-sync.js"></script>
     
     <style>
         * {
@@ -687,122 +686,173 @@
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('💰 Venue Financials loading...');
+            console.log('🕐 Timestamp:', new Date().toISOString());
             
             try {
                 await initializeFinancials();
             } catch (error) {
-                console.error('Error loading venue financials:', error);
+                console.error('❌ Error loading venue financials:', error);
+                console.error('❌ Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    timestamp: new Date().toISOString()
+                });
                 showError('Failed to load venue financials: ' + error.message);
                 hideLoading();
             }
         });
 
-        // Main initialization function
+        // Load venue data using VediAPI
         async function initializeFinancials() {
+            console.log('🚀 Starting venue financials initialization...');
             showLoading();
             
             try {
                 // Check authentication
+                console.log('🔐 Checking user authentication...');
                 currentUser = await VediAPI.getCurrentUser();
                 if (!currentUser) {
+                    console.log('❌ No authenticated user found, redirecting to login');
                     window.location.href = '../Landing-Signup-Login/login.html';
                     return;
                 }
+                console.log('✅ User authenticated:', currentUser.id);
 
-                // Check if user is venue manager
-                if (currentUser.accountType !== 'venue') {
-                    showError('Access denied. This page is for venue managers only.');
-                    setTimeout(() => {
-                        window.location.href = '../Owner/dashboard.html';
-                    }, 2000);
-                    return;
-                }
-
-                // Load venue data
+                // Load venue data using VediAPI
+                console.log('🏢 Loading venue data for manager:', currentUser.id);
                 currentVenue = await VediAPI.getVenueByManager(currentUser.id);
                 if (!currentVenue) {
+                    console.log('❌ No venue found for user, redirecting to setup');
                     window.location.href = '../Landing-Signup-Login/venue-setup.html';
                     return;
                 }
 
-                console.log('✅ Loaded venue:', currentVenue.name);
+                console.log('✅ Loaded venue:', {
+                    id: currentVenue.id,
+                    name: currentVenue.name,
+                    defaultFeePercentage: currentVenue.defaultFeePercentage
+                });
                 document.getElementById('venueName').textContent = currentVenue.name + ' Financials';
 
                 // Load restaurants using VenueSync
+                console.log('🏪 Loading restaurants data...');
                 await loadRestaurantsData();
                 
                 // Load revenue data
+                console.log('💰 Loading revenue data...');
                 await loadRevenueData();
                 
                 // Update UI
+                console.log('🔄 Updating UI components...');
                 updateOverviewCards();
                 renderRestaurantsTable();
                 updateCalculation();
                 
                 hideLoading();
+                console.log('✅ Venue financials loaded successfully!');
                 showSuccess('Venue financials loaded successfully!');
                 
             } catch (error) {
                 console.error('❌ Financials initialization error:', error);
+                console.error('❌ Full error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    timestamp: new Date().toISOString(),
+                    venue: currentVenue?.id || 'not loaded',
+                    user: currentUser?.id || 'not loaded'
+                });
                 showError('Failed to load venue financials: ' + error.message);
                 hideLoading();
             }
         }
 
-        // Load restaurants data using VenueSync
+        // Load restaurants data using VediAPI
         async function loadRestaurantsData() {
+            console.log('📊 Loading restaurants data for venue:', currentVenue.id);
+            
             try {
-                // Get restaurants associated with this venue
-                allRestaurants = await VenueSync.getVenueRestaurants(currentVenue.id);
+                // Get restaurants associated with this venue using VediAPI
+                allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                console.log('📍 Found restaurants:', allRestaurants.length);
                 
                 // Store original fee rates
                 allRestaurants.forEach(restaurant => {
                     const currentFee = restaurant.venueFeePercentage || currentVenue.defaultFeePercentage || 1.0;
                     originalFeeRates[restaurant.id] = currentFee;
+                    console.log(`💳 ${restaurant.name}: ${currentFee}% fee rate`);
                 });
                 
-                console.log('✅ Loaded restaurants for financials:', allRestaurants.length);
+                console.log('✅ Loaded restaurants for financials:', {
+                    count: allRestaurants.length,
+                    originalFeeRates: originalFeeRates
+                });
                 
             } catch (error) {
                 console.error('❌ Error loading restaurants:', error);
+                console.error('❌ Restaurant loading error details:', {
+                    venueId: currentVenue.id,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
                 allRestaurants = [];
             }
         }
 
-        // Load revenue data for each restaurant
+        // Load revenue data for each restaurant using VediAPI
         async function loadRevenueData() {
+            console.log('💰 Starting revenue data loading for', allRestaurants.length, 'restaurants');
+            
             try {
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                console.log('📅 Loading orders from:', thirtyDaysAgo.toISOString());
                 
                 for (const restaurant of allRestaurants) {
                     try {
-                        // Get orders for the last 30 days
+                        console.log(`📊 Loading orders for ${restaurant.name} (${restaurant.id})`);
+                        
+                        // Get orders for the last 30 days using VediAPI
                         const orders = await VediAPI.getOrders(restaurant.id, {
-                            startDate: thirtyDaysAgo.toISOString(),
-                            endDate: new Date().toISOString(),
-                            status: 'completed'
+                            limit: 1000, // Get more orders for better data
+                            orderBy: 'createdAt'
+                        });
+                        
+                        console.log(`📦 Found ${orders.length} total orders for ${restaurant.name}`);
+                        
+                        // Filter orders to last 30 days and completed status
+                        const recentOrders = orders.filter(order => {
+                            const orderDate = VediAPI.timestampToDate(order.createdAt);
+                            return orderDate >= thirtyDaysAgo && order.status === 'completed';
                         });
                         
                         // Calculate monthly revenue
-                        const monthlyRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+                        const monthlyRevenue = recentOrders.reduce((sum, order) => sum + (order.total || 0), 0);
                         monthlyRevenueData[restaurant.id] = monthlyRevenue;
                         
+                        console.log(`💰 ${restaurant.name}: $${monthlyRevenue.toFixed(2)} (${recentOrders.length} completed orders)`);
+                        
                     } catch (error) {
-                        console.warn(`Failed to load revenue for ${restaurant.name}:`, error);
+                        console.warn(`⚠️ Failed to load revenue for ${restaurant.name}:`, error);
                         monthlyRevenueData[restaurant.id] = 0;
                     }
                 }
                 
-                console.log('✅ Loaded revenue data for restaurants');
+                console.log('✅ Loaded revenue data for all restaurants:', monthlyRevenueData);
                 
             } catch (error) {
                 console.error('❌ Error loading revenue data:', error);
+                console.error('❌ Revenue loading error details:', {
+                    restaurantCount: allRestaurants.length,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
             }
         }
 
         // Update overview cards
         function updateOverviewCards() {
+            console.log('📊 Updating overview cards...');
+            
             // Calculate total venue revenue
             let totalVenueRevenue = 0;
             let totalFeeRate = 0;
@@ -822,6 +872,13 @@
             const averageFeeRate = activeCount > 0 ? totalFeeRate / activeCount : 0;
             const pendingChangesCount = Object.keys(pendingChanges).length;
 
+            console.log('📈 Overview calculations:', {
+                totalVenueRevenue,
+                averageFeeRate,
+                activeCount,
+                pendingChangesCount
+            });
+
             // Update cards
             document.getElementById('monthlyVenueRevenue').textContent = formatPrice(totalVenueRevenue);
             document.getElementById('averageFeeRate').textContent = averageFeeRate.toFixed(1) + '%';
@@ -836,115 +893,173 @@
             } else {
                 saveBtn.textContent = 'Save All Changes';
             }
+
+            console.log('✅ Overview cards updated');
         }
 
-        // Render restaurants table
+        // Get platform fee for a restaurant (read-only info for venue manager)
+        async function getPlatformFeeForRestaurant(restaurantId) {
+            console.log('💳 Getting platform fee for restaurant:', restaurantId);
+            
+            try {
+                const feeConfig = await VediAPI.getFeeConfig(restaurantId);
+                console.log('📋 Fee config loaded:', feeConfig);
+                
+                if (feeConfig.feeType === 'percentage') {
+                    return feeConfig.serviceFeePercentage.toFixed(1);
+                } else if (feeConfig.feeType === 'fixed') {
+                    return `${feeConfig.serviceFeeFixed.toFixed(2)} fixed`;
+                } else if (feeConfig.feeType === 'hybrid') {
+                    return `${feeConfig.serviceFeePercentage.toFixed(1)}% + ${feeConfig.serviceFeeFixed.toFixed(2)}`;
+                }
+                
+                return '3.5'; // Default
+            } catch (error) {
+                console.warn('⚠️ Could not load platform fee for restaurant:', restaurantId, error);
+                return '3.5'; // Default
+            }
+        }
+
+        // Render restaurants table with real data
         function renderRestaurantsTable() {
+            console.log('🏪 Rendering restaurants table...');
             const tbody = document.getElementById('restaurantsTableBody');
             
             if (allRestaurants.length === 0) {
+                console.log('⚠️ No restaurants to display');
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="6" style="text-align: center; padding: 40px; color: #718096;">
                             <div style="font-size: 3rem; margin-bottom: 16px;">🏪</div>
                             <div style="font-weight: 600; margin-bottom: 8px;">No restaurants connected</div>
-                            <div>Restaurants need to join your venue to appear here</div>
+                            <div>Use the restaurant-venue sync system to connect restaurants to your venue</div>
                         </td>
                     </tr>
                 `;
                 return;
             }
 
-            tbody.innerHTML = allRestaurants.map(restaurant => {
-                const currentFee = originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
-                const pendingFee = pendingChanges[restaurant.id];
-                const displayFee = pendingFee !== undefined ? pendingFee : currentFee;
-                const monthlyRevenue = monthlyRevenueData[restaurant.id] || 0;
-                const monthlyEarnings = monthlyRevenue * (displayFee / 100);
-                const hasChanges = pendingFee !== undefined;
-                const currency = restaurant.currency || { symbol: '$', code: 'USD' };
+            // Create async function to handle platform fee loading
+            const renderRows = async () => {
+                console.log('🔄 Building restaurant table rows...');
+                
+                const rows = await Promise.all(allRestaurants.map(async (restaurant) => {
+                    const currentFee = originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
+                    const pendingFee = pendingChanges[restaurant.id];
+                    const displayFee = pendingFee !== undefined ? pendingFee : currentFee;
+                    const monthlyRevenue = monthlyRevenueData[restaurant.id] || 0;
+                    const monthlyEarnings = monthlyRevenue * (displayFee / 100);
+                    const hasChanges = pendingFee !== undefined;
+                    const currency = restaurant.currency || { symbol: '$', code: 'USD' };
+                    
+                    console.log(`🏪 Building row for ${restaurant.name}:`, {
+                        currentFee,
+                        displayFee,
+                        monthlyRevenue,
+                        monthlyEarnings,
+                        hasChanges
+                    });
+                    
+                    // Get platform fee info
+                    const platformFeeInfo = await getPlatformFeeForRestaurant(restaurant.id);
 
-                return `
-                    <tr>
-                        <td>
-                            <div class="restaurant-info">
-                                <div class="restaurant-avatar">
-                                    ${restaurant.name.charAt(0).toUpperCase()}
-                                </div>
-                                <div class="restaurant-details">
-                                    <h4>${restaurant.name}</h4>
-                                    <div class="restaurant-meta">
-                                        ${restaurant.cuisineType || 'Restaurant'} • 
-                                        ${currency.code} • 
-                                        ${restaurant.status || 'Active'}
+                    return `
+                        <tr>
+                            <td>
+                                <div class="restaurant-info">
+                                    <div class="restaurant-avatar">
+                                        ${restaurant.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div class="restaurant-details">
+                                        <h4>${restaurant.name}</h4>
+                                        <div class="restaurant-meta">
+                                            ${restaurant.cuisineType || 'Restaurant'} • 
+                                            ${currency.code} • 
+                                            ${restaurant.status || 'Active'}
+                                            ${restaurant.address ? ` • ${restaurant.address}` : ''}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="fee-control">
-                                <input 
-                                    type="number" 
-                                    class="fee-input ${hasChanges ? 'changed' : ''}" 
-                                    value="${displayFee.toFixed(1)}" 
-                                    step="0.1" 
-                                    min="0" 
-                                    max="10"
-                                    onchange="handleFeeChange('${restaurant.id}', this.value)"
-                                    id="fee-${restaurant.id}"
-                                >
-                                <span class="fee-suffix">%</span>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="revenue-amount">${formatPrice(monthlyRevenue, currency)}</div>
-                            <span class="revenue-period">Last 30 days</span>
-                        </td>
-                        <td>
-                            <div class="projected-amount">${formatPrice(monthlyEarnings, currency)}</div>
-                            ${hasChanges ? '<span class="revenue-period">• Projected</span>' : '<span class="revenue-period">• Current</span>'}
-                        </td>
-                        <td>
-                            <span class="status-badge ${hasChanges ? 'changed' : 'active'}">
-                                ${hasChanges ? 'Changed' : 'Active'}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="action-buttons">
-                                ${hasChanges ? `
-                                    <button class="action-btn save" onclick="saveRestaurantFee('${restaurant.id}')">
-                                        Save
-                                    </button>
-                                    <button class="action-btn cancel" onclick="cancelRestaurantChange('${restaurant.id}')">
-                                        Cancel
-                                    </button>
-                                ` : `
-                                    <button class="action-btn" onclick="resetRestaurantFee('${restaurant.id}')" 
-                                            style="background: #f7fafc; color: #4a5568;">
-                                        Reset
-                                    </button>
-                                `}
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+                            </td>
+                            <td>
+                                <div class="fee-control">
+                                    <input 
+                                        type="number" 
+                                        class="fee-input ${hasChanges ? 'changed' : ''}" 
+                                        value="${displayFee.toFixed(1)}" 
+                                        step="0.1" 
+                                        min="0" 
+                                        max="10"
+                                        onchange="handleFeeChange('${restaurant.id}', this.value)"
+                                        id="fee-${restaurant.id}"
+                                    >
+                                    <span class="fee-suffix">%</span>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 0.8rem; color: #718096;">
+                                    Platform fee: ${platformFeeInfo}% (admin-managed)
+                                </div>
+                            </td>
+                            <td>
+                                <div class="revenue-amount">${formatPrice(monthlyRevenue, currency)}</div>
+                                <span class="revenue-period">Last 30 days</span>
+                            </td>
+                            <td>
+                                <div class="projected-amount">${formatPrice(monthlyEarnings, currency)}</div>
+                                ${hasChanges ? '<span class="revenue-period">• Projected</span>' : '<span class="revenue-period">• Current</span>'}
+                            </td>
+                            <td>
+                                <span class="status-badge ${hasChanges ? 'changed' : 'active'}">
+                                    ${hasChanges ? 'Changed' : 'Active'}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    ${hasChanges ? `
+                                        <button class="action-btn save" onclick="saveRestaurantFee('${restaurant.id}')">
+                                            Save
+                                        </button>
+                                        <button class="action-btn cancel" onclick="cancelRestaurantChange('${restaurant.id}')">
+                                            Cancel
+                                        </button>
+                                    ` : `
+                                        <button class="action-btn" onclick="resetRestaurantFee('${restaurant.id}')" 
+                                                style="background: #f7fafc; color: #4a5568;">
+                                            Reset
+                                        </button>
+                                    `}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }));
+
+                tbody.innerHTML = rows.join('');
+                console.log('✅ Restaurant table rendered with', rows.length, 'rows');
+            };
+
+            renderRows();
         }
 
         // Handle fee change
         function handleFeeChange(restaurantId, newFee) {
+            console.log('💰 Fee change triggered:', { restaurantId, newFee });
+            
             const originalFee = originalFeeRates[restaurantId];
             const feeValue = parseFloat(newFee);
+            
+            console.log('🔄 Comparing fees:', { originalFee, feeValue });
             
             if (Math.abs(feeValue - originalFee) < 0.01) {
                 // Fee is back to original, remove from pending changes
                 delete pendingChanges[restaurantId];
+                console.log('✅ Fee reset to original, removed from pending changes');
             } else {
                 // Fee has changed, add to pending changes
                 pendingChanges[restaurantId] = feeValue;
+                console.log('📝 Fee changed, added to pending changes');
             }
             
-            console.log('💰 Fee changed for', restaurantId, ':', feeValue);
+            console.log('📊 Current pending changes:', pendingChanges);
             
             // Update UI
             updateOverviewCards();
@@ -953,11 +1068,16 @@
 
         // Save individual restaurant fee
         async function saveRestaurantFee(restaurantId) {
+            console.log('💾 Saving fee for restaurant:', restaurantId);
+            
             try {
                 const newFee = pendingChanges[restaurantId];
-                if (newFee === undefined) return;
+                if (newFee === undefined) {
+                    console.log('⚠️ No pending fee change found for restaurant:', restaurantId);
+                    return;
+                }
                 
-                console.log('💾 Saving fee for restaurant:', restaurantId, newFee);
+                console.log('📝 Updating restaurant with new fee:', { restaurantId, newFee });
                 
                 // Update restaurant venue fee using VediAPI
                 await VediAPI.updateRestaurant(restaurantId, {
@@ -970,6 +1090,8 @@
                 originalFeeRates[restaurantId] = newFee;
                 delete pendingChanges[restaurantId];
                 
+                console.log('✅ Fee saved successfully for restaurant:', restaurantId);
+                
                 // Update UI
                 updateOverviewCards();
                 renderRestaurantsTable();
@@ -978,18 +1100,27 @@
                 
             } catch (error) {
                 console.error('❌ Error saving restaurant fee:', error);
+                console.error('❌ Save error details:', {
+                    restaurantId,
+                    newFee: pendingChanges[restaurantId],
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
                 showError('Failed to save fee: ' + error.message);
             }
         }
 
         // Cancel individual restaurant change
         function cancelRestaurantChange(restaurantId) {
+            console.log('❌ Cancelling fee change for restaurant:', restaurantId);
+            
             delete pendingChanges[restaurantId];
             
             // Reset the input value
             const input = document.getElementById(`fee-${restaurantId}`);
             if (input) {
                 input.value = originalFeeRates[restaurantId].toFixed(1);
+                console.log('🔄 Reset input value to:', originalFeeRates[restaurantId]);
             }
             
             updateOverviewCards();
@@ -1000,8 +1131,11 @@
 
         // Reset restaurant fee to venue default
         async function resetRestaurantFee(restaurantId) {
+            console.log('🔄 Resetting fee to venue default for restaurant:', restaurantId);
+            
             try {
                 const defaultFee = currentVenue.defaultFeePercentage || 1.0;
+                console.log('📋 Using venue default fee:', defaultFee);
                 
                 await VediAPI.updateRestaurant(restaurantId, {
                     venueFeePercentage: defaultFee,
@@ -1012,6 +1146,8 @@
                 originalFeeRates[restaurantId] = defaultFee;
                 delete pendingChanges[restaurantId];
                 
+                console.log('✅ Fee reset to venue default successfully');
+                
                 updateOverviewCards();
                 renderRestaurantsTable();
                 
@@ -1019,32 +1155,47 @@
                 
             } catch (error) {
                 console.error('❌ Error resetting restaurant fee:', error);
+                console.error('❌ Reset error details:', {
+                    restaurantId,
+                    defaultFee: currentVenue.defaultFeePercentage,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
                 showError('Failed to reset fee: ' + error.message);
             }
         }
 
         // Save all pending changes
         async function saveAllChanges() {
+            console.log('💾 Saving all pending changes...');
+            
             try {
                 const changeCount = Object.keys(pendingChanges).length;
-                if (changeCount === 0) return;
+                if (changeCount === 0) {
+                    console.log('⚠️ No pending changes to save');
+                    return;
+                }
                 
+                console.log('📝 Saving changes for', changeCount, 'restaurants:', pendingChanges);
                 showLoading(`Saving ${changeCount} changes...`);
                 
                 // Save all changes in parallel
-                const savePromises = Object.entries(pendingChanges).map(([restaurantId, newFee]) => 
-                    VediAPI.updateRestaurant(restaurantId, {
+                const savePromises = Object.entries(pendingChanges).map(([restaurantId, newFee]) => {
+                    console.log(`💾 Preparing to save ${restaurantId}: ${newFee}%`);
+                    return VediAPI.updateRestaurant(restaurantId, {
                         venueFeePercentage: newFee,
                         feeLastUpdated: new Date().toISOString(),
                         feeUpdatedBy: currentUser.id
-                    })
-                );
+                    });
+                });
                 
                 await Promise.all(savePromises);
+                console.log('✅ All save operations completed');
                 
                 // Update original fees and clear pending changes
                 Object.entries(pendingChanges).forEach(([restaurantId, newFee]) => {
                     originalFeeRates[restaurantId] = newFee;
+                    console.log(`📝 Updated original fee for ${restaurantId}: ${newFee}%`);
                 });
                 pendingChanges = {};
                 
@@ -1053,10 +1204,16 @@
                 renderRestaurantsTable();
                 
                 hideLoading();
+                console.log('✅ All changes saved successfully!');
                 showSuccess(`All ${changeCount} changes saved successfully!`);
                 
             } catch (error) {
                 console.error('❌ Error saving all changes:', error);
+                console.error('❌ Bulk save error details:', {
+                    pendingChanges: Object.keys(pendingChanges),
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
                 showError('Failed to save changes: ' + error.message);
                 hideLoading();
             }
@@ -1064,12 +1221,19 @@
 
         // Reset all pending changes
         function resetAllChanges() {
-            if (Object.keys(pendingChanges).length === 0) return;
+            console.log('🔄 Resetting all pending changes...');
             
-            if (!confirm('Are you sure you want to reset all pending changes?')) {
+            if (Object.keys(pendingChanges).length === 0) {
+                console.log('⚠️ No pending changes to reset');
                 return;
             }
             
+            if (!confirm('Are you sure you want to reset all pending changes?')) {
+                console.log('❌ User cancelled reset operation');
+                return;
+            }
+            
+            console.log('📝 Resetting pending changes:', pendingChanges);
             pendingChanges = {};
             
             // Reset all input values
@@ -1077,17 +1241,21 @@
                 const input = document.getElementById(`fee-${restaurant.id}`);
                 if (input) {
                     input.value = originalFeeRates[restaurant.id].toFixed(1);
+                    console.log(`🔄 Reset input for ${restaurant.name}: ${originalFeeRates[restaurant.id]}%`);
                 }
             });
             
             updateOverviewCards();
             renderRestaurantsTable();
             
+            console.log('✅ All changes reset');
             showSuccess('All changes reset');
         }
 
         // Update revenue calculator
         function updateCalculation() {
+            console.log('🧮 Updating revenue calculation...');
+            
             const orderValue = parseFloat(document.getElementById('calcOrderValue').value) || 0;
             const ordersPerDay = parseInt(document.getElementById('calcOrdersPerDay').value) || 0;
             const feeRate = parseFloat(document.getElementById('calcVenueFeeRate').value) || 0;
@@ -1097,10 +1265,22 @@
             const monthlyRevenue = dailyRevenue * 30;
             const monthlyEarnings = dailyEarnings * 30;
             
+            console.log('📊 Calculator values:', {
+                orderValue,
+                ordersPerDay,
+                feeRate,
+                dailyRevenue,
+                dailyEarnings,
+                monthlyRevenue,
+                monthlyEarnings
+            });
+            
             document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
             document.getElementById('calcDailyEarnings').textContent = formatPrice(dailyEarnings);
             document.getElementById('calcMonthlyRevenue').textContent = formatPrice(monthlyRevenue);
             document.getElementById('calcMonthlyEarnings').textContent = formatPrice(monthlyEarnings);
+            
+            console.log('✅ Calculator updated');
         }
 
         // Utility functions
@@ -1113,6 +1293,7 @@
         }
 
         function showLoading(message = 'Loading...') {
+            console.log('⏳ Showing loading:', message);
             const overlay = document.getElementById('loadingOverlay');
             const text = overlay.querySelector('.loading-text');
             text.textContent = message;
@@ -1120,10 +1301,12 @@
         }
 
         function hideLoading() {
+            console.log('✅ Hiding loading overlay');
             document.getElementById('loadingOverlay').style.display = 'none';
         }
 
         function showNotification(message, type = 'success') {
+            console.log(`📢 Showing ${type} notification:`, message);
             const notification = document.getElementById('notification');
             notification.className = `notification ${type}`;
             notification.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
