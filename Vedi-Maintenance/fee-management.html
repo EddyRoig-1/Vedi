@@ -443,6 +443,13 @@
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
         }
 
+        /* Chart Container */
+        .chart-container {
+            height: 350px;
+            position: relative;
+            margin-top: 1rem;
+        }
+
         /* Loading and Empty States */
         .loading {
             display: flex;
@@ -476,6 +483,23 @@
         .empty-state-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.375rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1e40af;
         }
 
         /* Alerts */
@@ -560,7 +584,7 @@
         <div class="main-content">
             <!-- Header -->
             <header class="page-header">
-                <h1 class="page-title">Fee Management System</h1>
+                <h1 class="page-title">💰 Fee Management System</h1>
                 <p class="page-subtitle">Manage platform fees, venue fees, taxes, Stripe fees, and revenue analytics</p>
             </header>
 
@@ -583,26 +607,6 @@
                     <span>Restaurants</span>
                 </a>
             </nav>
-
-            <!-- Restaurant Fee Configurations Section -->
-            <section id="restaurant-configs-section">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="section-title">🏪 Restaurant Fee Configurations</h3>
-                        <button class="action-btn edit" onclick="addNewRestaurantFee()">
-                            <span>➕</span>
-                            <span>Add Restaurant Fee</span>
-                        </button>
-                    </div>
-                    
-                    <div id="restaurant-configs-content">
-                        <div class="loading">
-                            <div class="loading-spinner"></div>
-                            Loading restaurant fee configurations...
-                        </div>
-                    </div>
-                </div>
-            </section>
 
             <!-- Overview Content -->
             <section id="overview-content">
@@ -635,6 +639,36 @@
                             <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏪</div>
                             <div style="font-weight: 600; margin-bottom: 0.25rem;">Configure Restaurant Fee</div>
                             <div style="font-size: 0.875rem; color: var(--text-secondary);">Set custom fees for specific restaurants</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="section-title">📈 Revenue Trends</h3>
+                        <span class="badge badge-info">Last 30 Days</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Restaurant Fee Configurations Section -->
+            <section id="restaurant-configs-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="section-title">🏪 Restaurant Fee Configurations</h3>
+                        <button class="action-btn edit" onclick="addNewRestaurantFee()">
+                            <span>➕</span>
+                            <span>Add Restaurant Fee</span>
+                        </button>
+                    </div>
+                    
+                    <div id="restaurant-configs-content">
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                            Loading restaurant fee configurations...
                         </div>
                     </div>
                 </div>
@@ -959,7 +993,7 @@
                             </td>
                             <td>
                                 <div class="stripe-fee">
-                                    ${config.stripeFeePercentage || 2.9}% + ${config.stripeFlatFee || 30}¢
+                                    ${config.stripeFeePercentage || 2.9}% + $${config.stripeFlatFee || 0.30}
                                 </div>
                             </td>
                             <td>
@@ -1023,6 +1057,136 @@
         };
 
         // =============================================================================
+        // CHART MANAGEMENT
+        // =============================================================================
+        
+        const ChartManager = {
+            initializeChart() {
+                this.createRevenueChart();
+                this.loadRevenueData();
+            },
+
+            createRevenueChart() {
+                const ctx = document.getElementById('revenueChart').getContext('2d');
+                
+                AppState.charts.revenue = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Revenue',
+                            data: [],
+                            borderColor: 'var(--primary-color)',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: 'var(--primary-color)',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: '#f1f5f9',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    color: 'var(--text-secondary)',
+                                    font: {
+                                        size: 12,
+                                        weight: '500'
+                                    },
+                                    callback: function(value) {
+                                        return '$' + value;
+                                    }
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    color: 'var(--text-secondary)',
+                                    font: {
+                                        size: 12,
+                                        weight: '500'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+
+            async loadRevenueData() {
+                try {
+                    if (!FirebaseManager.isReady()) {
+                        console.log('📊 Firebase not ready, skipping chart data');
+                        return;
+                    }
+
+                    console.log('📈 Loading revenue data...');
+                    
+                    const last30Days = [];
+                    const revenueData = [];
+                    
+                    for (let i = 29; i >= 0; i--) {
+                        const date = new Date();
+                        date.setDate(date.getDate() - i);
+                        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        last30Days.push(dateStr);
+                        
+                        const dayStart = new Date(date);
+                        dayStart.setHours(0, 0, 0, 0);
+                        const dayEnd = new Date(date);
+                        dayEnd.setHours(23, 59, 59, 999);
+                        
+                        try {
+                            const ordersSnapshot = await Firebase.db.collection('orders')
+                                .where('createdAt', '>=', dayStart)
+                                .where('createdAt', '<=', dayEnd)
+                                .where('status', '==', 'completed')
+                                .get();
+                            
+                            let dayRevenue = 0;
+                            ordersSnapshot.docs.forEach(doc => {
+                                const order = doc.data();
+                                dayRevenue += (order.total || 0);
+                            });
+                            
+                            revenueData.push(dayRevenue);
+                            
+                        } catch (error) {
+                            console.warn(`⚠️ Error loading orders for ${dateStr}:`, error);
+                            revenueData.push(0);
+                        }
+                    }
+
+                    AppState.charts.revenue.data.labels = last30Days;
+                    AppState.charts.revenue.data.datasets[0].data = revenueData;
+                    AppState.charts.revenue.update();
+
+                    console.log('✅ Revenue chart updated');
+                    
+                } catch (error) {
+                    console.error('❌ Error loading revenue data:', error);
+                }
+            }
+        };
+
+        // =============================================================================
         // ACTION HANDLERS
         // =============================================================================
 
@@ -1065,6 +1229,9 @@
                 console.log('🚀 Initializing Fee Management System...');
                 
                 try {
+                    // Initialize chart
+                    ChartManager.initializeChart();
+                    
                     // Initialize Firebase
                     const firebaseReady = await FirebaseManager.initialize();
                     
