@@ -423,7 +423,7 @@
             min-width: 200px;
         }
 
-        /* Revenue Calculator */
+        /* Enhanced Revenue Calculator */
         .calculator-section {
             background: white;
             border-radius: 20px;
@@ -498,6 +498,124 @@
         .calc-result-value {
             font-weight: 600;
             color: #2d3748;
+        }
+
+        /* Enhanced Calculator Results with Color Coding */
+        .calc-result-item.restaurant {
+            color: #059669;
+        }
+
+        .calc-result-item.venue {
+            color: #667eea;
+        }
+
+        .calc-result-item.platform {
+            color: #f59e0b;
+        }
+
+        .calc-result-item.stripe {
+            color: #6b7280;
+        }
+
+        .calc-result-item.restaurant .calc-result-value {
+            color: #059669;
+            font-weight: 700;
+        }
+
+        .calc-result-item.venue .calc-result-value {
+            color: #667eea;
+            font-weight: 700;
+        }
+
+        .calc-result-item.platform .calc-result-value {
+            color: #f59e0b;
+            font-weight: 700;
+        }
+
+        .calc-result-item.stripe .calc-result-value {
+            color: #6b7280;
+            font-weight: 700;
+        }
+
+        /* Compact Modal Styling */
+        .revenue-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(5px);
+        }
+
+        .revenue-modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            position: sticky;
+            top: 0;
+            background: white;
+            padding: 20px 24px;
+            border-bottom: 2px solid #f1f5f9;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #64748b;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        .modal-close-btn:hover {
+            background-color: #f1f5f9;
+        }
+
+        /* Compact breakdown table */
+        .breakdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+        }
+
+        .breakdown-table th,
+        .breakdown-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.875rem;
+        }
+
+        .breakdown-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #4a5568;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         /* Loading and notifications */
@@ -597,6 +715,11 @@
                 flex-direction: column;
                 align-items: stretch;
             }
+
+            .revenue-modal-content {
+                margin: 20px;
+                max-height: calc(100vh - 40px);
+            }
         }
 
         @media (max-width: 1024px) {
@@ -690,7 +813,7 @@
             </table>
         </div>
 
-        <!-- Revenue Calculator -->
+        <!-- Enhanced Revenue Calculator -->
         <div class="calculator-section">
             <h2 class="section-title">
                 <span>🧮</span>
@@ -716,13 +839,21 @@
                         <span class="calc-result-label">Daily Restaurant Revenue:</span>
                         <span class="calc-result-value" id="calcDailyRevenue">$1,250.00</span>
                     </div>
-                    <div class="calc-result-item">
-                        <span class="calc-result-label">Your Daily Earnings:</span>
+                    <div class="calc-result-item restaurant">
+                        <span class="calc-result-label">🏪 Restaurant Daily Net:</span>
+                        <span class="calc-result-value" id="calcRestaurantDaily">$0.00</span>
+                    </div>
+                    <div class="calc-result-item venue">
+                        <span class="calc-result-label">🏢 Your Daily Earnings:</span>
                         <span class="calc-result-value" id="calcDailyEarnings">$25.00</span>
                     </div>
-                    <div class="calc-result-item">
-                        <span class="calc-result-label">Monthly Restaurant Revenue:</span>
-                        <span class="calc-result-value" id="calcMonthlyRevenue">$37,500.00</span>
+                    <div class="calc-result-item platform">
+                        <span class="calc-result-label">⚡ Platform Daily Fee:</span>
+                        <span class="calc-result-value" id="calcPlatformDaily">$0.00</span>
+                    </div>
+                    <div class="calc-result-item stripe">
+                        <span class="calc-result-label">💳 Stripe Daily Fee:</span>
+                        <span class="calc-result-value" id="calcStripeDaily">$0.00</span>
                     </div>
                     <div class="calc-result-item">
                         <span class="calc-result-label">Your Monthly Earnings:</span>
@@ -744,6 +875,13 @@
         let originalFeeRates = {};
         let pendingChanges = {};
         let monthlyRevenueData = {};
+        let globalFeeConfig = {
+            stripeFeePercentage: 2.9,
+            stripeFlatFee: 30,
+            serviceFeePercentage: 3.5,
+            serviceFeeFixed: 0.50,
+            feeType: 'hybrid'
+        };
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
@@ -796,6 +934,9 @@
                 });
                 document.getElementById('venueName').textContent = currentVenue.name + ' Financials';
 
+                // Load global fee configuration
+                await loadGlobalFeeConfig();
+
                 // Load restaurants using VenueSync
                 console.log('🏪 Loading restaurants data...');
                 await loadRestaurantsData();
@@ -825,6 +966,27 @@
                 });
                 showError('Failed to load venue financials: ' + error.message);
                 hideLoading();
+            }
+        }
+
+        // Load global fee configuration
+        async function loadGlobalFeeConfig() {
+            try {
+                console.log('⚙️ Loading global fee configuration...');
+                const feeConfig = await VediAPI.getFeeConfig();
+                if (feeConfig) {
+                    globalFeeConfig = {
+                        stripeFeePercentage: feeConfig.stripeFeePercentage || 2.9,
+                        stripeFlatFee: feeConfig.stripeFlatFee || 30,
+                        serviceFeePercentage: feeConfig.serviceFeePercentage || 3.5,
+                        serviceFeeFixed: feeConfig.serviceFeeFixed || 0.50,
+                        feeType: feeConfig.feeType || 'hybrid',
+                        isNegotiated: feeConfig.isNegotiated || false
+                    };
+                    console.log('✅ Global fee config loaded:', globalFeeConfig);
+                }
+            } catch (error) {
+                console.warn('⚠️ Could not load global fee config, using defaults:', error);
             }
         }
 
@@ -911,101 +1073,50 @@
             }
         }
 
-        // Update overview cards
-        function updateOverviewCards() {
-            console.log('📊 Updating overview cards...');
-            
-            // Calculate total venue revenue
-            let totalVenueRevenue = 0;
-            let totalFeeRate = 0;
-            let activeCount = 0;
-
-            allRestaurants.forEach(restaurant => {
-                const revenue = monthlyRevenueData[restaurant.id] || 0;
-                const feeRate = (pendingChanges[restaurant.id] !== undefined ? 
-                    pendingChanges[restaurant.id] : 
-                    originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0) / 100;
-                
-                totalVenueRevenue += revenue * feeRate;
-                totalFeeRate += originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
-                activeCount++;
-            });
-
-            const averageFeeRate = activeCount > 0 ? totalFeeRate / activeCount : 0;
-            const pendingChangesCount = Object.keys(pendingChanges).length;
-
-            console.log('📈 Overview calculations:', {
-                totalVenueRevenue,
-                averageFeeRate,
-                activeCount,
-                pendingChangesCount
-            });
-
-            // Update cards
-            document.getElementById('monthlyVenueRevenue').textContent = formatPrice(totalVenueRevenue);
-            document.getElementById('averageFeeRate').textContent = averageFeeRate.toFixed(1) + '%';
-            document.getElementById('activeRestaurants').textContent = activeCount.toString();
-            document.getElementById('pendingChanges').textContent = pendingChangesCount.toString();
-
-            // Update save button state
-            const saveBtn = document.getElementById('saveAllBtn');
-            saveBtn.disabled = pendingChangesCount === 0;
-            if (pendingChangesCount > 0) {
-                saveBtn.textContent = `Save ${pendingChangesCount} Changes`;
-            } else {
-                saveBtn.textContent = 'Save All Changes';
-            }
-
-            console.log('✅ Overview cards updated');
-        }
-
-        // Enhanced fee calculation that properly handles fixed vs percentage fees using payments-api.js logic
+        // Enhanced fee calculation using global fee config
         async function calculateCompleteFeeSplit(restaurantId, displayFee, monthlyRevenue) {
             console.log('🧮 Calculating complete fee split for:', { restaurantId, displayFee, monthlyRevenue });
             
             try {
-                const feeConfig = await VediAPI.getFeeConfig(restaurantId);
-                console.log('📋 Fee config loaded:', feeConfig);
-                
                 // Calculate based on actual order data
                 const totalOrders = 40; // Use actual data from your venue financials
                 const averageOrderValue = totalOrders > 0 ? monthlyRevenue / totalOrders : 77.31; // Fallback to your data
                 
-                console.log('📊 Using real order data:', { averageOrderValue, totalOrders });
+                console.log('📊 Using order data:', { averageOrderValue, totalOrders });
                 
-                // Step 1: Calculate Stripe fees (always percentage + flat fee) - using payments-api.js logic
-                const stripeFeePercentage = (feeConfig.stripeFeePercentage || 2.9) / 100;
-                const stripeFlatFee = (feeConfig.stripeFlatFee || 30) / 100; // Convert cents to dollars
+                // Step 1: Calculate Stripe fees (always percentage + flat fee)
+                const stripeFeePercentage = globalFeeConfig.stripeFeePercentage / 100;
+                const stripeFlatFee = globalFeeConfig.stripeFlatFee / 100; // Convert cents to dollars
                 const stripeFeeAmount = (averageOrderValue * stripeFeePercentage) + stripeFlatFee;
                 const netAfterStripe = averageOrderValue - stripeFeeAmount;
                 
                 console.log('💳 Stripe calculation:', {
-                    percentage: `${feeConfig.stripeFeePercentage || 2.9}%`,
-                    flatFee: `${(feeConfig.stripeFlatFee || 30)/100}¢`,
+                    percentage: `${globalFeeConfig.stripeFeePercentage}%`,
+                    flatFee: `${globalFeeConfig.stripeFlatFee}¢`,
                     totalStripeFee: stripeFeeAmount,
                     netAfterStripe: netAfterStripe
                 });
                 
-                // Step 2: Calculate platform/service fee (using your payments-api.js logic)
+                // Step 2: Calculate platform/service fee
                 let platformFeeAmount = 0;
                 let platformFeeDisplay = '';
                 
-                switch (feeConfig.feeType) {
+                switch (globalFeeConfig.feeType) {
                     case 'fixed':
-                        platformFeeAmount = feeConfig.serviceFeeFixed || 0;
+                        platformFeeAmount = globalFeeConfig.serviceFeeFixed || 0;
                         platformFeeDisplay = `$${platformFeeAmount.toFixed(2)}`;
                         break;
                         
                     case 'percentage':
-                        platformFeeAmount = netAfterStripe * ((feeConfig.serviceFeePercentage || 3.5) / 100);
-                        platformFeeDisplay = `${feeConfig.serviceFeePercentage || 3.5}%`;
+                        platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
+                        platformFeeDisplay = `${globalFeeConfig.serviceFeePercentage}%`;
                         break;
                         
                     case 'hybrid':
-                        const fixedPart = feeConfig.serviceFeeFixed || 0;
-                        const percentagePart = netAfterStripe * ((feeConfig.serviceFeePercentage || 3.5) / 100);
+                        const fixedPart = globalFeeConfig.serviceFeeFixed || 0;
+                        const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
                         platformFeeAmount = fixedPart + percentagePart;
-                        platformFeeDisplay = `${feeConfig.serviceFeePercentage || 3.5}% + $${fixedPart.toFixed(2)}`;
+                        platformFeeDisplay = `${globalFeeConfig.serviceFeePercentage}% + $${fixedPart.toFixed(2)}`;
                         break;
                         
                     default:
@@ -1014,7 +1125,7 @@
                 }
                 
                 console.log('⚡ Platform fee calculation:', {
-                    type: feeConfig.feeType,
+                    type: globalFeeConfig.feeType,
                     amount: platformFeeAmount,
                     display: platformFeeDisplay
                 });
@@ -1025,7 +1136,7 @@
                 // Step 4: Restaurant gets the remainder
                 const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
                 
-                // Calculate percentages for display purposes only
+                // Calculate percentages for display purposes
                 const breakdown = {
                     restaurant: {
                         percentage: (restaurantAmount / averageOrderValue) * 100,
@@ -1044,24 +1155,23 @@
                         amount: platformFeeAmount,
                         monthlyAmount: monthlyRevenue * (platformFeeAmount / averageOrderValue),
                         displayText: platformFeeDisplay,
-                        feeType: feeConfig.feeType || 'percentage',
-                        // Include raw config for display
-                        configuredFixed: feeConfig.serviceFeeFixed || 0,
-                        configuredPercentage: feeConfig.serviceFeePercentage || 3.5
+                        feeType: globalFeeConfig.feeType,
+                        configuredFixed: globalFeeConfig.serviceFeeFixed,
+                        configuredPercentage: globalFeeConfig.serviceFeePercentage
                     },
                     stripe: {
                         percentage: (stripeFeeAmount / averageOrderValue) * 100,
                         amount: stripeFeeAmount,
                         monthlyAmount: monthlyRevenue * (stripeFeeAmount / averageOrderValue),
-                        configuredPercentage: feeConfig.stripeFeePercentage || 2.9,
-                        configuredFlatFee: feeConfig.stripeFlatFee || 30,
-                        isNegotiated: feeConfig.isNegotiated || false,
-                        displayText: `${feeConfig.stripeFeePercentage || 2.9}% + ${(feeConfig.stripeFlatFee || 30)/100}¢`
+                        configuredPercentage: globalFeeConfig.stripeFeePercentage,
+                        configuredFlatFee: globalFeeConfig.stripeFlatFee,
+                        isNegotiated: globalFeeConfig.isNegotiated,
+                        displayText: `${globalFeeConfig.stripeFeePercentage}% + ${globalFeeConfig.stripeFlatFee}¢`
                     },
                     averageOrderValue: averageOrderValue,
                     totalOrders: totalOrders,
                     netAfterStripe: netAfterStripe,
-                    feeConfig: feeConfig
+                    feeConfig: globalFeeConfig
                 };
                 
                 console.log('💰 Complete fee breakdown calculated:', breakdown);
@@ -1107,7 +1217,7 @@
                     displayText: '2.9% + 30¢ (default)'
                 },
                 netAfterStripe: 96.8,
-                feeConfig: null
+                feeConfig: globalFeeConfig
             };
         }
 
@@ -1157,6 +1267,54 @@
             } catch (error) {
                 console.error('❌ Error updating fee breakdown:', error);
             }
+        }
+
+        // Update overview cards
+        function updateOverviewCards() {
+            console.log('📊 Updating overview cards...');
+            
+            // Calculate total venue revenue
+            let totalVenueRevenue = 0;
+            let totalFeeRate = 0;
+            let activeCount = 0;
+
+            allRestaurants.forEach(restaurant => {
+                const revenue = monthlyRevenueData[restaurant.id] || 0;
+                const feeRate = (pendingChanges[restaurant.id] !== undefined ? 
+                    pendingChanges[restaurant.id] : 
+                    originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0) / 100;
+                
+                totalVenueRevenue += revenue * feeRate;
+                totalFeeRate += originalFeeRates[restaurant.id] || currentVenue.defaultFeePercentage || 1.0;
+                activeCount++;
+            });
+
+            const averageFeeRate = activeCount > 0 ? totalFeeRate / activeCount : 0;
+            const pendingChangesCount = Object.keys(pendingChanges).length;
+
+            console.log('📈 Overview calculations:', {
+                totalVenueRevenue,
+                averageFeeRate,
+                activeCount,
+                pendingChangesCount
+            });
+
+            // Update cards
+            document.getElementById('monthlyVenueRevenue').textContent = formatPrice(totalVenueRevenue);
+            document.getElementById('averageFeeRate').textContent = averageFeeRate.toFixed(1) + '%';
+            document.getElementById('activeRestaurants').textContent = activeCount.toString();
+            document.getElementById('pendingChanges').textContent = pendingChangesCount.toString();
+
+            // Update save button state
+            const saveBtn = document.getElementById('saveAllBtn');
+            saveBtn.disabled = pendingChangesCount === 0;
+            if (pendingChangesCount > 0) {
+                saveBtn.textContent = `Save ${pendingChangesCount} Changes`;
+            } else {
+                saveBtn.textContent = 'Save All Changes';
+            }
+
+            console.log('✅ Overview cards updated');
         }
 
         // Render restaurants table with real data and proper fee displays
@@ -1351,7 +1509,7 @@
             renderRows();
         }
 
-        // Show detailed revenue breakdown modal with proper fee structures
+        // Show detailed revenue breakdown modal with compact design
         async function showRevenueDetails(restaurantId) {
             console.log('📊 Showing revenue details for:', restaurantId);
             
@@ -1366,111 +1524,93 @@
                 const monthlyRevenue = monthlyRevenueData[restaurantId] || 0;
                 const breakdown = await calculateCompleteFeeSplit(restaurantId, displayFee, monthlyRevenue);
                 
-                // Create modal with proper fee structure display
+                // Create compact modal
                 const modal = document.createElement('div');
                 modal.id = 'revenue-details-modal';
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0,0,0,0.6);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 10000;
-                    backdrop-filter: blur(5px);
-                `;
+                modal.className = 'revenue-modal';
                 
                 modal.innerHTML = `
-                    <div style="background: white; border-radius: 20px; padding: 2rem; max-width: 700px; width: 90%; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #f1f5f9;">
-                            <h3 style="font-size: 1.5rem; font-weight: 700; color: #2d3748;">💰 Revenue Details: ${restaurant.name}</h3>
-                            <button onclick="closeRevenueModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">×</button>
+                    <div class="revenue-modal-content">
+                        <div class="modal-header">
+                            <h3 style="font-size: 1.25rem; font-weight: 700; color: #2d3748; margin: 0;">💰 ${restaurant.name} Revenue Details</h3>
+                            <button class="modal-close-btn" onclick="closeRevenueModal()">×</button>
                         </div>
                         
-                        <div style="margin-bottom: 2rem;">
-                            <h4 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; color: #4a5568;">Revenue Split Breakdown</h4>
-                            <div style="background: #f8fafc; border-radius: 12px; padding: 1.5rem; border: 1px solid #e2e8f0;">
-                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #cbd5e0; font-weight: 600; color: #4a5568; font-size: 0.875rem;">
-                                    <div>Fee Component</div>
-                                    <div style="text-align: center;">Structure</div>
-                                    <div style="text-align: center;">Effective %</div>
-                                    <div style="text-align: center;">Monthly Amount</div>
-                                </div>
-                                
-                                <!-- Restaurant Net -->
-                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0;">
-                                    <div style="font-weight: 600; color: #2d3748;">🏪 Restaurant Net</div>
-                                    <div style="text-align: center; font-size: 0.875rem; color: #6b7280;">After all fees</div>
-                                    <div style="text-align: center; font-weight: 600; color: #059669;">${breakdown.restaurant.percentage.toFixed(1)}%</div>
-                                    <div style="text-align: center; font-weight: 600; color: #059669;">${formatPrice(breakdown.restaurant.monthlyAmount)}</div>
-                                </div>
-                                
-                                <!-- Venue Fee -->
-                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0;">
-                                    <div style="font-weight: 600; color: #667eea;">🏢 Venue Fee</div>
-                                    <div style="text-align: center; font-weight: 600; color: #667eea;">${breakdown.venue.displayText}</div>
-                                    <div style="text-align: center; font-weight: 600; color: #667eea;">${breakdown.venue.percentage.toFixed(1)}%</div>
-                                    <div style="text-align: center; font-weight: 600; color: #667eea;">${formatPrice(breakdown.venue.monthlyAmount)}</div>
-                                </div>
-                                
-                                <!-- Platform Fee -->
-                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0;">
-                                    <div style="font-weight: 600; color: #f59e0b;">⚡ Platform Fee</div>
-                                    <div style="text-align: center; font-weight: 600; color: #f59e0b;">${breakdown.platform.displayText}</div>
-                                    <div style="text-align: center; font-weight: 600; color: #f59e0b;">${breakdown.platform.percentage.toFixed(1)}%</div>
-                                    <div style="text-align: center; font-weight: 600; color: #f59e0b;">${formatPrice(breakdown.platform.monthlyAmount)}</div>
-                                </div>
-                                
-                                <!-- Stripe Fee -->
-                                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1rem; align-items: center; padding: 0.75rem 0;">
-                                    <div style="font-weight: 600; color: #6b7280;">💳 Stripe Processing</div>
-                                    <div style="text-align: center; font-weight: 600; color: #6b7280;">${breakdown.stripe.displayText}</div>
-                                    <div style="text-align: center; font-weight: 600; color: #6b7280;">${breakdown.stripe.percentage.toFixed(1)}%</div>
-                                    <div style="text-align: center; font-weight: 600; color: #6b7280;">${formatPrice(breakdown.stripe.monthlyAmount)}</div>
+                        <div class="modal-body">
+                            <div style="margin-bottom: 1.5rem;">
+                                <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #4a5568;">Revenue Split Breakdown</h4>
+                                <table class="breakdown-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fee Component</th>
+                                            <th>Structure</th>
+                                            <th>Effective %</th>
+                                            <th>Monthly $</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td style="font-weight: 600; color: #059669;">🏪 Restaurant Net</td>
+                                            <td style="color: #6b7280;">After all fees</td>
+                                            <td style="font-weight: 600; color: #059669;">${breakdown.restaurant.percentage.toFixed(1)}%</td>
+                                            <td style="font-weight: 600; color: #059669;">${formatPrice(breakdown.restaurant.monthlyAmount)}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 600; color: #667eea;">🏢 Venue Fee</td>
+                                            <td style="font-weight: 600; color: #667eea;">${breakdown.venue.displayText}</td>
+                                            <td style="font-weight: 600; color: #667eea;">${breakdown.venue.percentage.toFixed(1)}%</td>
+                                            <td style="font-weight: 600; color: #667eea;">${formatPrice(breakdown.venue.monthlyAmount)}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 600; color: #f59e0b;">⚡ Platform Fee</td>
+                                            <td style="font-weight: 600; color: #f59e0b;">${breakdown.platform.displayText}</td>
+                                            <td style="font-weight: 600; color: #f59e0b;">${breakdown.platform.percentage.toFixed(1)}%</td>
+                                            <td style="font-weight: 600; color: #f59e0b;">${formatPrice(breakdown.platform.monthlyAmount)}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 600; color: #6b7280;">💳 Stripe Processing</td>
+                                            <td style="font-weight: 600; color: #6b7280;">${breakdown.stripe.displayText}</td>
+                                            <td style="font-weight: 600; color: #6b7280;">${breakdown.stripe.percentage.toFixed(1)}%</td>
+                                            <td style="font-weight: 600; color: #6b7280;">${formatPrice(breakdown.stripe.monthlyAmount)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div style="margin-bottom: 1.5rem;">
+                                <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: #4a5568;">Fee Configuration Details</h4>
+                                <div style="background: #fef7ff; border-radius: 8px; padding: 1rem; border: 1px solid #e9d5ff;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                        <div>
+                                            <div style="font-size: 0.8rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.25rem;">Platform Service Fee</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Type: ${breakdown.feeConfig?.feeType || 'percentage'}</div>
+                                            ${breakdown.platform.configuredPercentage ? `<div style="font-size: 0.75rem; color: #64748b;">Rate: ${breakdown.platform.configuredPercentage}%</div>` : ''}
+                                            ${breakdown.platform.configuredFixed ? `<div style="font-size: 0.75rem; color: #64748b;">Fixed: ${breakdown.platform.configuredFixed.toFixed(2)}</div>` : ''}
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 0.8rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.25rem;">Stripe Processing</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Rate: ${breakdown.stripe.configuredPercentage}%</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Flat: ${breakdown.stripe.configuredFlatFee}¢</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">${breakdown.stripe.isNegotiated ? 'Negotiated' : 'Standard'}</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="padding-top: 0.75rem; border-top: 1px solid #e9d5ff;">
+                                        <div style="font-size: 0.8rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.25rem;">Venue Fee (Your Control)</div>
+                                        <div style="font-size: 0.75rem; color: #64748b;">Rate: ${breakdown.venue.configuredPercentage}% (editable) • Applied to net after Stripe</div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div style="margin-bottom: 2rem;">
-                            <h4 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; color: #4a5568;">Fee Configuration Details</h4>
-                            <div style="background: #fef7ff; border-radius: 12px; padding: 1.5rem; border: 1px solid #e9d5ff;">
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
-                                    <div>
-                                        <div style="font-size: 0.875rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.5rem;">Platform Service Fee (Admin Configured)</div>
-                                        <div style="font-size: 0.875rem; color: #64748b;">Type: ${breakdown.feeConfig?.feeType || 'percentage'}</div>
-                                        ${breakdown.platform.configuredPercentage ? `<div style="font-size: 0.875rem; color: #64748b;">Percentage: ${breakdown.platform.configuredPercentage}%</div>` : ''}
-                                        ${breakdown.platform.configuredFixed ? `<div style="font-size: 0.875rem; color: #64748b;">Fixed: ${breakdown.platform.configuredFixed.toFixed(2)}</div>` : ''}
-                                        <div style="font-size: 0.875rem; color: #7c3aed; font-weight: 600; margin-top: 0.5rem;">Display: ${breakdown.platform.displayText}</div>
-                                    </div>
-                                    <div>
-                                        <div style="font-size: 0.875rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.5rem;">Stripe Processing (Admin Configured)</div>
-                                        <div style="font-size: 0.875rem; color: #64748b;">Percentage: ${breakdown.stripe.configuredPercentage}%</div>
-                                        <div style="font-size: 0.875rem; color: #64748b;">Flat Fee: ${breakdown.stripe.configuredFlatFee}¢</div>
-                                        <div style="font-size: 0.875rem; color: #64748b;">Status: ${breakdown.stripe.isNegotiated ? 'Negotiated' : 'Standard'}</div>
-                                        <div style="font-size: 0.875rem; color: #7c3aed; font-weight: 600; margin-top: 0.5rem;">Display: ${breakdown.stripe.displayText}</div>
-                                    </div>
-                                </div>
-                                
-                                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e9d5ff;">
-                                    <div style="font-size: 0.875rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.5rem;">Venue Fee (Your Control)</div>
-                                    <div style="font-size: 0.875rem; color: #64748b;">Rate: ${breakdown.venue.configuredPercentage}% (editable)</div>
-                                    <div style="font-size: 0.875rem; color: #64748b;">Applied to: Net amount after Stripe fees</div>
-                                </div>
+                            
+                            <div style="background: #f0f9ff; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; border: 1px solid #bae6fd;">
+                                <div style="font-size: 0.8rem; color: #0369a1;">📝 Platform and Stripe fees are configured in admin dashboard. Only venue fees can be adjusted here.</div>
                             </div>
-                        </div>
-                        
-                        <div style="background: #f0f9ff; border-radius: 12px; padding: 1rem; margin-bottom: 2rem; border: 1px solid #bae6fd;">
-                            <div style="font-size: 0.875rem; color: #0369a1; font-weight: 600; margin-bottom: 0.5rem;">📝 Note:</div>
-                            <div style="font-size: 0.875rem; color: #0369a1;">Platform and Stripe fees are configured in your admin dashboard. Only venue fees can be adjusted here.</div>
-                        </div>
-                        
-                        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                            <button onclick="closeRevenueModal()" style="padding: 0.75rem 1.5rem; background: #f1f5f9; border: none; border-radius: 8px; color: #4a5568; font-weight: 600; cursor: pointer;">
-                                Close
-                            </button>
+                            
+                            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                                <button onclick="closeRevenueModal()" style="padding: 0.5rem 1rem; background: #f1f5f9; border: none; border-radius: 6px; color: #4a5568; font-weight: 600; cursor: pointer; font-size: 0.875rem;">
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1710,8 +1850,8 @@
             showSuccess('All changes reset');
         }
 
-        // Update revenue calculator
-        function updateCalculation() {
+        // Enhanced revenue calculator with all fee components
+        async function updateCalculation() {
             console.log('🧮 Updating revenue calculation...');
             
             const orderValue = parseFloat(document.getElementById('calcOrderValue').value) || 0;
@@ -1719,26 +1859,65 @@
             const feeRate = parseFloat(document.getElementById('calcVenueFeeRate').value) || 0;
             
             const dailyRevenue = orderValue * ordersPerDay;
-            const dailyEarnings = dailyRevenue * (feeRate / 100);
             const monthlyRevenue = dailyRevenue * 30;
-            const monthlyEarnings = dailyEarnings * 30;
+            
+            // Calculate fees using global config
+            const stripeFeePercentage = globalFeeConfig.stripeFeePercentage / 100;
+            const stripeFlatFee = globalFeeConfig.stripeFlatFee / 100;
+            const stripeFeeAmount = (orderValue * stripeFeePercentage) + stripeFlatFee;
+            const netAfterStripe = orderValue - stripeFeeAmount;
+            
+            // Platform fee calculation
+            let platformFeeAmount = 0;
+            switch (globalFeeConfig.feeType) {
+                case 'fixed':
+                    platformFeeAmount = globalFeeConfig.serviceFeeFixed || 0;
+                    break;
+                case 'percentage':
+                    platformFeeAmount = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
+                    break;
+                case 'hybrid':
+                    const fixedPart = globalFeeConfig.serviceFeeFixed || 0;
+                    const percentagePart = netAfterStripe * (globalFeeConfig.serviceFeePercentage / 100);
+                    platformFeeAmount = fixedPart + percentagePart;
+                    break;
+            }
+            
+            // Venue fee and restaurant net
+            const venueFeeAmount = netAfterStripe * (feeRate / 100);
+            const restaurantAmount = netAfterStripe - platformFeeAmount - venueFeeAmount;
+            
+            // Daily calculations
+            const dailyStripe = stripeFeeAmount * ordersPerDay;
+            const dailyPlatform = platformFeeAmount * ordersPerDay;
+            const dailyVenue = venueFeeAmount * ordersPerDay;
+            const dailyRestaurant = restaurantAmount * ordersPerDay;
+            
+            // Monthly calculations
+            const monthlyVenue = dailyVenue * 30;
             
             console.log('📊 Calculator values:', {
                 orderValue,
                 ordersPerDay,
                 feeRate,
                 dailyRevenue,
-                dailyEarnings,
+                dailyStripe,
+                dailyPlatform,
+                dailyVenue,
+                dailyRestaurant,
                 monthlyRevenue,
-                monthlyEarnings
+                monthlyVenue
             });
             
+            // Update display
             document.getElementById('calcDailyRevenue').textContent = formatPrice(dailyRevenue);
-            document.getElementById('calcDailyEarnings').textContent = formatPrice(dailyEarnings);
-            document.getElementById('calcMonthlyRevenue').textContent = formatPrice(monthlyRevenue);
-            document.getElementById('calcMonthlyEarnings').textContent = formatPrice(monthlyEarnings);
+            document.getElementById('calcRestaurantDaily').textContent = formatPrice(dailyRestaurant);
+            document.getElementById('calcDailyEarnings').textContent = formatPrice(dailyVenue);
+            document.getElementById('calcPlatformDaily').textContent = formatPrice(dailyPlatform);
+            document.getElementById('calcStripeDaily').textContent = formatPrice(dailyStripe);
+            document.getElementById('calcMonthlyEarnings').textContent = formatPrice(monthlyVenue);
             
-            console.log('✅ Calculator updated');
+            console.log('✅ Enhanced calculator updated with all fee components');
         }
 
         // Utility functions
@@ -1783,10 +1962,11 @@
             showNotification(message, 'error');
         }
 
-        console.log('💰 Venue Financials page loaded');
-        console.log('🔧 Features: Restaurant fee management, revenue calculator, bulk operations');
+        console.log('💰 Enhanced Venue Financials page loaded');
+        console.log('🔧 Features: Restaurant fee management, enhanced revenue calculator, bulk operations');
         console.log('📊 Integration: VenueSync API, real-time fee updates, Stripe payment splitting');
-        console.log('💳 Enhanced: Dynamic fee display from admin dashboard configuration');
+        console.log('💳 Enhanced: Dynamic fee display with admin dashboard configuration');
+        console.log('🧮 Calculator: Now shows all fee components (Restaurant, Venue, Platform, Stripe)');
     </script>
 </body>
 </html>
