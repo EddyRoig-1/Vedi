@@ -623,18 +623,24 @@
                 console.log('Received filter update from parent:', event.data.filters);
                 
                 // Update current filters
+                const previousFilters = { ...currentFilters };
                 currentFilters = {
                     ...currentFilters,
                     ...event.data.filters
                 };
                 
+                console.log('Filter change:', { previous: previousFilters, new: currentFilters });
+                
                 // Update page content based on filters
                 updatePageWithFilters();
                 
                 // Recalculate performance metrics with new filters
-                if (allOrders.length > 0) {
+                if (allOrders.length > 0 && venueRestaurants.length > 0) {
                     calculatePerformanceMetrics();
                     updatePerformanceDashboard();
+                    console.log('Performance data updated for new filters');
+                } else {
+                    console.log('No data available to update');
                 }
             }
         });
@@ -742,6 +748,7 @@
         // Auto-refresh when page is shown (for iframe reloads)
         window.addEventListener('focus', function() {
             if (currentVenue && venueRestaurants.length > 0) {
+                console.log('Page focused - refreshing data');
                 refreshPerformanceData();
             }
         });
@@ -749,9 +756,21 @@
         // Listen for page visibility changes (when switching tabs)
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden && currentVenue && venueRestaurants.length > 0) {
+                console.log('Page visible - refreshing data');
                 refreshPerformanceData();
             }
         });
+
+        // Debug function to check current state
+        window.debugPerformance = function() {
+            console.log('=== PERFORMANCE DEBUG ===');
+            console.log('Current Filters:', currentFilters);
+            console.log('Venue Restaurants:', venueRestaurants.length);
+            console.log('All Orders:', allOrders.length);
+            console.log('Performance Data:', performanceData.length);
+            console.log('Charts Initialized:', { revenue: !!revenueChart, orders: !!ordersChart });
+            console.log('========================');
+        };
 
         // Authentication and initialization
         async function initializePerformanceAnalytics() {
@@ -786,6 +805,9 @@
                 // Setup UI
                 updatePerformanceDashboard();
                 initializeCharts();
+                
+                // Apply initial filters if any
+                updatePageWithFilters();
                 
                 showSuccess('Performance analytics loaded successfully!');
                 
@@ -1230,11 +1252,18 @@
         }
 
         function updateCharts() {
-            if (!revenueChart || !ordersChart) return;
+            if (!revenueChart || !ordersChart) {
+                console.log('Charts not initialized yet');
+                return;
+            }
+
+            console.log('Updating charts with current filters:', currentFilters);
 
             // Get chart period based on time filter
             const chartPeriod = getChartPeriod();
             const { labels, revenueData } = getRevenueChartData(chartPeriod);
+            
+            console.log(`Chart period: ${chartPeriod}, Data points: ${labels.length}`);
             
             // Update revenue chart
             revenueChart.data.labels = labels;
@@ -1247,9 +1276,14 @@
             );
             const restaurantOrders = performanceData.map(r => r.totalOrders);
 
+            console.log(`Orders chart: ${restaurantNames.length} restaurants`);
+
             ordersChart.data.labels = restaurantNames;
             ordersChart.data.datasets[0].data = restaurantOrders;
             ordersChart.update();
+
+            // Update chart titles after data update
+            updateChartTitles();
         }
 
         function getChartPeriod() {
