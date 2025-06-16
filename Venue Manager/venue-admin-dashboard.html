@@ -13,7 +13,8 @@
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
-    <!-- Your Vedi API -->
+    <!-- VediAPI -->
+    <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
     
     <style>
@@ -605,6 +606,11 @@
             100% { transform: rotate(360deg); }
         }
 
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
         .empty-state {
             text-align: center;
             padding: 4rem 2rem;
@@ -629,8 +635,57 @@
             line-height: 1.6;
         }
 
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .loading-overlay .loading-spinner {
+            margin: 0 auto 15px;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: #ef4444;
+        }
+
         /* Responsive */
-                    @media (max-width: 768px) {
+        @media (max-width: 768px) {
             .dashboard-container {
                 margin: 10px;
                 border-radius: 16px;
@@ -683,6 +738,14 @@
     </style>
 </head>
 <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p id="loadingText">Loading venue dashboard...</p>
+        </div>
+    </div>
+
     <div class="dashboard-container">
         <!-- Header -->
         <header class="header">
@@ -892,30 +955,20 @@
         </main>
     </div>
 
+    <!-- Notification -->
+    <div class="notification" id="notification">
+        <strong>Success:</strong> Dashboard updated successfully.
+    </div>
+
     <script>
-        // Firebase Configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
-            authDomain: "vedi00.firebaseapp.com",
-            projectId: "vedi00",
-            storageBucket: "vedi00.firebasestorage.app",
-            messagingSenderId: "136867441640",
-            appId: "1:136867441640:web:9ec709b63f5690f628125d",
-            measurementId: "G-ZS0FKPTEY2"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-
         // Global variables
         let currentUser = null;
         let currentVenue = null;
         let allRestaurants = [];
         let allOrders = [];
         let filteredOrders = [];
-        let realtimeUnsubscribe = null;
+        let restaurantUpdateListeners = [];
+        let refreshInterval = null;
         let currentFilters = {
             timeRange: 'month',
             restaurant: 'all',
@@ -924,74 +977,133 @@
         };
 
         // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            checkVenueAuth();
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Venue Admin Dashboard initializing...');
+            await initializeVenueDashboard();
         });
 
-        // Check venue authentication
-        async function checkVenueAuth() {
-            auth.onAuthStateChanged(async (user) => {
-                if (user) {
-                    const isVenueManager = await checkIfVenueManager(user.uid);
-                    if (isVenueManager) {
-                        const venueData = await getVenueData(user.uid);
-                        document.getElementById('venueName').textContent = venueData.name;
-                        initializeVenueDashboard();
-                    } else {
-                        alert('Access denied. Redirecting to login...');
-                        window.location.href = '../Landing-Signup-Login/login.html';
-                    }
-                } else {
+        // Authentication and initialization
+        async function initializeVenueDashboard() {
+            showLoading('Checking authentication...');
+            
+            try {
+                // Check authentication
+                currentUser = await VediAPI.getCurrentUser();
+                if (!currentUser) {
+                    console.log('No authenticated user, redirecting to login');
                     window.location.href = '../Landing-Signup-Login/login.html';
+                    return;
                 }
-            });
-        }
 
-        // Check if user is venue manager
-        async function checkIfVenueManager(userId) {
-            try {
-                const userDoc = await db.collection('users').doc(userId).get();
-                if (userDoc.exists) {
-                    const userData = userDoc.data();
-                    return userData.accountType === 'venue';
+                console.log('✅ Authenticated user:', currentUser.email);
+
+                // Check if user is venue manager
+                if (currentUser.accountType !== 'venue') {
+                    showError('Access denied. This dashboard is for venue managers only.');
+                    setTimeout(() => {
+                        window.location.href = '../Owner/dashboard.html';
+                    }, 2000);
+                    return;
                 }
-                return false;
+
+                showLoading('Loading venue data...');
+
+                // Load venue data
+                currentVenue = await VediAPI.getVenueByManager(currentUser.id);
+                if (!currentVenue) {
+                    console.log('No venue found, redirecting to setup');
+                    window.location.href = '../Landing-Signup-Login/venue-setup.html';
+                    return;
+                }
+
+                console.log('✅ Loaded venue:', currentVenue.name);
+                document.getElementById('venueName').textContent = currentVenue.name;
+
+                // Update user info
+                const initials = getInitials(currentUser.name || currentUser.email || 'User');
+                document.getElementById('userInitials').textContent = initials;
+
+                showLoading('Loading restaurant data...');
+
+                // Load all restaurants in this venue
+                await loadRestaurantsData();
+                
+                showLoading('Loading orders data...');
+                
+                // Load all orders for all restaurants
+                await loadOrdersData();
+                
+                // Setup UI
+                populateFilters();
+                setDefaultDates();
+                applyFilters(); // Apply default filters
+                startLiveUpdates();
+                
+                hideLoading();
+                showSuccess('Venue dashboard loaded successfully!');
+                
             } catch (error) {
-                console.error('Error checking venue manager status:', error);
-                return false;
+                console.error('❌ Venue dashboard initialization error:', error);
+                showError('Failed to load venue dashboard: ' + error.message);
+                hideLoading();
             }
         }
 
-        // Get venue data
-        async function getVenueData(userId) {
+        // Data loading functions
+        async function loadRestaurantsData() {
             try {
-                const venueDoc = await db.collection('venues').where('managerId', '==', userId).limit(1).get();
-                if (!venueDoc.empty) {
-                    const venue = venueDoc.docs[0].data();
-                    venue.id = venueDoc.docs[0].id;
-                    currentVenue = venue;
-                    
-                    // Update venue name and user initials
-                    document.getElementById('venueName').textContent = venue.name || 'Venue Manager';
-                    
-                    // Get user data for initials
-                    const userDoc = await db.collection('users').doc(userId).get();
-                    if (userDoc.exists) {
-                        const userData = userDoc.data();
-                        const initials = getInitials(userData.name || userData.email || 'User');
-                        document.getElementById('userInitials').textContent = initials;
+                // Get restaurants associated with this venue
+                allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                console.log('✅ Loaded restaurants for venue:', allRestaurants.length);
+
+            } catch (error) {
+                console.error('❌ Error loading restaurants data:', error);
+                allRestaurants = [];
+                console.warn('No restaurants associated with this venue yet');
+            }
+        }
+
+        async function loadOrdersData() {
+            try {
+                allOrders = [];
+                
+                if (allRestaurants.length === 0) {
+                    console.log('No restaurants to load orders from');
+                    return;
+                }
+                
+                // Load orders for each restaurant
+                for (const restaurant of allRestaurants) {
+                    try {
+                        const restaurantOrders = await VediAPI.getOrders(restaurant.id, { 
+                            limit: 500, 
+                            orderBy: 'createdAt' 
+                        });
+                        
+                        // Add restaurant info to each order
+                        const ordersWithRestaurant = restaurantOrders.map(order => ({
+                            ...order,
+                            restaurantName: restaurant.name,
+                            restaurantId: restaurant.id,
+                            restaurantCurrency: restaurant.currency || { code: 'USD', symbol: '$', name: 'US Dollar' }
+                        }));
+                        
+                        allOrders = allOrders.concat(ordersWithRestaurant);
+                        
+                    } catch (error) {
+                        console.warn(`Failed to load orders for restaurant ${restaurant.name}:`, error);
                     }
-                    
-                    return venue;
                 }
-                return { name: 'Venue Manager' };
+                
+                console.log('✅ Loaded orders:', allOrders.length);
+
             } catch (error) {
-                console.error('Error getting venue data:', error);
-                return { name: 'Venue Manager' };
+                console.error('❌ Error loading orders data:', error);
+                throw error;
             }
         }
 
-        // Get initials from name
+        // Utility functions
         function getInitials(name) {
             if (!name) return 'U';
             const names = name.trim().split(' ');
@@ -999,60 +1111,6 @@
                 return names[0].charAt(0).toUpperCase();
             }
             return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
-        }
-
-        // Initialize venue dashboard
-        async function initializeVenueDashboard() {
-            await loadVenueData();
-            populateFilters();
-            setDefaultDates();
-            applyFilters();
-            setupRealtimeUpdates();
-        }
-
-        // Load venue data
-        async function loadVenueData() {
-            try {
-                if (!currentVenue) return;
-                
-                // Load restaurants for this venue
-                const restaurantsSnapshot = await db.collection('restaurants')
-                    .where('venueId', '==', currentVenue.id)
-                    .get();
-                
-                allRestaurants = restaurantsSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-
-                // Load orders for all restaurants
-                allOrders = [];
-                for (const restaurant of allRestaurants) {
-                    const ordersSnapshot = await db.collection('orders')
-                        .where('restaurantId', '==', restaurant.id)
-                        .orderBy('createdAt', 'desc')
-                        .limit(500)
-                        .get();
-                    
-                    const restaurantOrders = ordersSnapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                        restaurantName: restaurant.name,
-                        restaurantId: restaurant.id,
-                        restaurantCurrency: restaurant.currency || { code: 'USD', symbol: '$', name: 'US Dollar' }
-                    }));
-                    
-                    allOrders = allOrders.concat(restaurantOrders);
-                }
-
-                console.log('✅ Loaded venue data:', {
-                    restaurants: allRestaurants.length,
-                    orders: allOrders.length
-                });
-
-            } catch (error) {
-                console.error('❌ Error loading venue data:', error);
-            }
         }
 
         // Time range and filter functions
@@ -1134,17 +1192,22 @@
                 toDate: document.getElementById('toDate').value
             };
 
+            console.log('🔍 Applying filters:', currentFilters);
+            
             const { startDate, endDate } = getDateRange(timeRange);
             
             filteredOrders = allOrders.filter(order => {
-                const orderDate = timestampToDate(order.createdAt);
+                const orderDate = VediAPI.timestampToDate(order.createdAt);
                 const matchesDate = orderDate >= startDate && orderDate <= endDate;
                 const matchesRestaurant = restaurant === 'all' || order.restaurantId === restaurant;
                 return matchesDate && matchesRestaurant;
             });
 
+            console.log(`📊 Filtered ${filteredOrders.length} orders from ${allOrders.length} total`);
+            
             updateFilterStatus();
             updateDashboard();
+            showSuccess('Filters applied successfully');
         }
 
         function updateFilterStatus() {
@@ -1189,11 +1252,9 @@
             const venueSelector = document.getElementById('venueSelector');
             const restaurantFilter = document.getElementById('restaurantFilter');
             
-            // Clear existing options
             venueSelector.innerHTML = '<option value="all">All Venues</option>';
             restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
             
-            // Add current venue
             if (currentVenue) {
                 const venueOption = document.createElement('option');
                 venueOption.value = currentVenue.id;
@@ -1388,7 +1449,7 @@
             if (restaurants.length === 0) {
                 grid.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">No Data</div>
+                        <div class="empty-state-icon">🏪</div>
                         <h3>No restaurants connected</h3>
                         <p>Connect restaurants to this venue to see performance data</p>
                     </div>
@@ -1488,19 +1549,43 @@
             return `${currency.symbol}${formattedAmount}`;
         }
 
-        function setupRealtimeUpdates() {
-            if (allRestaurants.length === 0) return;
+        function startLiveUpdates() {
+            console.log('🔄 Starting live updates for venue dashboard');
+            
+            if (allRestaurants.length === 0) {
+                console.log('No restaurants to set up live updates for');
+                return;
+            }
             
             allRestaurants.forEach(restaurant => {
-                const unsubscribe = db.collection('orders')
-                    .where('restaurantId', '==', restaurant.id)
-                    .onSnapshot((snapshot) => {
-                        console.log(`📡 Orders updated for ${restaurant.name}`);
-                        loadVenueData().then(() => {
-                            applyFilters();
-                        });
-                    });
+                const listener = VediAPI.listenToOrders(restaurant.id, (updatedOrders) => {
+                    console.log(`📡 Orders updated for ${restaurant.name}:`, updatedOrders.length);
+                    
+                    // Update orders for this restaurant
+                    allOrders = allOrders.filter(order => order.restaurantId !== restaurant.id);
+                    const ordersWithRestaurant = updatedOrders.map(order => ({
+                        ...order,
+                        restaurantName: restaurant.name,
+                        restaurantId: restaurant.id,
+                        restaurantCurrency: restaurant.currency || { code: 'USD', symbol: '$', name: 'US Dollar' }
+                    }));
+                    allOrders = allOrders.concat(ordersWithRestaurant);
+                    
+                    applyFilters();
+                });
+                
+                restaurantUpdateListeners.push(listener);
             });
+
+            refreshInterval = setInterval(async () => {
+                try {
+                    console.log('🔄 Background refresh of venue data');
+                    await loadOrdersData();
+                    applyFilters();
+                } catch (error) {
+                    console.error('❌ Background refresh failed:', error);
+                }
+            }, 60000);
         }
 
         // Navigation
@@ -1519,22 +1604,76 @@
             event.target.closest('.nav-tab').classList.add('active');
         }
 
-        // Utility functions
-        function timestampToDate(timestamp) {
-            if (timestamp && timestamp.toDate) {
-                return timestamp.toDate();
+        async function handleLogout() {
+            if (!confirm('Are you sure you want to logout?')) {
+                return;
             }
-            return new Date(timestamp);
+            
+            try {
+                showLoading('Logging out...');
+                
+                restaurantUpdateListeners.forEach(listener => {
+                    if (listener) listener();
+                });
+                restaurantUpdateListeners = [];
+                
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                }
+                
+                await VediAPI.signOut();
+                window.location.href = '../Landing-Signup-Login/login.html';
+                
+            } catch (error) {
+                console.error('❌ Error during logout:', error);
+                showError('Failed to logout: ' + error.message);
+                hideLoading();
+            }
         }
 
-        async function handleLogout() {
-            try {
-                await auth.signOut();
-                window.location.href = '../Landing-Signup-Login/login.html';
-            } catch (error) {
-                alert('Error signing out. Please try again.');
-            }
+        function showLoading(message = 'Loading...') {
+            const overlay = document.getElementById('loadingOverlay');
+            const text = document.getElementById('loadingText');
+            text.textContent = message;
+            overlay.style.display = 'flex';
         }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'none';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<strong>${type === 'success' ? 'Success:' : 'Error:'}</strong> ${message}`;
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            restaurantUpdateListeners.forEach(listener => {
+                if (listener) listener();
+            });
+            
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+
+        console.log('🏢 Venue Admin Dashboard loaded successfully');
     </script>
 </body>
 </html>
