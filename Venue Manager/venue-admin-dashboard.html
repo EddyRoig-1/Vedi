@@ -1103,51 +1103,64 @@
         }
 
         // Time range and filter functions
-        function getDateRange(timeRange) {
+        // EXACT date range logic from working orders page
+        function getDateRangeFromOrdersPage(timeRange, fromDate = null, toDate = null) {
             const now = new Date();
             let startDate, endDate;
 
             switch (timeRange) {
                 case 'today':
                     startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    endDate.setHours(23, 59, 59, 999);
                     break;
                 case 'week':
-                    const weekStart = new Date(now);
-                    weekStart.setDate(now.getDate() - now.getDay());
-                    weekStart.setHours(0, 0, 0, 0);
-                    startDate = weekStart;
-                    endDate = now;
+                    startDate = new Date(now);
+                    startDate.setDate(now.getDate() - now.getDay());
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate = new Date(now);
                     break;
                 case 'month':
                     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = now;
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate = new(now);
                     break;
                 case 'quarter':
                     const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
                     startDate = quarterStart;
-                    endDate = now;
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate = new Date(now);
                     break;
                 case 'custom':
-                    const fromDate = document.getElementById('fromDate').value;
-                    const toDate = document.getElementById('toDate').value;
-                    if (fromDate && toDate) {
-                        startDate = new Date(fromDate);
-                        endDate = new Date(toDate);
+                    const customFromDate = fromDate || document.getElementById('fromDate')?.value;
+                    const customToDate = toDate || document.getElementById('toDate')?.value;
+                    if (customFromDate && customToDate) {
+                        startDate = new Date(customFromDate);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = new Date(customToDate);
                         endDate.setHours(23, 59, 59, 999);
                     } else {
                         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                        endDate = now;
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = new Date(now);
                     }
                     break;
                 default:
                     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = now;
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate = new Date(now);
             }
 
             return { startDate, endDate };
         }
 
+        // Keep original function for backward compatibility
+        function getDateRange(timeRange) {
+            return getDateRangeFromOrdersPage(timeRange);
+        }
+
+        // Enhanced handleTimeRangeChange with immediate reload
         function handleTimeRangeChange() {
             const timeRange = document.getElementById('timeRange').value;
             const fromDateGroup = document.getElementById('fromDateGroup');
@@ -1156,10 +1169,38 @@
             if (timeRange === 'custom') {
                 fromDateGroup.style.display = 'flex';
                 toDateGroup.style.display = 'flex';
+                
+                // Don't auto-apply for custom - wait for user to set dates
+                console.log('📅 Custom date range selected - waiting for date input');
             } else {
                 fromDateGroup.style.display = 'none';
                 toDateGroup.style.display = 'none';
+                
+                // Immediately reload data with new time range (like orders page)
+                console.log('📅 Time range changed to:', timeRange);
+                reloadDataWithCurrentFilters();
+            }
+        }
+
+        // Reload data when filters change (like orders page)
+        async function reloadDataWithCurrentFilters() {
+            try {
+                console.log('🔄 Reloading data with current filters...');
+                
+                // Clear existing data
+                allOrders = [];
+                
+                // Reload with current filters
+                await loadVenueData();
+                
+                // Apply filters and update UI
                 applyFilters();
+                
+                console.log('✅ Data reloaded successfully');
+                
+            } catch (error) {
+                console.error('❌ Error reloading data:', error);
+                alert('Error reloading data: ' + error.message);
             }
         }
 
@@ -1170,10 +1211,12 @@
             document.getElementById('toDate').value = today.toISOString().split('T')[0];
         }
 
+        // Enhanced applyFilters with orders page logic
         function applyFilters() {
             const timeRange = document.getElementById('timeRange').value;
             const restaurant = document.getElementById('restaurantFilter').value;
             
+            // Store current filters
             currentFilters = {
                 timeRange,
                 restaurant,
@@ -1181,19 +1224,78 @@
                 toDate: document.getElementById('toDate').value
             };
 
-            const { startDate, endDate } = getDateRange(timeRange);
+            console.log('🔄 Applying filters:', currentFilters);
+
+            // Use orders page date range logic
+            const { startDate, endDate } = getDateRangeFromOrdersPage(
+                timeRange,
+                currentFilters.fromDate,
+                currentFilters.toDate
+            );
             
+            console.log('📅 Date range:', { startDate, endDate });
+            
+            // Filter orders using EXACT same logic as orders page
             filteredOrders = allOrders.filter(order => {
-                const orderDate = timestampToDate(order.createdAt);
+                // Date filtering - EXACT same as orders page
+                let orderDate;
+                if (order.createdAt && order.createdAt.toDate) {
+                    orderDate = order.createdAt.toDate();
+                } else if (order.createdAt instanceof Date) {
+                    orderDate = order.createdAt;
+                } else {
+                    orderDate = new Date(order.createdAt);
+                }
+                
                 const matchesDate = orderDate >= startDate && orderDate <= endDate;
+                
+                // Restaurant filtering - EXACT same as orders page
                 const matchesRestaurant = restaurant === 'all' || order.restaurantId === restaurant;
+                
                 return matchesDate && matchesRestaurant;
             });
 
+            console.log(`✅ Filtered ${filteredOrders.length} orders from ${allOrders.length} total`);
+
+            // Update UI
             updateFilterStatus();
             updateDashboard();
+            
+            // Send filter updates to performance iframe
+            sendFiltersToIframes();
         }
 
+        // Send current filters to iframe pages (like performance.html)
+        function sendFiltersToIframes() {
+            const performanceIframe = document.querySelector('#performance-section iframe');
+            
+            if (performanceIframe && performanceIframe.contentWindow) {
+                const filterData = {
+                    type: 'UPDATE_FILTERS',
+                    filters: {
+                        ...currentFilters,
+                        venue: currentVenue?.id,
+                        venueName: currentVenue?.name
+                    }
+                };
+                
+                console.log('📡 Sending filters to performance iframe:', filterData);
+                performanceIframe.contentWindow.postMessage(filterData, '*');
+            }
+        }
+
+        // Listen for iframe ready messages
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'PERFORMANCE_READY') {
+                console.log('📡 Performance iframe ready, sending current filters');
+                setTimeout(() => sendFiltersToIframes(), 500);
+            } else if (event.data && event.data.type === 'REQUEST_CURRENT_FILTERS') {
+                console.log('📡 Iframe requesting current filters');
+                setTimeout(() => sendFiltersToIframes(), 100);
+            }
+        });
+
+        // Enhanced filter status with better logging
         function updateFilterStatus() {
             const filterStatus = document.getElementById('filterStatus');
             const filterDescription = document.getElementById('filterDescription');
@@ -1201,6 +1303,7 @@
             let description = '';
             const { timeRange, restaurant } = currentFilters;
             
+            // Same time range text as orders page
             switch (timeRange) {
                 case 'today': description += 'Today'; break;
                 case 'week': description += 'This Week'; break;
@@ -1208,13 +1311,16 @@
                 case 'quarter': description += 'This Quarter'; break;
                 case 'custom':
                     if (currentFilters.fromDate && currentFilters.toDate) {
-                        description += `${currentFilters.fromDate} to ${currentFilters.toDate}`;
+                        const fromDate = new Date(currentFilters.fromDate).toLocaleDateString();
+                        const toDate = new Date(currentFilters.toDate).toLocaleDateString();
+                        description += `${fromDate} to ${toDate}`;
                     } else {
                         description += 'Custom Range';
                     }
                     break;
             }
             
+            // Restaurant filter text
             if (restaurant !== 'all') {
                 const selectedRestaurant = allRestaurants.find(r => r.id === restaurant);
                 if (selectedRestaurant) {
@@ -1222,14 +1328,23 @@
                 }
             }
             
+            // Order count
             description += ` • ${filteredOrders.length} orders`;
-            filterDescription.textContent = description;
             
-            if (timeRange !== 'month' || restaurant !== 'all') {
-                filterStatus.classList.add('active');
-            } else {
-                filterStatus.classList.remove('active');
+            if (filterDescription) {
+                filterDescription.textContent = description;
             }
+            
+            // Show/hide filter status
+            if (filterStatus) {
+                if (timeRange !== 'month' || restaurant !== 'all') {
+                    filterStatus.classList.add('active');
+                } else {
+                    filterStatus.classList.remove('active');
+                }
+            }
+            
+            console.log('📊 Filter status updated:', description);
         }
 
         function populateFilters() {
@@ -1284,28 +1399,37 @@
             }
         }
 
+        // Enhanced calculateMetrics with better order processing
         function calculateMetrics() {
+            // Use filtered orders (already processed with orders page logic)
             const ordersInRange = filteredOrders;
+            
+            console.log('📊 Calculating metrics for', ordersInRange.length, 'filtered orders');
+            
+            // Count active orders from ALL orders (not just filtered)
             const activeOrders = allOrders.filter(order => 
                 ['pending', 'preparing', 'ready'].includes(order.status)
             ).length;
 
+            // Only count completed orders from filtered range
             const completedOrders = ordersInRange.filter(order => order.status === 'completed');
 
+            // Process each restaurant with filtered data
             const restaurants = allRestaurants.map(restaurant => {
                 const restaurantOrdersInRange = ordersInRange.filter(order => 
                     order.restaurantId === restaurant.id
                 );
                 
-                const restaurantRevenue = restaurantOrdersInRange
-                    .filter(order => order.status === 'completed')
-                    .reduce((sum, order) => sum + (order.total || 0), 0);
+                const restaurantCompletedOrders = restaurantOrdersInRange.filter(order => order.status === 'completed');
+                const restaurantRevenue = restaurantCompletedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
 
+                // Active orders from ALL orders for this restaurant
                 const restaurantActiveOrders = allOrders.filter(order => 
                     order.restaurantId === restaurant.id && 
                     ['pending', 'preparing', 'ready'].includes(order.status)
                 ).length;
 
+                // Calculate item sales from filtered orders
                 const itemSales = {};
                 restaurantOrdersInRange.forEach(order => {
                     if (order.items) {
@@ -1322,9 +1446,13 @@
                     .sort((a, b) => b.quantity - a.quantity)
                     .slice(0, 3);
 
-                const avgOrderValue = restaurantOrdersInRange.length > 0 
-                    ? restaurantRevenue / restaurantOrdersInRange.filter(o => o.status === 'completed').length 
+                const avgOrderValue = restaurantCompletedOrders.length > 0 
+                    ? restaurantRevenue / restaurantCompletedOrders.length 
                     : 0;
+
+                const performanceScore = calculatePerformance(restaurantRevenue, restaurantOrdersInRange.length);
+
+                console.log(`📊 ${restaurant.name}: ${restaurantOrdersInRange.length} orders, ${restaurantRevenue.toFixed(2)} revenue, ${performanceScore} performance`);
 
                 return {
                     ...restaurant,
@@ -1333,10 +1461,11 @@
                     activeOrders: restaurantActiveOrders,
                     avgOrderValue,
                     bestSellingItems,
-                    performance: calculatePerformance(restaurantRevenue, restaurantOrdersInRange.length)
+                    performance: performanceScore
                 };
             });
 
+            // Calculate totals
             const totalRevenue = formatMultiCurrencyTotal(restaurants);
             
             let totalOrderValue = 0;
@@ -1351,13 +1480,22 @@
                 ? formatPrice(totalOrderValue / completedOrders.length)
                 : formatPrice(0);
 
-            return {
+            const metrics = {
                 totalRevenue,
                 activeOrders,
                 avgOrderValue,
                 completedOrders: completedOrders.length,
                 restaurants
             };
+
+            console.log('📊 Final metrics:', {
+                totalRevenue,
+                activeOrders,
+                completedOrdersInRange: completedOrders.length,
+                restaurantCount: restaurants.length
+            });
+
+            return metrics;
         }
 
         function formatMultiCurrencyTotal(restaurants) {
