@@ -86,59 +86,38 @@
         .header-info {
             display: flex;
             align-items: center;
-            gap: 2rem;
-        }
-
-        .live-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(255,255,255,0.15);
-            padding: 8px 15px;
-            border-radius: 20px;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: #48bb78;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
+            gap: 1.5rem;
         }
 
         .venue-selector {
-            background: rgba(255,255,255,0.15);
+            background: rgba(255, 255, 255, 0.1);
             color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 8px 16px;
-            border-radius: 12px;
-            font-size: 0.9rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-size: 0.95rem;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
 
         .venue-selector:focus {
             outline: none;
-            background: rgba(255,255,255,0.25);
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
         }
 
         .user-info {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
             background: rgba(255, 255, 255, 0.1);
-            padding: 0.75rem 1.25rem;
-            border-radius: 50px;
+            color: white;
             border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .user-avatar {
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, #4facfe, #00f2fe);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.9rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-size: 0.95rem;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-weight: 500;
+            transition: all 0.3s ease;
         }
 
         .logout-btn {
@@ -149,10 +128,9 @@
             border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s ease;
+            font-size: 0.95rem;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
         }
 
         .logout-btn:hover {
@@ -755,16 +733,11 @@
                     <span>Venue Admin Dashboard</span>
                 </div>
                 <div class="header-info">
-                    <div class="live-indicator">
-                        <div class="status-dot"></div>
-                        <span>Live Updates</span>
-                    </div>
                     <select class="venue-selector" id="venueSelector">
                         <option value="all">All Venues</option>
                     </select>
                     <div class="user-info">
-                        <div class="user-avatar" id="userInitials">U</div>
-                        <span>Welcome, <span id="venueName">Venue Manager</span></span>
+                        <span>Welcome, <span id="userName">Admin</span></span>
                     </div>
                     <button class="logout-btn" onclick="handleLogout()">
                         <span>Logout</span>
@@ -1019,9 +992,10 @@
                 console.log('✅ Loaded venue:', currentVenue.name);
                 document.getElementById('venueName').textContent = currentVenue.name;
 
-                // Update user info
-                const initials = getInitials(currentUser.name || currentUser.email || 'User');
-                document.getElementById('userInitials').textContent = initials;
+                // Update user name in header
+                const userData = await VediAPI.getUserData(currentUser.id);
+                const userName = userData.name || userData.email || 'Admin';
+                document.getElementById('userName').textContent = userName;
 
                 showLoading('Loading restaurant data...');
 
