@@ -1082,40 +1082,50 @@
             switch (timeRange) {
                 case 'today':
                     startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
                     break;
                 case 'week':
-                    const weekStart = new Date(now);
-                    weekStart.setDate(now.getDate() - now.getDay());
-                    weekStart.setHours(0, 0, 0, 0);
-                    startDate = weekStart;
-                    endDate = now;
+                    // Start of this week (Sunday = 0, Monday = 1, etc.)
+                    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                    const startOfWeek = new Date(now);
+                    startOfWeek.setDate(now.getDate() - dayOfWeek); // Go back to Sunday
+                    startOfWeek.setHours(0, 0, 0, 0);
+                    startDate = startOfWeek;
+                    endDate = new Date(now); // Current time
                     break;
                 case 'month':
                     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = now;
+                    endDate = new Date(now);
                     break;
                 case 'quarter':
                     const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
                     startDate = quarterStart;
-                    endDate = now;
+                    endDate = new Date(now);
                     break;
                 case 'custom':
                     const fromDate = document.getElementById('fromDate').value;
                     const toDate = document.getElementById('toDate').value;
                     if (fromDate && toDate) {
                         startDate = new Date(fromDate);
+                        startDate.setHours(0, 0, 0, 0);
                         endDate = new Date(toDate);
                         endDate.setHours(23, 59, 59, 999);
                     } else {
+                        // Fallback to current month if custom dates not properly set
                         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                        endDate = now;
+                        endDate = new Date(now);
                     }
                     break;
                 default:
                     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = now;
+                    endDate = new Date(now);
             }
+
+            console.log(`📅 Date range for ${timeRange}:`, {
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                daysDiff: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+            });
 
             return { startDate, endDate };
         }
@@ -1131,7 +1141,8 @@
             } else {
                 fromDateGroup.style.display = 'none';
                 toDateGroup.style.display = 'none';
-                applyFilters();
+                // Auto-apply filters for non-custom ranges
+                setTimeout(() => applyFilters(), 100);
             }
         }
 
@@ -1157,6 +1168,7 @@
             
             const { startDate, endDate } = getDateRange(timeRange);
             
+            // Filter orders based on criteria
             filteredOrders = allOrders.filter(order => {
                 const orderDate = VediAPI.timestampToDate(order.createdAt);
                 const matchesDate = orderDate >= startDate && orderDate <= endDate;
@@ -1164,7 +1176,23 @@
                 return matchesDate && matchesRestaurant;
             });
 
-            console.log(`📊 Filtered ${filteredOrders.length} orders from ${allOrders.length} total`);
+            console.log(`📊 Filtered ${filteredOrders.length} orders from ${allOrders.length} total for ${timeRange}`);
+            console.log(`📅 Date range: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+            
+            // Debug: Show sample of filtered orders
+            if (filteredOrders.length > 0) {
+                console.log('Sample filtered order dates:', filteredOrders.slice(0, 3).map(order => ({
+                    orderNumber: order.orderNumber,
+                    date: VediAPI.timestampToDate(order.createdAt).toLocaleDateString(),
+                    restaurant: order.restaurantName
+                })));
+            } else {
+                console.log('⚠️ No orders found in date range. Sample of all orders:', allOrders.slice(0, 3).map(order => ({
+                    orderNumber: order.orderNumber,
+                    date: VediAPI.timestampToDate(order.createdAt).toLocaleDateString(),
+                    restaurant: order.restaurantName
+                })));
+            }
             
             updateFilterStatus();
             updateDashboard();
