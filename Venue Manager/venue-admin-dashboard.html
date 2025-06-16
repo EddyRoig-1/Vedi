@@ -13,8 +13,7 @@
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
-    <!-- VediAPI -->
-    <script src="../firebase-config.js"></script>
+    <!-- Your Vedi API -->
     <script src="../firebase-api.js"></script>
     
     <style>
@@ -86,38 +85,59 @@
         .header-info {
             display: flex;
             align-items: center;
-            gap: 1.5rem;
+            gap: 2rem;
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.15);
+            padding: 8px 15px;
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #48bb78;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
         }
 
         .venue-selector {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255,255,255,0.15);
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 0.75rem 1.5rem;
-            border-radius: 50px;
-            font-size: 0.95rem;
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 0.9rem;
         }
 
         .venue-selector:focus {
             outline: none;
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
+            background: rgba(255,255,255,0.25);
         }
 
         .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
             background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 0.75rem 1.5rem;
+            padding: 0.75rem 1.25rem;
             border-radius: 50px;
-            font-size: 0.95rem;
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-weight: 500;
-            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
         }
 
         .logout-btn {
@@ -128,9 +148,10 @@
             border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 0.95rem;
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .logout-btn:hover {
@@ -613,55 +634,6 @@
             line-height: 1.6;
         }
 
-        /* Loading overlay */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-        }
-
-        .loading-card {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        .loading-overlay .loading-spinner {
-            margin: 0 auto 15px;
-        }
-
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #10b981;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            z-index: 1000;
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
-        }
-
-        .notification.show {
-            transform: translateX(0);
-        }
-
-        .notification.error {
-            background: #ef4444;
-        }
-
         /* Responsive */
         @media (max-width: 768px) {
             .dashboard-container {
@@ -716,14 +688,6 @@
     </style>
 </head>
 <body>
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-card">
-            <div class="loading-spinner"></div>
-            <p id="loadingText">Loading venue dashboard...</p>
-        </div>
-    </div>
-
     <div class="dashboard-container">
         <!-- Header -->
         <header class="header">
@@ -733,11 +697,16 @@
                     <span>Venue Admin Dashboard</span>
                 </div>
                 <div class="header-info">
+                    <div class="live-indicator">
+                        <div class="status-dot"></div>
+                        <span>Live Updates</span>
+                    </div>
                     <select class="venue-selector" id="venueSelector">
                         <option value="all">All Venues</option>
                     </select>
                     <div class="user-info">
-                        <span>Welcome, <span id="userName">Admin</span></span>
+                        <div class="user-avatar" id="userInitials">U</div>
+                        <span>Welcome, <span id="venueName">Venue Manager</span></span>
                     </div>
                     <button class="logout-btn" onclick="handleLogout()">
                         <span>Logout</span>
@@ -757,6 +726,9 @@
                 </div>
                 <div class="nav-tab" onclick="showSection('loss-tracking')">
                     <span>Loss Tracking</span>
+                </div>
+                <div class="nav-tab" onclick="showSection('data-quality')">
+                    <span>Data Quality</span>
                 </div>
                 <div class="nav-tab" onclick="showSection('detailed-reports')">
                     <span>Detailed Reports</span>
@@ -887,6 +859,15 @@
                 </iframe>
             </section>
 
+            <!-- Data Quality Section -->
+            <section id="data-quality-section" class="hidden">
+                <iframe 
+                    src="data-quality.html" 
+                    class="page-iframe"
+                    title="Data Quality Monitor">
+                </iframe>
+            </section>
+
             <!-- Detailed Reports Section -->
             <section id="detailed-reports-section" class="hidden">
                 <iframe 
@@ -916,20 +897,32 @@
         </main>
     </div>
 
-    <!-- Notification -->
-    <div class="notification" id="notification">
-        <strong>Success:</strong> Dashboard updated successfully.
-    </div>
-
     <script>
+        // Firebase Configuration (already exists, keeping it simple)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
+            authDomain: "vedi00.firebaseapp.com",
+            projectId: "vedi00",
+            storageBucket: "vedi00.firebasestorage.app",
+            messagingSenderId: "136867441640",
+            appId: "1:136867441640:web:9ec709b63f5690f628125d",
+            measurementId: "G-ZS0FKPTEY2"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
         // Global variables
         let currentUser = null;
         let currentVenue = null;
         let allRestaurants = [];
         let allOrders = [];
         let filteredOrders = [];
-        let restaurantUpdateListeners = [];
-        let refreshInterval = null;
+        let realtimeUnsubscribe = null;
         let currentFilters = {
             timeRange: 'month',
             restaurant: 'all',
@@ -938,102 +931,86 @@
         };
 
         // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Venue Admin Dashboard initializing...');
-            await initializeVenueDashboard();
+        document.addEventListener('DOMContentLoaded', function() {
+            checkVenueAuth();
         });
 
-        // Authentication and initialization
-        async function initializeVenueDashboard() {
-            showLoading('Checking authentication...');
-            
-            try {
-                // Check authentication
-                currentUser = await VediAPI.getCurrentUser();
-                if (!currentUser) {
-                    console.log('No authenticated user, redirecting to login');
+        // Check venue authentication using the VediAPI
+        async function checkVenueAuth() {
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    try {
+                        // Wait for VediAPI to be available
+                        while (!window.VediAPI) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                        
+                        currentUser = await VediAPI.getCurrentUser();
+                        if (currentUser && currentUser.accountType === 'venue') {
+                            console.log('✅ Venue manager authenticated:', currentUser.name);
+                            await initializeVenueDashboard();
+                        } else {
+                            console.log('❌ User is not a venue manager');
+                            alert('Access denied. This dashboard is for venue managers only.');
+                            window.location.href = '../Landing-Signup-Login/login.html';
+                        }
+                    } catch (error) {
+                        console.error('❌ Authentication error:', error);
+                        window.location.href = '../Landing-Signup-Login/login.html';
+                    }
+                } else {
+                    console.log('❌ No user authenticated');
                     window.location.href = '../Landing-Signup-Login/login.html';
-                    return;
                 }
+            });
+        }
 
-                console.log('✅ Authenticated user:', currentUser.email);
-
-                // Check if user is venue manager
-                if (currentUser.accountType !== 'venue') {
-                    showError('Access denied. This dashboard is for venue managers only.');
-                    setTimeout(() => {
-                        window.location.href = '../Owner/dashboard.html';
-                    }, 2000);
-                    return;
-                }
-
-                showLoading('Loading venue data...');
-
-                // Load venue data
+        // Initialize venue dashboard using VediAPI
+        async function initializeVenueDashboard() {
+            try {
+                console.log('🔄 Initializing venue dashboard...');
+                
+                // Get venue data using VediAPI
                 currentVenue = await VediAPI.getVenueByManager(currentUser.id);
                 if (!currentVenue) {
-                    console.log('No venue found, redirecting to setup');
-                    window.location.href = '../Landing-Signup-Login/venue-setup.html';
+                    console.log('❌ No venue found for this manager');
+                    alert('No venue found. Please contact administrator.');
                     return;
                 }
 
-                console.log('✅ Loaded venue:', currentVenue.name);
-
-                // Update user name in header
-                const userData = await VediAPI.getUserData(currentUser.id);
-                const userName = userData.name || userData.email || 'Admin';
-                document.getElementById('userName').textContent = userName;
-
-                showLoading('Loading restaurant data...');
-
-                // Load all restaurants in this venue
-                await loadRestaurantsData();
+                console.log('✅ Venue loaded:', currentVenue.name);
                 
-                showLoading('Loading orders data...');
-                
-                // Load all orders for all restaurants
-                await loadOrdersData();
-                
-                // Setup UI
+                // Update UI with venue and user info
+                document.getElementById('venueName').textContent = currentVenue.name;
+                const initials = getInitials(currentUser.name || currentUser.email || 'User');
+                document.getElementById('userInitials').textContent = initials;
+
+                // Load venue data
+                await loadVenueData();
                 populateFilters();
                 setDefaultDates();
-                applyFilters(); // Apply default filters
-                startLiveUpdates();
-                
-                hideLoading();
-                showSuccess('Venue dashboard loaded successfully!');
-                
+                applyFilters();
+                setupRealtimeUpdates();
+
+                console.log('✅ Venue dashboard initialized successfully');
+
             } catch (error) {
-                console.error('❌ Venue dashboard initialization error:', error);
-                showError('Failed to load venue dashboard: ' + error.message);
-                hideLoading();
+                console.error('❌ Error initializing venue dashboard:', error);
+                alert('Error loading venue dashboard: ' + error.message);
             }
         }
 
-        // Data loading functions
-        async function loadRestaurantsData() {
+        // Load venue data using VediAPI
+        async function loadVenueData() {
             try {
-                // Get restaurants associated with this venue
+                console.log('🔄 Loading venue data...');
+                
+                // Load restaurants for this venue using VediAPI
                 allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
-                console.log('✅ Loaded restaurants for venue:', allRestaurants.length);
+                console.log('✅ Loaded restaurants:', allRestaurants.length);
 
-            } catch (error) {
-                console.error('❌ Error loading restaurants data:', error);
-                allRestaurants = [];
-                console.warn('No restaurants associated with this venue yet');
-            }
-        }
-
-        async function loadOrdersData() {
-            try {
+                // Load orders for all restaurants using VediAPI
                 allOrders = [];
-                
-                if (allRestaurants.length === 0) {
-                    console.log('No restaurants to load orders from');
-                    return;
-                }
-                
-                // Load orders for each restaurant
                 for (const restaurant of allRestaurants) {
                     try {
                         const restaurantOrders = await VediAPI.getOrders(restaurant.id, { 
@@ -1052,19 +1029,19 @@
                         allOrders = allOrders.concat(ordersWithRestaurant);
                         
                     } catch (error) {
-                        console.warn(`Failed to load orders for restaurant ${restaurant.name}:`, error);
+                        console.warn(`⚠️ Failed to load orders for restaurant ${restaurant.name}:`, error);
                     }
                 }
-                
+
                 console.log('✅ Loaded orders:', allOrders.length);
 
             } catch (error) {
-                console.error('❌ Error loading orders data:', error);
+                console.error('❌ Error loading venue data:', error);
                 throw error;
             }
         }
 
-        // Utility functions
+        // Get initials from name
         function getInitials(name) {
             if (!name) return 'U';
             const names = name.trim().split(' ');
@@ -1082,50 +1059,40 @@
             switch (timeRange) {
                 case 'today':
                     startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
                     break;
                 case 'week':
-                    // Start of this week (Sunday = 0, Monday = 1, etc.)
-                    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-                    const startOfWeek = new Date(now);
-                    startOfWeek.setDate(now.getDate() - dayOfWeek); // Go back to Sunday
-                    startOfWeek.setHours(0, 0, 0, 0);
-                    startDate = startOfWeek;
-                    endDate = new Date(now); // Current time
+                    const weekStart = new Date(now);
+                    weekStart.setDate(now.getDate() - now.getDay());
+                    weekStart.setHours(0, 0, 0, 0);
+                    startDate = weekStart;
+                    endDate = now;
                     break;
                 case 'month':
                     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = new Date(now);
+                    endDate = now;
                     break;
                 case 'quarter':
                     const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
                     startDate = quarterStart;
-                    endDate = new Date(now);
+                    endDate = now;
                     break;
                 case 'custom':
                     const fromDate = document.getElementById('fromDate').value;
                     const toDate = document.getElementById('toDate').value;
                     if (fromDate && toDate) {
                         startDate = new Date(fromDate);
-                        startDate.setHours(0, 0, 0, 0);
                         endDate = new Date(toDate);
                         endDate.setHours(23, 59, 59, 999);
                     } else {
-                        // Fallback to current month if custom dates not properly set
                         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                        endDate = new Date(now);
+                        endDate = now;
                     }
                     break;
                 default:
                     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = new Date(now);
+                    endDate = now;
             }
-
-            console.log(`📅 Date range for ${timeRange}:`, {
-                startDate: startDate.toISOString(),
-                endDate: endDate.toISOString(),
-                daysDiff: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
-            });
 
             return { startDate, endDate };
         }
@@ -1141,8 +1108,7 @@
             } else {
                 fromDateGroup.style.display = 'none';
                 toDateGroup.style.display = 'none';
-                // Auto-apply filters for non-custom ranges
-                setTimeout(() => applyFilters(), 100);
+                applyFilters();
             }
         }
 
@@ -1164,39 +1130,17 @@
                 toDate: document.getElementById('toDate').value
             };
 
-            console.log('🔍 Applying filters:', currentFilters);
-            
             const { startDate, endDate } = getDateRange(timeRange);
             
-            // Filter orders based on criteria
             filteredOrders = allOrders.filter(order => {
-                const orderDate = VediAPI.timestampToDate(order.createdAt);
+                const orderDate = timestampToDate(order.createdAt);
                 const matchesDate = orderDate >= startDate && orderDate <= endDate;
                 const matchesRestaurant = restaurant === 'all' || order.restaurantId === restaurant;
                 return matchesDate && matchesRestaurant;
             });
 
-            console.log(`📊 Filtered ${filteredOrders.length} orders from ${allOrders.length} total for ${timeRange}`);
-            console.log(`📅 Date range: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
-            
-            // Debug: Show sample of filtered orders
-            if (filteredOrders.length > 0) {
-                console.log('Sample filtered order dates:', filteredOrders.slice(0, 3).map(order => ({
-                    orderNumber: order.orderNumber,
-                    date: VediAPI.timestampToDate(order.createdAt).toLocaleDateString(),
-                    restaurant: order.restaurantName
-                })));
-            } else {
-                console.log('⚠️ No orders found in date range. Sample of all orders:', allOrders.slice(0, 3).map(order => ({
-                    orderNumber: order.orderNumber,
-                    date: VediAPI.timestampToDate(order.createdAt).toLocaleDateString(),
-                    restaurant: order.restaurantName
-                })));
-            }
-            
             updateFilterStatus();
             updateDashboard();
-            showSuccess('Filters applied successfully');
         }
 
         function updateFilterStatus() {
@@ -1241,9 +1185,11 @@
             const venueSelector = document.getElementById('venueSelector');
             const restaurantFilter = document.getElementById('restaurantFilter');
             
+            // Clear existing options
             venueSelector.innerHTML = '<option value="all">All Venues</option>';
             restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
             
+            // Add current venue
             if (currentVenue) {
                 const venueOption = document.createElement('option');
                 venueOption.value = currentVenue.id;
@@ -1438,7 +1384,7 @@
             if (restaurants.length === 0) {
                 grid.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">🏪</div>
+                        <div class="empty-state-icon">📊</div>
                         <h3>No restaurants connected</h3>
                         <p>Connect restaurants to this venue to see performance data</p>
                     </div>
@@ -1538,48 +1484,24 @@
             return `${currency.symbol}${formattedAmount}`;
         }
 
-        function startLiveUpdates() {
-            console.log('🔄 Starting live updates for venue dashboard');
-            
-            if (allRestaurants.length === 0) {
-                console.log('No restaurants to set up live updates for');
-                return;
-            }
+        function setupRealtimeUpdates() {
+            if (allRestaurants.length === 0) return;
             
             allRestaurants.forEach(restaurant => {
-                const listener = VediAPI.listenToOrders(restaurant.id, (updatedOrders) => {
-                    console.log(`📡 Orders updated for ${restaurant.name}:`, updatedOrders.length);
-                    
-                    // Update orders for this restaurant
-                    allOrders = allOrders.filter(order => order.restaurantId !== restaurant.id);
-                    const ordersWithRestaurant = updatedOrders.map(order => ({
-                        ...order,
-                        restaurantName: restaurant.name,
-                        restaurantId: restaurant.id,
-                        restaurantCurrency: restaurant.currency || { code: 'USD', symbol: '$', name: 'US Dollar' }
-                    }));
-                    allOrders = allOrders.concat(ordersWithRestaurant);
-                    
-                    applyFilters();
-                });
-                
-                restaurantUpdateListeners.push(listener);
+                const unsubscribe = db.collection('orders')
+                    .where('restaurantId', '==', restaurant.id)
+                    .onSnapshot((snapshot) => {
+                        console.log(`📡 Orders updated for ${restaurant.name}`);
+                        loadVenueData().then(() => {
+                            applyFilters();
+                        });
+                    });
             });
-
-            refreshInterval = setInterval(async () => {
-                try {
-                    console.log('🔄 Background refresh of venue data');
-                    await loadOrdersData();
-                    applyFilters();
-                } catch (error) {
-                    console.error('❌ Background refresh failed:', error);
-                }
-            }, 60000);
         }
 
         // Navigation
         function showSection(sectionName) {
-            const sections = ['overview', 'performance', 'loss-tracking', 'detailed-reports', 'venue-management', 'financials'];
+            const sections = ['overview', 'performance', 'loss-tracking', 'data-quality', 'detailed-reports', 'venue-management', 'financials'];
             
             sections.forEach(section => {
                 document.getElementById(`${section}-section`).classList.add('hidden');
@@ -1593,76 +1515,22 @@
             event.target.closest('.nav-tab').classList.add('active');
         }
 
+        // Utility functions
+        function timestampToDate(timestamp) {
+            if (timestamp && timestamp.toDate) {
+                return timestamp.toDate();
+            }
+            return new Date(timestamp);
+        }
+
         async function handleLogout() {
-            if (!confirm('Are you sure you want to logout?')) {
-                return;
-            }
-            
             try {
-                showLoading('Logging out...');
-                
-                restaurantUpdateListeners.forEach(listener => {
-                    if (listener) listener();
-                });
-                restaurantUpdateListeners = [];
-                
-                if (refreshInterval) {
-                    clearInterval(refreshInterval);
-                }
-                
-                await VediAPI.signOut();
+                await auth.signOut();
                 window.location.href = '../Landing-Signup-Login/login.html';
-                
             } catch (error) {
-                console.error('❌ Error during logout:', error);
-                showError('Failed to logout: ' + error.message);
-                hideLoading();
+                alert('Error signing out. Please try again.');
             }
         }
-
-        function showLoading(message = 'Loading...') {
-            const overlay = document.getElementById('loadingOverlay');
-            const text = document.getElementById('loadingText');
-            text.textContent = message;
-            overlay.style.display = 'flex';
-        }
-
-        function hideLoading() {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.style.display = 'none';
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            notification.className = `notification ${type}`;
-            notification.innerHTML = `<strong>${type === 'success' ? 'Success:' : 'Error:'}</strong> ${message}`;
-            notification.classList.add('show');
-
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 4000);
-        }
-
-        function showSuccess(message) {
-            showNotification(message, 'success');
-        }
-
-        function showError(message) {
-            showNotification(message, 'error');
-        }
-
-        // Clean up on page unload
-        window.addEventListener('beforeunload', function() {
-            restaurantUpdateListeners.forEach(listener => {
-                if (listener) listener();
-            });
-            
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-            }
-        });
-
-        console.log('🏢 Venue Admin Dashboard loaded successfully');
     </script>
 </body>
 </html>
