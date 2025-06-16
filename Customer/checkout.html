@@ -1587,11 +1587,11 @@
         }
 
         // ============================================================================
-        // ORDER PLACEMENT
+        // ORDER PLACEMENT - MODIFIED TO GO DIRECTLY TO ORDER PROGRESS
         // ============================================================================
         
         async function placeOrder() {
-            console.log('📝 Preparing to redirect to payment with protected pricing...');
+            console.log('📝 Placing order directly and redirecting to order progress...');
             
             const placeOrderBtn = document.getElementById('placeOrderBtn');
             const orderBtnText = document.getElementById('orderBtnText');
@@ -1633,50 +1633,133 @@
                     total: orderBreakdown.total
                 });
 
-                // Use the protected pricing values
-                const restaurantId = customerData.restaurantId;
-                const currency = getRestaurantCurrency().code;
-                const totalCents = Math.round(orderBreakdown.total * 100);
+                // Get special instructions
+                const specialInstructions = document.getElementById('specialInstructions').value.trim();
 
-                // Create URL parameters with protected pricing
-                const params = new URLSearchParams({
-                    restaurantId,
-                    table: customerData.tableNumber || '',
+                // Prepare order data with protected pricing
+                const orderData = {
+                    restaurantId: customerData.restaurantId,
+                    customerUID: currentUser.uid,
+                    customerName: customerData.name || currentUser.displayName || 'Guest',
+                    customerPhone: customerData.phone || currentUser.phoneNumber || '',
+                    tableNumber: customerData.tableNumber || '',
                     location: customerData.location || '',
-                    name: customerData.name || '',
-                    phone: customerData.phone || '',
-                    totalCents,
-                    subtotalCents: Math.round(orderBreakdown.subtotal * 100),
-                    taxCents: Math.round(orderBreakdown.taxAmount * 100),
-                    serviceFeCents: Math.round(orderBreakdown.serviceFee * 100),
-                    serviceFeePercentage: orderBreakdown.serviceFeePercentage.toFixed(2),
-                    taxRate: orderBreakdown.taxRate.toFixed(2),
-                    currency,
-                    calculationSource: orderBreakdown.calculationSource // Include source for verification
-                });
+                    items: Object.keys(cart).map(itemId => ({
+                        id: itemId,
+                        name: menuItems[itemId].name,
+                        price: menuItems[itemId].price,
+                        quantity: cart[itemId],
+                        description: menuItems[itemId].description || ''
+                    })),
+                    subtotal: orderBreakdown.subtotal,
+                    tax: orderBreakdown.taxAmount,
+                    taxRate: orderBreakdown.taxRate,
+                    serviceFee: orderBreakdown.serviceFee,
+                    serviceFeePercentage: orderBreakdown.serviceFeePercentage,
+                    total: orderBreakdown.total,
+                    specialInstructions: specialInstructions || '',
+                    status: 'pending',
+                    timestamp: new Date().toISOString(),
+                    pricingSource: orderBreakdown.calculationSource,
+                    marginProtected: orderBreakdown.marginProtected,
+                    // Include the protected pricing breakdown for future reference
+                    pricingBreakdown: orderBreakdown.backendData
+                };
 
-                console.log('🔄 Redirecting to payment with verified protected pricing:', {
+                console.log('🔄 Creating order with protected pricing:', {
                     total: formatPrice(orderBreakdown.total),
                     subtotal: formatPrice(orderBreakdown.subtotal),
                     tax: formatPrice(orderBreakdown.taxAmount),
                     serviceFee: formatPrice(orderBreakdown.serviceFee),
                     taxRate: orderBreakdown.taxRate + '%',
                     serviceFeePercentage: orderBreakdown.serviceFeePercentage.toFixed(2) + '%',
-                    source: orderBreakdown.calculationSource
+                    source: orderBreakdown.calculationSource,
+                    itemCount: orderData.items.length
                 });
-                
-                // Redirect to payment.html with protected pricing
-                window.location.href = `order-progress.html?${params.toString()}`;
+
+                // Create the order using VediAPI
+                let orderResult;
+                if (typeof VediAPI !== 'undefined' && VediAPI.createOrder) {
+                    orderResult = await VediAPI.createOrder(orderData);
+                } else {
+                    // Fallback to direct Firestore creation
+                    // Generate order number first
+                    const orderNumber = Math.floor(Math.random() * 9000) + 1000;
+                    const orderDataWithNumber = {
+                        ...orderData,
+                        orderNumber: orderNumber
+                    };
+                    
+                    const orderRef = await firebase.firestore().collection('orders').add(orderDataWithNumber);
+                    orderResult = {
+                        id: orderRef.id,
+                        orderNumber: orderNumber,
+                        ...orderDataWithNumber
+                    };
+                }
+
+                console.log('✅ Order created successfully:', orderResult);
+
+                // Clear the cart after successful order creation
+                cart = {};
+                saveCart();
+                sessionStorage.removeItem('customerCart');
+
+                // Save order data for order progress tracking
+                const orderTrackingData = {
+                    orderId: orderResult.id,
+                    orderNumber: orderResult.orderNumber,
+                    restaurantId: customerData.restaurantId,
+                    customerUID: currentUser.uid,
+                    timestamp: new Date().toISOString()
+                };
+                sessionStorage.setItem('currentOrder', JSON.stringify(orderTrackingData));
+
+                // Update customer session with successful order
+                const updatedSession = {
+                    ...customerSession,
+                    name: orderData.customerName,
+                    phone: orderData.customerPhone,
+                    restaurantId: orderData.restaurantId,
+                    tableNumber: orderData.tableNumber,
+                    location: orderData.location,
+                    firebaseUID: currentUser.uid,
+                    lastOrderNumber: orderResult.orderNumber
+                };
+                sessionStorage.setItem('customerSession', JSON.stringify(updatedSession));
+
+                console.log('🎯 Redirecting to order progress page...');
+
+                // Create URL parameters for order progress
+                const progressParams = new URLSearchParams({
+                    orderNumber: orderResult.orderNumber,
+                    restaurant: customerData.restaurantId,
+                    table: customerData.tableNumber || '',
+                    location: customerData.location || '',
+                    name: orderData.customerName,
+                    phone: orderData.customerPhone
+                });
+
+                // Show success message briefly before redirect
+                showSuccess('Order placed successfully! Redirecting to order tracking...');
+
+                // Redirect to order progress page
+                setTimeout(() => {
+                    window.location.href = `order-progress.html?${progressParams.toString()}`;
+                }, 1500);
 
             } catch (error) {
-                console.error('❌ Error preparing payment redirect:', error);
+                console.error('❌ Error placing order:', error);
                 
                 // Show specific error messages
                 if (error.message.includes('Pricing calculation failed')) {
                     showError('Pricing calculation error. Please refresh the page and try again.');
                     console.error('🔧 Debug: Run window.getVediAPIDiagnostics() for more info');
+                } else if (error.message.includes('Authentication required')) {
+                    showError('Please sign in to place your order.');
+                    redirectToLogin();
                 } else {
-                    showError('Failed to proceed to payment: ' + error.message);
+                    showError('Failed to place order: ' + error.message);
                 }
                 
                 // Re-enable button
@@ -1691,11 +1774,11 @@
         // ============================================================================
         
         function getRestaurantCurrency() {
-            if (currentRestaurant && currentRestaurant.currency) {
-                return currentRestaurant.currency;
-            }
-            return { code: 'USD', symbol: '$', name: 'US Dollar' };
-        }
+    if (currentRestaurant && currentRestaurant.currency) {
+        return currentRestaurant.currency;
+    }
+    return { code: 'USD', symbol: '$', name: 'US Dollar' };
+}
 
         function formatPrice(amount, showCode = false) {
             const currency = getRestaurantCurrency();
@@ -1811,7 +1894,194 @@
                     vediAPIAvailable: typeof VediAPI !== 'undefined',
                     extensionsAvailable: typeof VediAPI?.getProtectedPricingBreakdown === 'function'
                 };
+            },
+
+            testOrderCreation: async () => {
+                console.log('🧪 Testing order creation flow...');
+                try {
+                    if (!protectedPricingCalculated || !orderBreakdown) {
+                        console.error('❌ Cannot test order creation without pricing calculation');
+                        return;
+                    }
+
+                    const testOrderData = {
+                        restaurantId: customerData.restaurantId,
+                        customerUID: currentUser?.uid || 'test-uid',
+                        customerName: 'Test Customer',
+                        customerPhone: '+1234567890',
+                        items: Object.keys(cart).map(itemId => ({
+                            id: itemId,
+                            name: menuItems[itemId].name,
+                            price: menuItems[itemId].price,
+                            quantity: cart[itemId]
+                        })),
+                        subtotal: orderBreakdown.subtotal,
+                        tax: orderBreakdown.taxAmount,
+                        serviceFee: orderBreakdown.serviceFee,
+                        total: orderBreakdown.total,
+                        status: 'pending',
+                        timestamp: new Date().toISOString(),
+                        test: true
+                    };
+
+                    console.log('📝 Test order data:', testOrderData);
+                    console.log('✅ Order creation data looks valid');
+                    return testOrderData;
+                } catch (error) {
+                    console.error('❌ Test order creation failed:', error);
+                }
             }
+        };
+
+        // ============================================================================
+        // SESSION MONITORING & CLEANUP
+        // ============================================================================
+        
+        // Monitor authentication state changes
+        function monitorAuthenticationState() {
+            firebase.auth().onAuthStateChanged(function(user) {
+                if (!user && currentUser) {
+                    console.warn('⚠️ User signed out unexpectedly during checkout');
+                    showSessionWarning();
+                    currentUser = null;
+                    updateAuthenticationIndicator();
+                } else if (user && !currentUser) {
+                    console.log('✅ User signed in during checkout session');
+                    currentUser = user;
+                    updateAuthenticationIndicator();
+                    hideSessionWarning();
+                }
+            });
+        }
+
+        function hideSessionWarning() {
+            const warning = document.getElementById('sessionWarning');
+            if (warning) {
+                warning.classList.remove('show');
+            }
+        }
+
+        // Start monitoring authentication state after initial load
+        setTimeout(() => {
+            monitorAuthenticationState();
+        }, 1000);
+
+        // ============================================================================
+        // CLEANUP ON PAGE UNLOAD
+        // ============================================================================
+        
+        window.addEventListener('beforeunload', function() {
+            console.log('🧹 Cleaning up checkout page resources');
+            
+            // Save current state before leaving
+            if (Object.keys(cart).length > 0) {
+                saveCart();
+                console.log('💾 Cart saved before page unload');
+            }
+            
+            // Clear any pending timeouts or intervals
+            // (Add any cleanup for timers if you have them)
+        });
+
+        // ============================================================================
+        // ERROR RECOVERY FUNCTIONS
+        // ============================================================================
+        
+        // Global error handler for unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('❌ Unhandled promise rejection in checkout:', event.reason);
+            
+            // Prevent the default behavior (which would log to console)
+            event.preventDefault();
+            
+            // Show user-friendly error
+            if (event.reason && event.reason.message) {
+                if (event.reason.message.includes('VediAPI') || event.reason.message.includes('pricing')) {
+                    showError('Pricing calculation error. Please refresh the page.');
+                } else if (event.reason.message.includes('auth') || event.reason.message.includes('permission')) {
+                    showError('Authentication error. Please sign in again.');
+                    showSessionWarning();
+                } else {
+                    showError('Something went wrong. Please refresh the page.');
+                }
+            }
+        });
+
+        // Global error handler for JavaScript errors
+        window.addEventListener('error', function(event) {
+            console.error('❌ JavaScript error in checkout:', event.error);
+            
+            // Don't show errors for network issues or external script failures
+            if (event.error && event.error.message) {
+                const message = event.error.message.toLowerCase();
+                if (message.includes('network') || 
+                    message.includes('fetch') || 
+                    message.includes('script error') ||
+                    message.includes('loading chunk')) {
+                    return; // Silently handle these
+                }
+                
+                // Only show critical errors that affect checkout functionality
+                if (message.includes('vediapi') || 
+                    message.includes('firebase') || 
+                    message.includes('pricing')) {
+                    showError('Critical error detected. Please refresh the page.');
+                }
+            }
+        });
+
+        // ============================================================================
+        // KEYBOARD SHORTCUTS (OPTIONAL DEBUGGING)
+        // ============================================================================
+        
+        document.addEventListener('keydown', function(event) {
+            // Only enable shortcuts in development/testing
+            if (window.location.hostname === 'localhost' || window.location.hostname.includes('test')) {
+                
+                // Ctrl+Shift+D = Toggle Debug Panel
+                if (event.ctrlKey && event.shiftKey && event.key === 'D') {
+                    event.preventDefault();
+                    const debugPanel = document.getElementById('debugPanel');
+                    if (debugPanel.style.display === 'none' || !debugPanel.classList.contains('show')) {
+                        debugPanel.classList.add('show');
+                        console.log('🔧 Debug panel shown');
+                    } else {
+                        debugPanel.classList.remove('show');
+                        console.log('🔧 Debug panel hidden');
+                    }
+                }
+                
+                // Ctrl+Shift+P = Retry Pricing
+                if (event.ctrlKey && event.shiftKey && event.key === 'P') {
+                    event.preventDefault();
+                    console.log('⌨️ Keyboard shortcut: Retrying pricing calculation...');
+                    window.debugCheckout.retryPricing();
+                }
+                
+                // Ctrl+Shift+C = Show Current State
+                if (event.ctrlKey && event.shiftKey && event.key === 'C') {
+                    event.preventDefault();
+                    console.log('⌨️ Keyboard shortcut: Current checkout state');
+                    console.table(window.debugCheckout.getCurrentState());
+                }
+            }
+        });
+
+        // ============================================================================
+        // FINAL INITIALIZATION CONFIRMATION
+        // ============================================================================
+        
+        // Set a flag when everything is loaded
+        window.checkoutInitialized = true;
+        
+        // Expose key functions globally for testing
+        window.checkoutAPI = {
+            calculatePricing: calculateProtectedPricing,
+            renderCheckout: renderCheckout,
+            getOrderBreakdown: () => orderBreakdown,
+            getCurrentCart: () => cart,
+            getCustomerData: () => customerData,
+            getRestaurantData: () => currentRestaurant
         };
 
         // ============================================================================
@@ -1822,8 +2092,9 @@
         console.log('🔄 Uses VediAPI extensions v2.0.0 for all pricing calculations');
         console.log('🛡️ Margins protected using VediAPI gross-up calculation');
         console.log('📊 Displays actual tax rates from fee configurations');
-        console.log('💰 Payment page receives exact totals from VediAPI');
-        console.log('🎯 Consistent pricing throughout customer journey');
+        console.log('🎯 Direct order creation - no payment page redirect');
+        console.log('📈 Goes directly to order progress after successful placement');
+        console.log('💾 Cart cleared after successful order creation');
         console.log('🔍 Testing: Fee breakdown shows your margin vs Stripe fees');
         console.log('🔧 VediAPI extended via vediapi-pricing-extensions.js v2.0.0');
         console.log('🚫 NO FALLBACK - Prevents orders with incorrect pricing');
@@ -1831,6 +2102,12 @@
         console.log('🔧 Debug functions: window.debugCheckout.testPricing(), window.debugCheckout.getDiagnostics()');
         console.log('🔄 Manual retry: window.debugCheckout.retryPricing()');
         console.log('📊 Current state: window.debugCheckout.getCurrentState()');
+        console.log('🧪 Test order: window.debugCheckout.testOrderCreation()');
+        console.log('🎯 Checkout initialization complete - Order placement will redirect to order-progress.html');
+        console.log('🔧 Testing shortcuts (localhost only): Ctrl+Shift+D (debug), Ctrl+Shift+P (retry pricing), Ctrl+Shift+C (state)');
+        console.log('🌐 Global API: window.checkoutAPI available for testing');
+        console.log('✅ Ready for order placement and redirect to order tracking');
+        
     </script>
 </body>
 </html>
