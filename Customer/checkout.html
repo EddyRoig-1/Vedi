@@ -9,13 +9,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     <script src="../firebase-config.js"></script>
     <script src="../firebase-api.js"></script>
-    
-    <!-- VediAPI Pricing Extensions -->
-    <script src="../vediapi-pricing-extensions.js"></script>
     
     <style>
         * {
@@ -428,83 +424,6 @@
             font-weight: 700;
         }
 
-        /* Service Fee Breakdown */
-        .fee-breakdown {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 16px;
-            margin-top: 8px;
-            border: 1px solid #e2e8f0;
-            font-size: 0.85rem;
-        }
-
-        .fee-breakdown-title {
-            font-weight: 600;
-            color: #4a5568;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .fee-breakdown-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 4px;
-            color: #718096;
-        }
-
-        .fee-breakdown-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .breakdown-label {
-            font-size: 0.8rem;
-        }
-
-        .breakdown-value {
-            font-weight: 600;
-        }
-
-        .your-margin {
-            color: #10b981;
-        }
-
-        .stripe-fees {
-            color: #6366f1;
-        }
-
-        /* Pricing Status Indicator */
-        .pricing-status {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 12px 16px;
-            margin-bottom: 16px;
-            border: 1px solid #e2e8f0;
-            font-size: 0.85rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .pricing-status.success {
-            background: #f0fdf4;
-            border-color: #16a34a;
-            color: #166534;
-        }
-
-        .pricing-status.error {
-            background: #fef2f2;
-            border-color: #dc2626;
-            color: #991b1b;
-        }
-
-        .pricing-status.warning {
-            background: #fffbeb;
-            border-color: #d97706;
-            color: #92400e;
-        }
-
         /* Special Instructions */
         .form-textarea {
             width: 100%;
@@ -582,7 +501,6 @@
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
-            background: #9ca3af;
         }
 
         /* Empty Cart */
@@ -673,41 +591,22 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
-        /* Debug Panel */
-        .debug-panel {
-            background: #1f2937;
-            color: #f9fafb;
-            padding: 16px;
-            border-radius: 12px;
-            margin-top: 16px;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.8rem;
-            line-height: 1.4;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .debug-panel.show {
-            display: block;
-        }
-
-        .debug-title {
-            color: #60a5fa;
+        /* NEW: Fee info badge for transparency */
+        .fee-info-badge {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-left: 8px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
         }
 
-        .debug-item {
-            margin-bottom: 4px;
-        }
-
-        .debug-label {
-            color: #fbbf24;
-        }
-
-        .debug-value {
-            color: #34d399;
+        .fee-info-badge.negotiated {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border-color: rgba(245, 158, 11, 0.2);
         }
 
         /* Responsive Design */
@@ -758,7 +657,7 @@
         <div class="loading-card">
             <div class="loading-spinner"></div>
             <div class="loading-text">Loading checkout...</div>
-            <div class="loading-subtext">Calculating protected pricing</div>
+            <div class="loading-subtext">Calculating fees and taxes</div>
         </div>
     </div>
 
@@ -791,12 +690,6 @@
 
         <!-- Main Content -->
         <div class="checkout-content" id="checkoutContent" style="display: none;">
-            <!-- Pricing Status Indicator -->
-            <div class="pricing-status" id="pricingStatus" style="display: none;">
-                <span id="pricingStatusIcon">🔄</span>
-                <span id="pricingStatusText">Calculating pricing...</span>
-            </div>
-
             <!-- Cart Items Section -->
             <div class="section">
                 <h2 class="section-title" id="orderSectionTitle">🛒 Your Order</h2>
@@ -821,36 +714,9 @@
                         <span id="serviceFeeLabel">Service Fee:</span>
                         <span id="serviceFee">$0.00</span>
                     </div>
-                    <!-- Service Fee Breakdown for Testing -->
-                    <div class="fee-breakdown" id="feeBreakdown" style="display: none;">
-                        <div class="fee-breakdown-title">
-                            <span>🔍</span>
-                            <span>Fee Breakdown (Testing)</span>
-                        </div>
-                        <div class="fee-breakdown-item">
-                            <span class="breakdown-label your-margin">• Your Margin:</span>
-                            <span class="breakdown-value your-margin" id="yourMargin">$0.00</span>
-                        </div>
-                        <div class="fee-breakdown-item">
-                            <span class="breakdown-label stripe-fees">• Stripe Fees:</span>
-                            <span class="breakdown-value stripe-fees" id="stripeFees">$0.00</span>
-                        </div>
-                        <div class="fee-breakdown-item">
-                            <span class="breakdown-label">• Gross-up Amount:</span>
-                            <span class="breakdown-value" id="grossupAmount">$0.00</span>
-                        </div>
-                    </div>
                     <div class="summary-row total">
                         <span>Total:</span>
                         <span id="total">$0.00</span>
-                    </div>
-                </div>
-
-                <!-- Debug Panel -->
-                <div class="debug-panel" id="debugPanel">
-                    <div class="debug-title">🔧 Pricing Debug Information</div>
-                    <div id="debugContent">
-                        <!-- Debug info will be populated here -->
                     </div>
                 </div>
             </div>
@@ -898,10 +764,7 @@
     <div class="notification" id="notification"></div>
 
     <script>
-        // ============================================================================
-        // GLOBAL VARIABLES & STATE
-        // ============================================================================
-        
+        // Global variables
         let currentRestaurant = null;
         let cart = {};
         let menuItems = {};
@@ -909,16 +772,12 @@
         let customerSession = {};
         let currentUser = null;
         let customerAllergenInfo = null;
-        let orderBreakdown = null;
-        let protectedPricingCalculated = false;
-        let pricingCalculationAttempts = 0;
+        let orderFees = null; // Will store calculated fees from VediAPI
+        let feesCalculated = false; // NEW: Track if fees are calculated
 
-        // ============================================================================
-        // INITIALIZATION
-        // ============================================================================
-        
+        // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Protected pricing checkout initializing...');
+            console.log('🚀 Enhanced checkout page initializing...');
             
             try {
                 await initializeCheckoutPage();
@@ -929,6 +788,7 @@
             }
         });
 
+        // ENHANCED: Main initialization function
         async function initializeCheckoutPage() {
             showLoading();
             
@@ -936,42 +796,103 @@
                 // Step 1: Check authentication
                 await checkAuthenticationAndSession();
                 
-                // Step 2: Get customer data from URL
+                // Step 2: Get customer data
                 getCustomerDataFromURL();
                 
                 // Step 3: Load restaurant and menu data
                 await loadRestaurantAndMenuData();
                 
-                // Step 4: Load cart and allergen data
+                // Step 4: Load cart data
                 loadCartData();
                 loadAllergenInfo();
                 
-                // Step 5: Calculate protected pricing using VediAPI extensions
-                await calculateProtectedPricing();
+                // Step 5: CRITICAL - Calculate fees BEFORE rendering
+                await calculateFeesFirst();
                 
-                // Step 6: Update UI
+                // Step 6: Update UI elements
                 updateCustomerDisplay();
+                
+                // Step 7: Render everything with correct fees
                 renderCheckout();
                 
                 hideLoading();
-                console.log('✅ Checkout loaded successfully');
+                
+                console.log('✅ Enhanced checkout page loaded successfully with correct fees');
                 
             } catch (error) {
-                console.error('Checkout initialization error:', error);
+                console.error('Checkout page initialization error:', error);
                 showErrorMessage('Failed to load checkout: ' + error.message);
                 hideLoading();
             }
         }
 
-        // ============================================================================
-        // AUTHENTICATION & SESSION MANAGEMENT
-        // ============================================================================
-        
+        // NEW: Calculate fees first before any rendering
+        async function calculateFeesFirst() {
+            const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
+            
+            if (cartItemsCount === 0) {
+                console.log('ℹ️ No items in cart, skipping fee calculation');
+                return;
+            }
+
+            // Calculate subtotal
+            let subtotal = 0;
+            for (let itemId in cart) {
+                if (cart[itemId] > 0 && menuItems[itemId]) {
+                    subtotal += menuItems[itemId].price * cart[itemId];
+                }
+            }
+
+            try {
+                console.log('💰 Calculating fees for restaurant:', customerData.restaurantId, 'with subtotal:', subtotal);
+                
+                // Use VediAPI to calculate fees for this restaurant
+                orderFees = await VediAPI.calculateOrderFees(customerData.restaurantId, subtotal);
+                feesCalculated = true;
+                
+                console.log('✅ Fees calculated successfully:', orderFees);
+                
+            } catch (error) {
+                console.error('❌ Error calculating fees, using fallback:', error);
+                
+                // Fallback to basic calculation
+                const defaultTaxRate = 0.085;
+                const defaultServiceFee = 2.00;
+                
+                const tax = subtotal * defaultTaxRate;
+                const total = subtotal + tax + defaultServiceFee;
+
+                orderFees = {
+                    subtotal: subtotal,
+                    taxAmount: tax,
+                    serviceFee: defaultServiceFee,
+                    total: total,
+                    taxRate: defaultTaxRate,
+                    feeConfig: { 
+                        feeType: 'fixed',
+                        serviceFeeFixed: defaultServiceFee,
+                        serviceFeePercentage: 0
+                    }
+                };
+                feesCalculated = true;
+                
+                console.log('⚠️ Using fallback fees:', orderFees);
+            }
+        }
+
+        // ENHANCED: Authentication check
         async function checkAuthenticationAndSession() {
             return new Promise((resolve, reject) => {
                 firebase.auth().onAuthStateChanged(async function(user) {
                     if (user) {
-                        console.log('✅ User is authenticated for checkout');
+                        console.log('✅ User is authenticated for checkout:', {
+                            uid: user.uid,
+                            email: user.email,
+                            displayName: user.displayName,
+                            phoneNumber: user.phoneNumber,
+                            providerId: user.providerData[0]?.providerId
+                        });
+                        
                         currentUser = user;
                         await loadCustomerSession();
                         
@@ -995,22 +916,27 @@
             });
         }
 
+        // Load customer session data
         async function loadCustomerSession() {
             try {
                 const sessionData = sessionStorage.getItem('customerSession');
                 if (sessionData) {
                     customerSession = JSON.parse(sessionData);
+                    console.log('📱 Loaded customer session for checkout:', customerSession);
+                    
                     if (customerSession.firebaseUID !== currentUser.uid) {
                         console.warn('⚠️ Session UID mismatch in checkout');
                         customerSession = {};
                     }
                 } else {
+                    console.log('ℹ️ No customer session found in checkout');
                     customerSession = {};
                 }
                 
                 try {
                     const profile = await VediAPI.getCustomerProfile(currentUser.uid);
                     if (profile) {
+                        console.log('👤 Loaded customer profile for checkout');
                         customerSession = { ...customerSession, ...profile };
                     }
                 } catch (profileError) {
@@ -1018,17 +944,20 @@
                 }
                 
             } catch (error) {
-                console.error('❌ Error loading customer session:', error);
+                console.error('❌ Error loading customer session in checkout:', error);
                 customerSession = {};
             }
         }
 
+        // Verify session consistency
         function verifySessionConsistency() {
             const hasUserAuth = currentUser && currentUser.uid;
             const hasCartData = Object.keys(cart).length > 0 || sessionStorage.getItem('customerCart');
+            
             return hasUserAuth && hasCartData;
         }
 
+        // Show session warning
         function showSessionWarning() {
             const warning = document.getElementById('sessionWarning');
             if (warning) {
@@ -1036,18 +965,17 @@
             }
         }
 
+        // Redirect to login
         function redirectToLogin() {
             const currentParams = new URLSearchParams(window.location.search);
             const loginUrl = `customer-login.html?${currentParams.toString()}`;
+            
             setTimeout(() => {
                 window.location.href = loginUrl;
             }, 2000);
         }
 
-        // ============================================================================
-        // DATA LOADING
-        // ============================================================================
-        
+        // Get customer data from URL
         function getCustomerDataFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
             
@@ -1078,8 +1006,11 @@
             } else {
                 customerData.tableDisplay = 'Restaurant Order';
             }
+            
+            console.log('👤 Enhanced customer data for checkout:', customerData);
         }
 
+        // Load restaurant and menu data
         async function loadRestaurantAndMenuData() {
             try {
                 currentRestaurant = await VediAPI.getRestaurant(customerData.restaurantId);
@@ -1099,209 +1030,26 @@
             }
         }
 
-        function loadCartData() {
-            try {
-                const savedCartData = sessionStorage.getItem('customerCart');
-                if (savedCartData) {
-                    const cartData = JSON.parse(savedCartData);
-                    
-                    if (cartData.customerUID && 
-                        currentUser && 
-                        cartData.customerUID === currentUser.uid &&
-                        cartData.restaurantId === customerData.restaurantId) {
-                        
-                        cart = cartData.items || {};
-                        console.log('🛒 Loaded verified cart for authenticated user:', cart);
-                    } else if (!cartData.customerUID) {
-                        cart = cartData.items || cartData || {};
-                        console.log('🛒 Loaded legacy cart for checkout:', cart);
-                    } else {
-                        console.log('🛒 Cart verification failed in checkout, starting fresh');
-                        cart = {};
-                    }
-                } else {
-                    console.log('🛒 No cart found in checkout');
-                    cart = {};
-                }
-            } catch (error) {
-                console.error('Error loading cart in checkout:', error);
-                cart = {};
+        // Currency utility functions
+        function getRestaurantCurrency() {
+            if (currentRestaurant && currentRestaurant.currency) {
+                return currentRestaurant.currency;
             }
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
         }
 
-        function loadAllergenInfo() {
-            try {
-                const savedAllergenInfo = sessionStorage.getItem('customerAllergenInfo');
-                if (savedAllergenInfo) {
-                    customerAllergenInfo = JSON.parse(savedAllergenInfo);
-                    console.log('🛡️ Customer allergen info loaded for checkout:', customerAllergenInfo);
-                    populateAllergenInstructions();
-                } else {
-                    console.log('🛡️ No allergen info found for checkout');
-                    customerAllergenInfo = null;
-                }
-            } catch (error) {
-                console.error('Error loading allergen info:', error);
-                customerAllergenInfo = null;
-            }
-        }
-
-        function populateAllergenInstructions() {
-            if (!customerAllergenInfo) return;
-
-            const specialInstructionsTextarea = document.getElementById('specialInstructions');
-            const allergenNotice = document.getElementById('allergenNotice');
+        function formatPrice(amount, showCode = false) {
+            const currency = getRestaurantCurrency();
+            const formattedAmount = Number(amount).toFixed(2);
             
-            const { allergenNames, customAllergens } = customerAllergenInfo;
-            
-            if (allergenNames.length > 0 || customAllergens) {
-                let allergenText = '';
-                
-                if (allergenNames.length > 0) {
-                    allergenText += `🛡️ ALLERGIES: Please avoid ${allergenNames.join(', ')}`;
-                }
-                
-                if (customAllergens) {
-                    if (allergenText) allergenText += '. ';
-                    allergenText += `Additional restrictions: ${customAllergens}`;
-                }
-                
-                if (allergenText) {
-                    allergenText += '.';
-                    specialInstructionsTextarea.value = allergenText;
-                    allergenNotice.style.display = 'flex';
-                    console.log('🛡️ Auto-populated allergen instructions for checkout:', allergenText);
-                }
+            if (showCode) {
+                return `${currency.symbol}${formattedAmount} ${currency.code}`;
             }
+            
+            return `${currency.symbol}${formattedAmount}`;
         }
 
-        // ============================================================================
-        // PROTECTED PRICING CALCULATION
-        // ============================================================================
-        
-        async function calculateProtectedPricing() {
-            const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
-            
-            if (cartItemsCount === 0) {
-                console.log('ℹ️ No items in cart, skipping pricing calculation');
-                return;
-            }
-
-            // Calculate subtotal
-            let subtotal = 0;
-            for (let itemId in cart) {
-                if (cart[itemId] > 0 && menuItems[itemId]) {
-                    subtotal += menuItems[itemId].price * cart[itemId];
-                }
-            }
-
-            pricingCalculationAttempts++;
-            showPricingStatus('calculating', 'Calculating protected pricing...');
-
-            try {
-                console.log('🔄 Calculating protected pricing via VediAPI extensions...');
-                console.log('📊 Restaurant ID:', customerData.restaurantId);
-                console.log('💰 Subtotal:', subtotal);
-                
-                // Wait for VediAPI extensions to be available with the new robust system
-                let attempts = 0;
-                const maxAttempts = 150; // 15 seconds to match new extension timeout
-                
-                while (attempts < maxAttempts) {
-                    // Check if VediAPI and extensions are available
-                    if (typeof VediAPI !== 'undefined' && 
-                        VediAPI && 
-                        typeof VediAPI.getProtectedPricingBreakdown === 'function') {
-                        console.log('✅ VediAPI extensions found after', attempts * 100, 'ms');
-                        break;
-                    }
-                    
-                    // Try manual initialization if available
-                    if (typeof window.initializeVediAPIExtensions === 'function' && attempts === 30) {
-                        console.log('🔄 Attempting manual VediAPI extension initialization...');
-                        try {
-                            await window.initializeVediAPIExtensions();
-                            console.log('✅ Manual initialization succeeded');
-                            break;
-                        } catch (error) {
-                            console.warn('⚠️ Manual initialization failed:', error.message);
-                        }
-                    }
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    attempts++;
-                }
-                
-                if (!VediAPI || typeof VediAPI.getProtectedPricingBreakdown !== 'function') {
-                    throw new Error('VediAPI pricing extensions not available after 15 seconds');
-                }
-                
-                console.log('🧮 Using VediAPI extensions for protected pricing calculation...');
-                
-                // Use the VediAPI extension method
-                const breakdown = await VediAPI.getProtectedPricingBreakdown(
-                    customerData.restaurantId,
-                    Math.round(subtotal * 100)
-                );
-                
-                console.log('✅ VediAPI calculation successful:', breakdown);
-                
-                // Store the VediAPI result
-                orderBreakdown = {
-                    subtotal: breakdown.subtotal,
-                    taxAmount: breakdown.taxAmount,
-                    taxRate: breakdown.taxRate,
-                    serviceFee: breakdown.serviceFee,
-                    serviceFeePercentage: breakdown.serviceFeePercentage,
-                    total: breakdown.total,
-                    backendData: breakdown.breakdown,
-                    marginProtected: true,
-                    calculationSource: 'vediapi-extensions-v2',
-                    feeConfig: breakdown.feeConfig
-                };
-
-                protectedPricingCalculated = true;
-                
-                console.log('🛡️ Using VediAPI protected pricing:', orderBreakdown);
-                console.log('📊 Tax rate from VediAPI:', breakdown.taxRate + '%');
-                console.log('💰 Customer total:', orderBreakdown.total);
-                console.log('🔍 Fee breakdown available:', !!breakdown.breakdown);
-                
-                showPricingStatus('success', `Protected pricing calculated successfully (attempt ${pricingCalculationAttempts})`);
-                updateDebugPanel(breakdown);
-                
-            } catch (error) {
-                console.error('❌ VediAPI calculation failed:', error);
-                console.error('📊 Available diagnostics:', typeof window.getVediAPIDiagnostics === 'function' ? 
-                    window.getVediAPIDiagnostics() : 'Diagnostics not available');
-                
-                showPricingStatus('error', `Pricing calculation failed: ${error.message}`);
-                
-                // Show error to user and don't use fallback to avoid masking the real problem
-                showError('Unable to calculate pricing. Please refresh the page and try again.');
-                
-                // Set a flag to prevent order placement
-                protectedPricingCalculated = false;
-                orderBreakdown = null;
-                
-                // Log detailed error information for debugging
-                console.error('🚨 PRICING CALCULATION FAILED - Order placement should be disabled');
-                console.error('🔧 Troubleshooting steps:');
-                console.error('   1. Check browser console for VediAPI loading errors');
-                console.error('   2. Run: window.getVediAPIDiagnostics()');
-                console.error('   3. Run: window.testVediAPIPricing("' + customerData.restaurantId + '")');
-                console.error('   4. Try: window.initializeVediAPIExtensions()');
-                
-                updateDebugPanel(null, error);
-                
-                throw error; // Re-throw to prevent further processing
-            }
-        }
-
-        // ============================================================================
-        // UI DISPLAY FUNCTIONS
-        // ============================================================================
-        
+        // Update customer display
         function updateCustomerDisplay() {
             document.getElementById('restaurantName').textContent = currentRestaurant.name;
             
@@ -1320,6 +1068,7 @@
             updateAuthenticationIndicator();
         }
 
+        // Update authentication indicator
         function updateAuthenticationIndicator() {
             const authIndicator = document.getElementById('authIndicator');
             const authIcon = document.getElementById('authIcon');
@@ -1357,64 +1106,90 @@
             }
         }
 
-        function showPricingStatus(type, message) {
-            const statusElement = document.getElementById('pricingStatus');
-            const statusIcon = document.getElementById('pricingStatusIcon');
-            const statusText = document.getElementById('pricingStatusText');
-            
-            statusElement.className = `pricing-status ${type}`;
-            statusText.textContent = message;
-            
-            switch (type) {
-                case 'calculating':
-                    statusIcon.textContent = '🔄';
-                    break;
-                case 'success':
-                    statusIcon.textContent = '✅';
-                    break;
-                case 'error':
-                    statusIcon.textContent = '❌';
-                    break;
-                case 'warning':
-                    statusIcon.textContent = '⚠️';
-                    break;
+        // Load cart data
+        function loadCartData() {
+            try {
+                const savedCartData = sessionStorage.getItem('customerCart');
+                if (savedCartData) {
+                    const cartData = JSON.parse(savedCartData);
+                    
+                    if (cartData.customerUID && 
+                        currentUser && 
+                        cartData.customerUID === currentUser.uid &&
+                        cartData.restaurantId === customerData.restaurantId) {
+                        
+                        cart = cartData.items || {};
+                        console.log('🛒 Loaded verified cart for authenticated user:', cart);
+                    } else if (!cartData.customerUID) {
+                        cart = cartData.items || cartData || {};
+                        console.log('🛒 Loaded legacy cart for checkout:', cart);
+                    } else {
+                        console.log('🛒 Cart verification failed in checkout, starting fresh');
+                        cart = {};
+                    }
+                } else {
+                    console.log('🛒 No cart found in checkout');
+                    cart = {};
+                }
+            } catch (error) {
+                console.error('Error loading cart in checkout:', error);
+                cart = {};
             }
-            
-            statusElement.style.display = 'flex';
         }
 
-        function updateDebugPanel(breakdown, error = null) {
-            const debugPanel = document.getElementById('debugPanel');
-            const debugContent = document.getElementById('debugContent');
-            
-            let debugHTML = '';
-            
-            if (error) {
-                debugHTML += `<div class="debug-item"><span class="debug-label">Error:</span> <span style="color: #ef4444;">${error.message}</span></div>`;
+        // Load allergen information
+        function loadAllergenInfo() {
+            try {
+                const savedAllergenInfo = sessionStorage.getItem('customerAllergenInfo');
+                if (savedAllergenInfo) {
+                    customerAllergenInfo = JSON.parse(savedAllergenInfo);
+                    console.log('🛡️ Customer allergen info loaded for checkout:', customerAllergenInfo);
+                    populateAllergenInstructions();
+                } else {
+                    console.log('🛡️ No allergen info found for checkout');
+                    customerAllergenInfo = null;
+                }
+            } catch (error) {
+                console.error('Error loading allergen info:', error);
+                customerAllergenInfo = null;
             }
-            
-            if (breakdown) {
-                debugHTML += `<div class="debug-item"><span class="debug-label">Source:</span> <span class="debug-value">${breakdown.meta?.version || 'vediapi-extensions'}</span></div>`;
-                debugHTML += `<div class="debug-item"><span class="debug-label">Restaurant ID:</span> <span class="debug-value">${customerData.restaurantId}</span></div>`;
-                debugHTML += `<div class="debug-item"><span class="debug-label">Fee Type:</span> <span class="debug-value">${breakdown.feeConfig?.feeType || 'unknown'}</span></div>`;
-                debugHTML += `<div class="debug-item"><span class="debug-label">Tax Rate:</span> <span class="debug-value">${breakdown.taxRate}%</span></div>`;
-                debugHTML += `<div class="debug-item"><span class="debug-label">Service Fee %:</span> <span class="debug-value">${breakdown.serviceFeePercentage.toFixed(2)}%</span></div>`;
-                debugHTML += `<div class="debug-item"><span class="debug-label">Margin Protected:</span> <span class="debug-value">${breakdown.breakdown?.marginProtected || false}</span></div>`;
-                debugHTML += `<div class="debug-item"><span class="debug-label">Calculation Time:</span> <span class="debug-value">${new Date(breakdown.meta?.timestamp || Date.now()).toLocaleTimeString()}</span></div>`;
-            }
-            
-            debugHTML += `<div class="debug-item"><span class="debug-label">Attempts:</span> <span class="debug-value">${pricingCalculationAttempts}</span></div>`;
-            debugHTML += `<div class="debug-item"><span class="debug-label">VediAPI Available:</span> <span class="debug-value">${typeof VediAPI !== 'undefined'}</span></div>`;
-            debugHTML += `<div class="debug-item"><span class="debug-label">Extensions Available:</span> <span class="debug-value">${typeof VediAPI?.getProtectedPricingBreakdown === 'function'}</span></div>`;
-            
-            debugContent.innerHTML = debugHTML;
-            debugPanel.classList.add('show');
         }
 
+        // Populate allergen instructions
+        function populateAllergenInstructions() {
+            if (!customerAllergenInfo) return;
+
+            const specialInstructionsTextarea = document.getElementById('specialInstructions');
+            const allergenNotice = document.getElementById('allergenNotice');
+            
+            const { allergenNames, customAllergens } = customerAllergenInfo;
+            
+            if (allergenNames.length > 0 || customAllergens) {
+                let allergenText = '';
+                
+                if (allergenNames.length > 0) {
+                    allergenText += `🛡️ ALLERGIES: Please avoid ${allergenNames.join(', ')}`;
+                }
+                
+                if (customAllergens) {
+                    if (allergenText) allergenText += '. ';
+                    allergenText += `Additional restrictions: ${customAllergens}`;
+                }
+                
+                if (allergenText) {
+                    allergenText += '.';
+                    specialInstructionsTextarea.value = allergenText;
+                    allergenNotice.style.display = 'flex';
+                    console.log('🛡️ Auto-populated allergen instructions for checkout:', allergenText);
+                }
+            }
+        }
+
+        // FIXED: Main render function - now uses pre-calculated fees
         function renderCheckout() {
             const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
             
-            console.log('🎨 Rendering checkout with protected pricing:', protectedPricingCalculated);
+            console.log('🎨 Rendering checkout with', cartItemsCount, 'items and calculated fees:', feesCalculated);
             
             if (cartItemsCount === 0) {
                 showEmptyCart();
@@ -1422,80 +1197,64 @@
             }
 
             renderCartItems();
-            displayProtectedPricing();
             
-            // Show checkout content and conditionally show place order button
+            // CRITICAL: Display the pre-calculated fees immediately
+            displayCalculatedFees();
+            
+            // Show checkout content and place order button
             document.getElementById('checkoutContent').style.display = 'block';
-            
-            if (protectedPricingCalculated && orderBreakdown) {
-                document.getElementById('placeOrderSection').style.display = 'block';
-            } else {
-                document.getElementById('placeOrderSection').style.display = 'none';
-            }
+            document.getElementById('placeOrderSection').style.display = 'block';
         }
 
-        function displayProtectedPricing() {
-            if (!protectedPricingCalculated || !orderBreakdown) {
-                console.warn('⚠️ Protected pricing not calculated yet');
-                showPricingStatus('warning', 'Pricing calculation pending...');
+        // NEW: Display the calculated fees immediately
+        function displayCalculatedFees() {
+            if (!feesCalculated || !orderFees) {
+                console.warn('⚠️ Fees not calculated yet, using placeholder values');
                 return;
             }
 
-            console.log('💰 Displaying protected pricing:', orderBreakdown);
+            console.log('💰 Displaying calculated fees:', orderFees);
 
-            // Update display with protected values
-            document.getElementById('subtotal').textContent = formatPrice(orderBreakdown.subtotal);
-            document.getElementById('tax').textContent = formatPrice(orderBreakdown.taxAmount);
-            document.getElementById('serviceFee').textContent = formatPrice(orderBreakdown.serviceFee);
-            document.getElementById('total').textContent = formatPrice(orderBreakdown.total);
+            // Update display with calculated values
+            document.getElementById('subtotal').textContent = formatPrice(orderFees.subtotal);
+            document.getElementById('tax').textContent = formatPrice(orderFees.taxAmount);
+            document.getElementById('serviceFee').textContent = formatPrice(orderFees.serviceFee);
+            document.getElementById('total').textContent = formatPrice(orderFees.total);
 
             // Update labels with dynamic rates
-            const taxRate = orderBreakdown.taxRate.toFixed(1);
+            const taxRate = (orderFees.taxRate * 100).toFixed(1);
             document.getElementById('taxLabel').innerHTML = `Tax (${taxRate}%):`;
 
-            // Update service fee label with dynamic percentage
-            const serviceFeePercentage = orderBreakdown.serviceFeePercentage.toFixed(1);
-            document.getElementById('serviceFeeLabel').innerHTML = `Service Fee (${serviceFeePercentage}%):`;
-
-            // Show fee breakdown for testing if we have backend data
-            if (orderBreakdown.backendData) {
-                displayFeeBreakdown();
-            }
-
-            // Update place order button text
-            document.getElementById('orderBtnText').textContent = `Place Order • ${formatPrice(orderBreakdown.total)}`;
-
-            console.log('✅ Protected pricing displayed - Customer pays:', formatPrice(orderBreakdown.total));
-            console.log('🏛️ Tax rate:', taxRate + '%');
-        }
-
-        function displayFeeBreakdown() {
-            const breakdown = orderBreakdown.backendData;
-            if (!breakdown) return;
-
-            const feeBreakdownElement = document.getElementById('feeBreakdown');
+            // Update service fee label based on fee type
+            let serviceFeeLabel = 'Service Fee:';
+            let feeBadge = '';
             
-            // Calculate the breakdown amounts
-            const yourMargin = breakdown.desiredServiceFee || 0;
-            const stripeFees = (breakdown.stripeFeePercentage || 2.9) * orderBreakdown.subtotal / 100 + (breakdown.stripeFlatFee || 30) / 100;
-            const grossupAmount = breakdown.grossUpAmount || 0;
+            if (orderFees.feeConfig.feeType === 'percentage') {
+                serviceFeeLabel = `Service Fee (${orderFees.feeConfig.serviceFeePercentage}%):`;
+            } else if (orderFees.feeConfig.feeType === 'hybrid') {
+                serviceFeeLabel = `Service Fee (${formatPrice(orderFees.feeConfig.serviceFeeFixed)} + ${orderFees.feeConfig.serviceFeePercentage}%):`;
+            }
+            
+            // Add badge for negotiated rates
+            if (orderFees.breakdown?.isNegotiated) {
+                feeBadge = '<span class="fee-info-badge negotiated">Negotiated Rate</span>';
+            } else if (orderFees.feeConfig.feeType !== 'fixed') {
+                feeBadge = '<span class="fee-info-badge">Dynamic</span>';
+            }
+            
+            document.getElementById('serviceFeeLabel').innerHTML = serviceFeeLabel + feeBadge;
 
-            // Update the breakdown display
-            document.getElementById('yourMargin').textContent = formatPrice(yourMargin);
-            document.getElementById('stripeFees').textContent = formatPrice(stripeFees);
-            document.getElementById('grossupAmount').textContent = formatPrice(grossupAmount);
-
-            // Show the breakdown
-            feeBreakdownElement.style.display = 'block';
-
-            console.log('🔍 Fee breakdown displayed:', {
-                yourMargin: formatPrice(yourMargin),
-                stripeFees: formatPrice(stripeFees),
-                grossupAmount: formatPrice(grossupAmount),
-                totalServiceFee: formatPrice(orderBreakdown.serviceFee)
-            });
+            console.log('✅ Fees displayed successfully - Total:', formatPrice(orderFees.total));
         }
 
+        // Show empty cart
+        function showEmptyCart() {
+            document.getElementById('checkoutContent').style.display = 'none';
+            document.getElementById('placeOrderSection').style.display = 'none';
+            document.getElementById('emptyCart').style.display = 'block';
+        }
+
+        // Render cart items
         function renderCartItems() {
             const cartItemsList = document.getElementById('cartItemsList');
             let html = '';
@@ -1532,16 +1291,7 @@
             cartItemsList.innerHTML = html;
         }
 
-        function showEmptyCart() {
-            document.getElementById('checkoutContent').style.display = 'none';
-            document.getElementById('placeOrderSection').style.display = 'none';
-            document.getElementById('emptyCart').style.display = 'block';
-        }
-
-        // ============================================================================
-        // CART MANIPULATION
-        // ============================================================================
-        
+        // FIXED: Update quantity function - recalculates fees immediately
         async function updateQuantity(itemId, change) {
             console.log(`🔢 Updating quantity for item ${itemId} by ${change}`);
             
@@ -1555,27 +1305,29 @@
 
             saveCart();
             
-            // Recalculate protected pricing immediately
-            await calculateProtectedPricing();
+            // Recalculate fees immediately
+            await calculateFeesFirst();
             
-            // Re-render with new protected pricing
+            // Re-render with new fees
             renderCheckout();
         }
 
+        // FIXED: Remove item function - recalculates fees immediately
         async function removeItem(itemId) {
             if (confirm('Remove this item from your cart?')) {
                 console.log(`🗑️ Removing item ${itemId}`);
                 delete cart[itemId];
                 saveCart();
                 
-                // Recalculate protected pricing immediately
-                await calculateProtectedPricing();
+                // Recalculate fees immediately
+                await calculateFeesFirst();
                 
-                // Re-render with new protected pricing
+                // Re-render with new fees
                 renderCheckout();
             }
         }
 
+        // Save cart with customer UID
         function saveCart() {
             const cartData = {
                 items: cart,
@@ -1586,16 +1338,31 @@
             sessionStorage.setItem('customerCart', JSON.stringify(cartData));
         }
 
-        // ============================================================================
-        // ORDER PLACEMENT - MODIFIED TO GO DIRECTLY TO ORDER PROGRESS
-        // ============================================================================
-        
+        // Format phone for storage
+        function formatPhoneForStorage(phone) {
+            if (!phone) return '';
+            
+            if (phone.startsWith('+')) return phone;
+            
+            const digits = phone.replace(/\D/g, '');
+            
+            if (digits.length === 11 && digits.startsWith('1')) {
+                return `+${digits}`;
+            } else if (digits.length === 10) {
+                return `+1${digits}`;
+            }
+            
+            return phone;
+        }
+
+        // Place order function
         async function placeOrder() {
-            console.log('📝 Placing order directly and redirecting to order progress...');
+            console.log('📝 Placing order with calculated fees...');
             
             const placeOrderBtn = document.getElementById('placeOrderBtn');
             const orderBtnText = document.getElementById('orderBtnText');
             const orderBtnSpinner = document.getElementById('orderBtnSpinner');
+            const specialInstructions = document.getElementById('specialInstructions').value.trim();
             
             // Disable button and show loading
             placeOrderBtn.disabled = true;
@@ -1607,190 +1374,135 @@
                     throw new Error('Authentication required. Please sign in to place an order.');
                 }
 
-                // CRITICAL: Check if protected pricing calculation succeeded
-                if (!orderBreakdown || !protectedPricingCalculated) {
-                    throw new Error('Pricing calculation failed. Cannot place order without proper pricing.');
+                if (customerSession.firebaseUID !== currentUser.uid) {
+                    throw new Error('Session mismatch. Please refresh and try again.');
                 }
 
-                // Verify we have a valid calculation source
-                if (!orderBreakdown.calculationSource || orderBreakdown.calculationSource !== 'vediapi-extensions-v2') {
-                    console.warn('⚠️ Order breakdown not from VediAPI extensions v2:', orderBreakdown);
-                    throw new Error('Invalid pricing calculation source. Please refresh and try again.');
+                if (!orderFees || !feesCalculated) {
+                    throw new Error('Order fees not calculated. Please refresh the page.');
                 }
 
-                // Check if cart has items
-                const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
-                if (cartItemsCount === 0) {
+                // Calculate order details
+                const orderItems = [];
+
+                for (let itemId in cart) {
+                    if (cart[itemId] > 0 && menuItems[itemId]) {
+                        const item = menuItems[itemId];
+                        const quantity = cart[itemId];
+                        
+                        orderItems.push({
+                            id: itemId,
+                            name: item.name,
+                            description: item.description || '',
+                            price: item.price,
+                            quantity: quantity
+                        });
+                    }
+                }
+
+                if (orderItems.length === 0) {
                     throw new Error('No items in cart to order');
                 }
 
-                // Log the pricing calculation for verification
-                console.log('🔍 Order breakdown verification:', {
-                    source: orderBreakdown.calculationSource,
-                    marginProtected: orderBreakdown.marginProtected,
-                    taxRate: orderBreakdown.taxRate,
-                    serviceFeePercentage: orderBreakdown.serviceFeePercentage,
-                    total: orderBreakdown.total
-                });
+                const orderNumber = VediAPI.generateOrderNumber();
+                console.log('🔢 Generated order number:', orderNumber);
 
-                // Get special instructions
-                const specialInstructions = document.getElementById('specialInstructions').value.trim();
-
-                // Prepare order data with protected pricing
                 const orderData = {
+                    orderNumber: orderNumber,
                     restaurantId: customerData.restaurantId,
+                    customerName: customerData.name || 'Walk-in Customer',
+                    customerPhone: formatPhoneForStorage(customerData.phone) || currentUser.phoneNumber || '',
                     customerUID: currentUser.uid,
-                    customerName: customerData.name || currentUser.displayName || 'Guest',
-                    customerPhone: customerData.phone || currentUser.phoneNumber || '',
-                    tableNumber: customerData.tableNumber || '',
-                    location: customerData.location || '',
-                    items: Object.keys(cart).map(itemId => ({
-                        id: itemId,
-                        name: menuItems[itemId].name,
-                        price: menuItems[itemId].price,
-                        quantity: cart[itemId],
-                        description: menuItems[itemId].description || ''
-                    })),
-                    subtotal: orderBreakdown.subtotal,
-                    tax: orderBreakdown.taxAmount,
-                    taxRate: orderBreakdown.taxRate,
-                    serviceFee: orderBreakdown.serviceFee,
-                    serviceFeePercentage: orderBreakdown.serviceFeePercentage,
-                    total: orderBreakdown.total,
-                    specialInstructions: specialInstructions || '',
+                    customerEmail: currentUser.email || '',
+                    authProvider: currentUser.providerData[0]?.providerId || 'unknown',
+                    tableNumber: customerData.tableNumber || 'counter',
+                    location: customerData.location || 'table',
+                    items: orderItems,
+                    specialInstructions: specialInstructions,
+                    subtotal: orderFees.subtotal,
+                    tax: orderFees.taxAmount,
+                    serviceFee: orderFees.serviceFee,
+                    total: orderFees.total,
+                    feeConfig: orderFees.feeConfig,
+                    taxRate: orderFees.taxRate,
+                    feeType: orderFees.breakdown?.serviceFeeType,
+                    isNegotiatedRate: orderFees.breakdown?.isNegotiated || false,
                     status: 'pending',
-                    timestamp: new Date().toISOString(),
-                    pricingSource: orderBreakdown.calculationSource,
-                    marginProtected: orderBreakdown.marginProtected,
-                    // Include the protected pricing breakdown for future reference
-                    pricingBreakdown: orderBreakdown.backendData
+                    estimatedTime: '15-20 minutes',
+                    createdAt: new Date().toISOString()
                 };
 
-                console.log('🔄 Creating order with protected pricing:', {
-                    total: formatPrice(orderBreakdown.total),
-                    subtotal: formatPrice(orderBreakdown.subtotal),
-                    tax: formatPrice(orderBreakdown.taxAmount),
-                    serviceFee: formatPrice(orderBreakdown.serviceFee),
-                    taxRate: orderBreakdown.taxRate + '%',
-                    serviceFeePercentage: orderBreakdown.serviceFeePercentage.toFixed(2) + '%',
-                    source: orderBreakdown.calculationSource,
-                    itemCount: orderData.items.length
-                });
+                console.log('📋 Enhanced order with calculated fees prepared:', orderData);
 
-                // Create the order using VediAPI
-                let orderResult;
-                if (typeof VediAPI !== 'undefined' && VediAPI.createOrder) {
-                    orderResult = await VediAPI.createOrder(orderData);
-                } else {
-                    // Fallback to direct Firestore creation
-                    // Generate order number first
-                    const orderNumber = Math.floor(Math.random() * 9000) + 1000;
-                    const orderDataWithNumber = {
-                        ...orderData,
-                        orderNumber: orderNumber
-                    };
-                    
-                    const orderRef = await firebase.firestore().collection('orders').add(orderDataWithNumber);
-                    orderResult = {
-                        id: orderRef.id,
-                        orderNumber: orderNumber,
-                        ...orderDataWithNumber
-                    };
+                const createdOrder = await VediAPI.createOrder(orderData);
+                console.log('✅ Order created successfully with calculated fees:', createdOrder);
+
+                try {
+                    await VediAPI.saveCustomerProfile(currentUser.uid, {
+                        name: customerData.name,
+                        email: currentUser.email,
+                        phone: customerData.phone,
+                        authProvider: currentUser.providerData[0]?.providerId || 'unknown',
+                        lastOrderRestaurant: currentRestaurant.name,
+                        lastOrderDate: new Date().toISOString()
+                    });
+                    console.log('👤 Customer profile updated with order info');
+                } catch (profileError) {
+                    console.warn('⚠️ Could not update customer profile:', profileError);
                 }
 
-                console.log('✅ Order created successfully:', orderResult);
-
-                // Clear the cart after successful order creation
+                // Clear cart
                 cart = {};
-                saveCart();
                 sessionStorage.removeItem('customerCart');
 
-                // Save order data for order progress tracking
-                const orderTrackingData = {
-                    orderId: orderResult.id,
-                    orderNumber: orderResult.orderNumber,
+                const orderInfo = {
+                    orderNumber: orderNumber,
+                    orderId: createdOrder.id || createdOrder.orderNumber,
                     restaurantId: customerData.restaurantId,
+                    restaurantName: currentRestaurant.name,
+                    customerName: customerData.name,
+                    customerPhone: customerData.phone,
                     customerUID: currentUser.uid,
-                    timestamp: new Date().toISOString()
+                    customerEmail: currentUser.email,
+                    authProvider: currentUser.providerData[0]?.providerId,
+                    total: orderFees.total,
+                    createdAt: new Date().toISOString()
                 };
-                sessionStorage.setItem('currentOrder', JSON.stringify(orderTrackingData));
+                sessionStorage.setItem('lastOrderConfirmed', JSON.stringify(orderInfo));
 
-                // Update customer session with successful order
-                const updatedSession = {
-                    ...customerSession,
-                    name: orderData.customerName,
-                    phone: orderData.customerPhone,
-                    restaurantId: orderData.restaurantId,
-                    tableNumber: orderData.tableNumber,
-                    location: orderData.location,
-                    firebaseUID: currentUser.uid,
-                    lastOrderNumber: orderResult.orderNumber
-                };
-                sessionStorage.setItem('customerSession', JSON.stringify(updatedSession));
-
-                console.log('🎯 Redirecting to order progress page...');
-
-                // Create URL parameters for order progress
-                const progressParams = new URLSearchParams({
-                    orderNumber: orderResult.orderNumber,
-                    restaurant: customerData.restaurantId,
-                    table: customerData.tableNumber || '',
-                    location: customerData.location || '',
-                    name: orderData.customerName,
-                    phone: orderData.customerPhone
-                });
-
-                // Show success message briefly before redirect
-                showSuccess('Order placed successfully! Redirecting to order tracking...');
-
-                // Redirect to order progress page
+                showSuccess('Order placed successfully!');
+                
                 setTimeout(() => {
-                    window.location.href = `order-progress.html?${progressParams.toString()}`;
-                }, 1500);
+                    console.log('🔄 Redirecting to order progress...');
+                    
+                    const params = new URLSearchParams();
+                    params.set('restaurant', customerData.restaurantId);
+                    params.set('orderNumber', orderNumber);
+                    
+                    if (customerData.name) params.set('name', customerData.name);
+                    if (customerData.phone) params.set('phone', customerData.phone);
+                    if (customerData.tableNumber) params.set('table', customerData.tableNumber);
+                    if (customerData.location) params.set('location', customerData.location);
+                    
+                    params.set('session', 'authenticated');
+                    
+                    const redirectUrl = `order-progress.html?${params.toString()}`;
+                    console.log('🎯 Redirect URL:', redirectUrl);
+                    
+                    window.location.href = redirectUrl;
+                }, 2000);
 
             } catch (error) {
                 console.error('❌ Error placing order:', error);
+                showError('Failed to place order: ' + error.message);
                 
-                // Show specific error messages
-                if (error.message.includes('Pricing calculation failed')) {
-                    showError('Pricing calculation error. Please refresh the page and try again.');
-                    console.error('🔧 Debug: Run window.getVediAPIDiagnostics() for more info');
-                } else if (error.message.includes('Authentication required')) {
-                    showError('Please sign in to place your order.');
-                    redirectToLogin();
-                } else {
-                    showError('Failed to place order: ' + error.message);
-                }
-                
-                // Re-enable button
                 placeOrderBtn.disabled = false;
                 orderBtnText.style.display = 'block';
                 orderBtnSpinner.style.display = 'none';
             }
         }
 
-        // ============================================================================
-        // UTILITY FUNCTIONS
-        // ============================================================================
-        
-        function getRestaurantCurrency() {
-    if (currentRestaurant && currentRestaurant.currency) {
-        return currentRestaurant.currency;
-    }
-    return { code: 'USD', symbol: '$', name: 'US Dollar' };
-}
-
-        function formatPrice(amount, showCode = false) {
-            const currency = getRestaurantCurrency();
-            const formattedAmount = Number(amount).toFixed(2);
-            
-            if (showCode) {
-                return `${currency.symbol}${formattedAmount} ${currency.code}`;
-            }
-            
-            return `${currency.symbol}${formattedAmount}`;
-        }
-
+        // Navigation function
         function goBackToMenu() {
             console.log('🔙 Going back to menu from checkout...');
             const params = new URLSearchParams();
@@ -1803,6 +1515,7 @@
             window.location.href = `menu.html?${params.toString()}`;
         }
 
+        // Utility functions
         function showLoading() {
             document.getElementById('loadingOverlay').style.display = 'flex';
         }
@@ -1845,99 +1558,7 @@
             showNotification(message, 'error');
         }
 
-        // ============================================================================
-        // DEBUG FUNCTIONS (GLOBAL ACCESS)
-        // ============================================================================
-        
-        // Make debug functions globally accessible
-        window.debugCheckout = {
-            testPricing: async () => {
-                if (typeof window.testVediAPIPricing === 'function') {
-                    await window.testVediAPIPricing(customerData.restaurantId);
-                } else {
-                    console.log('❌ testVediAPIPricing function not available');
-                }
-            },
-            
-            getDiagnostics: () => {
-                if (typeof window.getVediAPIDiagnostics === 'function') {
-                    return window.getVediAPIDiagnostics();
-                } else {
-                    console.log('❌ getVediAPIDiagnostics function not available');
-                    return null;
-                }
-            },
-            
-            retryPricing: async () => {
-                console.log('🔄 Manually retrying pricing calculation...');
-                try {
-                    await calculateProtectedPricing();
-                    renderCheckout();
-                    console.log('✅ Manual pricing retry completed');
-                } catch (error) {
-                    console.error('❌ Manual pricing retry failed:', error);
-                }
-            },
-            
-            showOrderBreakdown: () => {
-                console.log('📊 Current order breakdown:', orderBreakdown);
-                return orderBreakdown;
-            },
-            
-            getCurrentState: () => {
-                return {
-                    restaurantId: customerData.restaurantId,
-                    cartItems: Object.keys(cart).length,
-                    protectedPricingCalculated,
-                    orderBreakdown,
-                    pricingCalculationAttempts,
-                    vediAPIAvailable: typeof VediAPI !== 'undefined',
-                    extensionsAvailable: typeof VediAPI?.getProtectedPricingBreakdown === 'function'
-                };
-            },
-
-            testOrderCreation: async () => {
-                console.log('🧪 Testing order creation flow...');
-                try {
-                    if (!protectedPricingCalculated || !orderBreakdown) {
-                        console.error('❌ Cannot test order creation without pricing calculation');
-                        return;
-                    }
-
-                    const testOrderData = {
-                        restaurantId: customerData.restaurantId,
-                        customerUID: currentUser?.uid || 'test-uid',
-                        customerName: 'Test Customer',
-                        customerPhone: '+1234567890',
-                        items: Object.keys(cart).map(itemId => ({
-                            id: itemId,
-                            name: menuItems[itemId].name,
-                            price: menuItems[itemId].price,
-                            quantity: cart[itemId]
-                        })),
-                        subtotal: orderBreakdown.subtotal,
-                        tax: orderBreakdown.taxAmount,
-                        serviceFee: orderBreakdown.serviceFee,
-                        total: orderBreakdown.total,
-                        status: 'pending',
-                        timestamp: new Date().toISOString(),
-                        test: true
-                    };
-
-                    console.log('📝 Test order data:', testOrderData);
-                    console.log('✅ Order creation data looks valid');
-                    return testOrderData;
-                } catch (error) {
-                    console.error('❌ Test order creation failed:', error);
-                }
-            }
-        };
-
-        // ============================================================================
-        // SESSION MONITORING & CLEANUP
-        // ============================================================================
-        
-        // Monitor authentication state changes
+        // Session monitoring
         function monitorAuthenticationState() {
             firebase.auth().onAuthStateChanged(function(user) {
                 if (!user && currentUser) {
@@ -1945,169 +1566,16 @@
                     showSessionWarning();
                     currentUser = null;
                     updateAuthenticationIndicator();
-                } else if (user && !currentUser) {
-                    console.log('✅ User signed in during checkout session');
-                    currentUser = user;
-                    updateAuthenticationIndicator();
-                    hideSessionWarning();
                 }
             });
         }
 
-        function hideSessionWarning() {
-            const warning = document.getElementById('sessionWarning');
-            if (warning) {
-                warning.classList.remove('show');
-            }
-        }
-
-        // Start monitoring authentication state after initial load
+        // Start monitoring authentication state
         setTimeout(() => {
             monitorAuthenticationState();
         }, 1000);
 
-        // ============================================================================
-        // CLEANUP ON PAGE UNLOAD
-        // ============================================================================
-        
-        window.addEventListener('beforeunload', function() {
-            console.log('🧹 Cleaning up checkout page resources');
-            
-            // Save current state before leaving
-            if (Object.keys(cart).length > 0) {
-                saveCart();
-                console.log('💾 Cart saved before page unload');
-            }
-            
-            // Clear any pending timeouts or intervals
-            // (Add any cleanup for timers if you have them)
-        });
-
-        // ============================================================================
-        // ERROR RECOVERY FUNCTIONS
-        // ============================================================================
-        
-        // Global error handler for unhandled promise rejections
-        window.addEventListener('unhandledrejection', function(event) {
-            console.error('❌ Unhandled promise rejection in checkout:', event.reason);
-            
-            // Prevent the default behavior (which would log to console)
-            event.preventDefault();
-            
-            // Show user-friendly error
-            if (event.reason && event.reason.message) {
-                if (event.reason.message.includes('VediAPI') || event.reason.message.includes('pricing')) {
-                    showError('Pricing calculation error. Please refresh the page.');
-                } else if (event.reason.message.includes('auth') || event.reason.message.includes('permission')) {
-                    showError('Authentication error. Please sign in again.');
-                    showSessionWarning();
-                } else {
-                    showError('Something went wrong. Please refresh the page.');
-                }
-            }
-        });
-
-        // Global error handler for JavaScript errors
-        window.addEventListener('error', function(event) {
-            console.error('❌ JavaScript error in checkout:', event.error);
-            
-            // Don't show errors for network issues or external script failures
-            if (event.error && event.error.message) {
-                const message = event.error.message.toLowerCase();
-                if (message.includes('network') || 
-                    message.includes('fetch') || 
-                    message.includes('script error') ||
-                    message.includes('loading chunk')) {
-                    return; // Silently handle these
-                }
-                
-                // Only show critical errors that affect checkout functionality
-                if (message.includes('vediapi') || 
-                    message.includes('firebase') || 
-                    message.includes('pricing')) {
-                    showError('Critical error detected. Please refresh the page.');
-                }
-            }
-        });
-
-        // ============================================================================
-        // KEYBOARD SHORTCUTS (OPTIONAL DEBUGGING)
-        // ============================================================================
-        
-        document.addEventListener('keydown', function(event) {
-            // Only enable shortcuts in development/testing
-            if (window.location.hostname === 'localhost' || window.location.hostname.includes('test')) {
-                
-                // Ctrl+Shift+D = Toggle Debug Panel
-                if (event.ctrlKey && event.shiftKey && event.key === 'D') {
-                    event.preventDefault();
-                    const debugPanel = document.getElementById('debugPanel');
-                    if (debugPanel.style.display === 'none' || !debugPanel.classList.contains('show')) {
-                        debugPanel.classList.add('show');
-                        console.log('🔧 Debug panel shown');
-                    } else {
-                        debugPanel.classList.remove('show');
-                        console.log('🔧 Debug panel hidden');
-                    }
-                }
-                
-                // Ctrl+Shift+P = Retry Pricing
-                if (event.ctrlKey && event.shiftKey && event.key === 'P') {
-                    event.preventDefault();
-                    console.log('⌨️ Keyboard shortcut: Retrying pricing calculation...');
-                    window.debugCheckout.retryPricing();
-                }
-                
-                // Ctrl+Shift+C = Show Current State
-                if (event.ctrlKey && event.shiftKey && event.key === 'C') {
-                    event.preventDefault();
-                    console.log('⌨️ Keyboard shortcut: Current checkout state');
-                    console.table(window.debugCheckout.getCurrentState());
-                }
-            }
-        });
-
-        // ============================================================================
-        // FINAL INITIALIZATION CONFIRMATION
-        // ============================================================================
-        
-        // Set a flag when everything is loaded
-        window.checkoutInitialized = true;
-        
-        // Expose key functions globally for testing
-        window.checkoutAPI = {
-            calculatePricing: calculateProtectedPricing,
-            renderCheckout: renderCheckout,
-            getOrderBreakdown: () => orderBreakdown,
-            getCurrentCart: () => cart,
-            getCustomerData: () => customerData,
-            getRestaurantData: () => currentRestaurant
-        };
-
-        // ============================================================================
-        // INITIALIZATION LOGGING
-        // ============================================================================
-        
-        console.log('🛒✅ VediAPI-powered protected pricing checkout loaded');
-        console.log('🔄 Uses VediAPI extensions v2.0.0 for all pricing calculations');
-        console.log('🛡️ Margins protected using VediAPI gross-up calculation');
-        console.log('📊 Displays actual tax rates from fee configurations');
-        console.log('🎯 Direct order creation - no payment page redirect');
-        console.log('📈 Goes directly to order progress after successful placement');
-        console.log('💾 Cart cleared after successful order creation');
-        console.log('🔍 Testing: Fee breakdown shows your margin vs Stripe fees');
-        console.log('🔧 VediAPI extended via vediapi-pricing-extensions.js v2.0.0');
-        console.log('🚫 NO FALLBACK - Prevents orders with incorrect pricing');
-        console.log('📊 Enhanced debugging with pricing status indicators');
-        console.log('🔧 Debug functions: window.debugCheckout.testPricing(), window.debugCheckout.getDiagnostics()');
-        console.log('🔄 Manual retry: window.debugCheckout.retryPricing()');
-        console.log('📊 Current state: window.debugCheckout.getCurrentState()');
-        console.log('🧪 Test order: window.debugCheckout.testOrderCreation()');
-        console.log('🎯 Checkout initialization complete - Order placement will redirect to order-progress.html');
-        console.log('🔧 Testing shortcuts (localhost only): Ctrl+Shift+D (debug), Ctrl+Shift+P (retry pricing), Ctrl+Shift+C (state)');
-        console.log('🌐 Global API: window.checkoutAPI available for testing');
-        console.log('✅ Ready for order placement and redirect to order tracking');
-        
+        console.log('🛒 Enhanced customer checkout with immediate fee calculation loaded successfully');
     </script>
 </body>
 </html>
