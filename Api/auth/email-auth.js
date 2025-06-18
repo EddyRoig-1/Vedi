@@ -106,7 +106,7 @@ function enhanceError(error, context) {
   if (error.message.includes('timeout') || error.message.includes('timed out')) {
     enhanced.userMessage = 'Operation timed out. Please check your connection and try again.';
   } else if (error.code && error.code.startsWith('auth/')) {
-    enhanced.userMessage = VediAPI.getAuthErrorMessage(error.code);
+    enhanced.userMessage = window.VediAPI?.getAuthErrorMessage ? window.VediAPI.getAuthErrorMessage(error.code) : error.message;
   } else if (error.message.includes('network') || error.message.includes('Network')) {
     enhanced.userMessage = 'Network error. Please check your internet connection.';
   } else {
@@ -129,14 +129,14 @@ function enhanceError(error, context) {
  * @returns {Promise<Object>} Created user object with profile data
  */
 async function signUp(email, password, userData) {
-  const endTracking = VediAPI.startPerformanceMeasurement('signUp');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('signUp') : () => {};
   
   try {
     const auth = getFirebaseAuth();
     const db = getFirebaseDb();
     
     // Validate input data
-    if (!VediAPI.validateEmail(email)) {
+    if (!window.VediAPI?.validateEmail || !window.VediAPI.validateEmail(email)) {
       throw new Error('Please enter a valid email address.');
     }
     
@@ -160,7 +160,7 @@ async function signUp(email, password, userData) {
     // Save additional user data to Firestore
     const userDoc = {
       email: email,
-      name: VediAPI.sanitizeInput(userData.name),
+      name: window.VediAPI?.sanitizeInput ? window.VediAPI.sanitizeInput(userData.name) : userData.name,
       accountType: userData.accountType, // 'restaurant', 'venue', or 'customer'
       phone: userData.phone || '',
       address: userData.address || '',
@@ -174,14 +174,18 @@ async function signUp(email, password, userData) {
     await db.collection('users').doc(user.uid).set(userDoc);
     
     // Track successful signup
-    await VediAPI.trackUserActivity('signup', {
-      accountType: userData.accountType,
-      email: email,
-      method: 'email'
-    });
+    if (window.VediAPI?.trackUserActivity) {
+      await window.VediAPI.trackUserActivity('signup', {
+        accountType: userData.accountType,
+        email: email,
+        method: 'email'
+      });
+    }
     
     // Update session with user ID
-    await VediAPI.updateSessionUser(user.uid);
+    if (window.VediAPI?.updateSessionUser) {
+      await window.VediAPI.updateSessionUser(user.uid);
+    }
     
     await endTracking(true);
     
@@ -190,10 +194,12 @@ async function signUp(email, password, userData) {
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'email_signup', { email });
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'email_signup', { email });
+    }
     
     console.error('❌ Sign up error:', error);
-    throw new Error(VediAPI.getAuthErrorMessage(error.code));
+    throw new Error(window.VediAPI?.getAuthErrorMessage ? window.VediAPI.getAuthErrorMessage(error.code) : error.message);
   }
 }
 
@@ -205,13 +211,13 @@ async function signUp(email, password, userData) {
  * @returns {Promise<Object>} User object with complete profile data
  */
 async function signIn(email, password) {
-  const endTracking = VediAPI.startPerformanceMeasurement('signIn');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('signIn') : () => {};
   
   try {
     const auth = getFirebaseAuth();
     
     // Validate input
-    if (!VediAPI.validateEmail(email)) {
+    if (!window.VediAPI?.validateEmail || !window.VediAPI.validateEmail(email)) {
       throw new Error('Please enter a valid email address.');
     }
     
@@ -233,14 +239,18 @@ async function signIn(email, password) {
     });
     
     // Track successful login
-    await VediAPI.trackUserActivity('login', {
-      accountType: userData.accountType,
-      email: email,
-      method: 'email'
-    });
+    if (window.VediAPI?.trackUserActivity) {
+      await window.VediAPI.trackUserActivity('login', {
+        accountType: userData.accountType,
+        email: email,
+        method: 'email'
+      });
+    }
     
     // Update session with user ID
-    await VediAPI.updateSessionUser(user.uid);
+    if (window.VediAPI?.updateSessionUser) {
+      await window.VediAPI.updateSessionUser(user.uid);
+    }
     
     await endTracking(true);
     
@@ -249,10 +259,12 @@ async function signIn(email, password) {
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'email_signin', { email });
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'email_signin', { email });
+    }
     
     console.error('❌ Sign in error:', error);
-    throw new Error(VediAPI.getAuthErrorMessage(error.code));
+    throw new Error(window.VediAPI?.getAuthErrorMessage ? window.VediAPI.getAuthErrorMessage(error.code) : error.message);
   }
 }
 
@@ -262,7 +274,7 @@ async function signIn(email, password) {
  * @returns {Promise<void>} Resolves when user is signed out
  */
 async function signOut() {
-  const endTracking = VediAPI.startPerformanceMeasurement('signOut');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('signOut') : () => {};
   
   try {
     const auth = getFirebaseAuth();
@@ -270,10 +282,12 @@ async function signOut() {
     
     if (currentUser) {
       // Track logout before signing out
-      await VediAPI.trackUserActivity('logout', {
-        userId: currentUser.uid,
-        method: 'manual'
-      });
+      if (window.VediAPI?.trackUserActivity) {
+        await window.VediAPI.trackUserActivity('logout', {
+          userId: currentUser.uid,
+          method: 'manual'
+        });
+      }
     }
     
     await auth.signOut();
@@ -283,7 +297,9 @@ async function signOut() {
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'signout');
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'signout');
+    }
     
     console.error('❌ Sign out error:', error);
     throw error;
@@ -307,7 +323,9 @@ async function getCurrentUser() {
           resolve(userData);
         } catch (error) {
           console.error('❌ Error getting user data:', error);
-          await VediAPI.trackError(error, 'getCurrentUser');
+          if (window.VediAPI?.trackError) {
+            await window.VediAPI.trackError(error, 'getCurrentUser');
+          }
           resolve(null);
         }
       } else {
@@ -323,7 +341,7 @@ async function getCurrentUser() {
  * @returns {Promise<Object>} User profile data
  */
 async function getUserData(userId) {
-  const endTracking = VediAPI.startPerformanceMeasurement('getUserData');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('getUserData') : () => {};
   
   try {
     const db = getFirebaseDb();
@@ -340,7 +358,9 @@ async function getUserData(userId) {
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'getUserData', { userId });
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'getUserData', { userId });
+    }
     
     console.error('❌ Get user data error:', error);
     throw error;
@@ -354,29 +374,31 @@ async function getUserData(userId) {
  * @returns {Promise<Object>} Updated user data
  */
 async function updateUserProfile(userId, updates) {
-  const endTracking = VediAPI.startPerformanceMeasurement('updateUserProfile');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('updateUserProfile') : () => {};
   
   try {
     const db = getFirebaseDb();
     
     // Sanitize updates
-    const sanitizedUpdates = VediAPI.removeUndefinedValues({
-      name: updates.name ? VediAPI.sanitizeInput(updates.name) : undefined,
-      phone: updates.phone ? VediAPI.sanitizeInput(updates.phone) : undefined,
-      address: updates.address ? VediAPI.sanitizeInput(updates.address) : undefined,
+    const sanitizedUpdates = window.VediAPI?.removeUndefinedValues ? window.VediAPI.removeUndefinedValues({
+      name: updates.name ? (window.VediAPI?.sanitizeInput ? window.VediAPI.sanitizeInput(updates.name) : updates.name) : undefined,
+      phone: updates.phone ? (window.VediAPI?.sanitizeInput ? window.VediAPI.sanitizeInput(updates.phone) : updates.phone) : undefined,
+      address: updates.address ? (window.VediAPI?.sanitizeInput ? window.VediAPI.sanitizeInput(updates.address) : updates.address) : undefined,
       preferences: updates.preferences || undefined,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    }) : updates;
     
     await db.collection('users').doc(userId).update(sanitizedUpdates);
     
     // Get updated user data
     const updatedUser = await getUserData(userId);
     
-    await VediAPI.trackUserActivity('profile_update', {
-      userId,
-      fieldsUpdated: Object.keys(sanitizedUpdates)
-    });
+    if (window.VediAPI?.trackUserActivity) {
+      await window.VediAPI.trackUserActivity('profile_update', {
+        userId,
+        fieldsUpdated: Object.keys(sanitizedUpdates)
+      });
+    }
     
     await endTracking(true);
     
@@ -385,7 +407,9 @@ async function updateUserProfile(userId, updates) {
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'updateUserProfile', { userId });
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'updateUserProfile', { userId });
+    }
     
     console.error('❌ Update user profile error:', error);
     throw error;
@@ -402,28 +426,32 @@ async function updateUserProfile(userId, updates) {
  * @returns {Promise<void>} Resolves when reset email is sent
  */
 async function sendPasswordResetEmail(email) {
-  const endTracking = VediAPI.startPerformanceMeasurement('sendPasswordResetEmail');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('sendPasswordResetEmail') : () => {};
   
   try {
     const auth = getFirebaseAuth();
     
-    if (!VediAPI.validateEmail(email)) {
+    if (!window.VediAPI?.validateEmail || !window.VediAPI.validateEmail(email)) {
       throw new Error('Please enter a valid email address.');
     }
     
     await auth.sendPasswordResetEmail(email);
     
-    await VediAPI.trackUserActivity('password_reset_requested', { email });
+    if (window.VediAPI?.trackUserActivity) {
+      await window.VediAPI.trackUserActivity('password_reset_requested', { email });
+    }
     
     await endTracking(true);
     console.log('✅ Password reset email sent to:', email);
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'sendPasswordResetEmail', { email });
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'sendPasswordResetEmail', { email });
+    }
     
     console.error('❌ Send password reset error:', error);
-    throw new Error(VediAPI.getAuthErrorMessage(error.code));
+    throw new Error(window.VediAPI?.getAuthErrorMessage ? window.VediAPI.getAuthErrorMessage(error.code) : error.message);
   }
 }
 
@@ -433,7 +461,7 @@ async function sendPasswordResetEmail(email) {
  * @returns {Promise<void>} Resolves when password is updated
  */
 async function updatePassword(newPassword) {
-  const endTracking = VediAPI.startPerformanceMeasurement('updatePassword');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('updatePassword') : () => {};
   
   try {
     const auth = getFirebaseAuth();
@@ -449,19 +477,23 @@ async function updatePassword(newPassword) {
     
     await currentUser.updatePassword(newPassword);
     
-    await VediAPI.trackUserActivity('password_updated', {
-      userId: currentUser.uid
-    });
+    if (window.VediAPI?.trackUserActivity) {
+      await window.VediAPI.trackUserActivity('password_updated', {
+        userId: currentUser.uid
+      });
+    }
     
     await endTracking(true);
     console.log('✅ Password updated successfully');
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'updatePassword');
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'updatePassword');
+    }
     
     console.error('❌ Update password error:', error);
-    throw new Error(VediAPI.getAuthErrorMessage(error.code));
+    throw new Error(window.VediAPI?.getAuthErrorMessage ? window.VediAPI.getAuthErrorMessage(error.code) : error.message);
   }
 }
 
@@ -474,7 +506,7 @@ async function updatePassword(newPassword) {
  * @returns {Promise<void>} Resolves when verification email is sent
  */
 async function sendEmailVerification() {
-  const endTracking = VediAPI.startPerformanceMeasurement('sendEmailVerification');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('sendEmailVerification') : () => {};
   
   try {
     const auth = getFirebaseAuth();
@@ -490,20 +522,24 @@ async function sendEmailVerification() {
     
     await currentUser.sendEmailVerification();
     
-    await VediAPI.trackUserActivity('email_verification_sent', {
-      userId: currentUser.uid,
-      email: currentUser.email
-    });
+    if (window.VediAPI?.trackUserActivity) {
+      await window.VediAPI.trackUserActivity('email_verification_sent', {
+        userId: currentUser.uid,
+        email: currentUser.email
+      });
+    }
     
     await endTracking(true);
     console.log('✅ Email verification sent');
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'sendEmailVerification');
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'sendEmailVerification');
+    }
     
     console.error('❌ Send email verification error:', error);
-    throw new Error(VediAPI.getAuthErrorMessage(error.code));
+    throw new Error(window.VediAPI?.getAuthErrorMessage ? window.VediAPI.getAuthErrorMessage(error.code) : error.message);
   }
 }
 
@@ -513,12 +549,12 @@ async function sendEmailVerification() {
  * @returns {Promise<boolean>} True if email exists, false otherwise
  */
 async function checkEmailExists(email) {
-  const endTracking = VediAPI.startPerformanceMeasurement('checkEmailExists');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('checkEmailExists') : () => {};
   
   try {
     const auth = getFirebaseAuth();
     
-    if (!VediAPI.validateEmail(email)) {
+    if (!window.VediAPI?.validateEmail || !window.VediAPI.validateEmail(email)) {
       throw new Error('Please enter a valid email address.');
     }
     
@@ -547,7 +583,7 @@ async function checkEmailExists(email) {
  * @returns {Promise<void>} Resolves when account is deleted
  */
 async function deleteUserAccount(userId) {
-  const endTracking = VediAPI.startPerformanceMeasurement('deleteUserAccount');
+  const endTracking = window.VediAPI?.startPerformanceMeasurement ? window.VediAPI.startPerformanceMeasurement('deleteUserAccount') : () => {};
   
   try {
     const auth = getFirebaseAuth();
@@ -559,10 +595,12 @@ async function deleteUserAccount(userId) {
     }
     
     // Track account deletion before removing data
-    await VediAPI.trackUserActivity('account_deleted', {
-      userId,
-      email: currentUser.email
-    });
+    if (window.VediAPI?.trackUserActivity) {
+      await window.VediAPI.trackUserActivity('account_deleted', {
+        userId,
+        email: currentUser.email
+      });
+    }
     
     // Delete user data from Firestore
     await db.collection('users').doc(userId).delete();
@@ -575,10 +613,12 @@ async function deleteUserAccount(userId) {
     
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'deleteUserAccount', { userId });
+    if (window.VediAPI?.trackError) {
+      await window.VediAPI.trackError(error, 'deleteUserAccount', { userId });
+    }
     
     console.error('❌ Delete user account error:', error);
-    throw new Error(VediAPI.getAuthErrorMessage(error.code));
+    throw new Error(window.VediAPI?.getAuthErrorMessage ? window.VediAPI.getAuthErrorMessage(error.code) : error.message);
   }
 }
 
@@ -591,34 +631,53 @@ if (!window.VediAPI) {
   window.VediAPI = {};
 }
 
-// Attach email authentication functions to VediAPI
-Object.assign(window.VediAPI, {
-  // INJECTED: Promise utilities from customer-auth-api
+// Safe wrapper function - use tracking if available, otherwise return function as-is
+function safeWrap(methodName, originalMethod) {
+  if (typeof window.withTracking === 'function') {
+    return window.withTracking(methodName, originalMethod);
+  } else if (window.VediAPI && typeof window.VediAPI.withTracking === 'function') {
+    return window.VediAPI.withTracking(methodName, originalMethod);
+  } else {
+    console.warn(`⚠️ withTracking not available for ${methodName}, using unwrapped function`);
+    return originalMethod;
+  }
+}
+
+// Attach email authentication functions to VediAPI with safe wrapping
+const emailAuthFunctions = {
+  // INJECTED: Promise utilities from customer-auth-api (no tracking needed)
   withTimeout,
   withRetry,
   safeAsyncOperation,
   enhanceError,
   
-  // Core authentication
-  signUp,
-  signIn,
-  signOut,
-  getCurrentUser,
-  getUserData,
-  updateUserProfile,
+  // Core authentication (safely wrapped)
+  signUp: safeWrap('signUp', signUp),
+  signIn: safeWrap('signIn', signIn),
+  signOut: safeWrap('signOut', signOut),
+  getCurrentUser: safeWrap('getCurrentUser', getCurrentUser),
+  getUserData: safeWrap('getUserData', getUserData),
+  updateUserProfile: safeWrap('updateUserProfile', updateUserProfile),
   
-  // Password management
-  sendPasswordResetEmail,
-  updatePassword,
+  // Password management (safely wrapped)
+  sendPasswordResetEmail: safeWrap('sendPasswordResetEmail', sendPasswordResetEmail),
+  updatePassword: safeWrap('updatePassword', updatePassword),
   
-  // Email verification
-  sendEmailVerification,
-  checkEmailExists,
+  // Email verification (safely wrapped)
+  sendEmailVerification: safeWrap('sendEmailVerification', sendEmailVerification),
+  checkEmailExists: safeWrap('checkEmailExists', checkEmailExists),
   
-  // Account management
-  deleteUserAccount
-});
+  // Account management (safely wrapped)
+  deleteUserAccount: safeWrap('deleteUserAccount', deleteUserAccount)
+};
 
+// Attach functions to VediAPI
+Object.assign(window.VediAPI, emailAuthFunctions);
+
+// Also make getCurrentUser available directly on window for debugging
+window.getCurrentUser = getCurrentUser;
+
+// Debug logging
 console.log('📧 Enhanced Email Authentication Module loaded');
 console.log('🔧 INJECTED: Promise utilities - withTimeout, withRetry, safeAsyncOperation, enhanceError');
 console.log('🔐 Functions: signUp, signIn, signOut, getCurrentUser, getUserData');
@@ -626,3 +685,7 @@ console.log('🔑 Password: sendPasswordResetEmail, updatePassword');
 console.log('✉️ Verification: sendEmailVerification, checkEmailExists');
 console.log('👤 Management: updateUserProfile, deleteUserAccount');
 console.log('📊 All functions include performance tracking and error handling');
+
+// Additional debug logging
+console.log('🔍 VediAPI.getCurrentUser available:', typeof window.VediAPI.getCurrentUser);
+console.log('🔍 window.getCurrentUser available:', typeof window.getCurrentUser);
