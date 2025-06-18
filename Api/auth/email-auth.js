@@ -631,48 +631,33 @@ if (!window.VediAPI) {
   window.VediAPI = {};
 }
 
-// Safe wrapper function - use tracking if available, otherwise return function as-is
-function safeWrap(methodName, originalMethod) {
-  if (typeof window.withTracking === 'function') {
-    return window.withTracking(methodName, originalMethod);
-  } else if (window.VediAPI && typeof window.VediAPI.withTracking === 'function') {
-    return window.VediAPI.withTracking(methodName, originalMethod);
-  } else {
-    console.warn(`⚠️ withTracking not available for ${methodName}, using unwrapped function`);
-    return originalMethod;
-  }
-}
-
-// Attach email authentication functions to VediAPI with safe wrapping
-const emailAuthFunctions = {
-  // INJECTED: Promise utilities from customer-auth-api (no tracking needed)
+// Directly attach email authentication functions to VediAPI (no wrapping for now)
+Object.assign(window.VediAPI, {
+  // INJECTED: Promise utilities from customer-auth-api
   withTimeout,
   withRetry,
   safeAsyncOperation,
   enhanceError,
   
-  // Core authentication (safely wrapped)
-  signUp: safeWrap('signUp', signUp),
-  signIn: safeWrap('signIn', signIn),
-  signOut: safeWrap('signOut', signOut),
-  getCurrentUser: safeWrap('getCurrentUser', getCurrentUser),
-  getUserData: safeWrap('getUserData', getUserData),
-  updateUserProfile: safeWrap('updateUserProfile', updateUserProfile),
+  // Core authentication (direct assignment)
+  signUp,
+  signIn,
+  signOut,
+  getCurrentUser,
+  getUserData,
+  updateUserProfile,
   
-  // Password management (safely wrapped)
-  sendPasswordResetEmail: safeWrap('sendPasswordResetEmail', sendPasswordResetEmail),
-  updatePassword: safeWrap('updatePassword', updatePassword),
+  // Password management
+  sendPasswordResetEmail,
+  updatePassword,
   
-  // Email verification (safely wrapped)
-  sendEmailVerification: safeWrap('sendEmailVerification', sendEmailVerification),
-  checkEmailExists: safeWrap('checkEmailExists', checkEmailExists),
+  // Email verification
+  sendEmailVerification,
+  checkEmailExists,
   
-  // Account management (safely wrapped)
-  deleteUserAccount: safeWrap('deleteUserAccount', deleteUserAccount)
-};
-
-// Attach functions to VediAPI
-Object.assign(window.VediAPI, emailAuthFunctions);
+  // Account management
+  deleteUserAccount
+});
 
 // Also make getCurrentUser available directly on window for debugging
 window.getCurrentUser = getCurrentUser;
@@ -689,3 +674,9 @@ console.log('📊 All functions include performance tracking and error handling'
 // Additional debug logging
 console.log('🔍 VediAPI.getCurrentUser available:', typeof window.VediAPI.getCurrentUser);
 console.log('🔍 window.getCurrentUser available:', typeof window.getCurrentUser);
+
+// Force immediate assignment check
+setTimeout(() => {
+  console.log('🔍 DELAYED CHECK - VediAPI.getCurrentUser available:', typeof window.VediAPI.getCurrentUser);
+  console.log('🔍 DELAYED CHECK - Full VediAPI object:', window.VediAPI);
+}, 100);
