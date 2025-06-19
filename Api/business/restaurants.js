@@ -81,70 +81,57 @@ async function createRestaurant(restaurantData) {
     // Process operating hours
     const operatingHours = restaurantData.operatingHours || {};
     
-    // Clean and structure restaurant data
+    // Clean and structure restaurant data - organized but flat for compatibility
     const restaurant = VediAPI.removeUndefinedValues({
-      // Basic Information
+      // === BASIC INFORMATION ===
       name: VediAPI.sanitizeInput(restaurantData.name),
       description: restaurantData.description ? VediAPI.sanitizeInput(restaurantData.description) : '',
       cuisineType: restaurantData.cuisineType ? VediAPI.sanitizeInput(restaurantData.cuisineType) : '',
+      venueLocation: restaurantData.venueLocation ? VediAPI.sanitizeInput(restaurantData.venueLocation) : '',
       
-      // Contact Information
+      // === CONTACT INFORMATION ===
       email: restaurantData.email ? VediAPI.sanitizeInput(restaurantData.email.toLowerCase()) : '',
       phone: VediAPI.sanitizeInput(restaurantData.phone),
       website: restaurantData.website ? VediAPI.sanitizeInput(restaurantData.website) : '',
       
-      // Address Information
+      // === LOCATION ===
       address: VediAPI.sanitizeInput(restaurantData.address),
       city: VediAPI.sanitizeInput(restaurantData.city),
       state: VediAPI.sanitizeInput(restaurantData.state),
       zipCode: restaurantData.zipCode ? VediAPI.sanitizeInput(restaurantData.zipCode) : '',
       country: restaurantData.country ? VediAPI.sanitizeInput(restaurantData.country) : 'US',
       
-      // Venue/Location Information
-      venueLocation: restaurantData.venueLocation ? VediAPI.sanitizeInput(restaurantData.venueLocation) : '',
-      
-      // Business Information
-      licenseNumber: restaurantData.licenseNumber ? VediAPI.sanitizeInput(restaurantData.licenseNumber) : '',
-      taxId: restaurantData.taxId ? VediAPI.sanitizeInput(restaurantData.taxId) : '',
-      
-      // Currency Information (as object)
+      // === CURRENCY SETTINGS ===
       currency: currencyData,
       
-      // Operational Information
+      // === OPERATIONAL DETAILS ===
       tableCount: restaurantData.tableCount ? parseInt(restaurantData.tableCount) : null,
       seatingCapacity: restaurantData.seatingCapacity ? parseInt(restaurantData.seatingCapacity) : null,
-      
-      // Service Options
       diningOptions: diningOptions,
       paymentMethods: paymentMethods,
-      
-      // Operating Hours
       operatingHours: operatingHours,
       
-      // Operational Settings
+      // === OPERATIONAL STATUS ===
       isOnline: restaurantData.isOnline !== false, // Default to true
       acceptingOrders: restaurantData.acceptingOrders !== false, // Default to true
       deliveryEnabled: restaurantData.deliveryEnabled || false,
       pickupEnabled: restaurantData.pickupEnabled !== false, // Default to true
       
-      // Venue Association (if provided)
+      // === VENUE ASSOCIATION ===
       venueId: restaurantData.venueId || null,
       venueName: restaurantData.venueName || null,
       venueAddress: restaurantData.venueAddress || null,
       
-      // Owner Information
+      // === OWNERSHIP & MANAGEMENT ===
       ownerUserId: auth.currentUser?.uid || restaurantData.ownerUserId,
-      ownerName: restaurantData.ownerName ? VediAPI.sanitizeInput(restaurantData.ownerName) : '',
       
-      // Setup Status
-      setupCompleted: restaurantData.setupCompleted || false,
-      
-      // Status and Verification
+      // === STATUS & VERIFICATION ===
       status: 'active',
       verified: false,
       verificationStatus: 'pending',
+      setupCompleted: restaurantData.setupCompleted || false,
       
-      // Timestamps
+      // === TIMESTAMPS ===
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -235,69 +222,57 @@ async function updateRestaurant(restaurantId, restaurantData) {
         : [];
     }
     
-    // Sanitize and validate updates
+    // Sanitize and validate updates - organized but flat structure
     const updates = VediAPI.removeUndefinedValues({
-      // Basic Information
+      // === BASIC INFORMATION ===
       name: restaurantData.name ? VediAPI.sanitizeInput(restaurantData.name) : undefined,
       description: restaurantData.description !== undefined ? VediAPI.sanitizeInput(restaurantData.description) : undefined,
       cuisineType: restaurantData.cuisineType ? VediAPI.sanitizeInput(restaurantData.cuisineType) : undefined,
+      venueLocation: restaurantData.venueLocation !== undefined ? VediAPI.sanitizeInput(restaurantData.venueLocation) : undefined,
       
-      // Contact Information
+      // === CONTACT INFORMATION ===
       email: restaurantData.email !== undefined ? 
         (restaurantData.email ? VediAPI.sanitizeInput(restaurantData.email.toLowerCase()) : '') : undefined,
       phone: restaurantData.phone ? VediAPI.sanitizeInput(restaurantData.phone) : undefined,
       website: restaurantData.website !== undefined ? VediAPI.sanitizeInput(restaurantData.website) : undefined,
       
-      // Address Information
+      // === LOCATION ===
       address: restaurantData.address ? VediAPI.sanitizeInput(restaurantData.address) : undefined,
       city: restaurantData.city ? VediAPI.sanitizeInput(restaurantData.city) : undefined,
       state: restaurantData.state ? VediAPI.sanitizeInput(restaurantData.state) : undefined,
       zipCode: restaurantData.zipCode !== undefined ? VediAPI.sanitizeInput(restaurantData.zipCode) : undefined,
       country: restaurantData.country ? VediAPI.sanitizeInput(restaurantData.country) : undefined,
       
-      // Venue/Location Information
-      venueLocation: restaurantData.venueLocation !== undefined ? VediAPI.sanitizeInput(restaurantData.venueLocation) : undefined,
-      
-      // Business Information
-      licenseNumber: restaurantData.licenseNumber !== undefined ? VediAPI.sanitizeInput(restaurantData.licenseNumber) : undefined,
-      taxId: restaurantData.taxId !== undefined ? VediAPI.sanitizeInput(restaurantData.taxId) : undefined,
-      
-      // Currency Information (as object)
+      // === CURRENCY SETTINGS ===
       currency: currencyData,
       
-      // Operational Information
+      // === OPERATIONAL DETAILS ===
       tableCount: restaurantData.tableCount !== undefined ? 
         (restaurantData.tableCount ? parseInt(restaurantData.tableCount) : null) : undefined,
       seatingCapacity: restaurantData.seatingCapacity !== undefined ? 
         (restaurantData.seatingCapacity ? parseInt(restaurantData.seatingCapacity) : null) : undefined,
-      
-      // Service Options
       diningOptions: diningOptions,
       paymentMethods: paymentMethods,
-      
-      // Operating Hours
       operatingHours: restaurantData.operatingHours !== undefined ? restaurantData.operatingHours : undefined,
       
-      // Operational Settings
+      // === OPERATIONAL STATUS ===
       isOnline: restaurantData.isOnline !== undefined ? restaurantData.isOnline : undefined,
       acceptingOrders: restaurantData.acceptingOrders !== undefined ? restaurantData.acceptingOrders : undefined,
       deliveryEnabled: restaurantData.deliveryEnabled !== undefined ? restaurantData.deliveryEnabled : undefined,
       pickupEnabled: restaurantData.pickupEnabled !== undefined ? restaurantData.pickupEnabled : undefined,
       
-      // Venue Association
+      // === VENUE ASSOCIATION ===
       venueId: restaurantData.venueId !== undefined ? restaurantData.venueId : undefined,
       venueName: restaurantData.venueName !== undefined ? restaurantData.venueName : undefined,
       venueAddress: restaurantData.venueAddress !== undefined ? restaurantData.venueAddress : undefined,
       
-      // Setup Status
+      // === STATUS & VERIFICATION ===
       setupCompleted: restaurantData.setupCompleted !== undefined ? restaurantData.setupCompleted : undefined,
-      
-      // Status Updates
       status: restaurantData.status ? VediAPI.sanitizeInput(restaurantData.status) : undefined,
       verified: restaurantData.verified !== undefined ? restaurantData.verified : undefined,
       verificationStatus: restaurantData.verificationStatus ? VediAPI.sanitizeInput(restaurantData.verificationStatus) : undefined,
       
-      // Always update timestamp
+      // === TIMESTAMPS ===
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     
