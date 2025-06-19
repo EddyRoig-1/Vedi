@@ -5,35 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analytics Dashboard - Restaurant Management</title>
     
-   <!-- Firebase Scripts -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <!-- SECURE INITIALIZATION - ONLY THIS SCRIPT NEEDED -->
+    <script src="../Api/core/secure-iframe-init.js"></script>
 
-<!-- VediAPI Core -->
-<script src="../firebase-config.js"></script>
-<script src="../Api/core/firebase-init.js"></script>
-<script src="../Api/core/utilities.js"></script>
-<script src="../Api/core/tracking.js"></script>
-
-<!-- VediAPI Business -->
-<script src="../Api/business/restaurants.js"></script>
-<script src="../Api/business/menu-categories.js"></script>
-<script src="../Api/business/menu-items.js"></script>
-
-<!-- VediAPI Auth -->
-<script src="../Api/auth/email-auth.js"></script>
-
-<!-- VediAPI Orders -->
-<script src="../Api/orders/order-management.js"></script>
-<script src="../Api/orders/order-tracking.js"></script>
-
-<!-- VediAPI Operations -->
-<script src="../Api/operations/loss-incidents.js"></script>
-
-<!-- Chart.js for visualizations -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -740,11 +716,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Additional Charts - REMOVED Order Status and Loss Breakdown -->
-            <div class="analytics-grid" style="display: none;">
-                <!-- Sections removed per user request -->
-            </div>
         </div>
     </div>
 
@@ -759,7 +730,7 @@
         let analyticsData = {};
         let charts = {};
 
-        // Initialize analytics dashboard
+        // Initialize analytics dashboard using secure initialization
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('📊 Analytics Dashboard initializing...');
             
@@ -767,7 +738,7 @@
                 await initializeAnalytics();
             } catch (error) {
                 console.error('❌ Failed to initialize analytics:', error);
-                showError('Failed to load analytics. Please refresh the page.');
+                showSecurityError(error);
             }
         });
 
@@ -775,30 +746,14 @@
             try {
                 showLoading(true);
                 
-                // Check if VediAPI is available
-                if (typeof VediAPI === 'undefined') {
-                    if (window.parent && window.parent.VediAPI) {
-                        window.VediAPI = window.parent.VediAPI;
-                        window.firebase = window.parent.firebase;
-                    } else {
-                        throw new Error('VediAPI not available. Please check Firebase configuration.');
-                    }
-                }
+                // Use the secure initialization function
+                const { user, restaurant } = await initializeRestaurantPage('Analytics');
                 
-                // Get current user
-                currentUser = await VediAPI.getCurrentUser();
-                if (!currentUser) {
-                    throw new Error('Please log in to access analytics');
-                }
+                currentUser = user;
+                currentRestaurant = restaurant;
 
+                console.log('✅ Secure initialization complete');
                 console.log('✅ User authenticated:', currentUser.name);
-
-                // Get restaurant data
-                currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
-                if (!currentRestaurant) {
-                    throw new Error('No restaurant found for this owner');
-                }
-
                 console.log('✅ Restaurant loaded:', currentRestaurant.name);
 
                 // Update header
@@ -862,8 +817,7 @@
                 updateKPIs(analytics);
                 updateCharts(analytics);
                 updateInsights(analytics);
-                // Update tables with real analytics data
-            updateTables(analytics, analyticsData.orders);
+                updateTables(analytics, analyticsData.orders);
                 
                 showLoading(false);
                 
@@ -1395,7 +1349,6 @@
         }
 
         function updateCharts(analytics) {
-            // Only Revenue Chart - removed order status and loss charts
             updateRevenueChart(analytics.timeData);
         }
 
@@ -1493,8 +1446,6 @@
                 }
             });
         }
-
-        // Removed updateOrderStatusChart and updateLossChart functions per user request
 
         function updateInsights(analytics) {
             const container = document.getElementById('insightsContainer');
