@@ -4,6 +4,7 @@
  * 
  * Handles core order CRUD operations, status management, and lifecycle updates.
  * Focuses on database interactions and order state management.
+ * Note: getOrders function removed - use order-tracking.js for order retrieval
  */
 
 // ============================================================================
@@ -145,73 +146,6 @@ async function getOrderByNumber(orderNumber) {
 }
 
 /**
- * Get all orders for a restaurant
- * @param {string} restaurantId - Restaurant ID
- * @param {Object} options - Query options (limit, orderBy, status, etc.)
- * @returns {Promise<Array>} Array of orders
- */
-async function getOrders(restaurantId, options = {}) {
-  const endTracking = VediAPI.startPerformanceMeasurement('getOrders');
-  
-  try {
-    const db = getFirebaseDb();
-    
-    let query = db.collection('orders')
-      .where('restaurantId', '==', restaurantId);
-    
-    // Add status filter
-    if (options.status) {
-      if (Array.isArray(options.status)) {
-        query = query.where('status', 'in', options.status);
-      } else {
-        query = query.where('status', '==', options.status);
-      }
-    }
-    
-    // Add date range filters
-    if (options.startDate) {
-      query = query.where('createdAt', '>=', options.startDate);
-    }
-    
-    if (options.endDate) {
-      query = query.where('createdAt', '<=', options.endDate);
-    }
-    
-    // Add ordering
-    if (options.orderBy) {
-      query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
-    } else {
-      query = query.orderBy('createdAt', 'desc');
-    }
-    
-    // Add limit
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-    
-    // Add pagination
-    if (options.startAfter) {
-      query = query.startAfter(options.startAfter);
-    }
-    
-    const querySnapshot = await query.get();
-    const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    await endTracking(true);
-    
-    console.log('✅ Retrieved orders:', orders.length, 'orders');
-    return orders;
-    
-  } catch (error) {
-    await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'getOrders', { restaurantId });
-    
-    console.error('❌ Get orders error:', error);
-    throw error;
-  }
-}
-
-/**
  * Update order status
  * @param {string} orderId - Order ID
  * @param {string} status - New status
@@ -294,15 +228,14 @@ if (!window.VediAPI) {
 
 // Attach order management functions to VediAPI
 Object.assign(window.VediAPI, {
-  // Core CRUD operations
+  // Core CRUD operations (getOrders removed - use order-tracking.js)
   createOrder,
   getOrderByNumber,
-  getOrders,
   
   // Status management
   updateOrderStatus
 });
 
 console.log('📋 Order Management Module loaded');
-console.log('📝 CRUD: createOrder, getOrderByNumber, getOrders');
+console.log('📝 CRUD: createOrder, getOrderByNumber (getOrders available in order-tracking.js)');
 console.log('🔄 Status: updateOrderStatus with comprehensive tracking');
