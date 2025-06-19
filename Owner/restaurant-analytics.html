@@ -831,11 +831,40 @@
         async function loadOrdersData() {
             try {
                 console.log('📦 Loading orders data...');
-                const orders = await VediAPI.getOrders(currentRestaurant.id, {
-                    limit: 1000,
-                    orderBy: 'createdAt',
-                    orderDirection: 'desc'
-                });
+                
+                // Debug: Check what VediAPI functions are available
+                console.log('🔍 Available VediAPI functions in iframe:', Object.keys(window.VediAPI || {}));
+                console.log('🔍 VediAPI.getOrders available:', typeof window.VediAPI?.getOrders);
+                
+                // Try multiple ways to get orders
+                let orders = [];
+                
+                if (typeof VediAPI?.getOrders === 'function') {
+                    console.log('✅ Using iframe VediAPI.getOrders');
+                    orders = await VediAPI.getOrders(currentRestaurant.id, {
+                        limit: 1000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else if (window.parent?.VediAPI?.getOrders) {
+                    console.log('🔧 Using parent window VediAPI.getOrders');
+                    orders = await window.parent.VediAPI.getOrders(currentRestaurant.id, {
+                        limit: 1000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else if (window.parent?.getOrders) {
+                    console.log('🔧 Using parent window getOrders');
+                    orders = await window.parent.getOrders(currentRestaurant.id, {
+                        limit: 1000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else {
+                    console.warn('⚠️ No getOrders function available');
+                    console.log('🔍 Parent VediAPI keys:', Object.keys(window.parent?.VediAPI || {}));
+                    return [];
+                }
                 
                 console.log('📦 Raw orders from Firebase:', orders);
                 
@@ -1292,12 +1321,31 @@
                         return { orders: [], revenue: 0 };
                 }
                 
-                // Get orders from previous period
-                const allOrders = await VediAPI.getOrders(currentRestaurant.id, {
-                    limit: 2000,
-                    orderBy: 'createdAt',
-                    orderDirection: 'desc'
-                });
+                // Get orders from previous period using multiple fallback options
+                let allOrders = [];
+                
+                if (typeof VediAPI?.getOrders === 'function') {
+                    allOrders = await VediAPI.getOrders(currentRestaurant.id, {
+                        limit: 2000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else if (window.parent?.VediAPI?.getOrders) {
+                    allOrders = await window.parent.VediAPI.getOrders(currentRestaurant.id, {
+                        limit: 2000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else if (window.parent?.getOrders) {
+                    allOrders = await window.parent.getOrders(currentRestaurant.id, {
+                        limit: 2000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else {
+                    console.warn('⚠️ No getOrders function available for previous period data');
+                    return { orders: [], revenue: 0 };
+                }
                 
                 const previousOrders = allOrders.filter(order => {
                     const orderDate = VediAPI.timestampToDate(order.createdAt);
