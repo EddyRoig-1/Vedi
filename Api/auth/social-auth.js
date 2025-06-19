@@ -143,6 +143,96 @@ function getSocialAuthErrorMessage(errorCode) {
 }
 
 // ============================================================================
+// CUSTOMER LOGIN INTEGRATION - CALLBACK SYSTEM
+// ============================================================================
+
+/**
+ * Execute success callback after social authentication
+ * This bridges the VediAPI social auth with customer login pages
+ * @param {Object} user - Firebase user object
+ * @param {string} provider - Provider name ('google', 'facebook', 'apple')
+ * @param {Object} profile - User profile data
+ */
+async function executeSocialAuthCallback(user, provider, profile) {
+  try {
+    console.log('🔗 Executing social auth callback for customer login...');
+    
+    // Check if there's a global callback function defined by the customer login page
+    if (typeof window.handleSocialSignInSuccess === 'function') {
+      console.log('✅ Found handleSocialSignInSuccess callback, executing...');
+      await window.handleSocialSignInSuccess(user, provider, profile);
+    } else if (typeof handleSocialSignInSuccess === 'function') {
+      console.log('✅ Found global handleSocialSignInSuccess function, executing...');
+      await handleSocialSignInSuccess(user, provider, profile);
+    } else {
+      console.warn('⚠️ No handleSocialSignInSuccess callback found - user will remain on login page');
+      
+      // Fallback: Try to detect if we're on a customer login page and redirect
+      if (window.location.pathname.includes('customer-login') || 
+          window.location.search.includes('restaurant=')) {
+        console.log('🔄 Detected customer login page, attempting automatic redirect...');
+        await attemptCustomerLoginRedirect(user, provider);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Error executing social auth callback:', error);
+    
+    // Show user-friendly error message
+    if (typeof window.showError === 'function') {
+      window.showError('Authentication successful, but failed to complete sign-in. Please try again.');
+    }
+  }
+}
+
+/**
+ * Attempt automatic redirect for customer login pages when no callback is found
+ * @param {Object} user - Firebase user object
+ * @param {string} provider - Provider name
+ */
+async function attemptCustomerLoginRedirect(user, provider) {
+  try {
+    // Extract URL parameters for restaurant info
+    const urlParams = new URLSearchParams(window.location.search);
+    const restaurantId = urlParams.get('restaurant') || urlParams.get('r');
+    const tableNumber = urlParams.get('table');
+    const tableLocation = urlParams.get('location');
+    
+    if (!restaurantId) {
+      console.warn('⚠️ No restaurant ID found in URL - cannot redirect');
+      return;
+    }
+    
+    // Build redirect URL to menu
+    const redirectParams = new URLSearchParams();
+    redirectParams.set('restaurant', restaurantId);
+    if (tableNumber) redirectParams.set('table', tableNumber);
+    if (tableLocation) redirectParams.set('location', tableLocation);
+    redirectParams.set('name', encodeURIComponent(user.displayName || 'Guest User'));
+    if (user.email) redirectParams.set('email', user.email);
+    redirectParams.set('session', 'social');
+    redirectParams.set('provider', provider);
+    
+    const redirectUrl = `menu.html?${redirectParams.toString()}`;
+    
+    console.log('🔄 Redirecting to menu:', redirectUrl);
+    
+    // Show success message before redirect
+    if (typeof window.showSuccess === 'function') {
+      window.showSuccess(`Welcome ${user.displayName?.split(' ')[0] || 'Guest'}! Redirecting to menu...`);
+    }
+    
+    // Redirect after short delay
+    setTimeout(() => {
+      window.location.href = redirectUrl;
+    }, 1500);
+    
+  } catch (error) {
+    console.error('❌ Error attempting automatic redirect:', error);
+  }
+}
+
+// ============================================================================
 // GOOGLE AUTHENTICATION
 // ============================================================================
 
@@ -195,12 +285,18 @@ async function signInWithGoogle(options = {}) {
     await endTracking(true);
     
     console.log('✅ Google sign-in successful:', user.displayName);
-    return {
+    
+    const authResult = {
       user: user,
       profile: userProfile,
       credential: credential,
       isNewUser: result.additionalUserInfo?.isNewUser || false
     };
+    
+    // FIXED: Execute callback for customer login integration
+    await executeSocialAuthCallback(user, 'google', userProfile);
+    
+    return authResult;
     
   } catch (error) {
     await endTracking(false, { error: error.message });
@@ -263,12 +359,18 @@ async function signInWithFacebook(options = {}) {
     await endTracking(true);
     
     console.log('✅ Facebook sign-in successful:', user.displayName);
-    return {
+    
+    const authResult = {
       user: user,
       profile: userProfile,
       credential: credential,
       isNewUser: result.additionalUserInfo?.isNewUser || false
     };
+    
+    // FIXED: Execute callback for customer login integration
+    await executeSocialAuthCallback(user, 'facebook', userProfile);
+    
+    return authResult;
     
   } catch (error) {
     await endTracking(false, { error: error.message });
@@ -332,12 +434,18 @@ async function signInWithApple(options = {}) {
     await endTracking(true);
     
     console.log('✅ Apple sign-in successful:', user.displayName);
-    return {
+    
+    const authResult = {
       user: user,
       profile: userProfile,
       credential: credential,
       isNewUser: result.additionalUserInfo?.isNewUser || false
     };
+    
+    // FIXED: Execute callback for customer login integration
+    await executeSocialAuthCallback(user, 'apple', userProfile);
+    
+    return authResult;
     
   } catch (error) {
     await endTracking(false, { error: error.message });
@@ -684,7 +792,11 @@ Object.assign(window.VediAPI, {
   isProviderLinked,
   
   // Error handling
-  handleSocialAuthError
+  handleSocialAuthError,
+  
+  // FIXED: Customer login integration
+  executeSocialAuthCallback,
+  attemptCustomerLoginRedirect
 });
 
 console.log('🌐 Enhanced Social Authentication Module loaded');
@@ -696,3 +808,4 @@ console.log('🍎 Apple: signInWithApple - OAuth with email and name scopes');
 console.log('🔗 Linking: linkSocialProvider, unlinkSocialProvider');
 console.log('📊 Utilities: getLinkedProviders, isProviderLinked');
 console.log('🛡️ Comprehensive error handling with user-friendly messages');
+console.log('🔗 FIXED: Customer login integration with callback system and auto-redirect');
