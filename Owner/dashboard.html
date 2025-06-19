@@ -453,27 +453,27 @@
         }
 
         .item-card-image {
-    width: 100%;
-    height: 180px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    background: #f8f9fa;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #adb5bd;
-    font-size: 0.9rem;
-    border: 2px dashed #dee2e6;
-    position: relative;
-    overflow: hidden;
-}
+            width: 100%;
+            height: 180px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #adb5bd;
+            font-size: 0.9rem;
+            border: 2px dashed #dee2e6;
+            position: relative;
+            overflow: hidden;
+        }
 
-    .item-card-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;  /* This should stay here */
-    border-radius: 8px;
-}
+        .item-card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
 
         .item-card-header {
             display: flex;
@@ -1334,6 +1334,37 @@
         let editingCategoryId = null;
         let currentStockStatus = true; // true = in stock, false = out of stock
 
+        // SECURITY MESSAGE LISTENER FOR IFRAME ERRORS
+        // ========================================
+        window.addEventListener('message', function(event) {
+            // Verify origin for security
+            if (event.origin !== window.location.origin) {
+                return; // Ignore messages from other origins
+            }
+            
+            if (event.data && event.data.type === 'securityError') {
+                console.error('🔒 Security error from ' + event.data.source + ':', event.data.error);
+                
+                // Show notification to user
+                showNotification('Security error detected in ' + event.data.source + '. Refreshing page...', 'error');
+                
+                // Optional: Refresh the problematic iframe
+                const iframes = document.querySelectorAll('iframe');
+                iframes.forEach(iframe => {
+                    if (iframe.src.includes(event.data.source)) {
+                        console.log('🔄 Refreshing iframe: ' + iframe.src);
+                        iframe.src = iframe.src; // Force reload
+                    }
+                });
+            }
+            
+            // Keep any existing message handlers for restaurant data updates
+            if (event.data && event.data.type === 'restaurantDataUpdated') {
+                console.log('Restaurant data updated - notifying iframes');
+                // Your existing restaurant update logic if any
+            }
+        });
+
         // Common allergens list
         const commonAllergens = [
             { id: 'nuts', name: 'Tree Nuts', icon: '🥜' },
@@ -1503,7 +1534,7 @@
                         return;
                     }
                     
-                    console.log(`⏳ Waiting for VediAPI business functions... (${attempts}/${maxAttempts})`);
+                    console.log('⏳ Waiting for VediAPI business functions... (' + attempts + '/' + maxAttempts + ')');
                     setTimeout(checkVediAPI, 200);
                 };
                 checkVediAPI();
@@ -1864,11 +1895,11 @@
 
         // Currency utility functions
         function getRestaurantCurrency() {
-            if (currentRestaurant && currentRestaurant.currency) {
-                return currentRestaurant.currency;
-            }
-            return { code: 'USD', symbol: '$', name: 'US Dollar' };
-        }
+    if (currentRestaurant && currentRestaurant.currency) {
+        return currentRestaurant.currency;
+    }
+    return { code: 'USD', symbol: '$', name: 'US Dollar' };
+}
 
         function formatPrice(amount, showCode = false) {
             const currency = getRestaurantCurrency();
