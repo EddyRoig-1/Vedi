@@ -1362,7 +1362,34 @@
             setTimeout(() => {
                 console.log('🔧 FORCE attaching missing VediAPI functions...');
                 
-                // Check if functions are missing and force attach them
+                // Ensure VediAPI exists
+                if (!window.VediAPI) {
+                    window.VediAPI = {};
+                }
+                
+                // Add dummy tracking functions if missing (tracking is disabled)
+                if (!window.VediAPI.startPerformanceMeasurement) {
+                    window.VediAPI.startPerformanceMeasurement = function(operation) {
+                        return function(success, data) {
+                            // Dummy function - tracking disabled
+                            return Promise.resolve();
+                        };
+                    };
+                }
+                if (!window.VediAPI.trackError) {
+                    window.VediAPI.trackError = function(error, context, data) {
+                        // Dummy function - tracking disabled
+                        return Promise.resolve();
+                    };
+                }
+                if (!window.VediAPI.trackUserActivity) {
+                    window.VediAPI.trackUserActivity = function(activity, data) {
+                        // Dummy function - tracking disabled
+                        return Promise.resolve();
+                    };
+                }
+                
+                // Check if business functions are missing and force attach them
                 if (!window.VediAPI.getRestaurantByOwner && window.getRestaurantByOwner) {
                     window.VediAPI.getRestaurantByOwner = window.getRestaurantByOwner;
                 }
@@ -1400,8 +1427,26 @@
                     window.VediAPI.updateItemStock = window.updateItemStock;
                 }
                 
+                // Add utility functions if missing
+                if (!window.VediAPI.removeUndefinedValues && window.removeUndefinedValues) {
+                    window.VediAPI.removeUndefinedValues = window.removeUndefinedValues;
+                }
+                if (!window.VediAPI.sanitizeInput && window.sanitizeInput) {
+                    window.VediAPI.sanitizeInput = window.sanitizeInput;
+                }
+                if (!window.VediAPI.validateEmail && window.validateEmail) {
+                    window.VediAPI.validateEmail = window.validateEmail;
+                }
+                if (!window.VediAPI.validatePhoneNumber && window.validatePhoneNumber) {
+                    window.VediAPI.validatePhoneNumber = window.validatePhoneNumber;
+                }
+                if (!window.VediAPI.getServerTimestamp && window.getServerTimestamp) {
+                    window.VediAPI.getServerTimestamp = window.getServerTimestamp;
+                }
+                
                 console.log('🔧 FORCED business functions attached. New VediAPI function count:', Object.keys(window.VediAPI).length);
                 console.log('✅ getRestaurantByOwner available:', typeof window.VediAPI.getRestaurantByOwner);
+                console.log('✅ startPerformanceMeasurement available:', typeof window.VediAPI.startPerformanceMeasurement);
             }, 1500);
             
             try {
