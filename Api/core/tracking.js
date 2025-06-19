@@ -8,14 +8,16 @@
  * 
  * All tracking is designed to be non-intrusive and will not break main functionality
  * if the tracking system encounters errors.
+ * 
+ * NOTE: TRACKING FEATURES DISABLED TO REDUCE FIREBASE COSTS AND ERRORS
  */
 
 // ============================================================================
-// API CALL TRACKING AND ANALYTICS
+// API CALL TRACKING AND ANALYTICS - DISABLED
 // ============================================================================
 
 /**
- * Track individual API call for analytics and monitoring
+ * Track individual API call for analytics and monitoring - DISABLED
  * Records method usage, performance metrics, and outcome for dashboard analytics
  * @param {string} method - API method name that was called
  * @param {number} responseTime - Response time in milliseconds
@@ -24,107 +26,32 @@
  * @returns {Promise<void>} Resolves when tracking is complete (non-blocking)
  */
 async function trackAPICall(method, responseTime, success = true, metadata = {}) {
-  try {
-    // Skip tracking if Firebase not available to avoid breaking main functionality
-    if (!window.getFirebaseDb) {
-      return;
-    }
-    
-    const db = window.getFirebaseDb();
-    const auth = window.getFirebaseAuth();
-    
-    const trackingData = {
-      method,
-      responseTime,
-      success,
-      metadata: metadata || {},
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD for daily analytics
-      hour: new Date().getHours(),
-      userId: auth.currentUser?.uid || 'anonymous',
-      userAgent: navigator.userAgent,
-      sessionId: getSessionId()
-    };
-    
-    // Use add() instead of set() to allow multiple calls per method
-    await db.collection('apiCalls').add(trackingData);
-    
-  } catch (error) {
-    // Silent fail - tracking should never break main functionality
-    console.debug('📊 API tracking error (non-critical):', error.message);
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 /**
- * Create a wrapper function that adds tracking to any API method
+ * Create a wrapper function that adds tracking to any API method - DISABLED
  * This allows seamless integration of tracking into existing methods
  * @param {string} methodName - Name of the method being wrapped
  * @param {Function} originalMethod - Original method function to wrap
  * @returns {Function} Wrapped method with automatic tracking
  */
 function withTracking(methodName, originalMethod) {
-  return async function(...args) {
-    const startTime = Date.now();
-    
-    try {
-      // Execute the original method
-      const result = await originalMethod.apply(this, args);
-      
-      // Track successful call
-      const responseTime = Date.now() - startTime;
-      await trackAPICall(methodName, responseTime, true, {
-        args: args.length,
-        resultType: typeof result,
-        hasResult: !!result
-      });
-      
-      return result;
-      
-    } catch (error) {
-      // Track failed call
-      const responseTime = Date.now() - startTime;
-      await trackAPICall(methodName, responseTime, false, {
-        error: error.message,
-        errorCode: error.code,
-        args: args.length
-      });
-      
-      // Re-throw the original error
-      throw error;
-    }
-  };
+  // DISABLED - Return original method without tracking
+  return originalMethod;
 }
 
 /**
- * Track user activity events (logins, signups, major actions)
+ * Track user activity events (logins, signups, major actions) - DISABLED
  * Provides insights into user behavior patterns for analytics
  * @param {string} eventType - Type of activity ('login', 'signup', 'order_created', etc.)
  * @param {Object} eventData - Additional data about the event
  * @returns {Promise<void>} Resolves when tracking is complete
  */
 async function trackUserActivity(eventType, eventData = {}) {
-  try {
-    if (!window.getFirebaseDb) return;
-    
-    const db = window.getFirebaseDb();
-    const auth = window.getFirebaseAuth();
-    
-    const activityData = {
-      eventType,
-      eventData,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      userId: auth.currentUser?.uid || 'anonymous',
-      sessionId: getSessionId(),
-      userAgent: navigator.userAgent,
-      referrer: document.referrer,
-      url: window.location.href
-    };
-    
-    await db.collection('userActivity').add(activityData);
-    
-  } catch (error) {
-    console.debug('📊 User activity tracking error (non-critical):', error.message);
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 /**
@@ -164,180 +91,77 @@ async function trackError(error, context = 'unknown', additionalData = {}) {
 }
 
 // ============================================================================
-// REAL-TIME SUBSCRIPTION TRACKING (INJECTED FROM RESTAURANT-VENUE-SYNC)
+// REAL-TIME SUBSCRIPTION TRACKING (INJECTED FROM RESTAURANT-VENUE-SYNC) - DISABLED
 // ============================================================================
 
 /**
- * Track venue activity events for analytics
+ * Track venue activity events for analytics - DISABLED
  * @param {string} venueId - Venue ID
  * @param {Object} activity - Activity data
  * @returns {Promise<void>}
  */
 async function addVenueActivity(venueId, activity) {
-  try {
-    const db = window.getFirebaseDb();
-    const auth = window.getFirebaseAuth();
-    
-    const activityData = {
-      venueId: venueId,
-      ...activity,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      createdBy: auth.currentUser?.uid || null
-    };
-
-    await db.collection('venueActivity').add(activityData);
-
-  } catch (error) {
-    console.error('❌ Error adding venue activity:', error);
-    // Don't throw - activity logging shouldn't break main functionality
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 /**
- * Track restaurant activity events for analytics
+ * Track restaurant activity events for analytics - DISABLED
  * @param {string} restaurantId - Restaurant ID
  * @param {Object} activity - Activity data
  * @returns {Promise<void>}
  */
 async function addRestaurantActivity(restaurantId, activity) {
-  try {
-    const db = window.getFirebaseDb();
-    const auth = window.getFirebaseAuth();
-    
-    const activityData = {
-      restaurantId: restaurantId,
-      ...activity,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      createdBy: auth.currentUser?.uid || null
-    };
-
-    await db.collection('restaurantActivity').add(activityData);
-
-  } catch (error) {
-    console.error('❌ Error adding restaurant activity:', error);
-    // Don't throw - activity logging shouldn't break main functionality
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 // ============================================================================
-// AVAILABILITY STATUS TRACKING (INJECTED FROM AVAILABLE-STATUS-API)
+// AVAILABILITY STATUS TRACKING (INJECTED FROM AVAILABLE-STATUS-API) - DISABLED
 // ============================================================================
 
 /**
- * Log status change for analytics
+ * Log status change for analytics - DISABLED
  * @param {string} restaurantId - Restaurant ID
  * @param {boolean} isOnline - New online status
  * @param {string} reason - Reason for change
  * @returns {Promise<void>}
  */
 async function logStatusChange(restaurantId, isOnline, reason = '') {
-  try {
-    const db = window.getFirebaseDb();
-    const auth = window.getFirebaseAuth();
-    
-    const logData = {
-      restaurantId,
-      isOnline,
-      reason: reason || '',
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      changedBy: auth.currentUser?.uid || 'system',
-      userAgent: navigator.userAgent,
-      ipAddress: 'unknown' // Would need server-side logging for real IP
-    };
-    
-    await db.collection('restaurantStatusHistory').add(logData);
-    
-    console.log('📝 Status change logged for analytics');
-    
-  } catch (error) {
-    console.warn('⚠️ Failed to log status change (non-critical):', error);
-    // Don't throw error as this is for analytics only
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 // ============================================================================
-// PERFORMANCE MONITORING
+// PERFORMANCE MONITORING - DISABLED
 // ============================================================================
 
 /**
- * Start performance measurement for a specific operation
+ * Start performance measurement for a specific operation - DISABLED
  * Returns a function to end the measurement and record the timing
  * @param {string} operationName - Name of the operation being measured
  * @returns {Function} Function to call when operation completes
  */
 function startPerformanceMeasurement(operationName) {
   const startTime = performance.now();
-  const startMemory = performance.memory ? performance.memory.usedJSHeapSize : null;
   
   return async function endMeasurement(success = true, metadata = {}) {
-    try {
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-      const endMemory = performance.memory ? performance.memory.usedJSHeapSize : null;
-      const memoryDelta = startMemory && endMemory ? endMemory - startMemory : null;
-      
-      if (!window.getFirebaseDb) return duration;
-      
-      const db = window.getFirebaseDb();
-      
-      const performanceData = {
-        operationName,
-        duration,
-        memoryDelta,
-        success,
-        metadata,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        sessionId: getSessionId()
-      };
-      
-      await db.collection('performanceMetrics').add(performanceData);
-      return duration;
-      
-    } catch (error) {
-      console.debug('📊 Performance tracking error (non-critical):', error.message);
-      return performance.now() - startTime;
-    }
+    // DISABLED - Just return elapsed time without tracking
+    return performance.now() - startTime;
   };
 }
 
 /**
- * Track page load performance metrics
+ * Track page load performance metrics - DISABLED
  * Provides insights into application loading performance
  */
 function trackPageLoadPerformance() {
-  try {
-    // Wait for page to fully load
-    window.addEventListener('load', async () => {
-      if (!performance.timing || !window.getFirebaseDb) return;
-      
-      const timing = performance.timing;
-      const loadTime = timing.loadEventEnd - timing.navigationStart;
-      const domContentLoaded = timing.domContentLoadedEventEnd - timing.navigationStart;
-      const firstPaint = performance.getEntriesByType('paint').find(entry => entry.name === 'first-paint');
-      
-      const db = window.getFirebaseDb();
-      
-      const performanceData = {
-        type: 'page_load',
-        loadTime,
-        domContentLoaded,
-        firstPaintTime: firstPaint ? firstPaint.startTime : null,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        url: window.location.href,
-        userAgent: navigator.userAgent,
-        sessionId: getSessionId()
-      };
-      
-      await db.collection('performanceMetrics').add(performanceData);
-      
-    });
-  } catch (error) {
-    console.debug('📊 Page load tracking setup error:', error.message);
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return;
 }
 
 // ============================================================================
-// SESSION AND USER TRACKING
+// SESSION AND USER TRACKING - DISABLED
 // ============================================================================
 
 /**
@@ -353,99 +177,37 @@ function getSessionId() {
 }
 
 /**
- * Initialize session tracking
+ * Initialize session tracking - DISABLED
  * Records session start and sets up session duration tracking
  */
 async function initializeSessionTracking() {
-  try {
-    if (!window.getFirebaseDb) return;
-    
-    const sessionId = getSessionId();
-    const db = window.getFirebaseDb();
-    
-    const sessionData = {
-      sessionId,
-      startTime: firebase.firestore.FieldValue.serverTimestamp(),
-      userAgent: navigator.userAgent,
-      referrer: document.referrer,
-      initialUrl: window.location.href,
-      userId: null // Will be updated when user logs in
-    };
-    
-    await db.collection('userSessions').doc(sessionId).set(sessionData);
-    
-    // Track session end when page unloads
-    window.addEventListener('beforeunload', () => {
-      updateSessionEnd();
-    });
-    
-    // Update session periodically to track duration
-    setInterval(() => {
-      updateSessionHeartbeat();
-    }, 30000); // Every 30 seconds
-    
-  } catch (error) {
-    console.debug('📊 Session tracking initialization error:', error.message);
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 /**
- * Update session with user ID when user logs in
+ * Update session with user ID when user logs in - DISABLED
  * @param {string} userId - User ID from authentication
  */
 async function updateSessionUser(userId) {
-  try {
-    if (!window.getFirebaseDb) return;
-    
-    const sessionId = getSessionId();
-    const db = window.getFirebaseDb();
-    
-    await db.collection('userSessions').doc(sessionId).update({
-      userId,
-      loginTime: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-  } catch (error) {
-    console.debug('📊 Session user update error:', error.message);
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 /**
- * Update session heartbeat to track active duration
+ * Update session heartbeat to track active duration - DISABLED
  */
 async function updateSessionHeartbeat() {
-  try {
-    if (!window.getFirebaseDb) return;
-    
-    const sessionId = getSessionId();
-    const db = window.getFirebaseDb();
-    
-    await db.collection('userSessions').doc(sessionId).update({
-      lastActivity: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-  } catch (error) {
-    console.debug('📊 Session heartbeat error:', error.message);
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 /**
- * Mark session as ended
+ * Mark session as ended - DISABLED
  */
 async function updateSessionEnd() {
-  try {
-    if (!window.getFirebaseDb) return;
-    
-    const sessionId = getSessionId();
-    const db = window.getFirebaseDb();
-    
-    await db.collection('userSessions').doc(sessionId).update({
-      endTime: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-  } catch (error) {
-    console.debug('📊 Session end tracking error:', error.message);
-  }
+  // DISABLED TO REDUCE FIREBASE COSTS
+  return Promise.resolve();
 }
 
 // ============================================================================
@@ -518,27 +280,27 @@ if (!window.VediAPI) {
   window.VediAPI = {};
 }
 
-// Attach tracking functions to VediAPI
+// Attach tracking functions to VediAPI - MOST DISABLED
 Object.assign(window.VediAPI, {
-  // Core tracking functions
+  // Core tracking functions - DISABLED (return dummy functions)
   trackAPICall,
   withTracking,
   trackUserActivity,
-  trackError,
+  trackError, // Keep this one for critical errors only
   
-  // INJECTED: Real-time subscription tracking from restaurant-venue-sync
+  // INJECTED: Real-time subscription tracking from restaurant-venue-sync - DISABLED
   addVenueActivity,
   addRestaurantActivity,
   
-  // INJECTED: Availability status tracking from available-status-api
+  // INJECTED: Availability status tracking from available-status-api - DISABLED
   logStatusChange,
   
-  // Performance monitoring
+  // Performance monitoring - DISABLED
   startPerformanceMeasurement,
   trackPageLoadPerformance,
   getCurrentPerformanceMetrics,
   
-  // Session tracking
+  // Session tracking - DISABLED
   getSessionId,
   initializeSessionTracking,
   updateSessionUser,
@@ -546,21 +308,27 @@ Object.assign(window.VediAPI, {
   updateSessionEnd
 });
 
-// Make global tracking function available for other modules
-window.trackAPICall = trackAPICall;
-window.withTracking = withTracking;
+// Make global tracking function available for other modules - DISABLED
+// window.trackAPICall = trackAPICall;
+// window.withTracking = withTracking;
 
-// Initialize tracking when module loads
-document.addEventListener('DOMContentLoaded', () => {
-  initializeSessionTracking();
-  trackPageLoadPerformance();
-});
+// Provide dummy functions to prevent errors
+window.trackAPICall = () => Promise.resolve();
+window.withTracking = (name, func) => func;
 
-console.log('📊 Enhanced API Tracking Module loaded');
-console.log('📈 Features: API call tracking, performance monitoring, session tracking');
-console.log('🔍 Analytics: trackAPICall, trackUserActivity, trackError');
-console.log('🏢 INJECTED: addVenueActivity, addRestaurantActivity from restaurant-venue-sync');
-console.log('🔄 INJECTED: logStatusChange from available-status-api');
-console.log('⚡ Performance: startPerformanceMeasurement, trackPageLoadPerformance');
-console.log('👤 Sessions: Session tracking initialized automatically');
-console.log('🛡️ Non-intrusive: All tracking failures are silent and non-blocking');
+// Initialize tracking when module loads - DISABLED TO SAVE COSTS AND REDUCE ERRORS
+// document.addEventListener('DOMContentLoaded', () => {
+//   initializeSessionTracking();
+//   trackPageLoadPerformance();
+// });
+
+console.log('📊 Enhanced API Tracking Module loaded - TRACKING DISABLED');
+console.log('🚫 Session and performance tracking DISABLED to reduce Firestore costs');
+console.log('🚫 No more session heartbeats, API call tracking, or performance metrics');
+console.log('💰 This will significantly reduce your Firebase bill');
+console.log('🔍 Only error tracking remains active for critical debugging');
+console.log('🏢 Venue/Restaurant activity tracking DISABLED');
+console.log('🔄 Status change logging DISABLED');
+console.log('⚡ Performance monitoring returns local metrics only');
+console.log('👤 Session tracking completely DISABLED');
+console.log('🛡️ All functions return dummy values to prevent application breakage');
