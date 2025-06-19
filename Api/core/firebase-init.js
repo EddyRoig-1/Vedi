@@ -9,6 +9,9 @@
  * to use Firebase services, preventing initialization race conditions.
  */
 
+// Ensure VediAPI namespace exists
+window.VediAPI = window.VediAPI || {};
+
 // ============================================================================
 // FIREBASE REFERENCE INITIALIZATION AND MANAGEMENT
 // ============================================================================
@@ -44,6 +47,20 @@ function getFirebaseAuth() {
     return window.firebaseAuth;
   } else {
     throw new Error('Firebase auth not initialized. Please ensure Firebase is loaded.');
+  }
+}
+
+/**
+ * Get Firebase server timestamp
+ * Provides consistent access to Firebase server timestamp across modules
+ * @returns {Object} Firebase FieldValue.serverTimestamp()
+ * @throws {Error} If Firebase is not properly initialized
+ */
+function getServerTimestamp() {
+  if (typeof firebase !== 'undefined' && firebase.firestore) {
+    return firebase.firestore.FieldValue.serverTimestamp();
+  } else {
+    throw new Error('Firebase not initialized. Cannot get server timestamp.');
   }
 }
 
@@ -217,16 +234,12 @@ if (document.readyState === 'loading') {
 // GLOBAL EXPORTS AND VEDIAPI INTEGRATION
 // ============================================================================
 
-// Initialize VediAPI namespace if it doesn't exist
-if (!window.VediAPI) {
-  window.VediAPI = {};
-}
-
 // Attach Firebase utility functions to VediAPI
 Object.assign(window.VediAPI, {
   // Database reference functions
   getFirebaseDb,
   getFirebaseAuth,
+  getServerTimestamp,
   
   // Initialization and status functions
   initializeFirebaseAPI,
@@ -238,6 +251,7 @@ Object.assign(window.VediAPI, {
 // Also make functions available globally for internal module use
 window.getFirebaseDb = getFirebaseDb;
 window.getFirebaseAuth = getFirebaseAuth;
+window.getServerTimestamp = getServerTimestamp;
 // This is exactly what the login page expects:
 window.isFirebaseReady = isFirebaseReady;
 
