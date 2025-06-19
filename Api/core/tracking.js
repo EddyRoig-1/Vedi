@@ -6,8 +6,6 @@
  * This module collects metrics on API usage, response times, error rates, and
  * user patterns to support the maintenance dashboard and system optimization.
  * 
- * All tracking is designed to be non-intrusive and will not break main functionality
- * if the tracking system encounters errors.
  * 
  * NOTE: TRACKING FEATURES DISABLED TO REDUCE FIREBASE COSTS AND ERRORS
  */
