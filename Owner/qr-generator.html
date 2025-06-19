@@ -323,6 +323,7 @@
                 <button class="btn btn-success" onclick="downloadAllQRCodes()">📄 Download All QR Codes</button>
                 <button class="btn btn-secondary" onclick="printAllQRCodes()">🖨️ Print All QR Codes</button>
                 <button class="btn btn-secondary" onclick="copyAllURLs()">📋 Copy All URLs</button>
+                <button class="btn btn-danger" onclick="testFirebaseWrite()">🧪 Test Firebase Write</button>
             </div>
         </div>
 
@@ -451,41 +452,132 @@
             }
         }
 
-        // Generate QR codes for the very first time (setup)
+        // Generate QR codes for the very first time (setup) - DEBUG VERSION
         async function generateAndSaveInitialQRCodes(tableCount) {
             try {
-                const qrData = {
-                    urls: {},
-                    generatedAt: new Date().toISOString(),
-                    restaurantId: currentRestaurant.id,
-                    tableCount: tableCount,
-                    baseUrl: baseMenuUrl,
-                    isSetupComplete: true
-                };
+                console.log('🔍 DEBUG: Starting QR generation...');
+                console.log('🔍 DEBUG: currentRestaurant:', currentRestaurant);
+                console.log('🔍 DEBUG: baseMenuUrl:', baseMenuUrl);
+                console.log('🔍 DEBUG: tableCount:', tableCount);
 
-                // Generate counter QR (always created)
-                qrData.urls.counter = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=counter&location=counter`;
+                // Create a completely clean object with only primitive values
+                const qrData = {};
+                
+                // Add properties one by one with validation
+                qrData.urls = {};
+                qrData.generatedAt = new Date().toISOString();
+                qrData.restaurantId = String(currentRestaurant.id); // Ensure string
+                qrData.tableCount = Number(tableCount); // Ensure number
+                qrData.baseUrl = String(baseMenuUrl); // Ensure string
+                qrData.isSetupComplete = true;
+
+                console.log('🔍 DEBUG: Basic qrData created:', qrData);
+
+                // Generate counter QR
+                const counterUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=counter&location=counter`;
+                qrData.urls.counter = String(counterUrl); // Ensure string
+
+                console.log('🔍 DEBUG: Counter URL created:', counterUrl);
 
                 // Generate table QRs
                 for (let i = 1; i <= tableCount; i++) {
-                    qrData.urls[`table_${i}`] = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
+                    const tableUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
+                    qrData.urls[`table_${i}`] = String(tableUrl); // Ensure string
                 }
 
-                // Save to Firebase
+                console.log('🔍 DEBUG: All URLs created:', qrData.urls);
+
+                // Create a completely clean object using JSON parse/stringify to remove any hidden properties
+                const cleanQrData = JSON.parse(JSON.stringify(qrData));
+                
+                console.log('🔍 DEBUG: Clean QR data to save:', cleanQrData);
+                console.log('🔍 DEBUG: Type check:', {
+                    urls: typeof cleanQrData.urls,
+                    generatedAt: typeof cleanQrData.generatedAt,
+                    restaurantId: typeof cleanQrData.restaurantId,
+                    tableCount: typeof cleanQrData.tableCount,
+                    baseUrl: typeof cleanQrData.baseUrl,
+                    isSetupComplete: typeof cleanQrData.isSetupComplete
+                });
+
+                // Log the Firebase path
                 const qrRef = firebase.firestore()
                     .collection('restaurants')
                     .doc(currentRestaurant.id)
                     .collection('qrCodes')
                     .doc('persistent');
 
-                await qrRef.set(qrData);
+                console.log('🔍 DEBUG: Firebase path:', qrRef.path);
+
+                // Try to save to Firebase
+                console.log('🔍 DEBUG: Attempting to save to Firebase...');
+                await qrRef.set(cleanQrData);
                 
-                console.log('✅ Initial QR codes generated and saved to Firebase');
-                return qrData;
+                console.log('✅ SUCCESS: QR codes saved to Firebase!');
+                return cleanQrData;
 
             } catch (error) {
-                console.error('❌ Error generating initial QR codes:', error);
+                console.error('❌ DEBUG: Detailed error information:');
+                console.error('❌ Error name:', error.name);
+                console.error('❌ Error message:', error.message);
+                console.error('❌ Error code:', error.code);
+                console.error('❌ Error stack:', error.stack);
+                console.error('❌ Full error object:', error);
+                
+                // Try to identify which property is causing the issue
+                console.log('🔍 DEBUG: Checking individual properties...');
+                
+                try {
+                    await firebase.firestore().collection('test').doc('test1').set({ test: 'simple string' });
+                    console.log('✅ Simple string test passed');
+                } catch (e) {
+                    console.error('❌ Simple string test failed:', e);
+                }
+
+                try {
+                    await firebase.firestore().collection('test').doc('test2').set({ 
+                        restaurantId: String(currentRestaurant.id),
+                        test: true 
+                    });
+                    console.log('✅ Restaurant ID test passed');
+                } catch (e) {
+                    console.error('❌ Restaurant ID test failed:', e);
+                }
+
                 throw error;
+            }
+        }
+
+        // TEST FUNCTION for debugging Firebase write access
+        async function testFirebaseWrite() {
+            try {
+                console.log('🧪 Testing basic Firebase write...');
+                
+                const testRef = firebase.firestore()
+                    .collection('restaurants')
+                    .doc(currentRestaurant.id)
+                    .collection('qrCodes')
+                    .doc('test');
+
+                await testRef.set({
+                    test: 'hello world',
+                    timestamp: new Date().toISOString(),
+                    restaurantId: currentRestaurant.id
+                });
+
+                console.log('✅ Basic Firebase write test PASSED');
+                
+                // Clean up test document
+                await testRef.delete();
+                console.log('🗑️ Test document cleaned up');
+                
+                showSuccess('Firebase write test PASSED!');
+                return true;
+
+            } catch (error) {
+                console.error('❌ Basic Firebase write test FAILED:', error);
+                showError('Firebase write test FAILED: ' + error.message);
+                return false;
             }
         }
 
