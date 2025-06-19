@@ -1358,6 +1358,52 @@
             console.log('⏳ Waiting for Firebase to initialize...');
             await waitForFirebaseReady();
             
+            // FORCE ATTACH missing VediAPI functions after a delay
+            setTimeout(() => {
+                console.log('🔧 FORCE attaching missing VediAPI functions...');
+                
+                // Check if functions are missing and force attach them
+                if (!window.VediAPI.getRestaurantByOwner && window.getRestaurantByOwner) {
+                    window.VediAPI.getRestaurantByOwner = window.getRestaurantByOwner;
+                }
+                if (!window.VediAPI.createRestaurant && window.createRestaurant) {
+                    window.VediAPI.createRestaurant = window.createRestaurant;
+                }
+                if (!window.VediAPI.updateRestaurant && window.updateRestaurant) {
+                    window.VediAPI.updateRestaurant = window.updateRestaurant;
+                }
+                if (!window.VediAPI.getMenuCategories && window.getMenuCategories) {
+                    window.VediAPI.getMenuCategories = window.getMenuCategories;
+                }
+                if (!window.VediAPI.getMenuItems && window.getMenuItems) {
+                    window.VediAPI.getMenuItems = window.getMenuItems;
+                }
+                if (!window.VediAPI.createMenuCategory && window.createMenuCategory) {
+                    window.VediAPI.createMenuCategory = window.createMenuCategory;
+                }
+                if (!window.VediAPI.createMenuItem && window.createMenuItem) {
+                    window.VediAPI.createMenuItem = window.createMenuItem;
+                }
+                if (!window.VediAPI.updateMenuItem && window.updateMenuItem) {
+                    window.VediAPI.updateMenuItem = window.updateMenuItem;
+                }
+                if (!window.VediAPI.deleteMenuItem && window.deleteMenuItem) {
+                    window.VediAPI.deleteMenuItem = window.deleteMenuItem;
+                }
+                if (!window.VediAPI.updateMenuCategory && window.updateMenuCategory) {
+                    window.VediAPI.updateMenuCategory = window.updateMenuCategory;
+                }
+                if (!window.VediAPI.deleteMenuCategory && window.deleteMenuCategory) {
+                    window.VediAPI.deleteMenuCategory = window.deleteMenuCategory;
+                }
+                if (!window.VediAPI.updateItemStock && window.updateItemStock) {
+                    window.VediAPI.updateItemStock = window.updateItemStock;
+                }
+                
+                console.log('🔧 FORCED business functions attached. New VediAPI function count:', Object.keys(window.VediAPI).length);
+                console.log('✅ getRestaurantByOwner available:', typeof window.VediAPI.getRestaurantByOwner);
+            }, 1500);
+            
             try {
                 await initializeDashboard();
             } catch (error) {
@@ -1454,6 +1500,14 @@
 
                 // Load restaurant data - USING VEDIAPI (BUSINESS LOGIC)
                 console.log('🏪 Loading restaurant data...');
+                
+                // Check if VediAPI.getRestaurantByOwner is available
+                if (typeof VediAPI.getRestaurantByOwner !== 'function') {
+                    console.error('❌ VediAPI.getRestaurantByOwner is not available');
+                    console.log('🔍 Available VediAPI functions:', Object.keys(VediAPI || {}));
+                    throw new Error('VediAPI business functions not loaded. Please refresh the page.');
+                }
+                
                 currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
                 if (!currentRestaurant) {
                     console.log('❌ No restaurant found, redirecting to setup');
