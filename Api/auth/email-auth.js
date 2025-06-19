@@ -684,3 +684,39 @@ console.log('🔑 Password: sendPasswordResetEmail, updatePassword');
 console.log('✉️ Verification: sendEmailVerification, checkEmailExists');
 console.log('👤 Management: updateUserProfile, deleteUserAccount');
 console.log('📊 All functions include performance tracking and error handling');
+
+// ============================================================================
+// FORCE EXPORT FIX - Add this at the very end of email-auth.js
+// ============================================================================
+setTimeout(() => {
+    if (!window.VediAPI) {
+        window.VediAPI = {};
+    }
+    
+    // Force attach auth functions
+    window.VediAPI.getCurrentUser = getCurrentUser;
+    window.VediAPI.signIn = signIn;
+    window.VediAPI.signOut = signOut;
+    window.VediAPI.getUserData = getUserData;
+    window.VediAPI.signUp = signUp;
+    window.VediAPI.updateUserProfile = updateUserProfile;
+    window.VediAPI.sendPasswordResetEmail = sendPasswordResetEmail;
+    window.VediAPI.updatePassword = updatePassword;
+    window.VediAPI.sendEmailVerification = sendEmailVerification;
+    window.VediAPI.checkEmailExists = checkEmailExists;
+    window.VediAPI.deleteUserAccount = deleteUserAccount;
+    
+    // Also add the promise utilities
+    window.VediAPI.withTimeout = withTimeout;
+    window.VediAPI.withRetry = withRetry;
+    window.VediAPI.safeAsyncOperation = safeAsyncOperation;
+    window.VediAPI.enhanceError = enhanceError;
+    
+    console.log('🔧 FORCED: Auth functions manually attached to VediAPI');
+    console.log('🔍 VediAPI.getCurrentUser now available:', typeof window.VediAPI.getCurrentUser);
+    console.log('🔍 All VediAPI auth functions:', Object.keys(window.VediAPI).filter(key => 
+        ['getCurrentUser', 'signIn', 'signOut', 'signUp', 'getUserData', 'updateUserProfile', 
+         'sendPasswordResetEmail', 'updatePassword', 'sendEmailVerification', 'checkEmailExists', 
+         'deleteUserAccount'].includes(key)
+    ));
+}, 500);
