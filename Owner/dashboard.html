@@ -1350,72 +1350,69 @@
             { id: 'spicy', name: 'Spicy Food', icon: '🌶️' }
         ];
 
-       // Initialize app with better debugging
-document.addEventListener('DOMContentLoaded', async function() {
-    console.log('🚀 Dashboard initializing...');
-    
-    // Simple delay to ensure all modules are loaded
-    console.log('⏳ Waiting for modules to fully load...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log('🔍 VediAPI after delay:', window.VediAPI);
-    console.log('🔍 getCurrentUser available:', typeof window.VediAPI?.getCurrentUser);
-    
-    // Add click debugging
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('nav-tab')) {
-            console.log('🖱️ Nav tab clicked:', e.target.textContent, e.target.dataset.section);
-        }
-    });
-    
-    try {
-        await initializeDashboard();
-    } catch (error) {
-        console.error('❌ Error initializing dashboard:', error);
-        showError('Failed to load dashboard. Please check the console for details and refresh the page.');
-        hideLoading();
-    }
-});
+        // Initialize app with DIRECT FIREBASE AUTH
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Dashboard initializing...');
+            
+            // Wait for Firebase to be ready
+            console.log('⏳ Waiting for Firebase to initialize...');
+            await waitForFirebaseReady();
+            
+            try {
+                await initializeDashboard();
+            } catch (error) {
+                console.error('❌ Error initializing dashboard:', error);
+                showError('Failed to load dashboard. Please check the console for details and refresh the page.');
+                hideLoading();
+            }
+        });
 
-        // Authentication and initialization with better debugging
+        // Wait for Firebase to be ready
+        function waitForFirebaseReady() {
+            return new Promise((resolve) => {
+                if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                    resolve();
+                } else {
+                    const checkFirebase = setInterval(() => {
+                        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                            clearInterval(checkFirebase);
+                            resolve();
+                        }
+                    }, 100);
+                }
+            });
+        }
+
+        // Authentication and initialization with DIRECT FIREBASE AUTH
         async function initializeDashboard() {
             console.log('🔄 Starting dashboard initialization...');
             showLoading('Loading dashboard...');
 
-        // Wait for Firebase auth to be ready
-console.log('🔐 Waiting for Firebase auth to initialize...');
-const auth = VediAPI.getFirebaseAuth();
-await new Promise((resolve) => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-        unsubscribe();
-        console.log('🔐 Auth state initialized, user:', user ? user.email : 'none');
-        resolve();
-    });
-});
             try {
-                // Check if VediAPI is available
-                if (typeof VediAPI === 'undefined') {
-                    throw new Error('VediAPI not loaded. Please check your Firebase configuration files.');
-                }
-                console.log('✅ VediAPI is available');
+                // Wait for Firebase auth to be ready - DIRECT FIREBASE CALL
+                console.log('🔐 Waiting for Firebase auth to initialize...');
+                const auth = firebase.auth();
+                
+                await new Promise((resolve) => {
+                    const unsubscribe = auth.onAuthStateChanged((user) => {
+                        unsubscribe();
+                        console.log('🔐 Auth state initialized, user:', user ? user.email : 'none');
+                        resolve();
+                    });
+                });
 
-              // Check authentication with retry logic
-console.log('🔐 Checking authentication...');
-currentUser = await VediAPI.getCurrentUser();
-if (!currentUser) {
-    console.log('⏳ No user found, waiting for auth state...');
-    // Wait a bit longer for auth state to initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    currentUser = await VediAPI.getCurrentUser();
-    
-    if (!currentUser) {
-        console.log('❌ No authenticated user after retry, redirecting to login');
-        window.location.href = '../Landing-Signup-Login/login.html';
-        return;
-    }
+                // Check authentication with retry logic - DIRECT FIREBASE CALL
+                console.log('🔐 Checking authentication...');
+                currentUser = await getCurrentUser();
+                
+                if (!currentUser) {
+                    console.log('❌ No authenticated user, redirecting to login');
+                    window.location.href = '../Landing-Signup-Login/login.html';
+                    return;
+                }
                 console.log('✅ Authenticated user:', currentUser.email);
 
-                // Load restaurant data
+                // Load restaurant data - USING VEDIAPI (BUSINESS LOGIC)
                 console.log('🏪 Loading restaurant data...');
                 currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
                 if (!currentRestaurant) {
@@ -1439,7 +1436,7 @@ if (!currentUser) {
                     restaurantInfo.style.display = 'none';
                 }
 
-                // Load menu data
+                // Load menu data - USING VEDIAPI (BUSINESS LOGIC)
                 console.log('📋 Loading menu data...');
                 await loadMenuData();
                 console.log('✅ Menu data loaded successfully');
@@ -1455,15 +1452,15 @@ if (!currentUser) {
                 hideLoading();
                 showSuccess('Dashboard loaded successfully!');
                 console.log('🎉 Dashboard initialization complete!');
-                }
+                
             } catch (error) {
                 console.error('❌ Dashboard initialization error:', error);
                 
                 // Better error handling for common issues
                 if (error.message.includes('index')) {
                     showError('Database index missing. Please create the required Firestore index using the link in the console error, then refresh the page.');
-               } else if (error.message.includes('VediAPI')) {
-    showError('VediAPI modules not loaded properly. Please check that all Firebase modules are loading correctly.');
+                } else if (error.message.includes('Firebase')) {
+                    showError('Firebase connection issue. Please check that all Firebase modules are loading correctly.');
                 } else {
                     showError('Failed to load dashboard: ' + error.message);
                 }
@@ -1471,62 +1468,85 @@ if (!currentUser) {
             }
         }
 
-        // Data loading functions with FORCE LOADING to bypass cache issues
+        // Get current user with DIRECT FIREBASE AUTH
+        async function getCurrentUser() {
+            return new Promise((resolve) => {
+                try {
+                    const auth = firebase.auth(); // DIRECT FIREBASE CALL
+                    
+                    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+                        unsubscribe();
+                        
+                        if (user) {
+                            try {
+                                // Get user data from Firestore - DIRECT FIREBASE CALL
+                                const db = firebase.firestore();
+                                const doc = await db.collection('users').doc(user.uid).get();
+                                
+                                if (doc.exists) {
+                                    const userData = { id: doc.id, ...doc.data() };
+                                    resolve(userData);
+                                } else {
+                                    console.error('❌ User document not found in Firestore');
+                                    resolve(null);
+                                }
+                            } catch (error) {
+                                console.error('❌ Error getting user data:', error);
+                                resolve(null);
+                            }
+                        } else {
+                            resolve(null);
+                        }
+                    });
+                } catch (error) {
+                    console.error('❌ getCurrentUser setup error:', error);
+                    resolve(null);
+                }
+            });
+        }
+
+        // Data loading functions with VEDIAPI FOR BUSINESS LOGIC
         async function loadMenuData() {
             try {
-                console.log('📋 FORCE LOADING menu data for restaurant:', currentRestaurant.id);
-                console.log('🔍 Restaurant object:', currentRestaurant);
+                console.log('📋 Loading menu data for restaurant:', currentRestaurant.id);
                 
-                // FORCE load categories and menu items using VediAPI
-                console.log('🗂️ FORCE Fetching categories...');
-                console.log('🔗 Calling VediAPI.getMenuCategories with restaurantId:', currentRestaurant.id);
-                
+                // Load categories and menu items using VediAPI - BUSINESS LOGIC
+                console.log('🗂️ Fetching categories...');
                 const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
-                console.log('📊 Raw categories data from Firebase:', categoriesData);
                 console.log('📊 Categories count:', categoriesData ? categoriesData.length : 'null/undefined');
                 
-                console.log('🍽️ FORCE Fetching menu items...');
+                console.log('🍽️ Fetching menu items...');
                 const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
-                console.log('📊 Raw menu items data from Firebase:', menuItemsData);
                 console.log('📊 Menu items count:', menuItemsData ? menuItemsData.length : 'null/undefined');
 
-                // FORCE Set categories by order
+                // Set categories by order
                 categories = categoriesData ? categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
                 menuItems = menuItemsData || [];
 
-                console.log('✅ FORCE Final processed data:');
+                console.log('✅ Final processed data:');
                 console.log('  - Categories:', categories.length, categories);
                 console.log('  - Menu Items:', menuItems.length, menuItems);
 
-                // FORCE Render UI immediately
-                console.log('🎨 FORCE Rendering categories...');
-                forceRenderCategories();
+                // Render UI
+                console.log('🎨 Rendering categories...');
+                renderCategories();
                 
-                console.log('🎨 FORCE Rendering menu items...');
-                forceRenderMenuItems();
+                console.log('🎨 Rendering menu items...');
+                renderMenuItems();
                 
-                console.log('📊 FORCE Updating stats...');
+                console.log('📊 Updating stats...');
                 updateStats();
                 
-                console.log('🔄 FORCE Populating category filter...');
-                // Only populate if the element exists (menu items section)
+                console.log('🔄 Populating category filter...');
                 if (document.getElementById('categoryFilter')) {
                     populateCategoryFilter();
-                } else {
-                    console.log('⚠️ categoryFilter element not available, skipping...');
                 }
 
-                console.log('✅ FORCE Menu data loading complete!');
+                console.log('✅ Menu data loading complete!');
 
             } catch (error) {
                 console.error('❌ Error loading menu data:', error);
-                console.error('❌ Error details:', {
-                    message: error.message,
-                    code: error.code,
-                    stack: error.stack
-                });
                 
-                // If it's an index error, show specific message
                 if (error.message && error.message.includes('index')) {
                     showError('Database index missing. Please create the required Firestore index by clicking the link in the console, then refresh the page.');
                 } else {
@@ -1536,10 +1556,9 @@ if (!currentUser) {
             }
         }
 
-        // FORCE render categories function to bypass any caching issues
-        function forceRenderCategories() {
-            console.log('🎨 FORCE renderCategories called with:', categories.length, 'categories');
-            console.log('🎨 Categories data:', categories);
+        // Render categories function
+        function renderCategories() {
+            console.log('🎨 renderCategories called with:', categories.length, 'categories');
             
             const grid = document.getElementById('categoriesGrid');
             if (!grid) {
@@ -1553,9 +1572,9 @@ if (!currentUser) {
                 return;
             }
 
-            console.log('🔄 FORCE Rendering categories...');
+            console.log('🔄 Rendering categories...');
             const categoryHTML = categories.map(category => {
-                console.log('🏷️ FORCE Rendering category:', category.name, 'ID:', category.id);
+                console.log('🏷️ Rendering category:', category.name, 'ID:', category.id);
                 const itemCount = menuItems.filter(item => item.categoryId === category.id).length;
                 const inStockCount = menuItems.filter(item => item.categoryId === category.id && item.inStock !== false).length;
                 const outOfStockCount = itemCount - inStockCount;
@@ -1577,14 +1596,14 @@ if (!currentUser) {
                 `;
             }).join('');
             
-            console.log('✅ FORCE Setting grid innerHTML with', categories.length, 'categories');
+            console.log('✅ Setting grid innerHTML with', categories.length, 'categories');
             grid.innerHTML = categoryHTML;
-            console.log('✅ FORCE Categories rendered successfully');
+            console.log('✅ Categories rendered successfully');
         }
 
-        // FORCE render menu items function
-        function forceRenderMenuItems() {
-            console.log('🎨 FORCE renderMenuItems called');
+        // Render menu items function
+        function renderMenuItems() {
+            console.log('🎨 renderMenuItems called');
             const grid = document.getElementById('menuItemsGrid');
             if (!grid) {
                 console.error('❌ menuItemsGrid element not found!');
@@ -1628,7 +1647,7 @@ if (!currentUser) {
                 `;
             }).join('');
             
-            console.log('✅ FORCE Menu items rendered successfully');
+            console.log('✅ Menu items rendered successfully');
         }
 
         // Load menu section specifically when tab is clicked
@@ -1636,7 +1655,7 @@ if (!currentUser) {
             try {
                 console.log('🔄 Loading menu section...');
                 
-                // Force reload data from Firebase
+                // Force reload data from Firebase using VediAPI - BUSINESS LOGIC
                 console.log('🔗 Fetching fresh data from Firebase...');
                 const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
                 const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
@@ -1649,8 +1668,8 @@ if (!currentUser) {
                 }
                 
                 // Render both subsections
-                forceRenderCategories();
-                forceRenderMenuItems();
+                renderCategories();
+                renderMenuItems();
                 populateCategoryFilter();
                 
                 console.log('✅ Menu section loaded successfully!');
@@ -1782,7 +1801,7 @@ if (!currentUser) {
             });
         }
 
-        // Category functions
+        // Category functions - USING VEDIAPI FOR BUSINESS LOGIC
         async function addCategory() {
             const submitBtn = document.getElementById('categorySubmitBtn');
             const name = document.getElementById('categoryName').value.trim();
@@ -1902,17 +1921,7 @@ if (!currentUser) {
             renderCategories();
         }
 
-        function renderCategories() {
-            // Delegate to force render function
-            forceRenderCategories();
-        }
-
-        function renderMenuItems() {
-            // Delegate to force render function  
-            forceRenderMenuItems();
-        }
-
-        // Menu item functions
+        // Menu item functions - USING VEDIAPI FOR BUSINESS LOGIC
         async function addOrEditMenuItem() {
             const submitBtn = document.getElementById('itemSubmitBtn');
             const name = document.getElementById('itemName').value.trim();
@@ -2262,15 +2271,12 @@ if (!currentUser) {
                     loading.innerHTML = '<p style="color: #dc3545;">Error loading incident reports page. Make sure incident-reports.html exists in the Owner folder.</p>';
                 };
                 
-                // Check if we're in a subdirectory and adjust path accordingly
                 const currentPath = window.location.pathname;
                 let incidentsPath = 'incident-reports.html';
                 
-                // If we're in Owner folder, use relative path
                 if (currentPath.includes('/Owner/')) {
                     incidentsPath = 'incident-reports.html';
                 } else {
-                    // If we're in a different location, adjust path
                     incidentsPath = './incident-reports.html';
                 }
                 
@@ -2301,15 +2307,12 @@ if (!currentUser) {
                     loading.innerHTML = '<p style="color: #dc3545;">Error loading settings page. Make sure restaurant-settings.html exists in the Owner folder.</p>';
                 };
                 
-                // Check if we're in a subdirectory and adjust path accordingly
                 const currentPath = window.location.pathname;
                 let settingsPath = 'restaurant-settings.html';
                 
-                // If we're in Owner folder, use relative path
                 if (currentPath.includes('/Owner/')) {
                     settingsPath = 'restaurant-settings.html';
                 } else {
-                    // If we're in a different location, adjust path
                     settingsPath = './restaurant-settings.html';
                 }
                 
@@ -2340,15 +2343,12 @@ if (!currentUser) {
                     loading.innerHTML = '<p style="color: #dc3545;">Error loading analytics page. Make sure restaurant-analytics.html exists in the Owner folder.</p>';
                 };
                 
-                // Check if we're in a subdirectory and adjust path accordingly
                 const currentPath = window.location.pathname;
                 let analyticsPath = 'restaurant-analytics.html';
                 
-                // If we're in Owner folder, use relative path
                 if (currentPath.includes('/Owner/')) {
                     analyticsPath = 'restaurant-analytics.html';
                 } else {
-                    // If we're in a different location, adjust path
                     analyticsPath = './restaurant-analytics.html';
                 }
                 
@@ -2379,15 +2379,12 @@ if (!currentUser) {
                     loading.innerHTML = '<p style="color: #dc3545;">Error loading QR Code generator page. Make sure qr-generator.html exists in the Owner folder.</p>';
                 };
                 
-                // Check if we're in a subdirectory and adjust path accordingly
                 const currentPath = window.location.pathname;
                 let qrPath = 'qr-generator.html';
                 
-                // If we're in Owner folder, use relative path
                 if (currentPath.includes('/Owner/')) {
                     qrPath = 'qr-generator.html';
                 } else {
-                    // If we're in a different location, adjust path
                     qrPath = './qr-generator.html';
                 }
                 
@@ -2495,6 +2492,7 @@ if (!currentUser) {
             window.location.href = '../Landing-Signup-Login/restaurant-setup.html';
         }
 
+        // DIRECT FIREBASE AUTH LOGOUT
         async function handleLogout() {
             if (!confirm('Are you sure you want to logout?')) {
                 return;
@@ -2502,7 +2500,8 @@ if (!currentUser) {
             
             try {
                 showLoading('Logging out...');
-                await VediAPI.signOut();
+                // DIRECT FIREBASE CALL - No VediAPI wrapper
+                await firebase.auth().signOut();
                 window.location.href = '../Landing-Signup-Login/login.html';
             } catch (error) {
                 console.error('Error during logout:', error);
@@ -2511,7 +2510,7 @@ if (!currentUser) {
             }
         }
 
-        // Quick incident reporting
+        // Quick incident reporting - USING VEDIAPI FOR BUSINESS LOGIC
         function reportQuickIncident() {
             // Create quick incident reporting modal
             const modal = document.createElement('div');
@@ -2614,6 +2613,7 @@ if (!currentUser) {
                     category: getIncidentCategory(type)
                 };
                 
+                // USING VEDIAPI FOR BUSINESS LOGIC
                 await VediAPI.createLossIncident(incidentData);
                 
                 closeQuickIncidentModal();
@@ -2680,7 +2680,7 @@ if (!currentUser) {
             showNotification(message, 'error');
         }
 
-        console.log('Restaurant dashboard with venue header display loaded successfully');
+        console.log('🎉 Restaurant dashboard with DIRECT Firebase auth loaded successfully');
     </script>
 </body>
 </html>
