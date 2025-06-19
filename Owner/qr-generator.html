@@ -84,6 +84,11 @@
             background: #dc3545;
         }
 
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
         .btn-small {
             padding: 8px 16px;
             font-size: 0.85rem;
@@ -270,6 +275,25 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .status-persistent {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+        }
+
+        .status-temporary {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
         @media (max-width: 768px) {
             .section-header {
                 flex-direction: column;
@@ -323,7 +347,8 @@
                 <button class="btn btn-success" onclick="downloadAllQRCodes()">📄 Download All QR Codes</button>
                 <button class="btn btn-secondary" onclick="printAllQRCodes()">🖨️ Print All QR Codes</button>
                 <button class="btn btn-secondary" onclick="copyAllURLs()">📋 Copy All URLs</button>
-                <button class="btn btn-danger" onclick="testFirebaseWrite()">🧪 Test Firebase Write</button>
+                <button class="btn btn-warning" onclick="testQRGeneration()">🧪 Test QR Generation</button>
+                <button class="btn btn-danger" onclick="resetQRData()">🔄 Reset QR Data</button>
             </div>
         </div>
 
@@ -353,6 +378,7 @@
         let currentRestaurant = null;
         let currentQRCodes = [];
         let baseMenuUrl = '';
+        let isPersistent = false; // Track if QR codes are saved to Firebase
 
         // Initialize when page loads using secure initialization
         document.addEventListener('DOMContentLoaded', async function() {
@@ -401,279 +427,65 @@
             const tableCount = parseInt(currentRestaurant.tableCount) || 0;
             document.getElementById('tableCountInfo').textContent = `${tableCount} tables + counter`;
             
-            // Automatically generate all QR codes with persistence
+            // Automatically generate all QR codes using the API
             generateAllQRCodes();
         }
 
-        // MAIN QR GENERATION FUNCTION WITH PERSISTENCE
+        // MAIN QR GENERATION FUNCTION - Uses Restaurant API
         async function generateAllQRCodes() {
-            const qrGrid = document.getElementById('qrGrid');
             const currentTableCount = parseInt(currentRestaurant?.tableCount) || 0;
             
             try {
-                // Always try to load existing QR codes first
-                let existingQRData = await loadExistingQRCodes();
+                console.log('🔄 Generating QR codes using Restaurant API...');
                 
-                if (!existingQRData) {
-                    // FIRST TIME SETUP - Generate all QR codes
-                    console.log('🆕 First time setup - generating all QR codes');
-                    existingQRData = await generateAndSaveInitialQRCodes(currentTableCount);
-                    showSuccess('QR codes generated for the first time and saved!');
-                } else {
-                    // QR codes already exist - check if we need to add new tables
-                    const existingTableCount = existingQRData.tableCount || 0;
-                    
-                    if (currentTableCount > existingTableCount) {
-                        // ADD NEW TABLES ONLY
-                        console.log(`📈 Adding tables ${existingTableCount + 1} to ${currentTableCount}`);
-                        existingQRData = await addNewTableQRCodes(existingQRData, existingTableCount, currentTableCount);
-                        showSuccess(`Added ${currentTableCount - existingTableCount} new table QR codes!`);
-                    } else if (currentTableCount < existingTableCount) {
-                        // REMOVE EXCESS TABLES (but keep existing ones in Firebase for safety)
-                        console.log(`📉 Restaurant reduced tables from ${existingTableCount} to ${currentTableCount}`);
-                        existingQRData.tableCount = currentTableCount;
-                        await updateQRTableCount(currentTableCount);
-                        showSuccess(`Table count updated. Excess QR codes hidden but preserved.`);
-                    } else {
-                        // SAME COUNT - Just load existing
-                        console.log('✅ Using existing QR codes - no changes needed');
-                        showSuccess('Loaded existing QR codes - your printed codes remain valid!');
-                    }
+                // Check if VediAPI is available
+                if (!window.VediAPI || !window.VediAPI.generateRestaurantQRCodes) {
+                    throw new Error('Restaurant API not available. Please refresh the page.');
                 }
-
+                
+                // Use the API method from restaurants.js
+                const qrData = await VediAPI.generateRestaurantQRCodes(
+                    currentRestaurant.id, 
+                    baseMenuUrl
+                );
+                
+                console.log('✅ QR codes generated via Restaurant API:', qrData);
+                
+                // Mark as persistent since it's saved to Firebase
+                isPersistent = true;
+                
                 // Display the QR codes
-                displayQRCodesFromData(existingQRData, currentTableCount);
+                displayQRCodesFromData(qrData, currentTableCount);
+                
+                showSuccess('QR codes loaded successfully - your printed codes remain valid forever!');
                 
             } catch (error) {
-                console.error('Error with QR code persistence:', error);
-                showError('Error loading QR codes: ' + error.message);
+                console.error('❌ Error generating QR codes via API:', error);
+                showError('Failed to generate persistent QR codes: ' + error.message);
+                
                 // Fallback to temporary generation
+                console.log('🔄 Falling back to temporary QR generation...');
+                isPersistent = false;
                 generateTemporaryQRCodes(currentTableCount);
             }
         }
 
-        // Generate QR codes for the very first time (setup) - DEBUG VERSION
-        async function generateAndSaveInitialQRCodes(tableCount) {
-            try {
-                console.log('🔍 DEBUG: Starting QR generation...');
-                console.log('🔍 DEBUG: currentRestaurant:', currentRestaurant);
-                console.log('🔍 DEBUG: baseMenuUrl:', baseMenuUrl);
-                console.log('🔍 DEBUG: tableCount:', tableCount);
-
-                // Create a completely clean object with only primitive values
-                const qrData = {};
-                
-                // Add properties one by one with validation
-                qrData.urls = {};
-                qrData.generatedAt = new Date().toISOString();
-                qrData.restaurantId = String(currentRestaurant.id); // Ensure string
-                qrData.tableCount = Number(tableCount); // Ensure number
-                qrData.baseUrl = String(baseMenuUrl); // Ensure string
-                qrData.isSetupComplete = true;
-
-                console.log('🔍 DEBUG: Basic qrData created:', qrData);
-
-                // Generate counter QR
-                const counterUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=counter&location=counter`;
-                qrData.urls.counter = String(counterUrl); // Ensure string
-
-                console.log('🔍 DEBUG: Counter URL created:', counterUrl);
-
-                // Generate table QRs
-                for (let i = 1; i <= tableCount; i++) {
-                    const tableUrl = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
-                    qrData.urls[`table_${i}`] = String(tableUrl); // Ensure string
-                }
-
-                console.log('🔍 DEBUG: All URLs created:', qrData.urls);
-
-                // Create a completely clean object using JSON parse/stringify to remove any hidden properties
-                const cleanQrData = JSON.parse(JSON.stringify(qrData));
-                
-                console.log('🔍 DEBUG: Clean QR data to save:', cleanQrData);
-                console.log('🔍 DEBUG: Type check:', {
-                    urls: typeof cleanQrData.urls,
-                    generatedAt: typeof cleanQrData.generatedAt,
-                    restaurantId: typeof cleanQrData.restaurantId,
-                    tableCount: typeof cleanQrData.tableCount,
-                    baseUrl: typeof cleanQrData.baseUrl,
-                    isSetupComplete: typeof cleanQrData.isSetupComplete
-                });
-
-                // Log the Firebase path
-                const qrRef = firebase.firestore()
-                    .collection('restaurants')
-                    .doc(currentRestaurant.id)
-                    .collection('qrCodes')
-                    .doc('persistent');
-
-                console.log('🔍 DEBUG: Firebase path:', qrRef.path);
-
-                // Try to save to Firebase
-                console.log('🔍 DEBUG: Attempting to save to Firebase...');
-                await qrRef.set(cleanQrData);
-                
-                console.log('✅ SUCCESS: QR codes saved to Firebase!');
-                return cleanQrData;
-
-            } catch (error) {
-                console.error('❌ DEBUG: Detailed error information:');
-                console.error('❌ Error name:', error.name);
-                console.error('❌ Error message:', error.message);
-                console.error('❌ Error code:', error.code);
-                console.error('❌ Error stack:', error.stack);
-                console.error('❌ Full error object:', error);
-                
-                // Try to identify which property is causing the issue
-                console.log('🔍 DEBUG: Checking individual properties...');
-                
-                try {
-                    await firebase.firestore().collection('test').doc('test1').set({ test: 'simple string' });
-                    console.log('✅ Simple string test passed');
-                } catch (e) {
-                    console.error('❌ Simple string test failed:', e);
-                }
-
-                try {
-                    await firebase.firestore().collection('test').doc('test2').set({ 
-                        restaurantId: String(currentRestaurant.id),
-                        test: true 
-                    });
-                    console.log('✅ Restaurant ID test passed');
-                } catch (e) {
-                    console.error('❌ Restaurant ID test failed:', e);
-                }
-
-                throw error;
-            }
-        }
-
-        // TEST FUNCTION for debugging Firebase write access
-        async function testFirebaseWrite() {
-            try {
-                console.log('🧪 Testing basic Firebase write...');
-                
-                const testRef = firebase.firestore()
-                    .collection('restaurants')
-                    .doc(currentRestaurant.id)
-                    .collection('qrCodes')
-                    .doc('test');
-
-                await testRef.set({
-                    test: 'hello world',
-                    timestamp: new Date().toISOString(),
-                    restaurantId: currentRestaurant.id
-                });
-
-                console.log('✅ Basic Firebase write test PASSED');
-                
-                // Clean up test document
-                await testRef.delete();
-                console.log('🗑️ Test document cleaned up');
-                
-                showSuccess('Firebase write test PASSED!');
-                return true;
-
-            } catch (error) {
-                console.error('❌ Basic Firebase write test FAILED:', error);
-                showError('Firebase write test FAILED: ' + error.message);
-                return false;
-            }
-        }
-
-        // Add new table QR codes when restaurant expands
-        async function addNewTableQRCodes(existingQRData, oldTableCount, newTableCount) {
-            try {
-                // Add URLs for new tables only
-                for (let i = oldTableCount + 1; i <= newTableCount; i++) {
-                    existingQRData.urls[`table_${i}`] = `${baseMenuUrl}?restaurant=${currentRestaurant.id}&table=${i}&location=table`;
-                }
-
-                // Update metadata
-                existingQRData.tableCount = newTableCount;
-                existingQRData.lastUpdated = new Date().toISOString();
-
-                // Save updated data to Firebase
-                const qrRef = firebase.firestore()
-                    .collection('restaurants')
-                    .doc(currentRestaurant.id)
-                    .collection('qrCodes')
-                    .doc('persistent');
-
-                await qrRef.set(existingQRData, { merge: true });
-                
-                console.log(`✅ Added QR codes for tables ${oldTableCount + 1} to ${newTableCount}`);
-                return existingQRData;
-
-            } catch (error) {
-                console.error('❌ Error adding new table QR codes:', error);
-                throw error;
-            }
-        }
-
-        // Update table count without regenerating URLs
-        async function updateQRTableCount(newTableCount) {
-            try {
-                const qrRef = firebase.firestore()
-                    .collection('restaurants')
-                    .doc(currentRestaurant.id)
-                    .collection('qrCodes')
-                    .doc('persistent');
-
-                await qrRef.update({
-                    tableCount: newTableCount,
-                    lastUpdated: new Date().toISOString()
-                });
-
-                console.log(`✅ Updated table count to ${newTableCount}`);
-
-            } catch (error) {
-                console.error('❌ Error updating table count:', error);
-                throw error;
-            }
-        }
-
-        // Load existing QR codes from Firebase
-        async function loadExistingQRCodes() {
-            try {
-                const qrRef = firebase.firestore()
-                    .collection('restaurants')
-                    .doc(currentRestaurant.id)
-                    .collection('qrCodes')
-                    .doc('persistent');
-
-                const doc = await qrRef.get();
-                
-                if (doc.exists) {
-                    const data = doc.data();
-                    console.log('✅ Loaded existing QR codes from Firebase');
-                    return data;
-                } else {
-                    console.log('ℹ️ No existing QR codes found - first time setup needed');
-                    return null;
-                }
-
-            } catch (error) {
-                console.error('❌ Error loading QR codes from Firebase:', error);
-                return null;
-            }
-        }
-
-        // Display QR codes from saved data
+        // Display QR codes from API data
         function displayQRCodesFromData(qrData, currentTableCount) {
             const qrGrid = document.getElementById('qrGrid');
             let gridHTML = '';
             currentQRCodes = [];
 
             // Always show counter QR
-            if (qrData.urls.counter) {
+            if (qrData.urls && qrData.urls.counter) {
                 currentQRCodes.push({
                     table: 'counter',
                     url: qrData.urls.counter,
                     restaurantName: currentRestaurant.name,
-                    location: 'Counter'
+                    location: 'Counter',
+                    isPersistent: isPersistent
                 });
-                gridHTML += createQRCardHTML('counter', '🏪 Counter', 'For counter orders & takeout', qrData.urls.counter, true);
+                gridHTML += createQRCardHTML('counter', '🏪 Counter', 'For counter orders & takeout', qrData.urls.counter, true, isPersistent);
             }
 
             // Show table QRs up to current table count
@@ -684,9 +496,10 @@
                         table: i,
                         url: tableUrl,
                         restaurantName: currentRestaurant.name,
-                        location: `Table ${i}`
+                        location: `Table ${i}`,
+                        isPersistent: isPersistent
                     });
-                    gridHTML += createQRCardHTML(i, `Table ${i}`, 'Dine-in orders', tableUrl, false);
+                    gridHTML += createQRCardHTML(i, `Table ${i}`, 'Dine-in orders', tableUrl, false, isPersistent);
                 }
             }
 
@@ -711,7 +524,7 @@
 
             // Generate actual QR code images
             setTimeout(() => {
-                if (qrData.urls.counter) {
+                if (qrData.urls && qrData.urls.counter) {
                     generateSingleQR('counter', qrData.urls.counter);
                 }
                 for (let i = 1; i <= currentTableCount; i++) {
@@ -723,7 +536,7 @@
             }, 100);
         }
 
-        // Fallback: Generate temporary QR codes if Firebase fails
+        // Fallback: Generate temporary QR codes if API fails
         function generateTemporaryQRCodes(tableCount) {
             console.log('⚠️ Using temporary QR generation as fallback');
             
@@ -737,9 +550,10 @@
                 table: 'counter',
                 url: counterUrl,
                 restaurantName: currentRestaurant.name,
-                location: 'Counter'
+                location: 'Counter',
+                isPersistent: false
             });
-            gridHTML += createQRCardHTML('counter', '🏪 Counter', 'For counter orders & takeout', counterUrl, true);
+            gridHTML += createQRCardHTML('counter', '🏪 Counter', 'For counter orders & takeout', counterUrl, true, false);
 
             // Table QRs
             for (let i = 1; i <= tableCount; i++) {
@@ -748,9 +562,10 @@
                     table: i,
                     url: tableUrl,
                     restaurantName: currentRestaurant.name,
-                    location: `Table ${i}`
+                    location: `Table ${i}`,
+                    isPersistent: false
                 });
-                gridHTML += createQRCardHTML(i, `Table ${i}`, 'Dine-in orders', tableUrl, false);
+                gridHTML += createQRCardHTML(i, `Table ${i}`, 'Dine-in orders', tableUrl, false, false);
             }
 
             qrGrid.innerHTML = gridHTML;
@@ -770,16 +585,20 @@
                 }
             }, 100);
 
-            showError('QR codes generated temporarily - save may have failed');
+            showError('QR codes generated temporarily - they may change on refresh. Check your internet connection.');
         }
 
-        // Helper function to create QR card HTML
-        function createQRCardHTML(tableId, title, subtitle, url, isCounter) {
+        // Helper function to create QR card HTML with persistence indicator
+        function createQRCardHTML(tableId, title, subtitle, url, isCounter, isPersistent) {
             const counterClass = isCounter ? 'counter-qr' : '';
             const downloadClass = isCounter ? 'btn-success' : '';
+            const statusBadge = isPersistent 
+                ? '<div class="status-badge status-persistent">✅ Permanent</div>'
+                : '<div class="status-badge status-temporary">⚠️ Temporary</div>';
             
             return `
                 <div class="qr-card ${counterClass}">
+                    ${statusBadge}
                     <div class="table-number">${title}</div>
                     <div class="table-subtitle">${subtitle}</div>
                     <div class="qr-code-container" id="qr-container-${tableId}">
@@ -825,6 +644,70 @@
                         </div>
                     `;
                 }
+            }
+        }
+
+        // TEST FUNCTION - Uses Restaurant API
+        async function testQRGeneration() {
+            try {
+                console.log('🧪 Testing QR generation via Restaurant API...');
+                showLoading('Testing QR generation...');
+                
+                if (!window.VediAPI || !window.VediAPI.generateRestaurantQRCodes) {
+                    throw new Error('Restaurant API not available');
+                }
+                
+                const testResult = await VediAPI.generateRestaurantQRCodes(
+                    currentRestaurant.id, 
+                    baseMenuUrl
+                );
+                
+                console.log('✅ QR generation API test PASSED:', testResult);
+                hideLoading();
+                showSuccess('QR generation API test PASSED! Your QR codes are persistent.');
+                return true;
+                
+            } catch (error) {
+                console.error('❌ QR generation API test FAILED:', error);
+                hideLoading();
+                showError('QR generation API test FAILED: ' + error.message);
+                return false;
+            }
+        }
+
+        // RESET QR CODES - Uses Restaurant API
+        async function resetQRData() {
+            if (!confirm('Are you sure you want to reset all QR codes? This will delete existing QR codes and generate new ones.')) {
+                return;
+            }
+            
+            try {
+                console.log('🔄 Resetting QR data via Restaurant API...');
+                showLoading('Resetting QR data...');
+                
+                if (!window.VediAPI || !window.VediAPI.deleteRestaurantQRCodes) {
+                    throw new Error('Restaurant API not available');
+                }
+                
+                const success = await VediAPI.deleteRestaurantQRCodes(currentRestaurant.id);
+                
+                if (success) {
+                    console.log('✅ QR data deleted via API');
+                    hideLoading();
+                    showSuccess('QR data reset - regenerating...');
+                    
+                    // Wait a moment then regenerate
+                    setTimeout(() => {
+                        generateAllQRCodes();
+                    }, 1000);
+                } else {
+                    throw new Error('Failed to delete QR data');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error resetting QR data via API:', error);
+                hideLoading();
+                showError('Failed to reset QR data: ' + error.message);
             }
         }
 
@@ -975,11 +858,11 @@
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'restaurantDataUpdated') {
                 console.log('Restaurant data updated - refreshing QR codes');
-                location.reload(); // Refresh the entire page to reload restaurant data
+                generateAllQRCodes(); // Regenerate QR codes with new data
             }
         });
 
-        console.log('🔐 QR Code Generator with Secure Initialization and Persistence loaded successfully');
+        console.log('🔐 QR Code Generator with Restaurant API Integration loaded successfully');
     </script>
 </body>
 </html>
