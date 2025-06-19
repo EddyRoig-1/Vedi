@@ -5,31 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Incident Reports - Restaurant Dashboard</title>
     
-   <!-- Firebase Scripts -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
 
-<!-- Firebase Configuration (must be first) -->
-<script src="../firebase-config.js"></script>
+    <!-- Secure Iframe Initialization (REPLACES all other API modules) -->
+    <script src="../Api/core/secure-iframe-init.js"></script>
 
-<!-- Core API Modules -->
-<script src="../Api/core/firebase-init.js"></script>
-<script src="../Api/core/utilities.js"></script>
-<script src="../Api/core/tracking.js"></script>
-
-<!-- Auth API Modules -->
-<script src="../Api/auth/email-auth.js"></script>
-
-<!-- Business API Modules -->
-<script src="../Api/business/restaurants.js"></script>
-
-<!-- Operations API Modules -->
-<script src="../Api/operations/loss-incidents.js"></script>
-
-<!-- Chart.js for analytics -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <!-- Chart.js for analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
     <style>
         * {
@@ -787,83 +773,60 @@
             return typeMap[type] || (type || 'Unknown');
         }
 
+        // ============================================================================
+        // SECURE INITIALIZATION WITH IFRAME INIT
+        // ============================================================================
+
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('📉 Incident Reports initializing...');
+            console.log('📉 Incident Reports initializing with secure iframe init...');
             
-            // Add a delay to ensure parent window's Firebase is loaded
+            // Use secure initialization
             setTimeout(async () => {
                 try {
-                    await initializeIncidentReports();
+                    showLoading(true);
+                    
+                    // Step 1: Secure Firebase inheritance and authentication
+                    console.log('🔐 Starting secure initialization...');
+                    const { user, restaurant } = await initializeIncidentsPage('Incident Reports');
+                    
+                    // Step 2: Set global variables
+                    currentUser = user;
+                    currentRestaurant = restaurant;
+                    
+                    console.log('✅ User authenticated:', currentUser.email);
+                    console.log('✅ Restaurant loaded:', currentRestaurant.name);
+                    
+                    // Step 3: Set currency from restaurant data
+                    appCache.currency = currentRestaurant.currency || { code: 'USD', symbol: '$' };
+                    console.log('💰 Currency loaded:', appCache.currency);
+                    
+                    // Step 4: Setup real-time incident tracking
+                    setupRealtimeTracking();
+                    
+                    // Step 5: Initialize UI
+                    setupFilterHandlers();
+                    await loadIncidentData();
+                    initializeCharts();
+                    
+                    showLoading(false);
+                    showMainContent(true);
+                    
+                    // Auto-refresh every 60 seconds
+                    setInterval(loadIncidentData, 60000);
+                    
+                    console.log('✅ Incident Reports initialized successfully');
+                    
                 } catch (error) {
-                    console.error('❌ Failed to initialize after delay:', error);
-                    // Try to get Firebase from parent window if available
-                    if (window.parent && window.parent.VediAPI) {
-                        console.log('🔄 Using parent window Firebase API...');
-                        window.VediAPI = window.parent.VediAPI;
-                        window.firebase = window.parent.firebase;
-                        await initializeIncidentReports();
-                    } else {
-                        showError('Firebase API not available. Please refresh the page.');
-                    }
+                    console.error('❌ Initialization error:', error);
+                    showSecurityError(error);
+                    showLoading(false);
                 }
             }, 1000);
         });
 
-        async function initializeIncidentReports() {
-            try {
-                showLoading(true);
-                
-                // Check if VediAPI is available
-                if (typeof VediAPI === 'undefined') {
-                    // Try to get from parent window
-                    if (window.parent && window.parent.VediAPI) {
-                        window.VediAPI = window.parent.VediAPI;
-                        window.firebase = window.parent.firebase;
-                    } else {
-                        throw new Error('VediAPI not available. Please check Firebase configuration.');
-                    }
-                }
-                
-                // Get current user
-                currentUser = await VediAPI.getCurrentUser();
-                if (!currentUser) {
-                    throw new Error('Please log in to access incident reports');
-                }
-
-                console.log('✅ User authenticated:', currentUser.name);
-
-                // Get restaurant data
-                currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
-                if (!currentRestaurant) {
-                    throw new Error('No restaurant found for this owner');
-                }
-
-                console.log('✅ Restaurant loaded:', currentRestaurant.name);
-
-                // Set currency from restaurant data
-                appCache.currency = currentRestaurant.currency || { code: 'USD', symbol: '$' };
-                console.log('💰 Currency loaded:', appCache.currency);
-
-                // Setup real-time incident tracking
-                setupRealtimeTracking();
-
-                // Initialize UI
-                setupFilterHandlers();
-                await loadIncidentData();
-                initializeCharts();
-
-                showLoading(false);
-                showMainContent(true);
-
-                // Auto-refresh every 60 seconds
-                setInterval(loadIncidentData, 60000);
-
-            } catch (error) {
-                console.error('❌ Initialization error:', error);
-                showError(error.message);
-                showLoading(false);
-            }
-        }
+        // ============================================================================
+        // REAL-TIME TRACKING AND DATA LOADING
+        // ============================================================================
 
         async function setupRealtimeTracking() {
             try {
@@ -922,6 +885,10 @@
             updateIncidentsGrid();
             updateCharts();
         }
+
+        // ============================================================================
+        // STATS AND UI UPDATES
+        // ============================================================================
 
         function updateStats() {
             const totalIncidents = allIncidents.length;
@@ -1017,6 +984,10 @@
                     `;
                 }).join('');
         }
+
+        // ============================================================================
+        // CHARTS INITIALIZATION AND UPDATES
+        // ============================================================================
 
         function initializeCharts() {
             // Combined Chart showing incident types (stacked bar) with loss amounts (line)
@@ -1128,7 +1099,6 @@
                                 usePointStyle: true,
                                 padding: 15,
                                 filter: function(item, chart) {
-                                    // Only show legend items that have data
                                     return item.text !== 'Total Loss ($)' || true;
                                 }
                             }
@@ -1153,13 +1123,12 @@
                                         if (count > 0) {
                                             return `${context.dataset.label}: ${count} incident${count > 1 ? 's' : ''}`;
                                         }
-                                        return null; // Don't show if 0
+                                        return null;
                                     }
                                 },
                                 footer: function(context) {
-                                    // Calculate total incidents for this time period
                                     let totalIncidents = 0;
-                                    for (let i = 0; i < 6; i++) { // First 6 datasets are incident types
+                                    for (let i = 0; i < 6; i++) {
                                         totalIncidents += context[0].chart.data.datasets[i].data[context[0].dataIndex] || 0;
                                     }
                                     if (totalIncidents > 0) {
@@ -1193,7 +1162,7 @@
                                 color: 'rgba(0, 0, 0, 0.1)'
                             },
                             ticks: {
-                                stepSize: 1, // Force whole numbers
+                                stepSize: 1,
                                 callback: function(value) {
                                     if (Number.isInteger(value)) {
                                         return value;
@@ -1409,7 +1378,10 @@
             return { labels, incidentsByType, totalLoss };
         }
 
-        // Modal and form functions
+        // ============================================================================
+        // MODAL AND FORM FUNCTIONS
+        // ============================================================================
+
         function openReportModal() {
             const modal = document.getElementById('reportModal');
             modal.classList.add('show');
@@ -1504,7 +1476,10 @@
             return categoryMap[type] || 'other';
         }
 
-        // Action functions
+        // ============================================================================
+        // ACTION FUNCTIONS
+        // ============================================================================
+
         async function applyFilters() {
             try {
                 const applyBtn = document.getElementById('applyFiltersBtn');
@@ -1579,8 +1554,8 @@
                     return [
                         date,
                         formatIncidentTypeClean(incident.type || 'other'),
-                        `"${(incident.title || 'Untitled').replace(/"/g, '""')}"`, // Escape quotes
-                        `"${(incident.description || 'No description').replace(/"/g, '""')}"`, // Escape quotes
+                        `"${(incident.title || 'Untitled').replace(/"/g, '""')}"`,
+                        `"${(incident.description || 'No description').replace(/"/g, '""')}"`,
                         incident.amount || 0,
                         incident.severity || 'medium',
                         incident.status || 'reported',
@@ -1631,24 +1606,6 @@
             }
         }
 
-        function getIncidentsByType() {
-            const typeData = {};
-            allIncidents.forEach(incident => {
-                const type = incident.type || 'other';
-                typeData[type] = (typeData[type] || 0) + 1;
-            });
-            return typeData;
-        }
-
-        function getIncidentsBySeverity() {
-            const severityData = { low: 0, medium: 0, high: 0 };
-            allIncidents.forEach(incident => {
-                const severity = incident.severity || 'medium';
-                severityData[severity] = (severityData[severity] || 0) + 1;
-            });
-            return severityData;
-        }
-
         function viewIncidentDetails(incidentId) {
             const incident = allIncidents.find(inc => inc.id === incidentId);
             if (!incident) {
@@ -1671,7 +1628,10 @@
             showNotification('Status update feature coming soon');
         }
 
-        // Utility functions
+        // ============================================================================
+        // UTILITY FUNCTIONS
+        // ============================================================================
+
         function formatCurrency(amount) {
             if (!amount && amount !== 0) return `${appCache.currency.symbol}0.00`;
             return `${appCache.currency.symbol}${Number(amount).toFixed(2)}`;
@@ -1725,7 +1685,7 @@
             }
         });
 
-        console.log('📉 Incident Reports Firebase integration loaded successfully');
+        console.log('📉 Incident Reports with Secure Iframe Init loaded successfully');
     </script>
 </body>
 </html>
