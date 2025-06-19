@@ -962,9 +962,6 @@
                     <div class="nav-tab" data-section="history" onclick="switchTab('history')">
                         Order History
                     </div>
-                    <div class="nav-tab" data-section="analytics" onclick="switchTab('analytics')">
-                        Analytics
-                    </div>
                 </div>
                 
                 <div class="nav-controls">
@@ -1063,51 +1060,6 @@
                     <div class="empty-state-icon">📜</div>
                     <h3>No order history</h3>
                     <p>Completed orders will appear here</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Analytics Section -->
-        <div class="orders-section" id="analytics">
-            <div class="orders-stats">
-                <div class="stat-card">
-                    <div class="stat-number price-display" id="avgOrderValue" data-amount="0">$0</div>
-                    <div class="stat-label">Avg Order Value</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="avgPrepTime">0 min</div>
-                    <div class="stat-label">Avg Prep Time</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="totalOrders">0</div>
-                    <div class="stat-label">Total Orders</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="popularTable">-</div>
-                    <div class="stat-label">Most Popular Table</div>
-                </div>
-            </div>
-
-            <div style="background: white; padding: 30px; border-radius: 15px; text-align: center; margin-top: 20px;">
-                <h3 style="margin-bottom: 15px; color: #333;">Analytics Dashboard</h3>
-                <p style="color: #666; margin-bottom: 20px;">Real-time analytics and reporting for order performance.</p>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
-                        <h4 style="color: #333; margin-bottom: 10px;">Sales Trends</h4>
-                        <p style="color: #666; font-size: 0.9rem;">Daily, weekly, monthly sales analysis</p>
-                    </div>
-                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
-                        <h4 style="color: #333; margin-bottom: 10px;">Popular Items</h4>
-                        <p style="color: #666; font-size: 0.9rem;">Most ordered menu items</p>
-                    </div>
-                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
-                        <h4 style="color: #333; margin-bottom: 10px;">Peak Hours</h4>
-                        <p style="color: #666; font-size: 0.9rem;">Busiest times of day</p>
-                    </div>
-                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
-                        <h4 style="color: #333; margin-bottom: 10px;">Customer Insights</h4>
-                        <p style="color: #666; font-size: 0.9rem;">Customer behavior patterns</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -2394,8 +2346,6 @@
             
             if (tab === 'history') {
                 loadHistoryOrders();
-            } else if (tab === 'analytics') {
-                updateAnalytics();
             }
         }
 
@@ -2454,41 +2404,6 @@
                 debugLog('❌ Failed to mark orders as ready', error.message);
                 hideLoading();
             }
-        }
-
-        function updateAnalytics() {
-            const allOrders = [...liveOrders.values(), ...historyOrders.values()];
-            const completedOrders = allOrders.filter(o => o.status === 'completed');
-            
-            const avgOrderValue = completedOrders.length > 0 
-                ? completedOrders.reduce((sum, order) => sum + order.total, 0) / completedOrders.length 
-                : 0;
-            
-            const avgPrepTime = 15;
-            const totalOrders = allOrders.length;
-            
-            const tableCounts = {};
-            allOrders.forEach(order => {
-                tableCounts[order.tableNumber] = (tableCounts[order.tableNumber] || 0) + 1;
-            });
-            const popularTable = Object.keys(tableCounts).reduce((a, b) => 
-                tableCounts[a] > tableCounts[b] ? a : b, '-'
-            );
-            
-            const avgOrderElement = document.getElementById('avgOrderValue');
-            if (avgOrderElement) {
-                avgOrderElement.setAttribute('data-amount', avgOrderValue);
-                avgOrderElement.textContent = formatPrice(avgOrderValue);
-            }
-            
-            const avgPrepTimeElement = document.getElementById('avgPrepTime');
-            if (avgPrepTimeElement) avgPrepTimeElement.textContent = `${avgPrepTime} min`;
-            
-            const totalOrdersElement = document.getElementById('totalOrders');
-            if (totalOrdersElement) totalOrdersElement.textContent = totalOrders;
-            
-            const popularTableElement = document.getElementById('popularTable');
-            if (popularTableElement) popularTableElement.textContent = popularTable !== '-' ? `Table ${popularTable}` : '-';
         }
 
         // Utility functions
