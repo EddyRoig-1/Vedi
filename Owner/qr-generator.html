@@ -438,13 +438,22 @@
             try {
                 console.log('🔄 Generating QR codes using Restaurant API...');
                 
+                // Try to get VediAPI from current window or parent window
+                let vediAPI = window.VediAPI;
+                if (!vediAPI && window.parent && window.parent !== window) {
+                    vediAPI = window.parent.VediAPI;
+                    console.log('🔍 Using parent window VediAPI');
+                }
+                
                 // Check if VediAPI is available
-                if (!window.VediAPI || !window.VediAPI.generateRestaurantQRCodes) {
+                if (!vediAPI || !vediAPI.generateRestaurantQRCodes) {
                     throw new Error('Restaurant API not available. Please refresh the page.');
                 }
                 
+                console.log('✅ VediAPI found, generating QR codes...');
+                
                 // Use the API method from restaurants.js
-                const qrData = await VediAPI.generateRestaurantQRCodes(
+                const qrData = await vediAPI.generateRestaurantQRCodes(
                     currentRestaurant.id, 
                     baseMenuUrl
                 );
@@ -653,11 +662,18 @@
                 console.log('🧪 Testing QR generation via Restaurant API...');
                 showLoading('Testing QR generation...');
                 
-                if (!window.VediAPI || !window.VediAPI.generateRestaurantQRCodes) {
+                // Try to get VediAPI from current window or parent window
+                let vediAPI = window.VediAPI;
+                if (!vediAPI && window.parent && window.parent !== window) {
+                    vediAPI = window.parent.VediAPI;
+                    console.log('🔍 Using parent window VediAPI for test');
+                }
+                
+                if (!vediAPI || !vediAPI.generateRestaurantQRCodes) {
                     throw new Error('Restaurant API not available');
                 }
                 
-                const testResult = await VediAPI.generateRestaurantQRCodes(
+                const testResult = await vediAPI.generateRestaurantQRCodes(
                     currentRestaurant.id, 
                     baseMenuUrl
                 );
@@ -685,11 +701,18 @@
                 console.log('🔄 Resetting QR data via Restaurant API...');
                 showLoading('Resetting QR data...');
                 
-                if (!window.VediAPI || !window.VediAPI.deleteRestaurantQRCodes) {
+                // Try to get VediAPI from current window or parent window
+                let vediAPI = window.VediAPI;
+                if (!vediAPI && window.parent && window.parent !== window) {
+                    vediAPI = window.parent.VediAPI;
+                    console.log('🔍 Using parent window VediAPI for reset');
+                }
+                
+                if (!vediAPI || !vediAPI.deleteRestaurantQRCodes) {
                     throw new Error('Restaurant API not available');
                 }
                 
-                const success = await VediAPI.deleteRestaurantQRCodes(currentRestaurant.id);
+                const success = await vediAPI.deleteRestaurantQRCodes(currentRestaurant.id);
                 
                 if (success) {
                     console.log('✅ QR data deleted via API');
