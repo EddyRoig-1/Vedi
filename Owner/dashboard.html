@@ -1383,6 +1383,25 @@
             });
         }
 
+        // Wait for VediAPI modules to be ready
+        function waitForVediAPIReady() {
+            return new Promise((resolve) => {
+                const checkVediAPI = () => {
+                    if (window.VediAPI && 
+                        typeof window.VediAPI.getRestaurantByOwner === 'function' &&
+                        typeof window.VediAPI.getMenuCategories === 'function' &&
+                        typeof window.VediAPI.getMenuItems === 'function') {
+                        console.log('✅ VediAPI business functions are ready');
+                        resolve();
+                    } else {
+                        console.log('⏳ Waiting for VediAPI business functions...');
+                        setTimeout(checkVediAPI, 200);
+                    }
+                };
+                checkVediAPI();
+            });
+        }
+
         // Authentication and initialization with DIRECT FIREBASE AUTH
         async function initializeDashboard() {
             console.log('🔄 Starting dashboard initialization...');
@@ -1400,6 +1419,10 @@
                         resolve();
                     });
                 });
+
+                // Wait for VediAPI business functions to be ready
+                console.log('📚 Waiting for VediAPI business modules...');
+                await waitForVediAPIReady();
 
                 // Check authentication with retry logic - DIRECT FIREBASE CALL
                 console.log('🔐 Checking authentication...');
