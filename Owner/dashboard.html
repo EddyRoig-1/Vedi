@@ -1381,7 +1381,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         async function initializeDashboard() {
             console.log('🔄 Starting dashboard initialization...');
             showLoading('Loading dashboard...');
-            
+
+        // Wait for Firebase auth to be ready
+console.log('🔐 Waiting for Firebase auth to initialize...');
+const auth = VediAPI.getFirebaseAuth();
+await new Promise((resolve) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+        unsubscribe();
+        console.log('🔐 Auth state initialized, user:', user ? user.email : 'none');
+        resolve();
+    });
+});
             try {
                 // Check if VediAPI is available
                 if (typeof VediAPI === 'undefined') {
