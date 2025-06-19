@@ -4,7 +4,7 @@
  * 
  * Handles restaurant online/offline status management, business hours checking,
  * and availability status with comprehensive tracking and analytics.
- * Integrates with the AvailabilityStatusAPI functionality.
+ * All methods are properly wrapped in VediAPI for consistent access.
  */
 
 // ============================================================================
@@ -148,6 +148,62 @@ async function getRestaurantStatus(restaurantId) {
 }
 
 /**
+ * Listen to real-time restaurant status changes
+ * @param {string} restaurantId - Restaurant ID
+ * @param {Function} callback - Callback function for status updates
+ * @returns {Function} Unsubscribe function
+ */
+function listenToRestaurantStatus(restaurantId, callback) {
+  try {
+    const db = getFirebaseDb();
+    
+    if (!restaurantId) {
+      throw new Error('Restaurant ID is required');
+    }
+    
+    if (typeof callback !== 'function') {
+      throw new Error('Callback function is required');
+    }
+    
+    console.log('📡 Starting real-time status listener for:', restaurantId);
+    
+    return db.collection('restaurants').doc(restaurantId)
+      .onSnapshot(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          const status = {
+            isOnline: data.isOnline !== false,
+            offlineReason: data.offlineReason || '',
+            statusUpdatedAt: data.statusUpdatedAt,
+            restaurantName: data.name,
+            restaurantId: restaurantId
+          };
+          
+          console.log('🔄 Status update received:', {
+            restaurantId,
+            status: status.isOnline ? 'ONLINE' : 'OFFLINE',
+            reason: status.offlineReason || 'N/A'
+          });
+          
+          callback(status);
+        }
+      }, error => {
+        console.error('❌ Status listener error:', error);
+        // Call callback with default status on error
+        callback({
+          isOnline: true,
+          offlineReason: '',
+          error: error.message
+        });
+      });
+      
+  } catch (error) {
+    console.error('❌ Failed to setup status listener:', error);
+    throw error;
+  }
+}
+
+/**
  * Get multiple restaurants status (for venue managers)
  * @param {Array} restaurantIds - Array of restaurant IDs
  * @returns {Promise<Object>} Status information for all restaurants
@@ -282,6 +338,51 @@ async function checkBusinessHours(restaurantId) {
       error: error.message,
       success: false
     };
+  }
+}
+
+/**
+ * Set automatic business hours monitoring
+ * @param {string} restaurantId - Restaurant ID
+ * @param {boolean} enabled - Enable/disable automatic monitoring
+ * @returns {Promise<Object>} Update result
+ */
+async function setAutomaticHoursMonitoring(restaurantId, enabled = true) {
+  const endTracking = VediAPI.startPerformanceMeasurement('setAutomaticHoursMonitoring');
+  
+  try {
+    const db = getFirebaseDb();
+    
+    if (!restaurantId) {
+      throw new Error('Restaurant ID is required');
+    }
+    
+    await db.collection('restaurants').doc(restaurantId).update({
+      automaticHoursMonitoring: enabled,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    await VediAPI.trackUserActivity('automatic_hours_monitoring_updated', {
+      restaurantId,
+      enabled
+    });
+    
+    await endTracking(true);
+    
+    console.log('✅ Automatic hours monitoring:', enabled ? 'ENABLED' : 'DISABLED');
+    
+    return {
+      restaurantId,
+      automaticHoursMonitoring: enabled,
+      success: true
+    };
+    
+  } catch (error) {
+    await endTracking(false, { error: error.message });
+    await VediAPI.trackError(error, 'setAutomaticHoursMonitoring', { restaurantId, enabled });
+    
+    console.error('❌ Set automatic hours monitoring error:', error);
+    throw error;
   }
 }
 
@@ -571,6 +672,51 @@ async function getAvailabilityAnalytics(restaurantId, options = {}) {
   }
 }
 
+/**
+ * Get current system status and health check
+ * @returns {Promise<Object>} System status information
+ */
+async function getSystemStatus() {
+  const endTracking = VediAPI.startPerformanceMeasurement('getSystemStatus');
+  
+  try {
+    const db = getFirebaseDb();
+    const auth = getFirebaseAuth();
+    
+    // Check Firebase connectivity
+    const connectivityTest = await db.collection('_test').limit(1).get();
+    
+    const status = {
+      firebase: {
+        connected: true,
+        authenticated: !!auth.currentUser,
+        user: auth.currentUser?.uid || null
+      },
+      timestamp: new Date().toISOString(),
+      api: {
+        version: '1.0.0',
+        environment: 'production'
+      },
+      success: true
+    };
+    
+    await endTracking(true);
+    return status;
+    
+  } catch (error) {
+    await endTracking(false, { error: error.message });
+    
+    return {
+      firebase: {
+        connected: false,
+        error: error.message
+      },
+      timestamp: new Date().toISOString(),
+      success: false
+    };
+  }
+}
+
 // ============================================================================
 // GLOBAL EXPORTS AND VEDIAPI INTEGRATION
 // ============================================================================
@@ -580,27 +726,45 @@ if (!window.VediAPI) {
   window.VediAPI = {};
 }
 
-// Attach status management functions to VediAPI
+// Attach ALL status management functions to VediAPI
 Object.assign(window.VediAPI, {
   // Core status management
   updateRestaurantStatus,
   getRestaurantStatus,
+  listenToRestaurantStatus,
   getMultipleRestaurantStatus,
   
   // Business hours and availability
   checkBusinessHours,
+  setAutomaticHoursMonitoring,
   bulkUpdateRestaurantStatus,
   
   // Analytics and history
   getStatusHistory,
   getAvailabilityAnalytics,
-  logStatusChange
+  logStatusChange,
+  
+  // System status
+  getSystemStatus
 });
 
-console.log('🔄 Status Management Module loaded');
-console.log('📊 Status: updateRestaurantStatus, getRestaurantStatus, getMultipleRestaurantStatus');
-console.log('🕐 Hours: checkBusinessHours with operating hours validation');
-console.log('📋 Bulk: bulkUpdateRestaurantStatus for venue managers');
+// Create backward compatibility alias for existing code
+window.AvailabilityStatusAPI = {
+  updateRestaurantStatus: window.VediAPI.updateRestaurantStatus,
+  getRestaurantStatus: window.VediAPI.getRestaurantStatus,
+  listenToRestaurantStatus: window.VediAPI.listenToRestaurantStatus,
+  getMultipleRestaurantStatus: window.VediAPI.getMultipleRestaurantStatus,
+  checkBusinessHours: window.VediAPI.checkBusinessHours,
+  getStatusHistory: window.VediAPI.getStatusHistory,
+  getAvailabilityAnalytics: window.VediAPI.getAvailabilityAnalytics
+};
+
+console.log('🔄 Status Management Module loaded with VediAPI integration');
+console.log('📊 Core: updateRestaurantStatus, getRestaurantStatus, listenToRestaurantStatus');
+console.log('🏢 Multiple: getMultipleRestaurantStatus for venue managers');
+console.log('🕐 Hours: checkBusinessHours, setAutomaticHoursMonitoring');
+console.log('📋 Bulk: bulkUpdateRestaurantStatus for mass operations');
 console.log('📈 Analytics: getStatusHistory, getAvailabilityAnalytics');
-console.log('📝 Tracking: Comprehensive status change logging and analytics');
-console.log('✅ Complete restaurant availability management system');
+console.log('📝 Tracking: Comprehensive logging and system monitoring');
+console.log('🔗 Compatibility: AvailabilityStatusAPI alias maintained');
+console.log('✅ Complete restaurant availability management system with VediAPI');
