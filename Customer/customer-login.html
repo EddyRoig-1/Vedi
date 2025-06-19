@@ -1195,9 +1195,32 @@
 
         // Google Sign-In using VediAPI
         async function signInWithGoogle() {
+            console.log('🔍 DEBUG: signInWithGoogle called');
+            
             // Check restaurant status before proceeding
             if (!isRestaurantOnline) {
+                console.log('🚫 DEBUG: Restaurant offline, blocking sign-in');
                 showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                return;
+            }
+
+            // Check if APIs are loaded
+            console.log('🔍 DEBUG: Checking API availability...');
+            console.log('- VediAPI:', typeof VediAPI);
+            console.log('- CustomerAuthAPI:', typeof CustomerAuthAPI);
+            console.log('- Firebase:', typeof firebase);
+            console.log('- Firebase Auth:', typeof firebase?.auth);
+
+            // Check if VediAPI has signInWithGoogle
+            if (typeof VediAPI === 'undefined') {
+                console.error('❌ VediAPI not loaded!');
+                showError('Authentication system not ready. Please refresh the page.');
+                return;
+            }
+
+            if (typeof VediAPI.signInWithGoogle !== 'function') {
+                console.error('❌ VediAPI.signInWithGoogle not available!');
+                showError('Google sign-in not available. Please try phone authentication.');
                 return;
             }
 
@@ -1205,34 +1228,36 @@
                 setLoading('google', true);
                 hideMessages();
                 
-                console.log('🔍 Initiating Google sign-in via VediAPI...');
+                console.log('🔍 DEBUG: Calling VediAPI.signInWithGoogle...');
                 
-                try {
-                    // Use VediAPI for Google sign-in
-                    const result = await VediAPI.signInWithGoogle();
-                    console.log('✅ Google sign-in successful:', result.user.displayName);
-                    await handleSocialSignInSuccess(result.user, 'google');
-                    
-                } catch (error) {
-                    console.log('🔄 VediAPI popup failed, trying direct Firebase:', error.code);
-                    
-                    if (error.message.includes('popup') || error.message.includes('blocked')) {
-                        // Fallback to direct Firebase redirect
+                // Use VediAPI for Google sign-in
+                const result = await VediAPI.signInWithGoogle();
+                console.log('✅ DEBUG: Google sign-in successful:', result.user.displayName);
+                await handleSocialSignInSuccess(result.user, 'google');
+                
+            } catch (error) {
+                console.error('❌ DEBUG: Google sign-in error:', error);
+                console.error('- Error code:', error.code);
+                console.error('- Error message:', error.message);
+                console.error('- Full error:', error);
+                
+                // Try fallback method
+                if (error.message.includes('popup') || error.message.includes('blocked')) {
+                    console.log('🔄 DEBUG: Trying redirect method...');
+                    try {
                         const provider = new firebase.auth.GoogleAuthProvider();
                         provider.addScope('profile');
                         provider.addScope('email');
                         
                         showInfo('Redirecting to Google sign-in...');
                         await firebase.auth().signInWithRedirect(provider);
-                        
-                    } else {
-                        throw error;
+                    } catch (redirectError) {
+                        console.error('❌ DEBUG: Redirect also failed:', redirectError);
+                        handleSocialSignInError(redirectError, 'Google');
                     }
+                } else {
+                    handleSocialSignInError(error, 'Google');
                 }
-                
-            } catch (error) {
-                console.error('❌ Google sign-in error:', error);
-                handleSocialSignInError(error, 'Google');
             } finally {
                 setLoading('google', false);
             }
@@ -1327,8 +1352,15 @@
             }
         }
 
-        // Handle successful social sign-in
+        // DEBUG VERSION: Handle successful social sign-in
         async function handleSocialSignInSuccess(user, provider) {
+            console.log('🔍 DEBUG: handleSocialSignInSuccess called');
+            console.log('- User:', user);
+            console.log('- Provider:', provider);
+            console.log('- User display name:', user.displayName);
+            console.log('- User email:', user.email);
+            console.log('- User phone:', user.phoneNumber);
+            
             currentSocialUser = user;
             
             // Extract user information
@@ -1336,7 +1368,7 @@
             const userEmail = user.email || '';
             const userPhone = user.phoneNumber || '';
             
-            console.log('👤 Social user info:', {
+            console.log('👤 DEBUG: Extracted user info:', {
                 name: userName,
                 email: userEmail,
                 phone: userPhone,
@@ -1345,13 +1377,25 @@
 
             // Check if user has a phone number
             if (!userPhone) {
+                console.log('📱 DEBUG: No phone number, switching to phone collection phase');
                 // Show phone collection phase
-                switchToPhase('phoneCollectionPhase');
+                try {
+                    switchToPhase('phoneCollectionPhase');
+                    console.log('✅ DEBUG: Successfully switched to phone collection phase');
+                } catch (error) {
+                    console.error('❌ DEBUG: Error switching to phone collection phase:', error);
+                }
                 return;
             }
 
+            console.log('📱 DEBUG: Phone number exists, proceeding to complete sign-in');
             // Proceed directly to menu if phone number exists
-            await completeSocialSignIn(userName, userPhone, userEmail, provider);
+            try {
+                await completeSocialSignIn(userName, userPhone, userEmail, provider);
+                console.log('✅ DEBUG: completeSocialSignIn finished successfully');
+            } catch (error) {
+                console.error('❌ DEBUG: Error in completeSocialSignIn:', error);
+            }
         }
 
         // Handle social sign-in errors
@@ -1435,13 +1479,22 @@
             }
         }
 
-        // Complete social sign-in process using VediAPI
+        // DEBUG VERSION: Complete social sign-in process using VediAPI
         async function completeSocialSignIn(userName, userPhone, userEmail, provider) {
+            console.log('🔍 DEBUG: completeSocialSignIn called');
+            console.log('- userName:', userName);
+            console.log('- userPhone:', userPhone);  
+            console.log('- userEmail:', userEmail);
+            console.log('- provider:', provider);
+            
             try {
+                console.log('📋 DEBUG: Attempting to save customer profile via VediAPI...');
+                
                 // Save customer profile using VediAPI if available
                 try {
                     if (typeof VediAPI !== 'undefined' && currentSocialUser) {
-                        await VediAPI.saveCustomerProfile(currentSocialUser.uid, {
+                        console.log('📋 DEBUG: VediAPI available, saving profile...');
+                        const profileData = {
                             name: userName,
                             email: userEmail,
                             phone: userPhone,
@@ -1450,13 +1503,21 @@
                             restaurantId: restaurantId,
                             tableNumber: tableNumber,
                             location: tableLocation
-                        });
-                        console.log('✅ Customer profile saved via VediAPI');
+                        };
+                        console.log('📋 DEBUG: Profile data to save:', profileData);
+                        
+                        await VediAPI.saveCustomerProfile(currentSocialUser.uid, profileData);
+                        console.log('✅ DEBUG: Customer profile saved via VediAPI');
+                    } else {
+                        console.warn('⚠️ DEBUG: VediAPI not available or no currentSocialUser');
+                        console.log('- VediAPI type:', typeof VediAPI);
+                        console.log('- currentSocialUser:', !!currentSocialUser);
                     }
                 } catch (profileError) {
-                    console.warn('⚠️ Could not save customer profile via VediAPI:', profileError);
+                    console.warn('⚠️ DEBUG: Could not save customer profile via VediAPI:', profileError);
                 }
 
+                console.log('📋 DEBUG: Creating customer session data...');
                 // Create customer session data
                 const customerSession = {
                     name: userName,
@@ -1473,13 +1534,19 @@
                     isAuthenticated: true,
                     isSocialAuth: true
                 };
+                
+                console.log('📋 DEBUG: Customer session created:', customerSession);
 
                 // Store in sessionStorage for immediate use
+                console.log('💾 DEBUG: Storing in sessionStorage...');
                 sessionStorage.setItem('customerSession', JSON.stringify(customerSession));
+                console.log('✅ DEBUG: Session stored in sessionStorage');
 
+                console.log('🎉 DEBUG: Showing success message...');
                 showSuccess(`Welcome ${userName.split(' ')[0]}! Redirecting to menu...`);
                 
                 // Build redirect URL
+                console.log('🔗 DEBUG: Building redirect URL...');
                 const urlParams = new URLSearchParams();
                 urlParams.set('restaurant', restaurantId);
                 if (tableNumber) urlParams.set('table', tableNumber);
@@ -1490,15 +1557,18 @@
                 
                 const redirectUrl = `menu.html?${urlParams.toString()}`;
                 
-                console.log('🔄 Redirecting to menu:', redirectUrl);
+                console.log('🔄 DEBUG: Redirect URL built:', redirectUrl);
+                console.log('🔄 DEBUG: Redirecting to menu in 1500ms...');
                 
                 // Redirect after a short delay
                 setTimeout(() => {
+                    console.log('🔄 DEBUG: Actually redirecting now...');
                     window.location.href = redirectUrl;
                 }, 1500);
                 
             } catch (error) {
-                console.error('❌ Error completing social sign-in:', error);
+                console.error('❌ DEBUG: Error in completeSocialSignIn:', error);
+                console.error('❌ DEBUG: Error stack:', error.stack);
                 showError('Failed to complete sign-in. Please try again.');
             }
         }
