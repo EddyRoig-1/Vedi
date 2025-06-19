@@ -5,27 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Restaurant Settings</title>
     
-    <!-- Firebase Scripts -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
-   
-    <!-- Firebase Configuration -->
-<script src="../firebase-config.js"></script>
-
-<!-- Core API Modules -->
-<script src="../Api/core/firebase-init.js"></script>
-<script src="../Api/core/utilities.js"></script>
-<script src="../Api/core/tracking.js"></script>
-
-<!-- Authentication -->
-<script src="../Api/auth/email-auth.js"></script>
-
-<!-- Business Logic -->
-<script src="../Api/business/restaurants.js"></script>
-<script src="../Api/business/venues.js"></script>
-<script src="../Api/business/venue-sync.js"></script>
+    <!-- SECURE INITIALIZATION - ONLY THIS SCRIPT NEEDED -->
+    <script src="../Api/core/secure-iframe-init.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -1491,39 +1473,25 @@
             DKK: { symbol: 'kr', name: 'Danish Krone', code: 'DKK' }
         };
 
-        // Initialize when page loads
+        // Initialize when page loads using secure initialization
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Enhanced Restaurant Settings with Country Support initializing...');
+            console.log('🔐 Restaurant Settings initializing...');
             
             try {
                 showLoading('Initializing settings...', 'Loading your restaurant data');
                 
-                // Check authentication first
-                console.log('🔐 Checking Firebase authentication...');
-                currentUser = await VediAPI.getCurrentUser();
+                // Use the secure initialization function with required methods for this page
+                const { user, restaurant } = await initializeRestaurantPage('Settings');
                 
-                if (!currentUser) {
-                    showError('Authentication required. Please sign in to access settings.');
-                    hideLoading();
-                    return;
-                }
-                
-                console.log('✅ User authenticated:', currentUser.email);
-                
-                // Load restaurant data from Firebase
-                console.log('🏪 Loading restaurant data from Firebase...');
-                currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
-                
-                if (!currentRestaurant) {
-                    showError('No restaurant found for your account. Please complete restaurant setup first.');
-                    hideLoading();
-                    return;
-                }
-                
+                currentUser = user;
+                currentRestaurant = restaurant;
                 restaurantId = currentRestaurant.id;
+
+                console.log('✅ Secure initialization complete');
+                console.log('✅ User authenticated:', currentUser.name);
                 console.log('✅ Restaurant loaded:', currentRestaurant.name, 'ID:', restaurantId);
                 
-                // Load venue association data with the updated function
+                // Load venue association data
                 await loadVenueAssociationData();
                 
                 // Populate form fields with Firebase data
@@ -1539,16 +1507,16 @@
                 hideLoading();
                 showSuccess('Settings loaded successfully!');
                 
-                console.log('✅ Enhanced Restaurant Settings with Country Support initialization complete');
+                console.log('✅ Restaurant Settings initialization complete');
                 
             } catch (error) {
                 console.error('❌ Settings initialization error:', error);
-                showError('Failed to load settings: ' + error.message);
+                showSecurityError(error);
                 hideLoading();
             }
         });
 
-        // Venue Association Functions - UPDATED
+        // Venue Association Functions
         async function loadAvailableVenues() {
             try {
                 availableVenues = await VediAPI.getAllVenues({ orderBy: 'name', orderDirection: 'asc' });
@@ -1559,7 +1527,6 @@
             }
         }
 
-        // Updated venue loading function to refresh sync status after loading
         async function loadVenueAssociationData() {
             try {
                 console.log('🔄 Loading venue association data...');
@@ -1574,7 +1541,7 @@
                     await loadAvailableVenues();
                 }
                 
-                // Load pending requests (but filter them in setupVenueAssociationUI)
+                // Load pending requests
                 console.log('📨 Loading pending requests...');
                 pendingRequests = await VenueSync.getRestaurantRequests(restaurantId);
                 
@@ -1603,8 +1570,6 @@
                 
                 currentVenueDisplay.style.display = 'block';
                 venueSelectionSection.style.display = 'none';
-                
-                // IMPORTANT: Hide pending requests when restaurant is associated
                 pendingRequestsDisplay.style.display = 'none';
                 
             } else {
@@ -1621,7 +1586,6 @@
                 currentVenueDisplay.style.display = 'none';
                 
                 // Only show pending requests if restaurant is NOT associated
-                // Filter out approved requests since those should have resulted in association
                 const activePendingRequests = pendingRequests.filter(request => 
                     request.status === 'pending' || request.status === 'denied'
                 );
@@ -1761,7 +1725,6 @@
             }
         }
 
-        // Updated refresh function
         async function refreshVenueList() {
             try {
                 showLoading('Refreshing venue information...', 'Loading latest data');
@@ -1914,7 +1877,6 @@
                 if (restaurant.city) document.getElementById('city').value = restaurant.city;
                 if (restaurant.state) document.getElementById('state').value = restaurant.state;
                 if (restaurant.zipCode) document.getElementById('zipCode').value = restaurant.zipCode;
-                // NEW: Populate country field - this is the key line!
                 if (restaurant.country) {
                     console.log('🌍 Loading country:', restaurant.country);
                     document.getElementById('country').value = restaurant.country;
@@ -2035,7 +1997,6 @@
                 formData.city = document.getElementById('city').value.trim();
                 formData.state = document.getElementById('state').value.trim();
                 formData.zipCode = document.getElementById('zipCode').value.trim();
-                // NEW: Save country data - this is the key line!
                 const countryValue = document.getElementById('country').value.trim();
                 console.log('🌍 Saving country value:', countryValue);
                 formData.country = countryValue;
@@ -2331,7 +2292,7 @@
             }
         }
 
-        console.log('🚀 Enhanced Restaurant Settings with Country Support and Firebase integration loaded successfully');
+        console.log('🔐 Restaurant Settings with Secure Initialization loaded successfully');
     </script>
 </body>
 </html>
