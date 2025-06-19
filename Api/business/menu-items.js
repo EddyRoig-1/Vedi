@@ -143,7 +143,7 @@ async function createMenuItem(itemData) {
       inStock: itemData.inStock !== false, // Default to true
       
       // Item details
-      imageUrl: itemData.imageUrl ? VediAPI.sanitizeInput(itemData.imageUrl) : '',
+      imageUrl: itemData.image ? VediAPI.sanitizeInput(itemData.image) : '',
       prepTime: itemData.prepTime || 0, // minutes
       calories: itemData.calories || null,
       
@@ -231,7 +231,7 @@ async function updateMenuItem(itemId, itemData) {
       inStock: itemData.inStock !== undefined ? itemData.inStock : undefined,
       
       // Item details
-      imageUrl: itemData.imageUrl !== undefined ? VediAPI.sanitizeInput(itemData.imageUrl) : undefined,
+      imageUrl: itemData.image !== undefined ? VediAPI.sanitizeInput(itemData.image) : undefined,
       prepTime: itemData.prepTime !== undefined ? itemData.prepTime : undefined,
       calories: itemData.calories !== undefined ? itemData.calories : undefined,
       
