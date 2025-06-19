@@ -5,25 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Code Generator - Table Management</title>
     
-    <!-- Firebase SDK Scripts -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
-
-<!-- Firebase Configuration -->
-<script src="../firebase-config.js"></script>
-
-<!-- Core API Modules -->
-<script src="../Api/core/firebase-init.js"></script>
-<script src="../Api/core/utilities.js"></script>
-<script src="../Api/core/tracking.js"></script>
-
-<!-- Authentication Modules -->
-<script src="../Api/auth/email-auth.js"></script>
-
-<!-- Business Modules -->
-<script src="../Api/business/restaurants.js"></script>
+    <!-- SECURE INITIALIZATION - ONLY THIS SCRIPT NEEDED -->
+    <script src="../Api/core/secure-iframe-init.js"></script>
     
     <style>
         * {
@@ -371,43 +354,33 @@
         let baseMenuUrl = '';
         let existingTableCount = 0; // Track previously generated table count
 
-        // Initialize when page loads
+        // Initialize when page loads using secure initialization
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('QR Generator initializing...');
+            console.log('🔐 QR Generator initializing...');
             
             try {
                 await initializeQRGenerator();
             } catch (error) {
-                console.error('Error initializing QR generator:', error);
-                showError('Failed to load QR generator. Please try refreshing the page.');
+                console.error('❌ Error initializing QR generator:', error);
+                showSecurityError(error);
                 hideLoading();
             }
         });
 
-        // Authentication and initialization
+        // Secure authentication and initialization
         async function initializeQRGenerator() {
             showLoading('Loading QR generator...');
             
             try {
-                // Check authentication
-                currentUser = await VediAPI.getCurrentUser();
-                if (!currentUser) {
-                    console.log('No authenticated user, redirecting to login');
-                    window.location.href = '../Landing-Signup-Login/login.html';
-                    return;
-                }
+                // Use the secure initialization function
+                const { user, restaurant } = await initializeRestaurantPage('QR Generator');
+                
+                currentUser = user;
+                currentRestaurant = restaurant;
 
-                console.log('Authenticated user:', currentUser.email);
-
-                // Load restaurant data
-                currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
-                if (!currentRestaurant) {
-                    console.log('No restaurant found, redirecting to setup');
-                    window.location.href = '../Landing-Signup-Login/restaurant-setup.html';
-                    return;
-                }
-
-                console.log('Loaded restaurant:', currentRestaurant.name);
+                console.log('✅ Secure initialization complete');
+                console.log('✅ User authenticated:', currentUser.name);
+                console.log('✅ Restaurant loaded:', currentRestaurant.name);
 
                 // Set up base URL - this points to customer login page first
                 baseMenuUrl = `${window.location.origin}/Customer/customer-login.html`;
@@ -419,7 +392,7 @@
                 showSuccess('QR codes generated successfully!');
                 
             } catch (error) {
-                console.error('QR generator initialization error:', error);
+                console.error('❌ QR generator initialization error:', error);
                 showError('Failed to load QR generator: ' + error.message);
                 hideLoading();
             }
@@ -794,7 +767,7 @@
             }
         });
 
-        console.log('QR Code Generator with Firebase loaded successfully');
+        console.log('🔐 QR Code Generator with Secure Initialization loaded successfully');
     </script>
 </body>
 </html>
