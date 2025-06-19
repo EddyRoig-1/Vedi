@@ -1389,13 +1389,21 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
                 console.log('✅ VediAPI is available');
 
-                // Check authentication
-                console.log('🔐 Checking authentication...');
-                currentUser = await VediAPI.getCurrentUser();
-                if (!currentUser) {
-                    console.log('❌ No authenticated user, redirecting to login');
-                    window.location.href = '../Landing-Signup-Login/login.html';
-                    return;
+              // Check authentication with retry logic
+console.log('🔐 Checking authentication...');
+currentUser = await VediAPI.getCurrentUser();
+if (!currentUser) {
+    console.log('⏳ No user found, waiting for auth state...');
+    // Wait a bit longer for auth state to initialize
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    currentUser = await VediAPI.getCurrentUser();
+    
+    if (!currentUser) {
+        console.log('❌ No authenticated user after retry, redirecting to login');
+        window.location.href = '../Landing-Signup-Login/login.html';
+        return;
+    }
+}
                 }
                 console.log('✅ Authenticated user:', currentUser.email);
 
