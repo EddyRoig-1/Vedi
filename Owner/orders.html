@@ -1472,18 +1472,18 @@
         async function initializeRestaurantStatusSafely() {
             try {
                 // Check if status API is available
-                if (typeof AvailabilityStatusAPI === 'undefined') {
-                    debugLog('⚠️ AvailabilityStatusAPI not available, using default status');
+                if (typeof VediAPI === 'undefined' || !VediAPI.updateRestaurantStatus) {
+                    debugLog('⚠️ VediAPI status methods not available, using default status');
                     statusApiAvailable = false;
                     updateStatusDisplay({ isOnline: true, offlineReason: '' });
                     return;
                 }
                 
                 statusApiAvailable = true;
-                debugLog('✅ AvailabilityStatusAPI detected');
+                debugLog('✅ VediAPI status methods detected');
                 
                 // Get initial status with timeout
-                const statusPromise = AvailabilityStatusAPI.getRestaurantStatus(currentRestaurant.id);
+                const statusPromise = VediAPI.getRestaurantStatus(currentRestaurant.id);
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Status fetch timeout')), 3000)
                 );
@@ -1492,7 +1492,7 @@
                 updateStatusDisplay(status);
                 
                 // Start listening to status changes (with error handling)
-                statusUpdateListener = AvailabilityStatusAPI.listenToRestaurantStatus(
+                statusUpdateListener = VediAPI.listenToRestaurantStatus(
                     currentRestaurant.id, 
                     (status) => {
                         currentRestaurantStatus = status;
@@ -1621,7 +1621,7 @@
                     statusText.textContent = 'Updating...';
                     
                     // Update status in Firebase
-                    await AvailabilityStatusAPI.updateRestaurantStatus(currentRestaurant.id, isOnline, reason);
+                    await VediAPI.updateRestaurantStatus(currentRestaurant.id, isOnline, reason);
                     
                     // Show success message
                     const statusMessage = isOnline ? 'Restaurant is now ONLINE' : `Restaurant is now OFFLINE${reason ? ': ' + reason : ''}`;
