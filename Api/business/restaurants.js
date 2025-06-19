@@ -24,15 +24,15 @@ async function createRestaurant(restaurantData) {
     const auth = getFirebaseAuth();
     
     // Validate required fields
-    const requiredFields = ['name', 'address', 'city', 'state', 'phone', 'email', 'cuisineType'];
+    const requiredFields = ['name', 'address', 'city', 'state', 'phone'];
     for (const field of requiredFields) {
       if (!restaurantData[field]) {
         throw new Error(`${field} is required`);
       }
     }
     
-    // Validate email format
-    if (!VediAPI.validateEmail(restaurantData.email)) {
+    // Validate email format if provided
+    if (restaurantData.email && !VediAPI.validateEmail(restaurantData.email)) {
       throw new Error('Please provide a valid email address');
     }
     
@@ -41,15 +41,55 @@ async function createRestaurant(restaurantData) {
       throw new Error('Please provide a valid phone number');
     }
     
+    // Process currency data - handle both string and object formats
+    let currencyData = null;
+    if (restaurantData.currency) {
+      if (typeof restaurantData.currency === 'string') {
+        // Legacy string format
+        currencyData = {
+          code: restaurantData.currency,
+          symbol: '$', // Default symbol
+          name: 'US Dollar' // Default name
+        };
+      } else if (typeof restaurantData.currency === 'object') {
+        // New object format
+        currencyData = {
+          code: restaurantData.currency.code || 'USD',
+          symbol: restaurantData.currency.symbol || '$',
+          name: restaurantData.currency.name || 'US Dollar'
+        };
+      }
+    } else {
+      // Default currency
+      currencyData = {
+        code: 'USD',
+        symbol: '$',
+        name: 'US Dollar'
+      };
+    }
+    
+    // Process dining options array
+    const diningOptions = Array.isArray(restaurantData.diningOptions) 
+      ? restaurantData.diningOptions.filter(option => typeof option === 'string' && option.trim())
+      : [];
+    
+    // Process payment methods array
+    const paymentMethods = Array.isArray(restaurantData.paymentMethods) 
+      ? restaurantData.paymentMethods.filter(method => typeof method === 'string' && method.trim())
+      : [];
+    
+    // Process operating hours
+    const operatingHours = restaurantData.operatingHours || {};
+    
     // Clean and structure restaurant data
     const restaurant = VediAPI.removeUndefinedValues({
       // Basic Information
       name: VediAPI.sanitizeInput(restaurantData.name),
       description: restaurantData.description ? VediAPI.sanitizeInput(restaurantData.description) : '',
-      cuisineType: VediAPI.sanitizeInput(restaurantData.cuisineType),
+      cuisineType: restaurantData.cuisineType ? VediAPI.sanitizeInput(restaurantData.cuisineType) : '',
       
       // Contact Information
-      email: VediAPI.sanitizeInput(restaurantData.email.toLowerCase()),
+      email: restaurantData.email ? VediAPI.sanitizeInput(restaurantData.email.toLowerCase()) : '',
       phone: VediAPI.sanitizeInput(restaurantData.phone),
       website: restaurantData.website ? VediAPI.sanitizeInput(restaurantData.website) : '',
       
@@ -60,10 +100,26 @@ async function createRestaurant(restaurantData) {
       zipCode: restaurantData.zipCode ? VediAPI.sanitizeInput(restaurantData.zipCode) : '',
       country: restaurantData.country ? VediAPI.sanitizeInput(restaurantData.country) : 'US',
       
+      // Venue/Location Information
+      venueLocation: restaurantData.venueLocation ? VediAPI.sanitizeInput(restaurantData.venueLocation) : '',
+      
       // Business Information
       licenseNumber: restaurantData.licenseNumber ? VediAPI.sanitizeInput(restaurantData.licenseNumber) : '',
       taxId: restaurantData.taxId ? VediAPI.sanitizeInput(restaurantData.taxId) : '',
-      currency: restaurantData.currency || 'USD',
+      
+      // Currency Information (as object)
+      currency: currencyData,
+      
+      // Operational Information
+      tableCount: restaurantData.tableCount ? parseInt(restaurantData.tableCount) : null,
+      seatingCapacity: restaurantData.seatingCapacity ? parseInt(restaurantData.seatingCapacity) : null,
+      
+      // Service Options
+      diningOptions: diningOptions,
+      paymentMethods: paymentMethods,
+      
+      // Operating Hours
+      operatingHours: operatingHours,
       
       // Operational Settings
       isOnline: restaurantData.isOnline !== false, // Default to true
@@ -76,12 +132,12 @@ async function createRestaurant(restaurantData) {
       venueName: restaurantData.venueName || null,
       venueAddress: restaurantData.venueAddress || null,
       
-      // Operating Hours (if provided)
-      operatingHours: restaurantData.operatingHours || null,
-      
       // Owner Information
       ownerUserId: auth.currentUser?.uid || restaurantData.ownerUserId,
       ownerName: restaurantData.ownerName ? VediAPI.sanitizeInput(restaurantData.ownerName) : '',
+      
+      // Setup Status
+      setupCompleted: restaurantData.setupCompleted || false,
       
       // Status and Verification
       status: 'active',
@@ -104,7 +160,11 @@ async function createRestaurant(restaurantData) {
       restaurantName: restaurant.name,
       cuisineType: restaurant.cuisineType,
       ownerUserId: restaurant.ownerUserId,
-      hasVenue: !!restaurant.venueId
+      hasVenue: !!restaurant.venueId,
+      tableCount: restaurant.tableCount,
+      currency: restaurant.currency.code,
+      diningOptionsCount: restaurant.diningOptions.length,
+      setupCompleted: restaurant.setupCompleted
     });
     
     await endTracking(true);
@@ -139,6 +199,42 @@ async function updateRestaurant(restaurantId, restaurantData) {
       throw new Error('Restaurant not found');
     }
     
+    // Process currency data if provided
+    let currencyData = undefined;
+    if (restaurantData.currency !== undefined) {
+      if (typeof restaurantData.currency === 'string') {
+        // Legacy string format
+        currencyData = {
+          code: restaurantData.currency,
+          symbol: '$', // Default symbol
+          name: 'US Dollar' // Default name
+        };
+      } else if (typeof restaurantData.currency === 'object' && restaurantData.currency !== null) {
+        // New object format
+        currencyData = {
+          code: restaurantData.currency.code || 'USD',
+          symbol: restaurantData.currency.symbol || '$',
+          name: restaurantData.currency.name || 'US Dollar'
+        };
+      }
+    }
+    
+    // Process dining options array if provided
+    let diningOptions = undefined;
+    if (restaurantData.diningOptions !== undefined) {
+      diningOptions = Array.isArray(restaurantData.diningOptions) 
+        ? restaurantData.diningOptions.filter(option => typeof option === 'string' && option.trim())
+        : [];
+    }
+    
+    // Process payment methods array if provided
+    let paymentMethods = undefined;
+    if (restaurantData.paymentMethods !== undefined) {
+      paymentMethods = Array.isArray(restaurantData.paymentMethods) 
+        ? restaurantData.paymentMethods.filter(method => typeof method === 'string' && method.trim())
+        : [];
+    }
+    
     // Sanitize and validate updates
     const updates = VediAPI.removeUndefinedValues({
       // Basic Information
@@ -147,7 +243,8 @@ async function updateRestaurant(restaurantId, restaurantData) {
       cuisineType: restaurantData.cuisineType ? VediAPI.sanitizeInput(restaurantData.cuisineType) : undefined,
       
       // Contact Information
-      email: restaurantData.email ? VediAPI.sanitizeInput(restaurantData.email.toLowerCase()) : undefined,
+      email: restaurantData.email !== undefined ? 
+        (restaurantData.email ? VediAPI.sanitizeInput(restaurantData.email.toLowerCase()) : '') : undefined,
       phone: restaurantData.phone ? VediAPI.sanitizeInput(restaurantData.phone) : undefined,
       website: restaurantData.website !== undefined ? VediAPI.sanitizeInput(restaurantData.website) : undefined,
       
@@ -158,10 +255,28 @@ async function updateRestaurant(restaurantId, restaurantData) {
       zipCode: restaurantData.zipCode !== undefined ? VediAPI.sanitizeInput(restaurantData.zipCode) : undefined,
       country: restaurantData.country ? VediAPI.sanitizeInput(restaurantData.country) : undefined,
       
+      // Venue/Location Information
+      venueLocation: restaurantData.venueLocation !== undefined ? VediAPI.sanitizeInput(restaurantData.venueLocation) : undefined,
+      
       // Business Information
       licenseNumber: restaurantData.licenseNumber !== undefined ? VediAPI.sanitizeInput(restaurantData.licenseNumber) : undefined,
       taxId: restaurantData.taxId !== undefined ? VediAPI.sanitizeInput(restaurantData.taxId) : undefined,
-      currency: restaurantData.currency ? VediAPI.sanitizeInput(restaurantData.currency) : undefined,
+      
+      // Currency Information (as object)
+      currency: currencyData,
+      
+      // Operational Information
+      tableCount: restaurantData.tableCount !== undefined ? 
+        (restaurantData.tableCount ? parseInt(restaurantData.tableCount) : null) : undefined,
+      seatingCapacity: restaurantData.seatingCapacity !== undefined ? 
+        (restaurantData.seatingCapacity ? parseInt(restaurantData.seatingCapacity) : null) : undefined,
+      
+      // Service Options
+      diningOptions: diningOptions,
+      paymentMethods: paymentMethods,
+      
+      // Operating Hours
+      operatingHours: restaurantData.operatingHours !== undefined ? restaurantData.operatingHours : undefined,
       
       // Operational Settings
       isOnline: restaurantData.isOnline !== undefined ? restaurantData.isOnline : undefined,
@@ -174,8 +289,8 @@ async function updateRestaurant(restaurantId, restaurantData) {
       venueName: restaurantData.venueName !== undefined ? restaurantData.venueName : undefined,
       venueAddress: restaurantData.venueAddress !== undefined ? restaurantData.venueAddress : undefined,
       
-      // Operating Hours
-      operatingHours: restaurantData.operatingHours !== undefined ? restaurantData.operatingHours : undefined,
+      // Setup Status
+      setupCompleted: restaurantData.setupCompleted !== undefined ? restaurantData.setupCompleted : undefined,
       
       // Status Updates
       status: restaurantData.status ? VediAPI.sanitizeInput(restaurantData.status) : undefined,
@@ -187,7 +302,7 @@ async function updateRestaurant(restaurantId, restaurantData) {
     });
     
     // Validate email if provided
-    if (updates.email && !VediAPI.validateEmail(updates.email)) {
+    if (updates.email && updates.email !== '' && !VediAPI.validateEmail(updates.email)) {
       throw new Error('Please provide a valid email address');
     }
     
@@ -207,7 +322,8 @@ async function updateRestaurant(restaurantId, restaurantData) {
     await VediAPI.trackUserActivity('restaurant_updated', {
       restaurantId: restaurantId,
       fieldsUpdated: Object.keys(updates),
-      restaurantName: updatedRestaurant.name
+      restaurantName: updatedRestaurant.name,
+      setupCompleted: updatedRestaurant.setupCompleted
     });
     
     await endTracking(true);
@@ -730,4 +846,6 @@ console.log('🏢 Venue: getRestaurantsByVenue - venue association support');
 console.log('📊 Listing: getAllRestaurants with advanced filtering and pagination');
 console.log('🔄 Status: updateRestaurantStatus, updateRestaurantVerification');
 console.log('🔍 Search: searchRestaurants, getRestaurantsByCuisine, getRestaurantsByLocation');
+console.log('💰 Enhanced: Full currency object support, dining options, payment methods, operating hours');
+console.log('🔧 Complete: Table count, seating capacity, venue location, setup completion tracking');
 console.log('✅ Comprehensive validation, tracking, and error handling included');
