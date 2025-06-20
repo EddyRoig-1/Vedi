@@ -994,26 +994,51 @@
             }
         });
 
-        // Data loading functions
+        // Load menu section specifically when data changes (EXACT COPY FROM WORKING VERSION)
         async function loadMenuData() {
             try {
                 console.log('📋 Loading menu data for restaurant:', currentRestaurant.id);
                 
+                // Load categories and menu items using VediAPI - BUSINESS LOGIC
+                console.log('🗂️ Fetching categories...');
                 const categoriesData = await VediAPI.getMenuCategories(currentRestaurant.id);
+                console.log('📊 Categories count:', categoriesData ? categoriesData.length : 'null/undefined');
+                
+                console.log('🍽️ Fetching menu items...');
                 const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
+                console.log('📊 Menu items count:', menuItemsData ? menuItemsData.length : 'null/undefined');
 
+                // Set categories by order
                 categories = categoriesData ? categoriesData.sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
                 menuItems = menuItemsData || [];
 
+                console.log('✅ Final processed data:');
+                console.log('  - Categories:', categories.length, categories);
+                console.log('  - Menu Items:', menuItems.length, menuItems);
+
+                // Render UI
+                console.log('🎨 Rendering categories...');
                 renderCategories();
-                renderMenuItems();
-                populateCategoryFilter();
                 
-                console.log('✅ Menu data loaded successfully!');
+                console.log('🎨 Rendering menu items...');
+                renderMenuItems();
+                
+                console.log('🔄 Populating category filter...');
+                if (document.getElementById('categoryFilter')) {
+                    populateCategoryFilter();
+                }
+
+                console.log('✅ Menu data loading complete!');
 
             } catch (error) {
                 console.error('❌ Error loading menu data:', error);
-                showError('Failed to load menu data: ' + error.message);
+                
+                if (error.message && error.message.includes('index')) {
+                    showError('Database index missing. Please create the required Firestore index by clicking the link in the console, then refresh the page.');
+                } else {
+                    showError('Failed to load menu data: ' + error.message);
+                }
+                throw error;
             }
         }
 
@@ -1306,16 +1331,20 @@
             editingItem = menuItems.find(item => item.id === id);
             if (!editingItem) return;
             
+            // Set modal title and button
             document.getElementById('itemModalTitle').textContent = 'Edit Menu Item';
             document.getElementById('itemSubmitBtn').textContent = 'Update Item';
             
+            // Populate form fields
             document.getElementById('itemName').value = editingItem.name;
             document.getElementById('itemDescription').value = editingItem.description || '';
             document.getElementById('itemPrice').value = editingItem.price;
             
+            // Set stock status
             currentStockStatus = editingItem.inStock !== false;
             updateStockStatusUI();
             
+            // Handle image
             if (editingItem.image) {
                 currentImageData = editingItem.image;
                 showImagePreview(editingItem.image);
@@ -1324,8 +1353,10 @@
                 removeImage(new Event('click'));
             }
             
+            // Open modal and set category
             openModal('addItemModal');
             
+            // Set category after modal opens
             setTimeout(() => {
                 document.getElementById('itemCategory').value = editingItem.categoryId;
                 setAllergenCheckboxes(editingItem.allergens || []);
@@ -1338,6 +1369,8 @@
             }
             
             try {
+                showLoading('Deleting menu item...');
+                
                 await VediAPI.deleteMenuItem(id);
                 menuItems = menuItems.filter(item => item.id !== id);
                 
@@ -1348,6 +1381,8 @@
             } catch (error) {
                 console.error('Error deleting menu item:', error);
                 showError('Failed to delete menu item: ' + error.message);
+            } finally {
+                hideLoading();
             }
         }
 
@@ -1551,10 +1586,14 @@
             }
         }
 
-        // Modal functions
+        // Modal functions (EXACT COPY FROM WORKING VERSION)
         function openModal(modalId) {
+            console.log('🔄 Opening modal:', modalId);
             const modal = document.getElementById(modalId);
-            if (!modal) return;
+            if (!modal) {
+                console.error('❌ Modal not found:', modalId);
+                return;
+            }
             
             modal.classList.add('show');
             
@@ -1571,6 +1610,8 @@
                     removeImage(new Event('click'));
                 }
             }
+            
+            console.log('✅ Modal opened successfully:', modalId);
         }
 
         function closeModal(modalId) {
@@ -1608,7 +1649,37 @@
             return `${currency.symbol}${formattedAmount}`;
         }
 
-        // Notification functions
+        // Loading and notification functions (EXACT COPY FROM WORKING VERSION)
+        function showLoading(message = 'Loading...') {
+            // Create a simple loading overlay for the iframe
+            let overlay = document.getElementById('iframeLoadingOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'iframeLoadingOverlay';
+                overlay.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.5); display: flex; align-items: center;
+                    justify-content: center; z-index: 9999;
+                `;
+                overlay.innerHTML = `
+                    <div style="background: white; padding: 30px; border-radius: 15px; text-align: center;">
+                        <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px;"></div>
+                        <p id="loadingMessage">${message}</p>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+            } else {
+                document.getElementById('loadingMessage').textContent = message;
+                overlay.style.display = 'flex';
+            }
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('iframeLoadingOverlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+        }
         function showNotification(message, type = 'success') {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
