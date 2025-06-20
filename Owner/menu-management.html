@@ -2164,22 +2164,46 @@
         async function saveCategoriesOrder() {
             try {
                 console.log('💾 Saving categories order...');
+                console.log('🔍 Available VediAPI functions:', Object.keys(VediAPI));
+                console.log('🔍 reorderMenuCategories available:', typeof VediAPI.reorderMenuCategories);
+                
                 showLoading('Updating category order...');
                 
-                // Use the existing reorderMenuCategories function from menu-categories.js
+                // Get the category IDs in the new order
                 const categoryIds = categories.map(cat => cat.id);
                 console.log('📝 New category order:', categoryIds);
                 
-                await VediAPI.reorderMenuCategories(currentRestaurant.id, categoryIds);
+                // Check if the function exists, if not use direct Firebase approach
+                if (typeof VediAPI.reorderMenuCategories === 'function') {
+                    console.log('✅ Using VediAPI.reorderMenuCategories');
+                    await VediAPI.reorderMenuCategories(currentRestaurant.id, categoryIds);
+                } else {
+                    console.log('⚠️ VediAPI.reorderMenuCategories not available, using direct Firebase');
+                    // Fallback to direct Firebase update
+                    const db = firebase.firestore();
+                    const batch = db.batch();
+                    
+                    categories.forEach((category, index) => {
+                        const categoryRef = db.collection('menuCategories').doc(category.id);
+                        batch.update(categoryRef, { 
+                            order: index,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        console.log(`📝 Setting category "${category.name}" to order ${index}`);
+                    });
+                    
+                    await batch.commit();
+                    console.log('✅ Categories order saved via direct Firebase');
+                }
                 
                 // Update local categories with new order
                 categories.forEach((category, index) => {
-                    category.order = index + 1;
+                    category.order = index;
                 });
                 
                 hideLoading();
                 showSuccess('Category order updated successfully!');
-                console.log('✅ Categories order saved using reorderMenuCategories');
+                console.log('✅ Categories order saved successfully');
                 
             } catch (error) {
                 console.error('❌ Error saving categories order:', error);
