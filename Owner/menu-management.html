@@ -307,9 +307,30 @@
             border-color: #667eea;
         }
 
+        /* Category Drag and Drop */
         .category-card.dragging {
             opacity: 0.5;
-            transform: rotate(5deg);
+            transform: rotate(2deg) scale(1.02);
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .category-card.drag-over {
+            border-color: #667eea;
+            background: #f0f3ff;
+            transform: translateY(-2px);
+        }
+
+        .drag-handle {
+            font-size: 1.2rem;
+            color: #adb5bd;
+            cursor: grab;
+            padding: 5px;
+            transition: color 0.3s ease;
+        }
+
+        .drag-handle:hover {
+            color: #667eea;
         }
 
         .drag-handle:active {
@@ -883,10 +904,7 @@
     </div>
 
     <div class="container">
-        <div class="header">
-            <h1 id="pageTitle">Menu Management</h1>
-            <p>Manage your restaurant's menu categories and items</p>
-        </div>
+
 
         <div class="menu-navigation">
             <div class="nav-tabs">
@@ -1397,16 +1415,25 @@
             }
 
             console.log('🔄 Rendering categories...');
-            const categoryHTML = categories.map(category => {
+            const categoryHTML = categories.map((category, index) => {
                 console.log('🏷️ Rendering category:', category.name, 'ID:', category.id);
                 const itemCount = menuItems.filter(item => item.categoryId === category.id).length;
                 const inStockCount = menuItems.filter(item => item.categoryId === category.id && item.inStock !== false).length;
                 const outOfStockCount = itemCount - inStockCount;
                 
                 return `
-                    <div class="category-card" data-category-id="${category.id}">
+                    <div class="category-card" 
+                         data-category-id="${category.id}" 
+                         data-order="${category.order || index}"
+                         draggable="true"
+                         ondragstart="handleDragStart(event)"
+                         ondragover="handleDragOver(event)"
+                         ondrop="handleDrop(event)"
+                         ondragend="handleDragEnd(event)"
+                         ondragenter="handleDragEnter(event)"
+                         ondragleave="handleDragLeave(event)">
                         <div class="category-left">
-                            <div class="drag-handle">⋮⋮</div>
+                            <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
                             <div class="category-info">
                                 <div class="category-name" onclick="editCategoryName('${category.id}')">${category.name}</div>
                                 <div class="category-count">${itemCount} items${outOfStockCount > 0 ? ` (${outOfStockCount} out of stock)` : ''}</div>
@@ -1993,7 +2020,7 @@
             }
         }
 
-               // Currency utility functions
+                // Currency utility functions
         function getRestaurantCurrency() {
             if (currentRestaurant && currentRestaurant.currency) {
                 return currentRestaurant.currency;
@@ -2051,6 +2078,113 @@
 
         function showError(message) {
             showNotification(message, 'error');
+        }
+
+        // Drag and Drop functionality for category reordering
+        let draggedElement = null;
+
+        function handleDragStart(event) {
+            draggedElement = event.target.closest('.category-card');
+            draggedElement.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/html', draggedElement.outerHTML);
+            console.log('🔄 Drag started for category:', draggedElement.dataset.categoryId);
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleDragEnter(event) {
+            event.preventDefault();
+            const target = event.target.closest('.category-card');
+            if (target && target !== draggedElement) {
+                target.classList.add('drag-over');
+            }
+        }
+
+        function handleDragLeave(event) {
+            const target = event.target.closest('.category-card');
+            if (target) {
+                target.classList.remove('drag-over');
+            }
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            const target = event.target.closest('.category-card');
+            
+            if (target && target !== draggedElement) {
+                const draggedId = draggedElement.dataset.categoryId;
+                const targetId = target.dataset.categoryId;
+                
+                console.log('🔄 Dropping category', draggedId, 'onto', targetId);
+                
+                // Find the categories
+                const draggedIndex = categories.findIndex(cat => cat.id === draggedId);
+                const targetIndex = categories.findIndex(cat => cat.id === targetId);
+                
+                if (draggedIndex !== -1 && targetIndex !== -1) {
+                    // Reorder the categories array
+                    const [draggedCategory] = categories.splice(draggedIndex, 1);
+                    categories.splice(targetIndex, 0, draggedCategory);
+                    
+                    // Update order values
+                    categories.forEach((cat, index) => {
+                        cat.order = index + 1;
+                    });
+                    
+                    // Save the new order to Firebase
+                    saveCategoriesOrder();
+                    
+                    // Re-render categories
+                    renderCategories();
+                    populateCategoryFilter();
+                }
+            }
+            
+            // Clean up
+            document.querySelectorAll('.category-card').forEach(card => {
+                card.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragEnd(event) {
+            if (draggedElement) {
+                draggedElement.classList.remove('dragging');
+            }
+            document.querySelectorAll('.category-card').forEach(card => {
+                card.classList.remove('drag-over');
+            });
+            draggedElement = null;
+        }
+
+        // Save categories order to Firebase
+        async function saveCategoriesOrder() {
+            try {
+                console.log('💾 Saving categories order...');
+                
+                // Update each category's order in Firebase
+                const updatePromises = categories.map(async (category, index) => {
+                    const updatedOrder = index + 1;
+                    if (category.order !== updatedOrder) {
+                        return VediAPI.updateMenuCategory(category.id, { order: updatedOrder });
+                    }
+                    return Promise.resolve();
+                });
+                
+                await Promise.all(updatePromises);
+                showSuccess('Category order updated successfully!');
+                console.log('✅ Categories order saved');
+                
+            } catch (error) {
+                console.error('❌ Error saving categories order:', error);
+                showError('Failed to save category order: ' + error.message);
+                
+                // Reload data to restore original order
+                await loadMenuData();
+            }
         }
 
         console.log('🎉 Menu Management loaded successfully');
