@@ -5,8 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Menu Management</title>
     
-    <!-- SECURE IFRAME INITIALIZATION -->
-    <script src="../Api/core/secure-iframe-init.js"></script>
+    <!-- FIREBASE CONFIGURATION AND CORE INITIALIZATION -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    
+    <!-- CORE API MODULES -->
+    <script src="../Api/core/firebase-init.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    
+    <!-- AUTHENTICATION MODULES -->
+    <script src="../Api/auth/email-auth.js"></script>
+
+    <!-- VediAPI Orders -->
+    <script src="../Api/orders/order-management.js"></script>
+    <script src="../Api/orders/order-tracking.js"></script>
+    
+    <!-- BUSINESS MANAGEMENT MODULES -->
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/business/venues.js"></script>
+    <script src="../Api/business/venue-sync.js"></script>
+    <script src="../Api/business/menu-categories.js"></script>
+    <script src="../Api/business/menu-items.js"></script>
+    
+    <!-- OPERATIONS MODULES -->
+    <script src="../Api/operations/loss-incidents.js"></script>
+    
+    <!-- REAL-TIME DATA MODULES -->
+    <script src="../Api/realtime/listeners.js"></script>
     
     <style>
         * {
@@ -153,6 +182,51 @@
             font-size: 0.85rem;
         }
 
+        /* Loading States */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .loading-card .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border-width: 4px;
+            margin: 0 auto 15px;
+        }
+
         /* Categories Section */
         .categories-grid {
             display: flex;
@@ -231,6 +305,15 @@
         .category-name-input:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .category-card.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
         }
 
         /* Menu Items Section */
@@ -698,21 +781,23 @@
             padding: 40px 20px;
         }
 
-        /* Loading States */
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 8px;
+        /* Error States */
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #fecaca;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .success-message {
+            background: #dcfce7;
+            color: #16a34a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #bbf7d0;
         }
 
         /* Notification Styles */
@@ -789,7 +874,20 @@
     </style>
 </head>
 <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p>Loading menu management...</p>
+        </div>
+    </div>
+
     <div class="container">
+        <div class="header">
+            <h1 id="pageTitle">Menu Management</h1>
+            <p>Manage your restaurant's menu categories and items</p>
+        </div>
+
         <div class="menu-navigation">
             <div class="nav-tabs">
                 <div class="nav-tab active" data-section="categories">Categories</div>
@@ -935,7 +1033,7 @@
         let editingCategoryId = null;
         let currentStockStatus = true; // true = in stock, false = out of stock
 
-        // Common allergens list
+        // Common allergens list (EXACT COPY FROM DASHBOARD)
         const commonAllergens = [
             { id: 'nuts', name: 'Tree Nuts', icon: '🥜' },
             { id: 'peanuts', name: 'Peanuts', icon: '🥜' },
@@ -951,50 +1049,290 @@
             { id: 'spicy', name: 'Spicy Food', icon: '🌶️' }
         ];
 
-        // Initialize app using secure iframe init
+        // Initialize app with DIRECT FIREBASE AUTH (EXACT COPY FROM DASHBOARD)
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Menu Management initializing...');
             
-            try {
-                // Use the specialized menu page initializer
-                const { user, restaurant, categories: loadedCategories, menuItems: loadedMenuItems } = 
-                    await window.initializeMenuPage('Menu Management');
+            // Wait for Firebase to be ready
+            console.log('⏳ Waiting for Firebase to initialize...');
+            await waitForFirebaseReady();
+            
+            // FORCE ATTACH missing VediAPI functions after a delay
+            setTimeout(() => {
+                console.log('🔧 FORCE attaching missing VediAPI functions...');
                 
-                // Set global variables
-                currentUser = user;
-                currentRestaurant = restaurant;
-                categories = loadedCategories.sort((a, b) => (a.order || 0) - (b.order || 0));
-                menuItems = loadedMenuItems;
-                
-                console.log('✅ Restaurant loaded:', currentRestaurant.name);
-                console.log('✅ Categories loaded:', categories.length);
-                console.log('✅ Menu items loaded:', menuItems.length);
-
-                // Render the data
-                renderCategories();
-                renderMenuItems();
-                populateCategoryFilter();
-                
-                // Setup UI
-                setupNavigation();
-                setupModals();
-                populateAllergenCheckboxes();
-                
-                console.log('✅ Menu Management initialized successfully!');
-                
-            } catch (error) {
-                console.error('❌ Error initializing Menu Management:', error);
-                
-                // Use the enhanced error handling from secure iframe init
-                if (window.showSecurityError) {
-                    window.showSecurityError(error);
-                } else {
-                    showError('Failed to load menu management: ' + error.message);
+                // Ensure VediAPI exists
+                if (!window.VediAPI) {
+                    window.VediAPI = {};
                 }
+                
+                // Add dummy tracking functions if missing (tracking is disabled)
+                if (!window.VediAPI.startPerformanceMeasurement) {
+                    window.VediAPI.startPerformanceMeasurement = function(operation) {
+                        return function(success, data) {
+                            // Dummy function - tracking disabled
+                            return Promise.resolve();
+                        };
+                    };
+                }
+                if (!window.VediAPI.trackError) {
+                    window.VediAPI.trackError = function(error, context, data) {
+                        // Dummy function - tracking disabled
+                        return Promise.resolve();
+                    };
+                }
+                if (!window.VediAPI.trackUserActivity) {
+                    window.VediAPI.trackUserActivity = function(activity, data) {
+                        // Dummy function - tracking disabled
+                        return Promise.resolve();
+                    };
+                }
+                
+                // Check if business functions are missing and force attach them
+                if (!window.VediAPI.getRestaurantByOwner && window.getRestaurantByOwner) {
+                    window.VediAPI.getRestaurantByOwner = window.getRestaurantByOwner;
+                }
+                if (!window.VediAPI.createRestaurant && window.createRestaurant) {
+                    window.VediAPI.createRestaurant = window.createRestaurant;
+                }
+                if (!window.VediAPI.updateRestaurant && window.updateRestaurant) {
+                    window.VediAPI.updateRestaurant = window.updateRestaurant;
+                }
+                if (!window.VediAPI.getMenuCategories && window.getMenuCategories) {
+                    window.VediAPI.getMenuCategories = window.getMenuCategories;
+                }
+                if (!window.VediAPI.getMenuItems && window.getMenuItems) {
+                    window.VediAPI.getMenuItems = window.getMenuItems;
+                }
+                if (!window.VediAPI.createMenuCategory && window.createMenuCategory) {
+                    window.VediAPI.createMenuCategory = window.createMenuCategory;
+                }
+                if (!window.VediAPI.createMenuItem && window.createMenuItem) {
+                    window.VediAPI.createMenuItem = window.createMenuItem;
+                }
+                if (!window.VediAPI.updateMenuItem && window.updateMenuItem) {
+                    window.VediAPI.updateMenuItem = window.updateMenuItem;
+                }
+                if (!window.VediAPI.deleteMenuItem && window.deleteMenuItem) {
+                    window.VediAPI.deleteMenuItem = window.deleteMenuItem;
+                }
+                if (!window.VediAPI.updateMenuCategory && window.updateMenuCategory) {
+                    window.VediAPI.updateMenuCategory = window.updateMenuCategory;
+                }
+                if (!window.VediAPI.deleteMenuCategory && window.deleteMenuCategory) {
+                    window.VediAPI.deleteMenuCategory = window.deleteMenuCategory;
+                }
+                if (!window.VediAPI.updateItemStock && window.updateItemStock) {
+                    window.VediAPI.updateItemStock = window.updateItemStock;
+                }
+                
+                // Add utility functions if missing
+                if (!window.VediAPI.removeUndefinedValues && window.removeUndefinedValues) {
+                    window.VediAPI.removeUndefinedValues = window.removeUndefinedValues;
+                }
+                if (!window.VediAPI.sanitizeInput && window.sanitizeInput) {
+                    window.VediAPI.sanitizeInput = window.sanitizeInput;
+                }
+                if (!window.VediAPI.validateEmail && window.validateEmail) {
+                    window.VediAPI.validateEmail = window.validateEmail;
+                }
+                if (!window.VediAPI.validatePhoneNumber && window.validatePhoneNumber) {
+                    window.VediAPI.validatePhoneNumber = window.validatePhoneNumber;
+                }
+                if (!window.VediAPI.getServerTimestamp && window.getServerTimestamp) {
+                    window.VediAPI.getServerTimestamp = window.getServerTimestamp;
+                }
+                
+                console.log('🔧 FORCED business functions attached. New VediAPI function count:', Object.keys(window.VediAPI).length);
+                console.log('✅ getRestaurantByOwner available:', typeof window.VediAPI.getRestaurantByOwner);
+                console.log('✅ startPerformanceMeasurement available:', typeof window.VediAPI.startPerformanceMeasurement);
+            }, 1500);
+            
+            try {
+                await initializeMenuManagement();
+            } catch (error) {
+                console.error('❌ Error initializing menu management:', error);
+                showError('Failed to load menu management. Please check the console for details and refresh the page.');
+                hideLoading();
             }
         });
 
-        // Load menu section specifically when data changes (EXACT COPY FROM WORKING VERSION)
+        // Wait for Firebase to be ready (EXACT COPY FROM DASHBOARD)
+        function waitForFirebaseReady() {
+            return new Promise((resolve) => {
+                if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                    resolve();
+                } else {
+                    const checkFirebase = setInterval(() => {
+                        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                            clearInterval(checkFirebase);
+                            resolve();
+                        }
+                    }, 100);
+                }
+            });
+        }
+
+        // Wait for VediAPI modules to be ready (EXACT COPY FROM DASHBOARD)
+        function waitForVediAPIReady() {
+            return new Promise((resolve) => {
+                let attempts = 0;
+                const maxAttempts = 50; // 10 seconds total
+                
+                const checkVediAPI = () => {
+                    attempts++;
+                    
+                    // Check if functions exist
+                    if (window.VediAPI && 
+                        typeof window.VediAPI.getRestaurantByOwner === 'function' &&
+                        typeof window.VediAPI.getMenuCategories === 'function' &&
+                        typeof window.VediAPI.getMenuItems === 'function') {
+                        console.log('✅ VediAPI business functions are ready');
+                        resolve();
+                        return;
+                    }
+                    
+                    // If max attempts reached, proceed anyway with error handling
+                    if (attempts >= maxAttempts) {
+                        console.warn('⚠️ VediAPI functions not ready after timeout, proceeding anyway...');
+                        console.log('🔍 Available VediAPI functions:', Object.keys(window.VediAPI || {}));
+                        
+                        // Force resolve to proceed - we'll handle missing functions in the actual calls
+                        resolve();
+                        return;
+                    }
+                    
+                    console.log('⏳ Waiting for VediAPI business functions... (' + attempts + '/' + maxAttempts + ')');
+                    setTimeout(checkVediAPI, 200);
+                };
+                checkVediAPI();
+            });
+        }
+
+        // Authentication and initialization with DIRECT FIREBASE AUTH (EXACT COPY FROM DASHBOARD)
+        async function initializeMenuManagement() {
+            console.log('🔄 Starting menu management initialization...');
+            showLoading('Loading menu management...');
+
+            try {
+                // Wait for Firebase auth to be ready - DIRECT FIREBASE CALL
+                console.log('🔐 Waiting for Firebase auth to initialize...');
+                const auth = firebase.auth();
+                
+                await new Promise((resolve) => {
+                    const unsubscribe = auth.onAuthStateChanged((user) => {
+                        unsubscribe();
+                        console.log('🔐 Auth state initialized, user:', user ? user.email : 'none');
+                        resolve();
+                    });
+                });
+
+                // Wait for VediAPI business functions to be ready
+                console.log('📚 Waiting for VediAPI business modules...');
+                await waitForVediAPIReady();
+
+                // Check authentication with retry logic - DIRECT FIREBASE CALL
+                console.log('🔐 Checking authentication...');
+                currentUser = await getCurrentUser();
+                
+                if (!currentUser) {
+                    console.log('❌ No authenticated user, redirecting to login');
+                    window.location.href = '../Landing-Signup-Login/login.html';
+                    return;
+                }
+                console.log('✅ Authenticated user:', currentUser.email);
+
+                // Load restaurant data - USING VEDIAPI (BUSINESS LOGIC)
+                console.log('🏪 Loading restaurant data...');
+                
+                // Check if VediAPI.getRestaurantByOwner is available
+                if (typeof VediAPI.getRestaurantByOwner !== 'function') {
+                    console.error('❌ VediAPI.getRestaurantByOwner is not available');
+                    console.log('🔍 Available VediAPI functions:', Object.keys(VediAPI || {}));
+                    throw new Error('VediAPI business functions not loaded. Please refresh the page.');
+                }
+                
+                currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
+                if (!currentRestaurant) {
+                    console.log('❌ No restaurant found, redirecting to setup');
+                    window.location.href = '../Landing-Signup-Login/restaurant-setup.html';
+                    return;
+                }
+                console.log('✅ Loaded restaurant:', currentRestaurant.name);
+
+                // Update header with restaurant name
+                document.getElementById('pageTitle').textContent = currentRestaurant.name + ' - Menu Management';
+                document.title = currentRestaurant.name + ' - Menu Management';
+
+                // Load menu data - USING VEDIAPI (BUSINESS LOGIC)
+                console.log('📋 Loading menu data...');
+                await loadMenuData();
+                console.log('✅ Menu data loaded successfully');
+                
+                // Setup UI
+                console.log('🎨 Setting up UI...');
+                setupNavigation();
+                setupModals();
+                populateAllergenCheckboxes();
+                console.log('✅ UI setup complete');
+                
+                hideLoading();
+                showSuccess('Menu management loaded successfully!');
+                console.log('🎉 Menu management initialization complete!');
+                
+            } catch (error) {
+                console.error('❌ Menu management initialization error:', error);
+                
+                // Better error handling for common issues
+                if (error.message.includes('index')) {
+                    showError('Database index missing. Please create the required Firestore index using the link in the console error, then refresh the page.');
+                } else if (error.message.includes('Firebase')) {
+                    showError('Firebase connection issue. Please check that all Firebase modules are loading correctly.');
+                } else {
+                    showError('Failed to load menu management: ' + error.message);
+                }
+                hideLoading();
+            }
+        }
+
+        // Get current user with DIRECT FIREBASE AUTH (EXACT COPY FROM DASHBOARD)
+        async function getCurrentUser() {
+            return new Promise((resolve) => {
+                try {
+                    const auth = firebase.auth(); // DIRECT FIREBASE CALL
+                    
+                    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+                        unsubscribe();
+                        
+                        if (user) {
+                            try {
+                                // Get user data from Firestore - DIRECT FIREBASE CALL
+                                const db = firebase.firestore();
+                                const doc = await db.collection('users').doc(user.uid).get();
+                                
+                                if (doc.exists) {
+                                    const userData = { id: doc.id, ...doc.data() };
+                                    resolve(userData);
+                                } else {
+                                    console.error('❌ User document not found in Firestore');
+                                    resolve(null);
+                                }
+                            } catch (error) {
+                                console.error('❌ Error getting user data:', error);
+                                resolve(null);
+                            }
+                        } else {
+                            resolve(null);
+                        }
+                    });
+                } catch (error) {
+                    console.error('❌ getCurrentUser setup error:', error);
+                    resolve(null);
+                }
+            });
+        }
+
+        // Data loading functions with VEDIAPI FOR BUSINESS LOGIC (EXACT COPY FROM DASHBOARD)
         async function loadMenuData() {
             try {
                 console.log('📋 Loading menu data for restaurant:', currentRestaurant.id);
@@ -1042,17 +1380,25 @@
             }
         }
 
-        // Render categories function
+        // Render categories function (EXACT COPY FROM DASHBOARD)
         function renderCategories() {
+            console.log('🎨 renderCategories called with:', categories.length, 'categories');
+            
             const grid = document.getElementById('categoriesGrid');
-            if (!grid) return;
+            if (!grid) {
+                console.error('❌ categoriesGrid element not found!');
+                return;
+            }
             
             if (!categories || categories.length === 0) {
+                console.log('📋 No categories to display, showing empty state');
                 grid.innerHTML = '<div class="empty-state">No categories yet. Click "Add Category" to get started!</div>';
                 return;
             }
 
+            console.log('🔄 Rendering categories...');
             const categoryHTML = categories.map(category => {
+                console.log('🏷️ Rendering category:', category.name, 'ID:', category.id);
                 const itemCount = menuItems.filter(item => item.categoryId === category.id).length;
                 const inStockCount = menuItems.filter(item => item.categoryId === category.id && item.inStock !== false).length;
                 const outOfStockCount = itemCount - inStockCount;
@@ -1074,13 +1420,19 @@
                 `;
             }).join('');
             
+            console.log('✅ Setting grid innerHTML with', categories.length, 'categories');
             grid.innerHTML = categoryHTML;
+            console.log('✅ Categories rendered successfully');
         }
 
-        // Render menu items function
+        // Render menu items function (EXACT COPY FROM DASHBOARD)
         function renderMenuItems() {
+            console.log('🎨 renderMenuItems called');
             const grid = document.getElementById('menuItemsGrid');
-            if (!grid) return;
+            if (!grid) {
+                console.error('❌ menuItemsGrid element not found!');
+                return;
+            }
             
             const filteredItems = getFilteredMenuItems();
             
@@ -1118,12 +1470,17 @@
                     </div>
                 `;
             }).join('');
+            
+            console.log('✅ Menu items rendered successfully');
         }
 
-        // Navigation setup
+        // Navigation setup (EXACT COPY FROM DASHBOARD)
         function setupNavigation() {
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.addEventListener('click', function() {
+                    console.log('🖱️ Nav tab clicked:', this.textContent, this.dataset.section);
+                    
+                    // Update active states
                     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
                     document.querySelectorAll('.menu-section').forEach(s => s.classList.remove('active'));
                     
@@ -1133,12 +1490,15 @@
                     
                     if (sectionElement) {
                         sectionElement.classList.add('active');
+                        console.log('Switched to section:', sectionId);
+                    } else {
+                        console.error('❌ Section element not found:', sectionId);
                     }
                 });
             });
         }
 
-        // Modal management
+        // Modal management (EXACT COPY FROM DASHBOARD)
         function setupModals() {
             document.getElementById('categoryForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -1157,7 +1517,7 @@
             });
         }
 
-        // Category functions
+        // Category functions - USING VEDIAPI FOR BUSINESS LOGIC (EXACT COPY FROM DASHBOARD)
         async function addCategory() {
             const submitBtn = document.getElementById('categorySubmitBtn');
             const name = document.getElementById('categoryName').value.trim();
@@ -1207,6 +1567,8 @@
             }
             
             try {
+                showLoading('Deleting category...');
+                
                 await VediAPI.deleteMenuCategory(id);
                 categories = categories.filter(cat => cat.id !== id);
                 
@@ -1217,6 +1579,8 @@
             } catch (error) {
                 console.error('Error deleting category:', error);
                 showError('Failed to delete category: ' + error.message);
+            } finally {
+                hideLoading();
             }
         }
 
@@ -1262,7 +1626,7 @@
             } catch (error) {
                 console.error('Error updating category name:', error);
                 showError('Failed to update category name: ' + error.message);
-                renderCategories();
+                renderCategories(); // Restore original state
             }
             
             editingCategoryId = null;
@@ -1273,7 +1637,7 @@
             renderCategories();
         }
 
-        // Menu item functions
+        // Menu item functions - USING VEDIAPI FOR BUSINESS LOGIC (EXACT COPY FROM DASHBOARD)
         async function addOrEditMenuItem() {
             const submitBtn = document.getElementById('itemSubmitBtn');
             const name = document.getElementById('itemName').value.trim();
@@ -1406,7 +1770,6 @@
             }
         }
 
-        // Filter functions
         function getFilteredMenuItems() {
             const categoryFilter = document.getElementById('categoryFilter')?.value || 'all';
             const stockFilter = document.getElementById('stockFilter')?.value || 'all';
@@ -1443,7 +1806,7 @@
                 categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
         }
 
-        // Stock status functions
+        // Stock status functions (EXACT COPY FROM DASHBOARD)
         function toggleStockStatus() {
             currentStockStatus = !currentStockStatus;
             updateStockStatusUI();
@@ -1470,7 +1833,7 @@
             }
         }
 
-        // Allergen management functions (EXACT COPY FROM WORKING VERSION)
+        // Allergen management functions (EXACT COPY FROM DASHBOARD)
         function populateAllergenCheckboxes() {
             const container = document.getElementById('allergenCheckboxes');
             if (!container) return;
@@ -1523,11 +1886,10 @@
                     selectedAllergens.push(allergen.id);
                 }
             });
-            console.log('🥜 Selected allergens:', selectedAllergens, 'Type:', Array.isArray(selectedAllergens));
-            return [...selectedAllergens]; // Force plain array
+            return selectedAllergens;
         }
 
-        // Image upload functions
+        // Image upload functions (EXACT COPY FROM DASHBOARD)
         function triggerFileInput() {
             document.getElementById('itemImage').click();
         }
@@ -1587,7 +1949,7 @@
             }
         }
 
-        // Modal functions (EXACT COPY FROM WORKING VERSION)
+        // Modal functions (EXACT COPY FROM DASHBOARD)
         function openModal(modalId) {
             console.log('🔄 Opening modal:', modalId);
             const modal = document.getElementById(modalId);
@@ -1631,7 +1993,7 @@
             }
         }
 
-        // Currency utility functions
+               // Currency utility functions
         function getRestaurantCurrency() {
             if (currentRestaurant && currentRestaurant.currency) {
                 return currentRestaurant.currency;
@@ -1650,37 +2012,19 @@
             return `${currency.symbol}${formattedAmount}`;
         }
 
-        // Loading and notification functions (EXACT COPY FROM WORKING VERSION)
+        // Loading and notification functions (EXACT COPY FROM DASHBOARD)
         function showLoading(message = 'Loading...') {
-            // Create a simple loading overlay for the iframe
-            let overlay = document.getElementById('iframeLoadingOverlay');
-            if (!overlay) {
-                overlay = document.createElement('div');
-                overlay.id = 'iframeLoadingOverlay';
-                overlay.style.cssText = `
-                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                    background: rgba(0,0,0,0.5); display: flex; align-items: center;
-                    justify-content: center; z-index: 9999;
-                `;
-                overlay.innerHTML = `
-                    <div style="background: white; padding: 30px; border-radius: 15px; text-align: center;">
-                        <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px;"></div>
-                        <p id="loadingMessage">${message}</p>
-                    </div>
-                `;
-                document.body.appendChild(overlay);
-            } else {
-                document.getElementById('loadingMessage').textContent = message;
-                overlay.style.display = 'flex';
-            }
+            const overlay = document.getElementById('loadingOverlay');
+            const text = overlay.querySelector('p');
+            text.textContent = message;
+            overlay.style.display = 'flex';
         }
 
         function hideLoading() {
-            const overlay = document.getElementById('iframeLoadingOverlay');
-            if (overlay) {
-                overlay.style.display = 'none';
-            }
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'none';
         }
+
         function showNotification(message, type = 'success') {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
