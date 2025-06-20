@@ -1157,27 +1157,42 @@
             resetPhoneForm();
         }
 
-       // Initialize reCAPTCHA for phone auth
+     // Initialize reCAPTCHA for phone auth
 async function initializePhoneRecaptcha() {
     try {
         console.log('🔐 Initializing reCAPTCHA for phone auth with direct key...');
         
-        // Your working reCAPTCHA site key - DIRECT INJECTION
+        // Your working reCAPTCHA site key
         const WORKING_SITE_KEY = '6LdITGcrAAAAAD2YzHqa70NpNWD9e9T_JZfkv7Z5';
         
         // Clear any existing reCAPTCHA
         if (window.recaptchaVerifier) {
             try {
                 window.recaptchaVerifier.clear();
+                window.recaptchaVerifier = null;
             } catch (e) {
                 console.log('Old verifier cleared');
             }
         }
         
-        // Create verifier with DIRECT site key injection
-        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('phone-recaptcha-container', {
+        // Make sure the container exists
+        const containerId = 'phone-recaptcha-container';
+        let container = document.getElementById(containerId);
+        if (!container) {
+            console.error('❌ reCAPTCHA container not found:', containerId);
+            throw new Error('reCAPTCHA container not found');
+        }
+        
+        // Clear the container
+        container.innerHTML = '';
+        
+        console.log('🔧 Container found:', containerId);
+        console.log('🔑 Using site key:', WORKING_SITE_KEY);
+        
+        // Create verifier with direct site key injection
+        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(containerId, {
             'size': 'normal',
-            'sitekey': WORKING_SITE_KEY,  // 🔑 THIS IS THE KEY FIX
+            'sitekey': WORKING_SITE_KEY,
             'callback': function(response) {
                 console.log('✅ reCAPTCHA solved for phone auth');
             },
@@ -1191,16 +1206,28 @@ async function initializePhoneRecaptcha() {
             }
         });
         
-        console.log('✅ reCAPTCHA initialized for phone auth with direct key');
+        // Render the reCAPTCHA
+        console.log('🎨 Rendering reCAPTCHA...');
+        await window.recaptchaVerifier.render();
+        
+        console.log('✅ reCAPTCHA initialized and rendered successfully');
         return window.recaptchaVerifier;
         
     } catch (error) {
         console.error('❌ Error initializing reCAPTCHA for phone auth:', error);
+        
+        // More detailed error information
+        console.log('🔍 Error details:', {
+            code: error.code,
+            message: error.message,
+            container: document.getElementById('phone-recaptcha-container'),
+            firebase: typeof firebase !== 'undefined'
+        });
+        
         showPhoneError('Failed to initialize security verification. Please refresh the page.');
         return null;
     }
 }
-
         // Handle phone form submission
         async function handlePhoneSubmit(e) {
             e.preventDefault();
