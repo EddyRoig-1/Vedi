@@ -236,4 +236,39 @@ window.initializeOrdersPage = async function(pageName) {
     return { user, restaurant };
 };
 
+window.initializeMenuPage = async function(pageName) {
+    const requiredMethods = [
+        'getRestaurantByOwner', 
+        'getMenuCategories', 
+        'getMenuItems',
+        'createMenuCategory',
+        'createMenuItem',
+        'updateMenuItem',
+        'deleteMenuItem',
+        'updateMenuCategory',
+        'deleteMenuCategory',
+        'updateItemStock'
+    ];
+    const initializer = new SecureIframeInitializer(pageName, requiredMethods);
+    
+    const user = await initializer.initialize();
+    
+    // Load restaurant data
+    const restaurant = await VediAPI.getRestaurantByOwner(user.id);
+    if (!restaurant) {
+        throw new Error('No restaurant found for user');
+    }
+    
+    // Load menu data
+    const categories = await VediAPI.getMenuCategories(restaurant.id);
+    const menuItems = await VediAPI.getMenuItems(restaurant.id);
+    
+    return { 
+        user, 
+        restaurant, 
+        categories: categories || [], 
+        menuItems: menuItems || [] 
+    };
+};
+
 console.log('🔐 Secure Iframe Initialization Module loaded');
