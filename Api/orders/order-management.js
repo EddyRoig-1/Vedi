@@ -23,9 +23,9 @@ async function createOrder(orderData) {
     const db = getFirebaseDb();
     const auth = getFirebaseAuth();
     
-    // Validate required fields
-    if (!orderData.restaurantId || !orderData.items || !orderData.customerPhone) {
-      throw new Error('Restaurant ID, items, and customer phone are required');
+    // FIXED: Validate required fields - phone is now optional
+    if (!orderData.restaurantId || !orderData.items) {
+      throw new Error('Restaurant ID and items are required');
     }
     
     if (!Array.isArray(orderData.items) || orderData.items.length === 0) {
@@ -43,8 +43,8 @@ async function createOrder(orderData) {
       restaurantId: orderData.restaurantId,
       restaurantName: orderData.restaurantName || '',
       
-      // Customer information
-      customerPhone: VediAPI.sanitizeInput(orderData.customerPhone),
+      // Customer information - phone is now optional
+      customerPhone: orderData.customerPhone ? VediAPI.sanitizeInput(orderData.customerPhone) : '',
       customerName: orderData.customerName ? VediAPI.sanitizeInput(orderData.customerName) : '',
       customerEmail: orderData.customerEmail ? VediAPI.sanitizeInput(orderData.customerEmail) : '',
       customerUID: currentUser ? currentUser.uid : null, // For security rules
@@ -82,27 +82,34 @@ async function createOrder(orderData) {
     const doc = await docRef.get();
     const createdOrder = { id: doc.id, ...doc.data() };
     
-    // Track order creation
+    // Track order creation - handle optional phone
+    const phoneForTracking = orderData.customerPhone ? VediAPI.maskPhoneNumber(orderData.customerPhone) : 'not_provided';
+    
     await VediAPI.trackUserActivity('order_created', {
       orderId: docRef.id,
       orderNumber: orderNumber,
       restaurantId: orderData.restaurantId,
-      customerPhone: VediAPI.maskPhoneNumber(orderData.customerPhone),
+      customerPhone: phoneForTracking,
       total: order.total,
       itemCount: order.items.length,
-      orderType: order.orderType
+      orderType: order.orderType,
+      hasPhoneNumber: !!orderData.customerPhone // Track if phone was provided
     });
     
     await endTracking(true);
     
-    console.log('✅ Order created:', orderNumber);
+    console.log('✅ Order created:', orderNumber, orderData.customerPhone ? 'with SMS notifications' : 'without SMS notifications');
     return createdOrder;
     
   } catch (error) {
     await endTracking(false, { error: error.message });
+    
+    // Handle optional phone in error tracking too
+    const phoneForTracking = orderData.customerPhone ? VediAPI.maskPhoneNumber(orderData.customerPhone) : 'not_provided';
+    
     await VediAPI.trackError(error, 'createOrder', { 
       restaurantId: orderData.restaurantId,
-      customerPhone: VediAPI.maskPhoneNumber(orderData.customerPhone)
+      customerPhone: phoneForTracking
     });
     
     console.error('❌ Create order error:', error);
@@ -239,3 +246,4 @@ Object.assign(window.VediAPI, {
 console.log('📋 Order Management Module loaded');
 console.log('📝 CRUD: createOrder, getOrderByNumber (getOrders available in order-tracking.js)');
 console.log('🔄 Status: updateOrderStatus with comprehensive tracking');
+console.log('📱 Phone number is now OPTIONAL for social auth users');
