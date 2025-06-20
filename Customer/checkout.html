@@ -154,6 +154,126 @@
             transform: translateY(-1px);
         }
 
+        /* Phone Notice - Optional SMS */
+        .phone-notice {
+            background: linear-gradient(135deg, #e6fffa, #b2f5ea);
+            border: 1px solid #4fd1c7;
+            color: #234e52;
+            padding: 16px 20px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(79, 209, 199, 0.2);
+        }
+
+        .phone-notice.show {
+            display: flex;
+        }
+
+        .add-phone-btn {
+            background: #319795;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .add-phone-btn:hover {
+            background: #2c7a7b;
+            transform: translateY(-1px);
+        }
+
+        /* Phone Input Section */
+        .phone-input-section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin: 16px 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .phone-input-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .phone-input-header h3 {
+            color: #2d3748;
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+        }
+
+        .phone-input-header p {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .phone-input-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .phone-input-field {
+            padding: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+            text-align: center;
+            font-family: inherit;
+        }
+
+        .phone-input-field:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .phone-input-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .save-phone-btn, .skip-phone-btn {
+            flex: 1;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .save-phone-btn {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .save-phone-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
+        }
+
+        .skip-phone-btn {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+        }
+
+        .skip-phone-btn:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
         /* Header Styles */
         .checkout-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -610,7 +730,7 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
-        /* NEW: Fee info badge for transparency */
+        /* Fee info badge for transparency */
         .fee-info-badge {
             background: rgba(102, 126, 234, 0.1);
             color: #667eea;
@@ -688,6 +808,30 @@
                 Your session has expired. Please sign in again to complete your order.
             </div>
             <button class="reauth-btn" onclick="redirectToLogin()">Sign In</button>
+        </div>
+
+        <!-- Phone Notice -->
+        <div class="phone-notice" id="phoneNotice">
+            <div class="session-warning-icon">📱</div>
+            <div class="session-warning-text">
+                Add your phone number to receive SMS notifications when your order is ready.
+            </div>
+            <button class="add-phone-btn" onclick="showPhoneInput()">Add Phone</button>
+        </div>
+
+        <!-- Phone Input Section -->
+        <div class="phone-input-section" id="phoneInputSection" style="display: none;">
+            <div class="phone-input-header">
+                <h3>📱 Add Phone Number (Optional)</h3>
+                <p>Get notified via SMS when your order is ready</p>
+            </div>
+            <div class="phone-input-form">
+                <input type="tel" id="phoneInput" placeholder="+1 (555) 123-4567" class="phone-input-field">
+                <div class="phone-input-buttons">
+                    <button class="save-phone-btn" onclick="savePhoneNumber()">Save</button>
+                    <button class="skip-phone-btn" onclick="skipPhoneNumber()">Skip</button>
+                </div>
+            </div>
         </div>
 
         <!-- Header -->
@@ -791,12 +935,12 @@
         let customerSession = {};
         let currentUser = null;
         let customerAllergenInfo = null;
-        let orderFees = null; // Will store calculated fees from VediAPI
-        let feesCalculated = false; // NEW: Track if fees are calculated
+        let orderFees = null;
+        let feesCalculated = false;
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Enhanced checkout page initializing...');
+            console.log('🚀 Production checkout page initializing...');
             
             try {
                 await initializeCheckoutPage();
@@ -807,7 +951,7 @@
             }
         });
 
-        // ENHANCED: Main initialization function
+        // Main initialization function
         async function initializeCheckoutPage() {
             showLoading();
             
@@ -825,7 +969,7 @@
                 loadCartData();
                 loadAllergenInfo();
                 
-                // Step 5: CRITICAL - Calculate fees BEFORE rendering
+                // Step 5: Calculate fees before rendering
                 await calculateFeesFirst();
                 
                 // Step 6: Update UI elements
@@ -836,7 +980,7 @@
                 
                 hideLoading();
                 
-                console.log('✅ Enhanced checkout page loaded successfully with correct fees');
+                console.log('✅ Production checkout page loaded successfully');
                 
             } catch (error) {
                 console.error('Checkout page initialization error:', error);
@@ -845,7 +989,7 @@
             }
         }
 
-        // NEW: Calculate fees first before any rendering
+        // Calculate fees first before any rendering
         async function calculateFeesFirst() {
             const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
             
@@ -899,7 +1043,7 @@
             }
         }
 
-        // ENHANCED: Authentication check
+        // Authentication check
         async function checkAuthenticationAndSession() {
             return new Promise((resolve, reject) => {
                 firebase.auth().onAuthStateChanged(async function(user) {
@@ -984,6 +1128,87 @@
             }
         }
 
+        // Show phone notice for social auth users
+        function showPhoneNotice() {
+            const notice = document.getElementById('phoneNotice');
+            if (notice && !hasPhoneNumber()) {
+                notice.classList.add('show');
+            }
+        }
+
+        // Hide phone notice
+        function hidePhoneNotice() {
+            const notice = document.getElementById('phoneNotice');
+            if (notice) {
+                notice.classList.remove('show');
+            }
+        }
+
+        // Check if user has phone number
+        function hasPhoneNumber() {
+            return !!(customerData.phone || currentUser?.phoneNumber);
+        }
+
+        // Show phone input form
+        function showPhoneInput() {
+            document.getElementById('phoneInputSection').style.display = 'block';
+            hidePhoneNotice();
+        }
+
+        // Save phone number
+        async function savePhoneNumber() {
+            const phoneInput = document.getElementById('phoneInput');
+            const phone = phoneInput.value.trim();
+            
+            if (!phone) {
+                showError('Please enter a valid phone number');
+                return;
+            }
+            
+            try {
+                // Validate phone format
+                const formattedPhone = formatPhoneForStorage(phone);
+                if (!formattedPhone) {
+                    showError('Please enter a valid phone number');
+                    return;
+                }
+                
+                // Update customer data
+                customerData.phone = formattedPhone;
+                
+                // Save to session
+                sessionStorage.setItem('customerData', JSON.stringify(customerData));
+                
+                // Try to update user profile
+                try {
+                    await VediAPI.saveCustomerProfile(currentUser.uid, {
+                        phone: formattedPhone
+                    });
+                    console.log('📱 Phone number saved to profile');
+                } catch (profileError) {
+                    console.warn('⚠️ Could not save phone to profile:', profileError);
+                }
+                
+                // Hide phone input section
+                document.getElementById('phoneInputSection').style.display = 'none';
+                
+                showSuccess('Phone number added! You\'ll receive SMS notifications.');
+                
+                // Update customer display
+                updateCustomerDisplay();
+                
+            } catch (error) {
+                console.error('Error saving phone number:', error);
+                showError('Failed to save phone number');
+            }
+        }
+
+        // Skip phone number
+        function skipPhoneNumber() {
+            document.getElementById('phoneInputSection').style.display = 'none';
+            hidePhoneNotice();
+        }
+
         // Redirect to login
         function redirectToLogin() {
             const currentParams = new URLSearchParams(window.location.search);
@@ -1026,7 +1251,7 @@
                 customerData.tableDisplay = 'Restaurant Order';
             }
             
-            console.log('👤 Enhanced customer data for checkout:', customerData);
+            console.log('👤 Customer data for checkout:', customerData);
         }
 
         // Load restaurant and menu data
@@ -1085,6 +1310,13 @@
             document.getElementById('customerText').textContent = customerText;
             
             updateAuthenticationIndicator();
+            
+            // Show phone notice for social auth users without phone
+            if (currentUser && !hasPhoneNumber() && currentUser.providerData[0]?.providerId !== 'phone') {
+                showPhoneNotice();
+            } else {
+                hidePhoneNotice();
+            }
         }
 
         // Update authentication indicator
@@ -1204,7 +1436,7 @@
             }
         }
 
-        // FIXED: Main render function - now uses pre-calculated fees
+        // Main render function - uses pre-calculated fees
         function renderCheckout() {
             const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + (qty || 0), 0);
             
@@ -1217,7 +1449,7 @@
 
             renderCartItems();
             
-            // CRITICAL: Display the pre-calculated fees immediately
+            // Display the pre-calculated fees immediately
             displayCalculatedFees();
             
             // Show checkout content and place order button
@@ -1225,7 +1457,7 @@
             document.getElementById('placeOrderSection').style.display = 'block';
         }
 
-        // NEW: Display the calculated fees immediately
+        // Display the calculated fees immediately
         function displayCalculatedFees() {
             if (!feesCalculated || !orderFees) {
                 console.warn('⚠️ Fees not calculated yet, using placeholder values');
@@ -1310,7 +1542,7 @@
             cartItemsList.innerHTML = html;
         }
 
-        // FIXED: Update quantity function - recalculates fees immediately
+        // Update quantity function - recalculates fees immediately
         async function updateQuantity(itemId, change) {
             console.log(`🔢 Updating quantity for item ${itemId} by ${change}`);
             
@@ -1331,7 +1563,7 @@
             renderCheckout();
         }
 
-        // FIXED: Remove item function - recalculates fees immediately
+        // Remove item function - recalculates fees immediately
         async function removeItem(itemId) {
             if (confirm('Remove this item from your cart?')) {
                 console.log(`🗑️ Removing item ${itemId}`);
@@ -1374,7 +1606,22 @@
             return phone;
         }
 
-        // Place order function
+        // Check phone number availability - optional for social auth
+        function checkPhoneAvailability() {
+            const phone = customerData.phone || currentUser?.phoneNumber;
+            
+            // Phone is optional - just log what we have
+            if (phone) {
+                console.log('📱 Phone number available for SMS notifications:', phone);
+                hidePhoneNotice();
+                return true;
+            } else {
+                console.log('📱 No phone number - order will proceed without SMS notifications');
+                return true; // Still allow order to proceed
+            }
+        }
+
+        // Place order function - compatible with updated order-management.js
         async function placeOrder() {
             console.log('📝 Placing order with calculated fees...');
             
@@ -1393,13 +1640,16 @@
                     throw new Error('Authentication required. Please sign in to place an order.');
                 }
 
-                if (customerSession.firebaseUID !== currentUser.uid) {
+                if (customerSession.firebaseUID && customerSession.firebaseUID !== currentUser.uid) {
                     throw new Error('Session mismatch. Please refresh and try again.');
                 }
 
                 if (!orderFees || !feesCalculated) {
                     throw new Error('Order fees not calculated. Please refresh the page.');
                 }
+
+                // Phone is now optional - just log what we have
+                checkPhoneAvailability();
 
                 // Calculate order details
                 const orderItems = [];
@@ -1426,11 +1676,22 @@
                 const orderNumber = VediAPI.generateOrderNumber();
                 console.log('🔢 Generated order number:', orderNumber);
 
+                // Phone is now optional for social auth users
+                const customerPhone = formatPhoneForStorage(customerData.phone) || currentUser.phoneNumber || '';
+                
+                // Log what we're using for phone
+                if (customerPhone) {
+                    console.log('📱 Using phone number for order:', customerPhone);
+                } else {
+                    console.log('📱 No phone number - proceeding without SMS notifications');
+                }
+
                 const orderData = {
                     orderNumber: orderNumber,
                     restaurantId: customerData.restaurantId,
-                    customerName: customerData.name || 'Walk-in Customer',
-                    customerPhone: formatPhoneForStorage(customerData.phone) || currentUser.phoneNumber || '',
+                    restaurantName: currentRestaurant.name,
+                    customerName: customerData.name || currentUser?.displayName || 'Walk-in Customer',
+                    customerPhone: customerPhone, // Phone is optional now
                     customerUID: currentUser.uid,
                     customerEmail: currentUser.email || '',
                     authProvider: currentUser.providerData[0]?.providerId || 'unknown',
@@ -1444,28 +1705,29 @@
                     total: orderFees.total,
                     feeConfig: orderFees.feeConfig,
                     taxRate: orderFees.taxRate,
-                    feeType: orderFees.breakdown?.serviceFeeType,
-                    isNegotiatedRate: orderFees.breakdown?.isNegotiated || false,
+                    orderType: 'pickup', // Default order type
                     status: 'pending',
+                    paymentStatus: 'pending',
                     estimatedTime: '15-20 minutes',
                     createdAt: new Date().toISOString()
                 };
 
-                console.log('📋 Enhanced order with calculated fees prepared:', orderData);
+                console.log('📋 Order data prepared for submission:', orderData);
 
                 const createdOrder = await VediAPI.createOrder(orderData);
-                console.log('✅ Order created successfully with calculated fees:', createdOrder);
+                console.log('✅ Order created successfully:', createdOrder);
 
+                // Try to update customer profile
                 try {
                     await VediAPI.saveCustomerProfile(currentUser.uid, {
-                        name: customerData.name,
+                        name: customerData.name || currentUser.displayName,
                         email: currentUser.email,
                         phone: customerData.phone,
                         authProvider: currentUser.providerData[0]?.providerId || 'unknown',
                         lastOrderRestaurant: currentRestaurant.name,
                         lastOrderDate: new Date().toISOString()
                     });
-                    console.log('👤 Customer profile updated with order info');
+                    console.log('👤 Customer profile updated');
                 } catch (profileError) {
                     console.warn('⚠️ Could not update customer profile:', profileError);
                 }
@@ -1474,12 +1736,13 @@
                 cart = {};
                 sessionStorage.removeItem('customerCart');
 
+                // Save order info for order progress page
                 const orderInfo = {
                     orderNumber: orderNumber,
                     orderId: createdOrder.id || createdOrder.orderNumber,
                     restaurantId: customerData.restaurantId,
                     restaurantName: currentRestaurant.name,
-                    customerName: customerData.name,
+                    customerName: customerData.name || currentUser.displayName,
                     customerPhone: customerData.phone,
                     customerUID: currentUser.uid,
                     customerEmail: currentUser.email,
@@ -1526,7 +1789,7 @@
             console.log('🔙 Going back to menu from checkout...');
             const params = new URLSearchParams();
             params.set('restaurant', customerData.restaurantId);
-            params.set('table', customerData.tableNumber);
+            if (customerData.tableNumber) params.set('table', customerData.tableNumber);
             if (customerData.location) params.set('location', customerData.location);
             if (customerData.name) params.set('name', customerData.name);
             if (customerData.phone) params.set('phone', customerData.phone);
@@ -1594,7 +1857,7 @@
             monitorAuthenticationState();
         }, 1000);
 
-        console.log('🛒 Enhanced customer checkout with immediate fee calculation loaded successfully');
+        console.log('🛒 Production checkout page with optional phone support loaded successfully');
     </script>
 </body>
 </html>
