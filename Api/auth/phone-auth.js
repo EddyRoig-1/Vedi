@@ -1,18 +1,196 @@
-// api/auth/phone-auth.js - Phone Authentication with SMS Verification
+// api/auth/phone-auth.js - Enhanced Phone Authentication with Modal Support
 /**
- * Phone Authentication Module
+ * Enhanced Phone Authentication Module
  * 
- * Handles phone number authentication using SMS verification codes.
- * Integrates with Firebase Auth phone verification and provides
- * customer-friendly phone authentication flow with comprehensive
- * error handling and reCAPTCHA management.
+ * Handles phone number authentication using SMS verification codes with complete
+ * modal integration, comprehensive error handling, and multiple fallback methods.
+ * Integrates with Firebase Auth phone verification and provides customer-friendly
+ * phone authentication flow with modal support and enhanced compatibility.
  * 
- * Note: This module provides basic phone auth infrastructure. 
- * For enhanced phone auth features, use the CustomerAuthAPI module.
+ * Features:
+ * - Modal-compatible reCAPTCHA management
+ * - Multiple verification methods with fallbacks
+ * - Comprehensive error handling and user-friendly messages
+ * - Automatic customer profile creation
+ * - Enhanced promise management with timeouts and retries
+ * - Production-ready with performance tracking
  */
 
 // ============================================================================
-// PROMISE MANAGEMENT AND TIMEOUT UTILITIES (INJECTED FROM CUSTOMER-AUTH-API)
+// COMPATIBILITY LAYER - ENSURES ALL DEPENDENCIES ARE AVAILABLE
+// ============================================================================
+
+/**
+ * Ensure global Firebase helper functions are available
+ */
+function ensureFirebaseHelpers() {
+    if (typeof window.getFirebaseDb === 'undefined') {
+        window.getFirebaseDb = function() {
+            if (typeof firebase !== 'undefined' && firebase.firestore) {
+                return firebase.firestore();
+            }
+            throw new Error('Firebase Firestore not initialized');
+        };
+    }
+
+    if (typeof window.getFirebaseAuth === 'undefined') {
+        window.getFirebaseAuth = function() {
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                return firebase.auth();
+            }
+            throw new Error('Firebase Auth not initialized');
+        };
+    }
+}
+
+/**
+ * Enhanced phone number masking function with multiple format support
+ */
+function ensurePhoneMasking() {
+    if (!window.maskPhoneNumberCustomer) {
+        window.maskPhoneNumberCustomer = function(phoneNumber) {
+            if (!phoneNumber) return '';
+            
+            try {
+                // For E.164 format: +1234567890 -> +1 234-***-7890
+                if (phoneNumber.startsWith('+1') && phoneNumber.length === 12) {
+                    return phoneNumber.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 $2-***-$4');
+                }
+                // For other country codes: +44234567890 -> +44 234-***-890
+                else if (phoneNumber.startsWith('+')) {
+                    const match = phoneNumber.match(/(\+\d{1,3})(\d{3,4})(\d+)/);
+                    if (match && match[3].length >= 4) {
+                        const end = match[3].slice(-3);
+                        return `${match[1]} ${match[2]}-***-${end}`;
+                    }
+                }
+                
+                // Fallback: show first 3 and last 3 digits
+                if (phoneNumber.length >= 6) {
+                    return phoneNumber.slice(0, 3) + '***' + phoneNumber.slice(-3);
+                }
+                
+                return '***' + phoneNumber.slice(-2);
+            } catch (error) {
+                console.warn('Error masking phone number:', error);
+                return '***-***-****';
+            }
+        };
+    }
+}
+
+/**
+ * Enhanced error tracking - compatible with VediAPI tracking system
+ */
+function ensureErrorTracking() {
+    if (typeof window.trackAPICall === 'undefined') {
+        window.trackAPICall = async function(methodName, timestamp, success, metadata = {}) {
+            try {
+                // Use VediAPI tracking if available
+                if (window.VediAPI && window.VediAPI.trackUserActivity) {
+                    await window.VediAPI.trackUserActivity(`api_${methodName}`, {
+                        success: success,
+                        timestamp: timestamp,
+                        duration: Date.now() - timestamp,
+                        ...metadata
+                    });
+                } else {
+                    console.log(`📊 API Call: ${methodName} - ${success ? 'SUCCESS' : 'FAILED'}`, metadata);
+                }
+            } catch (error) {
+                console.warn('⚠️ Tracking error:', error);
+            }
+        };
+    }
+}
+
+/**
+ * Enhanced reCAPTCHA container management for modal compatibility
+ */
+function ensureRecaptchaContainer(containerId) {
+    let container = document.getElementById(containerId);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = containerId;
+        container.style.display = 'flex';
+        container.style.justifyContent = 'center';
+        container.style.margin = '16px 0';
+        
+        // Try to append to a form or modal content
+        const targetParent = document.querySelector('.modal-content form') || 
+                           document.querySelector('.phone-auth') || 
+                           document.querySelector('.login-page') ||
+                           document.body;
+        targetParent.appendChild(container);
+        
+        console.log(`📦 Created reCAPTCHA container: ${containerId}`);
+    }
+    return container;
+}
+
+/**
+ * Ensure CustomerAuthAPI namespace exists with all required methods
+ */
+function ensureCustomerAuthAPI() {
+    if (!window.CustomerAuthAPI) {
+        window.CustomerAuthAPI = {};
+    }
+
+    // Add missing CustomerAuthAPI methods if they don't exist
+    const customerAuthMethods = {
+        formatPhoneNumber: function(phoneNumber, countryCode = 'US') {
+            if (window.VediAPI && window.VediAPI.formatPhoneNumberCustomer) {
+                return window.VediAPI.formatPhoneNumberCustomer(phoneNumber, countryCode);
+            } else if (window.VediAPI && window.VediAPI.formatPhoneNumber) {
+                return window.VediAPI.formatPhoneNumber(phoneNumber, countryCode);
+            }
+            
+            // Fallback implementation
+            const digits = phoneNumber.replace(/\D/g, '');
+            const countryCodeMap = { 'US': '1', 'CA': '1', 'GB': '44', 'DE': '49', 'FR': '33' };
+            const code = countryCodeMap[countryCode] || '1';
+            
+            if (phoneNumber.startsWith('+')) return phoneNumber;
+            if (digits.startsWith(code)) return '+' + digits;
+            return '+' + code + digits;
+        },
+        
+        validatePhoneNumber: function(phoneNumber) {
+            if (window.VediAPI && window.VediAPI.validatePhoneNumberCustomer) {
+                return window.VediAPI.validatePhoneNumberCustomer(phoneNumber);
+            } else if (window.VediAPI && window.VediAPI.validatePhoneNumber) {
+                return window.VediAPI.validatePhoneNumber(phoneNumber);
+            }
+            
+            // Fallback validation
+            const e164Regex = /^\+[1-9]\d{1,14}$/;
+            return e164Regex.test(phoneNumber);
+        },
+        
+        maskPhoneNumber: function(phoneNumber) {
+            return window.maskPhoneNumberCustomer(phoneNumber);
+        }
+    };
+
+    // Add missing methods to CustomerAuthAPI
+    Object.keys(customerAuthMethods).forEach(method => {
+        if (!window.CustomerAuthAPI[method]) {
+            window.CustomerAuthAPI[method] = customerAuthMethods[method];
+        }
+    });
+}
+
+// Initialize compatibility layer
+function initializeCompatibilityLayer() {
+    ensureFirebaseHelpers();
+    ensurePhoneMasking();
+    ensureErrorTracking();
+    ensureCustomerAuthAPI();
+    console.log('🔗 Phone Auth Compatibility Layer initialized');
+}
+
+// ============================================================================
+// PROMISE MANAGEMENT AND TIMEOUT UTILITIES (ENHANCED)
 // ============================================================================
 
 /**
@@ -121,7 +299,7 @@ function enhanceError(error, context) {
 }
 
 // ============================================================================
-// ENHANCED CONFIGURATION AND DIAGNOSTICS (INJECTED FROM CUSTOMER-AUTH-API)
+// ENHANCED CONFIGURATION AND DIAGNOSTICS
 // ============================================================================
 
 /**
@@ -301,225 +479,14 @@ async function sendPhoneVerification(phoneNumber, recaptchaVerifier = null) {
 }
 
 /**
- * Verify SMS code and complete phone authentication
- * @param {Object} confirmationResult - Result from sendPhoneVerification
- * @param {string} code - 6-digit SMS verification code
- * @returns {Promise<Object>} User credential with phone authentication
- */
-async function verifyPhoneCode(confirmationResult, code) {
-  const endTracking = VediAPI.startPerformanceMeasurement('verifyPhoneCode');
-  
-  try {
-    console.log('🔐 Verifying phone code...');
-    
-    if (!confirmationResult) {
-      throw new Error('No verification in progress. Please request a new code.');
-    }
-    
-    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      throw new Error('Please enter a valid 6-digit verification code.');
-    }
-    
-    // Verify the code
-    const result = await confirmationResult.confirm(code);
-    const user = result.user;
-    
-    // Create or update customer profile for phone users
-    const customerProfile = await createOrUpdatePhoneProfile(user);
-    
-    // Track successful phone authentication
-    await VediAPI.trackUserActivity('phone_auth_success', {
-      userId: user.uid,
-      phoneNumber: VediAPI.maskPhoneNumber(user.phoneNumber),
-      isNewUser: result.additionalUserInfo?.isNewUser || false
-    });
-    
-    // Update session with user ID
-    await VediAPI.updateSessionUser(user.uid);
-    
-    await endTracking(true);
-    
-    console.log('✅ Phone verification successful, UID:', user.uid);
-    return {
-      user: user,
-      profile: customerProfile,
-      isNewUser: result.additionalUserInfo?.isNewUser || false
-    };
-    
-  } catch (error) {
-    await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'verifyPhoneCode');
-    
-    console.error('❌ Phone code verification error:', error);
-    throw new Error(getPhoneAuthErrorMessage(error.code));
-  }
-}
-
-/**
- * Alternative verification method using verification ID and code directly
- * @param {string} verificationId - Verification ID from SMS send
- * @param {string} code - 6-digit SMS verification code
- * @returns {Promise<Object>} User credential with phone authentication
- */
-async function verifyPhoneCodeDirect(verificationId, code) {
-  const endTracking = VediAPI.startPerformanceMeasurement('verifyPhoneCodeDirect');
-  
-  try {
-    console.log('🔐 Verifying phone code directly...');
-    
-    if (!verificationId) {
-      throw new Error('No verification ID available. Please request a new code.');
-    }
-    
-    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      throw new Error('Please enter a valid 6-digit verification code.');
-    }
-    
-    const auth = getFirebaseAuth();
-    
-    // Create credential and sign in
-    const credential = firebase.auth.PhoneAuthProvider.credential(verificationId, code);
-    const result = await auth.signInWithCredential(credential);
-    const user = result.user;
-    
-    // Create or update customer profile
-    const customerProfile = await createOrUpdatePhoneProfile(user);
-    
-    // Track successful authentication
-    await VediAPI.trackUserActivity('phone_auth_success', {
-      userId: user.uid,
-      phoneNumber: VediAPI.maskPhoneNumber(user.phoneNumber),
-      method: 'direct_credential',
-      isNewUser: result.additionalUserInfo?.isNewUser || false
-    });
-    
-    // Update session with user ID
-    await VediAPI.updateSessionUser(user.uid);
-    
-    await endTracking(true);
-    
-    console.log('✅ Direct phone verification successful, UID:', user.uid);
-    return {
-      user: user,
-      profile: customerProfile,
-      isNewUser: result.additionalUserInfo?.isNewUser || false
-    };
-    
-  } catch (error) {
-    await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'verifyPhoneCodeDirect');
-    
-    console.error('❌ Direct phone verification error:', error);
-    throw new Error(getPhoneAuthErrorMessage(error.code));
-  }
-}
-
-// ============================================================================
-// CUSTOMER AUTH API INTEGRATION - PHONE METHODS
-// ============================================================================
-
-/**
- * Format phone number to E.164 format with enhanced validation (CustomerAuthAPI method)
- * @param {string} phoneNumber - Raw phone number
- * @param {string} countryCode - Default country code (e.g., 'US', 'CA')
- * @returns {string} Formatted phone number in E.164 format
- */
-function formatPhoneNumberCustomer(phoneNumber, countryCode = 'US') {
-  try {
-    // Remove all non-digit characters
-    const digits = phoneNumber.replace(/\D/g, '');
-    
-    // Country code mappings with validation
-    const countryCodes = {
-      'US': '1',
-      'CA': '1',
-      'GB': '44',
-      'AU': '61',
-      'DE': '49',
-      'FR': '33',
-      'IT': '39',
-      'ES': '34',
-      'BR': '55',
-      'IN': '91',
-      'CN': '86',
-      'JP': '81',
-      'KR': '82'
-    };
-    
-    const defaultCountryCode = countryCodes[countryCode] || '1';
-    
-    // If number already starts with +, validate and return
-    if (phoneNumber.startsWith('+')) {
-      if (validatePhoneNumberCustomer(phoneNumber)) {
-        return phoneNumber;
-      } else {
-        throw new Error('Invalid E.164 format');
-      }
-    }
-    
-    // If number starts with country code, add +
-    if (digits.startsWith(defaultCountryCode)) {
-      const formatted = '+' + digits;
-      if (validatePhoneNumberCustomer(formatted)) {
-        return formatted;
-      } else {
-        throw new Error('Invalid phone number with country code');
-      }
-    }
-    
-    // If number doesn't have country code, add it
-    const formatted = '+' + defaultCountryCode + digits;
-    if (validatePhoneNumberCustomer(formatted)) {
-      return formatted;
-    } else {
-      throw new Error('Invalid phone number format');
-    }
-  } catch (error) {
-    console.error('❌ Phone number formatting error:', error);
-    throw new Error('Failed to format phone number: ' + error.message);
-  }
-}
-
-/**
- * Enhanced phone number validation with detailed checks (CustomerAuthAPI method)
- * @param {string} phoneNumber - Phone number to validate
- * @returns {boolean} True if valid E.164 format
- */
-function validatePhoneNumberCustomer(phoneNumber) {
-  try {
-    // Basic E.164 format check
-    const e164Regex = /^\+[1-9]\d{1,14}$/;
-    if (!e164Regex.test(phoneNumber)) {
-      return false;
-    }
-    
-    // Additional validation for common country codes
-    if (phoneNumber.startsWith('+1')) {
-      // US/Canada validation
-      const usNumber = phoneNumber.slice(2);
-      if (usNumber.length !== 10) return false;
-      if (usNumber.startsWith('0') || usNumber.startsWith('1')) return false;
-      // Check for invalid area codes
-      const areaCode = usNumber.slice(0, 3);
-      if (areaCode === '000' || areaCode === '555') return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Phone number validation error:', error);
-    return false;
-  }
-}
-
-/**
- * Send SMS verification code for phone authentication (CustomerAuthAPI method)
+ * Enhanced send phone verification with multiple fallback methods
  * @param {string} phoneNumber - Phone number in E.164 format
  * @param {Object} recaptchaVerifier - reCAPTCHA verifier instance (optional)
  * @returns {Promise<Object>} Confirmation result for verification
  */
-async function sendPhoneVerificationCustomer(phoneNumber, recaptchaVerifier = null) {
+async function sendPhoneVerificationEnhanced(phoneNumber, recaptchaVerifier = null) {
   return await safeAsyncOperation(async () => {
-    console.log('📱 Sending phone verification to:', maskPhoneNumberCustomer(phoneNumber));
+    console.log('📱 Enhanced phone verification to:', maskPhoneNumberCustomer(phoneNumber));
     
     // Use provided verifier or get from global
     const verifier = recaptchaVerifier || window.recaptchaVerifier;
@@ -583,14 +550,69 @@ async function sendPhoneVerificationCustomer(phoneNumber, recaptchaVerifier = nu
 }
 
 /**
- * Verify SMS code using Firebase's recommended PhoneAuthProvider.credential approach (CustomerAuthAPI method)
+ * Verify SMS code and complete phone authentication
+ * @param {Object} confirmationResult - Result from sendPhoneVerification
+ * @param {string} code - 6-digit SMS verification code
+ * @returns {Promise<Object>} User credential with phone authentication
+ */
+async function verifyPhoneCode(confirmationResult, code) {
+  const endTracking = VediAPI.startPerformanceMeasurement('verifyPhoneCode');
+  
+  try {
+    console.log('🔐 Verifying phone code...');
+    
+    if (!confirmationResult) {
+      throw new Error('No verification in progress. Please request a new code.');
+    }
+    
+    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+      throw new Error('Please enter a valid 6-digit verification code.');
+    }
+    
+    // Verify the code
+    const result = await confirmationResult.confirm(code);
+    const user = result.user;
+    
+    // Create or update customer profile for phone users
+    const customerProfile = await createOrUpdatePhoneProfile(user);
+    
+    // Track successful phone authentication
+    await VediAPI.trackUserActivity('phone_auth_success', {
+      userId: user.uid,
+      phoneNumber: VediAPI.maskPhoneNumber(user.phoneNumber),
+      isNewUser: result.additionalUserInfo?.isNewUser || false
+    });
+    
+    // Update session with user ID
+    await VediAPI.updateSessionUser(user.uid);
+    
+    await endTracking(true);
+    
+    console.log('✅ Phone verification successful, UID:', user.uid);
+    return {
+      user: user,
+      profile: customerProfile,
+      isNewUser: result.additionalUserInfo?.isNewUser || false
+    };
+    
+  } catch (error) {
+    await endTracking(false, { error: error.message });
+    await VediAPI.trackError(error, 'verifyPhoneCode');
+    
+    console.error('❌ Phone code verification error:', error);
+    throw new Error(getPhoneAuthErrorMessage(error.code));
+  }
+}
+
+/**
+ * Enhanced verify SMS code using Firebase's recommended PhoneAuthProvider.credential approach
  * @param {string} verificationId - Verification ID from sendPhoneVerification result
  * @param {string} code - 6-digit verification code
  * @returns {Promise<Object>} Firebase user credential
  */
-async function verifyPhoneCodeCustomer(verificationId, code) {
+async function verifyPhoneCodeEnhanced(verificationId, code) {
   return await safeAsyncOperation(async () => {
-    console.log('🔐 Verifying phone code using PhoneAuthProvider.credential...');
+    console.log('🔐 Enhanced phone code verification...');
     
     if (!verificationId) {
       throw new Error('No verification ID available. Please request a new code.');
@@ -619,7 +641,7 @@ async function verifyPhoneCodeCustomer(verificationId, code) {
       }
     }
     
-    console.log('✅ Phone verification successful, UID:', userCredential.user.uid);
+    console.log('✅ Enhanced phone verification successful, UID:', userCredential.user.uid);
     return userCredential;
     
   }, 'Verify phone code', {
@@ -630,44 +652,62 @@ async function verifyPhoneCodeCustomer(verificationId, code) {
 }
 
 /**
- * Alternative method using confirmationResult.confirm (legacy approach) (CustomerAuthAPI method)
- * @param {Object} confirmationResult - Result from sendPhoneVerification
- * @param {string} code - 6-digit verification code
- * @returns {Promise<Object>} Firebase user credential
+ * Alternative verification method using verification ID and code directly
+ * @param {string} verificationId - Verification ID from SMS send
+ * @param {string} code - 6-digit SMS verification code
+ * @returns {Promise<Object>} User credential with phone authentication
  */
-async function verifyPhoneCodeLegacyCustomer(confirmationResult, code) {
-  return await safeAsyncOperation(async () => {
-    console.log('🔐 Verifying code using legacy confirmationResult.confirm...');
+async function verifyPhoneCodeDirect(verificationId, code) {
+  const endTracking = VediAPI.startPerformanceMeasurement('verifyPhoneCodeDirect');
+  
+  try {
+    console.log('🔐 Verifying phone code directly...');
     
-    if (!confirmationResult) {
-      throw new Error('No verification in progress');
+    if (!verificationId) {
+      throw new Error('No verification ID available. Please request a new code.');
     }
     
     if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      throw new Error('Please enter a valid 6-digit verification code');
+      throw new Error('Please enter a valid 6-digit verification code.');
     }
     
-    const result = await confirmationResult.confirm(code);
+    const auth = getFirebaseAuth();
     
-    // Track successful API call if tracking is available
-    if (window.trackAPICall) {
-      try {
-        await window.trackAPICall('verifyPhoneCodeLegacy', Date.now(), true, {
-          userId: result.user.uid
-        });
-      } catch (trackError) {
-        console.warn('⚠️ Tracking error:', trackError);
-      }
-    }
+    // Create credential and sign in
+    const credential = firebase.auth.PhoneAuthProvider.credential(verificationId, code);
+    const result = await auth.signInWithCredential(credential);
+    const user = result.user;
     
-    console.log('✅ Phone verification successful (legacy), UID:', result.user.uid);
-    return result;
+    // Create or update customer profile
+    const customerProfile = await createOrUpdatePhoneProfile(user);
     
-  }, 'Verify phone code (legacy)', {
-    timeoutMs: 20000,
-    maxRetries: 2,
-    retryDelay: 1000
-  });
+    // Track successful authentication
+    await VediAPI.trackUserActivity('phone_auth_success', {
+      userId: user.uid,
+      phoneNumber: VediAPI.maskPhoneNumber(user.phoneNumber),
+      method: 'direct_credential',
+      isNewUser: result.additionalUserInfo?.isNewUser || false
+    });
+    
+    // Update session with user ID
+    await VediAPI.updateSessionUser(user.uid);
+    
+    await endTracking(true);
+    
+    console.log('✅ Direct phone verification successful, UID:', user.uid);
+    return {
+      user: user,
+      profile: customerProfile,
+      isNewUser: result.additionalUserInfo?.isNewUser || false
+    };
+    
+  } catch (error) {
+    await endTracking(false, { error: error.message });
+    await VediAPI.trackError(error, 'verifyPhoneCodeDirect');
+    
+    console.error('❌ Direct phone verification error:', error);
+    throw new Error(getPhoneAuthErrorMessage(error.code));
+  }
 }
 
 // ============================================================================
@@ -762,11 +802,11 @@ async function createOrUpdatePhoneProfile(firebaseUser) {
 }
 
 // ============================================================================
-// RECAPTCHA MANAGEMENT
+// ENHANCED RECAPTCHA MANAGEMENT WITH MODAL SUPPORT
 // ============================================================================
 
 /**
- * Initialize reCAPTCHA verifier for phone authentication
+ * Initialize reCAPTCHA verifier for phone authentication with modal support
  * @param {string} containerId - ID of container element for reCAPTCHA
  * @param {Object} options - reCAPTCHA configuration options
  * @returns {Promise<Object>} reCAPTCHA verifier instance
@@ -775,7 +815,7 @@ async function initializeRecaptcha(containerId = 'recaptcha-container', options 
   const endTracking = VediAPI.startPerformanceMeasurement('initializeRecaptcha');
   
   try {
-    console.log('🔐 Initializing reCAPTCHA verifier...');
+    console.log('🔐 Initializing reCAPTCHA verifier for modal...');
     
     // Check if Firebase is available
     if (typeof firebase === 'undefined' || !firebase.apps.length) {
@@ -791,7 +831,8 @@ async function initializeRecaptcha(containerId = 'recaptcha-container', options 
       }
     }
     
-    // Ensure container exists
+    // Ensure container exists (create if needed for modal)
+    ensureRecaptchaContainer(containerId);
     const container = document.getElementById(containerId);
     if (!container) {
       throw new Error(`reCAPTCHA container '${containerId}' not found`);
@@ -828,7 +869,7 @@ async function initializeRecaptcha(containerId = 'recaptcha-container', options 
     
     await endTracking(true);
     
-    console.log('✅ reCAPTCHA initialized successfully');
+    console.log('✅ reCAPTCHA initialized successfully for modal');
     return verifier;
     
   } catch (error) {
@@ -841,14 +882,14 @@ async function initializeRecaptcha(containerId = 'recaptcha-container', options 
 }
 
 /**
- * Initialize reCAPTCHA verifier with enhanced error handling (CustomerAuthAPI method)
+ * Enhanced reCAPTCHA initialization with multiple fallback methods
  * @param {string} containerId - ID of the container element for reCAPTCHA
  * @param {Object} options - reCAPTCHA options
  * @returns {Promise<Object>} reCAPTCHA verifier instance
  */
-async function initializeRecaptchaCustomer(containerId = 'recaptcha-container', options = {}) {
+async function initializeRecaptchaEnhanced(containerId = 'recaptcha-container', options = {}) {
   return await safeAsyncOperation(async () => {
-    console.log('🔐 Initializing reCAPTCHA verifier...');
+    console.log('🔐 Enhanced reCAPTCHA initialization...');
     
     // Check if Firebase is properly initialized
     if (typeof firebase === 'undefined') {
@@ -861,6 +902,9 @@ async function initializeRecaptchaCustomer(containerId = 'recaptcha-container', 
     
     console.log('🔧 Firebase project:', firebase.app().options.projectId);
     console.log('🔧 Current domain:', window.location.hostname);
+    
+    // Ensure container exists
+    ensureRecaptchaContainer(containerId);
     
     // Use the firebase-config.js helper if available
     if (typeof window.createRecaptchaVerifier === 'function') {
@@ -963,10 +1007,10 @@ async function resetRecaptcha() {
 }
 
 /**
- * Reset reCAPTCHA verifier with promise handling (CustomerAuthAPI method)
+ * Enhanced reset reCAPTCHA verifier with promise handling
  * @returns {Promise<boolean>} Success status
  */
-async function resetRecaptchaCustomer() {
+async function resetRecaptchaEnhanced() {
   return await safeAsyncOperation(async () => {
     if (window.recaptchaVerifier && window.recaptchaWidgetId) {
       if (typeof grecaptcha !== 'undefined') {
@@ -1009,10 +1053,10 @@ async function clearRecaptcha() {
 }
 
 /**
- * Clear and destroy reCAPTCHA verifier with enhanced error handling (CustomerAuthAPI method)
+ * Enhanced clear and destroy reCAPTCHA verifier
  * @returns {Promise<boolean>} Success status
  */
-async function clearRecaptchaCustomer() {
+async function clearRecaptchaEnhanced() {
   return await safeAsyncOperation(async () => {
     if (window.recaptchaVerifier) {
       window.recaptchaVerifier.clear();
@@ -1029,8 +1073,61 @@ async function clearRecaptchaCustomer() {
 }
 
 // ============================================================================
-// PHONE NUMBER UTILITIES
+// PHONE NUMBER UTILITIES (ENHANCED)
 // ============================================================================
+
+/**
+ * Enhanced format phone number to E.164 format with comprehensive validation
+ * @param {string} phoneNumber - Raw phone number input
+ * @param {string} countryCode - Default country code (default: 'US')
+ * @returns {string} Formatted phone number in E.164 format
+ */
+function formatPhoneNumberEnhanced(phoneNumber, countryCode = 'US') {
+  try {
+    // Remove all non-digit characters
+    const digits = phoneNumber.replace(/\D/g, '');
+    
+    // Country code mappings with validation
+    const countryCodes = {
+      'US': '1', 'CA': '1', 'GB': '44', 'AU': '61',
+      'DE': '49', 'FR': '33', 'IT': '39', 'ES': '34',
+      'BR': '55', 'IN': '91', 'CN': '86', 'JP': '81',
+      'KR': '82', 'MX': '52'
+    };
+    
+    const defaultCountryCode = countryCodes[countryCode] || '1';
+    
+    // If number already starts with +, validate and return
+    if (phoneNumber.startsWith('+')) {
+      if (validatePhoneNumberEnhanced(phoneNumber)) {
+        return phoneNumber;
+      } else {
+        throw new Error('Invalid E.164 format');
+      }
+    }
+    
+    // If number starts with country code, add +
+    if (digits.startsWith(defaultCountryCode)) {
+      const formatted = '+' + digits;
+      if (validatePhoneNumberEnhanced(formatted)) {
+        return formatted;
+      } else {
+        throw new Error('Invalid phone number with country code');
+      }
+    }
+    
+    // If number doesn't have country code, add it
+    const formatted = '+' + defaultCountryCode + digits;
+    if (validatePhoneNumberEnhanced(formatted)) {
+      return formatted;
+    } else {
+      throw new Error('Invalid phone number format');
+    }
+  } catch (error) {
+    console.error('❌ Phone number formatting error:', error);
+    throw new Error('Failed to format phone number: ' + error.message);
+  }
+}
 
 /**
  * Format phone number to E.164 format
@@ -1068,6 +1165,37 @@ function formatPhoneNumber(phoneNumber, countryCode = 'US') {
   } catch (error) {
     console.error('❌ Phone number formatting error:', error);
     throw new Error('Invalid phone number format');
+  }
+}
+
+/**
+ * Enhanced phone number validation with detailed checks
+ * @param {string} phoneNumber - Phone number to validate
+ * @returns {boolean} True if valid E.164 format
+ */
+function validatePhoneNumberEnhanced(phoneNumber) {
+  try {
+    // Basic E.164 format check
+    const e164Regex = /^\+[1-9]\d{1,14}$/;
+    if (!e164Regex.test(phoneNumber)) {
+      return false;
+    }
+    
+    // Additional validation for common country codes
+    if (phoneNumber.startsWith('+1')) {
+      // US/Canada validation
+      const usNumber = phoneNumber.slice(2);
+      if (usNumber.length !== 10) return false;
+      if (usNumber.startsWith('0') || usNumber.startsWith('1')) return false;
+      // Check for invalid area codes
+      const areaCode = usNumber.slice(0, 3);
+      if (areaCode === '000' || areaCode === '555') return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Phone number validation error:', error);
+    return false;
   }
 }
 
@@ -1128,6 +1256,49 @@ function getPhoneAuthErrorMessage(errorCode) {
 }
 
 // ============================================================================
+// DEBUG AND DIAGNOSTIC FUNCTIONS
+// ============================================================================
+
+/**
+ * Debug function to check phone auth readiness
+ * @returns {Object} Status object with readiness information
+ */
+function checkPhoneAuthReadiness() {
+  const status = {
+    firebase: typeof firebase !== 'undefined',
+    vediAPI: typeof window.VediAPI !== 'undefined',
+    customerAuthAPI: typeof window.CustomerAuthAPI !== 'undefined',
+    phoneAuthMethods: {},
+    recaptchaReady: false,
+    compatibilityLayer: true
+  };
+  
+  // Check VediAPI phone methods
+  const requiredMethods = [
+    'initializeRecaptcha',
+    'sendPhoneVerification', 
+    'verifyPhoneCode',
+    'validatePhoneNumber',
+    'formatPhoneNumber'
+  ];
+  
+  requiredMethods.forEach(method => {
+    status.phoneAuthMethods[method] = !!(window.VediAPI && window.VediAPI[method]);
+  });
+  
+  // Check reCAPTCHA readiness
+  status.recaptchaReady = !!(
+    typeof grecaptcha !== 'undefined' && 
+    typeof firebase !== 'undefined' && 
+    firebase.auth && 
+    firebase.auth.RecaptchaVerifier
+  );
+  
+  console.log('📱 Phone Auth Readiness Status:', status);
+  return status;
+}
+
+// ============================================================================
 // GLOBAL EXPORTS AND VEDIAPI INTEGRATION
 // ============================================================================
 
@@ -1136,81 +1307,114 @@ if (!window.VediAPI) {
   window.VediAPI = {};
 }
 
+// Initialize compatibility layer immediately
+initializeCompatibilityLayer();
+
 // Attach phone authentication functions to VediAPI
 Object.assign(window.VediAPI, {
-  // INJECTED: Promise utilities from customer-auth-api
+  // Promise utilities
   withTimeout,
   withRetry,
   safeAsyncOperation,
   enhanceError,
   
-  // INJECTED: Configuration and diagnostics
+  // Configuration and diagnostics
   checkPhoneAuthConfig,
   testRecaptcha,
   isRecaptchaReady,
   
-  // Core phone authentication
+  // Core phone authentication (original methods)
   sendPhoneVerification,
   verifyPhoneCode,
   verifyPhoneCodeDirect,
   
-  // reCAPTCHA management
+  // Enhanced methods with better error handling
+  sendPhoneVerificationEnhanced,
+  verifyPhoneCodeEnhanced,
+  
+  // reCAPTCHA management (original methods)
   initializeRecaptcha,
   resetRecaptcha,
   clearRecaptcha,
   
-  // Phone utilities
+  // Enhanced reCAPTCHA methods
+  initializeRecaptchaEnhanced,
+  resetRecaptchaEnhanced,
+  clearRecaptchaEnhanced,
+  
+  // Phone utilities (original methods)
   formatPhoneNumber,
   validatePhoneNumber,
+  
+  // Enhanced phone utilities
+  formatPhoneNumberEnhanced,
+  validatePhoneNumberEnhanced,
   
   // Error handling
   getPhoneAuthErrorMessage,
   
-  // CustomerAuthAPI integration methods
-  formatPhoneNumberCustomer,
-  validatePhoneNumberCustomer,
-  sendPhoneVerificationCustomer,
-  verifyPhoneCodeCustomer,
-  verifyPhoneCodeLegacyCustomer,
-  initializeRecaptchaCustomer,
-  resetRecaptchaCustomer,
-  clearRecaptchaCustomer
+  // CustomerAuthAPI integration methods (for backwards compatibility)
+  formatPhoneNumberCustomer: formatPhoneNumberEnhanced,
+  validatePhoneNumberCustomer: validatePhoneNumberEnhanced,
+  sendPhoneVerificationCustomer: sendPhoneVerificationEnhanced,
+  verifyPhoneCodeCustomer: verifyPhoneCodeEnhanced,
+  verifyPhoneCodeLegacyCustomer: verifyPhoneCode,
+  initializeRecaptchaCustomer: initializeRecaptchaEnhanced,
+  resetRecaptchaCustomer: resetRecaptchaEnhanced,
+  clearRecaptchaCustomer: clearRecaptchaEnhanced,
+  
+  // Debug functions
+  checkPhoneAuthReadiness
 });
 
 // Create CustomerAuthAPI namespace with integrated methods
 window.CustomerAuthAPI = {
   // Phone utility methods
-  formatPhoneNumber: formatPhoneNumberCustomer,
-  validatePhoneNumber: validatePhoneNumberCustomer,
-  maskPhoneNumber: function(phoneNumber) {
-    // Use utilities.js method for masking
-    return VediAPI.maskPhoneNumber(phoneNumber);
-  },
+  formatPhoneNumber: formatPhoneNumberEnhanced,
+  validatePhoneNumber: validatePhoneNumberEnhanced,
+  maskPhoneNumber: window.maskPhoneNumberCustomer,
   
   // Phone authentication methods
-  sendPhoneVerification: sendPhoneVerificationCustomer,
-  verifyPhoneCode: verifyPhoneCodeCustomer,
-  verifyPhoneCodeLegacy: verifyPhoneCodeLegacyCustomer,
+  sendPhoneVerification: sendPhoneVerificationEnhanced,
+  verifyPhoneCode: verifyPhoneCodeEnhanced,
+  verifyPhoneCodeLegacy: verifyPhoneCode,
   
   // reCAPTCHA management methods
-  initializeRecaptcha: initializeRecaptchaCustomer,
-  resetRecaptcha: resetRecaptchaCustomer,
-  clearRecaptcha: clearRecaptchaCustomer,
+  initializeRecaptcha: initializeRecaptchaEnhanced,
+  resetRecaptcha: resetRecaptchaEnhanced,
+  clearRecaptcha: clearRecaptchaEnhanced,
   
   // Promise utilities (exposed for compatibility)
   safeAsyncOperation: safeAsyncOperation
 };
 
-// Also make functions available globally for internal module use
-window.getFirebaseDb = getFirebaseDb;
-window.getFirebaseAuth = getFirebaseAuth;
+// Auto-check readiness when module loads
+setTimeout(() => {
+  const readiness = checkPhoneAuthReadiness();
+  const allMethodsReady = Object.values(readiness.phoneAuthMethods).every(Boolean);
+  
+  if (readiness.firebase && readiness.vediAPI && allMethodsReady && readiness.recaptchaReady) {
+    console.log('✅ Enhanced phone authentication fully ready with modal support!');
+  } else {
+    console.warn('⚠️ Phone authentication not fully ready. Missing:', {
+      firebase: !readiness.firebase,
+      vediAPI: !readiness.vediAPI,
+      recaptcha: !readiness.recaptchaReady,
+      missingMethods: Object.keys(readiness.phoneAuthMethods).filter(
+        method => !readiness.phoneAuthMethods[method]
+      )
+    });
+  }
+}, 1000);
 
-console.log('📱 Enhanced Phone Authentication Module loaded with CustomerAuthAPI integration');
-console.log('🔧 INJECTED: Promise utilities - withTimeout, withRetry, safeAsyncOperation, enhanceError');
-console.log('🔍 INJECTED: Diagnostics - checkPhoneAuthConfig, testRecaptcha, isRecaptchaReady');
-console.log('📨 SMS: sendPhoneVerification, verifyPhoneCode, verifyPhoneCodeDirect');
-console.log('🤖 reCAPTCHA: initializeRecaptcha, resetRecaptcha, clearRecaptcha');
-console.log('📞 Utilities: formatPhoneNumber, validatePhoneNumber');
-console.log('🔒 Customer profiles automatically created for phone users');
-console.log('✅ CustomerAuthAPI: All 9 methods integrated and available');
-console.log('⚠️ Note: Enhanced phone auth features now available via CustomerAuthAPI namespace');
+console.log('📱 Enhanced Phone Authentication Module loaded with Modal Support');
+console.log('🔗 Compatibility Layer: Integrated and ready');
+console.log('🔧 Promise utilities: withTimeout, withRetry, safeAsyncOperation, enhanceError');
+console.log('🔍 Diagnostics: checkPhoneAuthConfig, testRecaptcha, isRecaptchaReady');
+console.log('📨 SMS: sendPhoneVerification, verifyPhoneCode, verifyPhoneCodeDirect + enhanced versions');
+console.log('🤖 reCAPTCHA: initializeRecaptcha, resetRecaptcha, clearRecaptcha + enhanced versions');
+console.log('📞 Utilities: formatPhoneNumber, validatePhoneNumber + enhanced versions');
+console.log('🔒 Customer profiles: Automatically created for phone users');
+console.log('✅ CustomerAuthAPI: All methods integrated with enhanced error handling');
+console.log('🎯 Modal Support: Full compatibility with modal-based authentication');
+console.log('⚠️ Production Ready: Comprehensive error handling and fallback mechanisms');
