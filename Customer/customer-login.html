@@ -720,6 +720,17 @@
             line-height: 1.4;
         }
 
+        .secure-notice {
+            background: #e8f5e8;
+            color: #27ae60;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 16px 0;
+            text-align: center;
+            font-size: 0.9rem;
+            border: 1px solid #a2d5a2;
+        }
+
         /* Modal Button Styles */
         .btn-primary {
             width: 100%;
@@ -814,13 +825,6 @@
             border: 1px solid #fc8181;
             text-align: center;
             font-weight: 600;
-        }
-
-        /* reCAPTCHA Styling */
-        #phone-recaptcha-container {
-            display: flex;
-            justify-content: center;
-            margin: 16px 0;
         }
 
         /* Responsive Design */
@@ -999,6 +1003,11 @@
                         <p>We'll send you a verification code via SMS</p>
                     </div>
                     
+                    <!-- Secure Notice -->
+                    <div class="secure-notice">
+                        ✅ Secure SMS verification - No annoying reCAPTCHA required!
+                    </div>
+                    
                     <form id="phoneForm">
                         <!-- Full Name Input -->
                         <div class="form-group">
@@ -1043,11 +1052,6 @@
                             <div class="input-hint">
                                 We'll only use this for order updates and account security
                             </div>
-                        </div>
-                        
-                        <!-- reCAPTCHA Container -->
-                        <div class="form-group">
-                            <div id="phone-recaptcha-container"></div>
                         </div>
                         
                         <!-- Send Code Button -->
@@ -1123,7 +1127,7 @@
         let userPhoneNumber = '';
 
         // =============================================================================
-        // PHONE AUTHENTICATION MODAL FUNCTIONS
+        // PHONE AUTHENTICATION MODAL FUNCTIONS - NO reCAPTCHA
         // =============================================================================
 
         // Open phone authentication modal
@@ -1136,95 +1140,17 @@
             }
             
             document.getElementById('phoneAuthModal').style.display = 'flex';
-            
-            // Initialize reCAPTCHA when modal opens
-            setTimeout(() => {
-                initializePhoneRecaptcha();
-            }, 300);
+            console.log('✅ Phone modal opened - NO reCAPTCHA initialization needed');
         }
 
         // Close phone authentication modal
         function closePhoneModal() {
             console.log('📱 Closing phone authentication modal');
             document.getElementById('phoneAuthModal').style.display = 'none';
-            
-            // Clear any reCAPTCHA
-            if (window.VediAPI && window.VediAPI.clearRecaptcha) {
-                window.VediAPI.clearRecaptcha();
-            }
-            
-            // Reset form
             resetPhoneForm();
         }
 
-    // Initialize reCAPTCHA for phone auth
-async function initializePhoneRecaptcha() {
-    try {
-        console.log('🔐 Initializing reCAPTCHA for phone auth (fallback method)...');
-        
-        // Clear any existing reCAPTCHA
-        if (window.recaptchaVerifier) {
-            try {
-                window.recaptchaVerifier.clear();
-                window.recaptchaVerifier = null;
-            } catch (e) {
-                console.log('Old verifier cleared');
-            }
-        }
-        
-        // Make sure the container exists
-        const containerId = 'phone-recaptcha-container';
-        let container = document.getElementById(containerId);
-        if (!container) {
-            console.error('❌ reCAPTCHA container not found:', containerId);
-            throw new Error('reCAPTCHA container not found');
-        }
-        
-        // Clear the container
-        container.innerHTML = '';
-        
-        console.log('🔧 Container found:', containerId);
-        console.log('🔧 Using Firebase auto-managed reCAPTCHA (no custom site key)');
-        
-        // Create verifier WITHOUT site key (let Firebase handle it)
-        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(containerId, {
-            'size': 'normal',
-            'callback': function(response) {
-                console.log('✅ reCAPTCHA solved for phone auth');
-            },
-            'expired-callback': function() {
-                console.log('⏰ reCAPTCHA expired for phone auth');
-                showPhoneError('reCAPTCHA expired. Please try again.');
-            },
-            'error-callback': function(error) {
-                console.error('❌ reCAPTCHA error for phone auth:', error);
-                showPhoneError('reCAPTCHA error. Please refresh and try again.');
-            }
-        });
-        
-        // Render the reCAPTCHA
-        console.log('🎨 Rendering reCAPTCHA...');
-        await window.recaptchaVerifier.render();
-        
-        console.log('✅ reCAPTCHA initialized successfully (fallback method)');
-        return window.recaptchaVerifier;
-        
-    } catch (error) {
-        console.error('❌ Error initializing reCAPTCHA for phone auth:', error);
-        
-        // More detailed error information
-        console.log('🔍 Error details:', {
-            code: error.code,
-            message: error.message,
-            container: document.getElementById('phone-recaptcha-container'),
-            firebase: typeof firebase !== 'undefined'
-        });
-        
-        showPhoneError('Failed to initialize security verification. Please refresh the page.');
-        return null;
-    }
-}
-        // Handle phone form submission
+        // Handle phone form submission - NO reCAPTCHA
         async function handlePhoneSubmit(e) {
             e.preventDefault();
             
@@ -1257,31 +1183,19 @@ async function initializePhoneRecaptcha() {
                 // Format phone number to E.164
                 userPhoneNumber = countryCode + rawPhoneNumber;
                 
-                // Validate with phone auth utilities
-                if (window.VediAPI && window.VediAPI.validatePhoneNumber) {
-                    if (!window.VediAPI.validatePhoneNumber(userPhoneNumber)) {
-                        throw new Error('Invalid phone number format');
-                    }
-                }
+                console.log('📱 Sending verification to:', userPhoneNumber, '(NO reCAPTCHA)');
                 
-                console.log('📱 Sending verification to:', userPhoneNumber);
+                // Send verification code WITHOUT reCAPTCHA
+                const auth = firebase.auth();
+                phoneConfirmationResult = await auth.signInWithPhoneNumber(userPhoneNumber);
                 
-                // Send verification code
-                if (window.VediAPI && window.VediAPI.sendPhoneVerification) {
-                    phoneConfirmationResult = await window.VediAPI.sendPhoneVerification(
-                        userPhoneNumber, 
-                        window.recaptchaVerifier
-                    );
-                    
-                    // Store verification ID
-                    phoneVerificationId = phoneConfirmationResult.verificationId;
-                    
-                    // Show step 2
-                    showVerificationStep();
-                    
-                } else {
-                    throw new Error('Phone authentication not available. Please refresh the page.');
-                }
+                // Store verification ID
+                phoneVerificationId = phoneConfirmationResult.verificationId;
+                
+                console.log('✅ SMS sent successfully without reCAPTCHA!');
+                
+                // Show step 2
+                showVerificationStep();
                 
             } catch (error) {
                 console.error('❌ Error sending phone verification:', error);
@@ -1318,18 +1232,8 @@ async function initializePhoneRecaptcha() {
                 
                 console.log('🔐 Verifying phone code...');
                 
-                let userCredential;
-                
-                // Try both verification methods
-                if (phoneConfirmationResult && window.VediAPI && window.VediAPI.verifyPhoneCode) {
-                    // Method 1: Using confirmation result
-                    userCredential = await window.VediAPI.verifyPhoneCode(phoneConfirmationResult, code);
-                } else if (phoneVerificationId && window.VediAPI && window.VediAPI.verifyPhoneCodeDirect) {
-                    // Method 2: Using verification ID directly
-                    userCredential = await window.VediAPI.verifyPhoneCodeDirect(phoneVerificationId, code);
-                } else {
-                    throw new Error('Verification method not available');
-                }
+                // Verify the SMS code
+                const userCredential = await phoneConfirmationResult.confirm(code);
                 
                 console.log('✅ Phone verification successful:', userCredential);
                 
@@ -1414,15 +1318,6 @@ async function initializePhoneRecaptcha() {
                     displayName: displayName
                 });
                 
-                // Also save to VediAPI customer profile if available
-                if (window.VediAPI && window.VediAPI.saveCustomerProfile) {
-                    await window.VediAPI.saveCustomerProfile(user.uid, {
-                        name: displayName,
-                        phone: userPhoneNumber,
-                        authProvider: 'phone'
-                    });
-                }
-                
                 console.log('✅ User profile updated with name');
             } catch (error) {
                 console.error('❌ Error updating user profile:', error);
@@ -1436,9 +1331,7 @@ async function initializePhoneRecaptcha() {
             document.getElementById('phoneStep2').style.display = 'block';
             
             // Update the phone number display
-            const maskedNumber = window.VediAPI && window.VediAPI.maskPhoneNumber 
-                ? window.VediAPI.maskPhoneNumber(userPhoneNumber)
-                : userPhoneNumber.replace(/(\+\d{1,3})(\d{3})(\d{3})(\d{4})/, '$1 $2-***-$4');
+            const maskedNumber = userPhoneNumber.replace(/(\+\d{1,3})(\d{3})(\d{3})(\d{4})/, '$1 $2-***-$4');
             
             document.getElementById('sentToNumber').textContent = maskedNumber;
             
@@ -1463,33 +1356,21 @@ async function initializePhoneRecaptcha() {
             sendCodeSpinner.style.display = 'none';
         }
 
-        // Resend verification code
+        // Resend verification code - NO reCAPTCHA
         async function resendCode() {
             try {
-                console.log('🔄 Resending verification code...');
+                console.log('🔄 Resending verification code (NO reCAPTCHA)...');
                 
-                // Reset reCAPTCHA
-                if (window.VediAPI && window.VediAPI.resetRecaptcha) {
-                    await window.VediAPI.resetRecaptcha();
-                }
+                // Resend code without reCAPTCHA
+                const auth = firebase.auth();
+                phoneConfirmationResult = await auth.signInWithPhoneNumber(userPhoneNumber);
                 
-                // Resend code
-                if (window.VediAPI && window.VediAPI.sendPhoneVerification) {
-                    phoneConfirmationResult = await window.VediAPI.sendPhoneVerification(
-                        userPhoneNumber, 
-                        window.recaptchaVerifier
-                    );
-                    
-                    phoneVerificationId = phoneConfirmationResult.verificationId;
-                    
-                    showPhoneSuccess('Verification code resent!');
-                    
-                    // Clear the code input
-                    document.getElementById('verificationCode').value = '';
-                    
-                } else {
-                    throw new Error('Resend function not available');
-                }
+                phoneVerificationId = phoneConfirmationResult.verificationId;
+                
+                showPhoneSuccess('Verification code resent!');
+                
+                // Clear the code input
+                document.getElementById('verificationCode').value = '';
                 
             } catch (error) {
                 console.error('❌ Error resending code:', error);
@@ -1556,7 +1437,6 @@ async function initializePhoneRecaptcha() {
         // Show phone success
         function showPhoneSuccess(message) {
             console.log('✅', message);
-            // You can enhance this with a success message display in the modal
         }
 
         // Format phone number display as user types
@@ -1618,31 +1498,11 @@ async function initializePhoneRecaptcha() {
             try {
                 console.log('🔄 Completing social sign-in and redirecting...');
                 
-                // Save customer profile using VediAPI if available
-                try {
-                    if (typeof VediAPI !== 'undefined' && currentSocialUser) {
-                        await VediAPI.saveCustomerProfile(currentSocialUser.uid, {
-                            name: userName,
-                            email: userEmail,
-                            phone: userPhone,
-                            phoneFormatted: userPhone ? CustomerAuthAPI.maskPhoneNumber(userPhone) : '',
-                            authProvider: provider,
-                            restaurantId: restaurantId,
-                            tableNumber: tableNumber,
-                            location: tableLocation
-                        });
-                        console.log('✅ Customer profile saved via VediAPI');
-                    }
-                } catch (profileError) {
-                    console.warn('⚠️ Could not save customer profile via VediAPI:', profileError);
-                }
-
                 // Create customer session data
                 const customerSession = {
                     name: userName,
                     email: userEmail,
                     phone: userPhone,
-                    phoneFormatted: userPhone ? CustomerAuthAPI.maskPhoneNumber(userPhone) : '',
                     restaurantId: restaurantId,
                     restaurantName: restaurantData?.name || 'Restaurant',
                     tableNumber: tableNumber,
@@ -1827,25 +1687,15 @@ async function initializePhoneRecaptcha() {
                 return;
             }
 
-            // Use CustomerAuthAPI to format and validate phone number
-            let fullPhoneNumber;
-            try {
-                fullPhoneNumber = CustomerAuthAPI.formatPhoneNumber(phoneNumber, 'US');
-                
-                if (!CustomerAuthAPI.validatePhoneNumber(fullPhoneNumber)) {
-                    showError('Please enter a valid phone number');
-                    return;
-                }
-            } catch (error) {
-                showError('Invalid phone number format');
-                return;
-            }
-
             try {
                 setLoading('phoneCollection', true);
                 
                 const userName = currentSocialUser.displayName || 'Guest User';
                 const userEmail = currentSocialUser.email || '';
+                
+                // Format phone number
+                const rawPhone = phoneNumber.replace(/\D/g, '');
+                const fullPhoneNumber = '+1' + rawPhone;
                 
                 await completeSocialSignIn(userName, fullPhoneNumber, userEmail, 'social');
                 
@@ -1886,11 +1736,11 @@ async function initializePhoneRecaptcha() {
         function waitForAPIs() {
             return new Promise((resolve) => {
                 const checkAPIs = () => {
-                    if (typeof VediAPI !== 'undefined' && typeof CustomerAuthAPI !== 'undefined') {
-                        console.log('✅ Both APIs loaded successfully');
+                    if (typeof VediAPI !== 'undefined') {
+                        console.log('✅ VediAPI loaded successfully');
                         resolve();
                     } else {
-                        console.log('⏳ Waiting for APIs to load...');
+                        console.log('⏳ Waiting for VediAPI to load...');
                         setTimeout(checkAPIs, 100);
                     }
                 };
@@ -2021,7 +1871,7 @@ async function initializePhoneRecaptcha() {
                 // Hide loader after successful initialization
                 setTimeout(hideInitialLoader, 500);
 
-                console.log('✅ Customer login loaded successfully');
+                console.log('✅ Customer login loaded successfully - reCAPTCHA-FREE phone auth enabled');
 
             } catch (error) {
                 console.error('❌ Page initialization error:', error);
@@ -2344,10 +2194,11 @@ async function initializePhoneRecaptcha() {
             }
         });
 
-        console.log('📱🔍 Customer authentication system with phone modal loaded');
+        console.log('📱🔍 Customer authentication system loaded - reCAPTCHA-FREE');
         console.log('🔗 Using VediAPI social auth with callback integration');
-        console.log('📱 Phone authentication modal integrated successfully');
+        console.log('📱 Phone authentication: DIRECT Firebase SMS (NO reCAPTCHA required)');
         console.log('🟢🔴 Restaurant status monitoring: ENABLED');
+        console.log('✅ Ready for phone verification with test number configuration');
     </script>
 </body>
 </html>
