@@ -1,4 +1,4 @@
-// Your actual Vedi Firebase configuration - NO reCAPTCHA VERSION
+// Your actual Vedi Firebase configuration - UPDATED FOR PRODUCTION PHONE AUTH
 const firebaseConfig = {
     apiKey: "AIzaSyDglG7Soj0eKu2SLoVby6n71S7gcQzHBPg",
     authDomain: "vedi00.firebaseapp.com",
@@ -31,11 +31,11 @@ const firebaseAuth = auth;
 const firebaseDb = db;
 const firebaseAnalytics = analytics;
 
-// Enhanced Authentication Configuration - NO reCAPTCHA
+// Enhanced Authentication Configuration - PRODUCTION PHONE AUTH
 // =============================================================================
 
 /**
- * Configure Firebase Auth settings for optimal user experience - NO reCAPTCHA
+ * Configure Firebase Auth settings for optimal user experience - PRODUCTION MODE
  */
 function configureFirebaseAuth() {
   // Set language preference (can be changed dynamically)
@@ -50,8 +50,10 @@ function configureFirebaseAuth() {
       console.warn('⚠️ Auth persistence setting failed:', error);
     });
 
-  // NO reCAPTCHA NEEDED - Using test number configuration
-  console.log('🚫 reCAPTCHA disabled - using test number configuration for phone auth');
+  // PRODUCTION PHONE AUTH - reCAPTCHA is REQUIRED
+  console.log('🛡️ reCAPTCHA is REQUIRED for Firebase phone authentication');
+  console.log('📱 Phone auth configured for PRODUCTION use');
+  console.log('💰 Real SMS messages will be sent (charges apply)');
 }
 
 /**
@@ -96,11 +98,11 @@ function initializeSocialProviders() {
 }
 
 /**
- * Phone authentication configuration - NO reCAPTCHA
- * Uses Firebase test number configuration to bypass reCAPTCHA entirely
+ * Phone authentication configuration - PRODUCTION MODE
+ * Real SMS messages will be sent with reCAPTCHA verification
  */
 function configurePhoneAuth() {
-  // Set up phone auth specific settings - NO reCAPTCHA
+  // Set up phone auth specific settings - PRODUCTION
   if (firebaseAuth) {
     // Configure language for SMS messages
     firebaseAuth.languageCode = 'en';
@@ -108,8 +110,9 @@ function configurePhoneAuth() {
     // Set up authentication domain verification
     const authDomain = firebaseConfig.authDomain;
     console.log('🔐 Phone auth configured for domain:', authDomain);
-    console.log('📱 Using test number configuration - NO reCAPTCHA required');
-    console.log('✅ Test numbers configured: Works with real numbers too!');
+    console.log('📱 PRODUCTION MODE: Real SMS will be sent');
+    console.log('🛡️ reCAPTCHA verification: MANDATORY');
+    console.log('💰 SMS charges apply to Firebase billing');
   }
 }
 
@@ -189,7 +192,7 @@ function setupAuthStateListener() {
 }
 
 /**
- * Enhanced error handling for authentication
+ * Enhanced error handling for authentication - PRODUCTION READY
  */
 function handleAuthError(error) {
   console.error('🔥 Firebase Auth Error:', {
@@ -206,13 +209,27 @@ function handleAuthError(error) {
     });
   }
 
-  // Use the error handling from utilities.js if available
-  if (window.VediAPI && window.VediAPI.getAuthErrorMessage) {
-    return window.VediAPI.getAuthErrorMessage(error.code);
+  // Production-ready error messages for phone auth
+  switch (error.code) {
+    case 'auth/invalid-phone-number':
+      return 'Please enter a valid phone number with country code (e.g., +1 555-123-4567)';
+    case 'auth/too-many-requests':
+      return 'Too many SMS requests for this phone number. Please try again in a few hours.';
+    case 'auth/captcha-check-failed':
+      return 'Security verification failed. Please refresh the page and try again.';
+    case 'auth/invalid-verification-code':
+      return 'Invalid verification code. Please check your SMS and enter the correct 6-digit code.';
+    case 'auth/code-expired':
+      return 'Verification code expired. Please request a new code.';
+    case 'auth/session-expired':
+      return 'Session expired. Please start the verification process again.';
+    case 'auth/missing-phone-number':
+      return 'Phone number is required for SMS verification.';
+    case 'auth/quota-exceeded':
+      return 'Daily SMS limit exceeded. Please try again tomorrow or contact support.';
+    default:
+      return 'Authentication error occurred. Please try again or contact support.';
   }
-  
-  // Fallback error message
-  return 'An unexpected error occurred. Please try again.';
 }
 
 /**
@@ -287,56 +304,71 @@ function configureEnvironment() {
 }
 
 // =============================================================================
-// NO reCAPTCHA COMPATIBILITY FUNCTIONS
+// PRODUCTION reCAPTCHA FUNCTIONS - REAL IMPLEMENTATION
 // =============================================================================
 
 /**
- * NO-OP reCAPTCHA functions for compatibility
- * These functions exist so old code doesn't break, but they do nothing
+ * Create reCAPTCHA verifier for production phone auth
  */
 function createRecaptchaVerifier(containerId = 'recaptcha-container', options = {}) {
-  console.log('🚫 createRecaptchaVerifier called but reCAPTCHA is disabled');
-  console.log('✅ Phone auth works without reCAPTCHA using test number configuration');
+  console.log('🛡️ Creating reCAPTCHA verifier for production phone auth');
   
-  // Return a dummy object that won't break existing code
-  return {
-    render: () => Promise.resolve(),
-    clear: () => {},
-    verify: () => Promise.resolve('dummy-token')
+  const defaultOptions = {
+    'size': 'normal', // Use normal for better reliability in production
+    'callback': function(response) {
+      console.log('✅ reCAPTCHA solved successfully');
+    },
+    'expired-callback': function() {
+      console.log('⏱️ reCAPTCHA expired - user needs to solve again');
+    },
+    'error-callback': function(error) {
+      console.error('❌ reCAPTCHA error:', error);
+    }
   };
+
+  const finalOptions = { ...defaultOptions, ...options };
+  
+  return new firebase.auth.RecaptchaVerifier(containerId, finalOptions);
 }
 
 /**
- * Clear reCAPTCHA verifier (no-op since we don't use reCAPTCHA)
+ * Clear reCAPTCHA verifier
  */
 function clearRecaptchaVerifier() {
-  console.log('🚫 clearRecaptchaVerifier called but reCAPTCHA is disabled');
+  console.log('🧹 Clearing reCAPTCHA verifier');
   if (window.recaptchaVerifier) {
-    window.recaptchaVerifier = null;
+    try {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = null;
+      console.log('✅ reCAPTCHA verifier cleared successfully');
+    } catch (error) {
+      console.warn('⚠️ Error clearing reCAPTCHA verifier:', error);
+    }
   }
 }
 
 /**
- * Reset reCAPTCHA (no-op since we don't use reCAPTCHA)
+ * Reset reCAPTCHA (for error recovery)
  */
 function resetRecaptcha() {
-  console.log('🚫 resetRecaptcha called but reCAPTCHA is disabled');
+  console.log('🔄 Resetting reCAPTCHA');
+  clearRecaptchaVerifier();
   return Promise.resolve();
 }
 
 // =============================================================================
-// INITIALIZATION SEQUENCE - NO reCAPTCHA
+// INITIALIZATION SEQUENCE - PRODUCTION PHONE AUTH
 // =============================================================================
 
 // Initialize everything when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   try {
-    console.log('🔥 Initializing Enhanced Firebase Configuration (NO reCAPTCHA)...');
+    console.log('🔥 Initializing Vedi Firebase Configuration (PRODUCTION PHONE AUTH)...');
     
     // Configure Firebase Auth
     configureFirebaseAuth();
     
-    // Configure phone authentication (NO reCAPTCHA)
+    // Configure phone authentication (PRODUCTION)
     configurePhoneAuth();
     
     // Check domain authorization for phone auth
@@ -357,21 +389,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Log security rules information
     logSecurityRulesInfo();
     
-    console.log('✅ Enhanced Firebase Configuration Complete (NO reCAPTCHA)!');
+    console.log('✅ Vedi Firebase Configuration Complete (PRODUCTION)!');
     console.log('🔐 Authentication Methods Available:');
-    console.log('   📱 Phone (SMS OTP - NO reCAPTCHA required)');
+    console.log('   📱 Phone (SMS OTP with mandatory reCAPTCHA)');
     console.log('   🔍 Google Social Login');
     console.log('   📘 Facebook Social Login'); 
     console.log('   🍎 Apple Social Login');
     console.log('   📧 Email/Password (Business Users)');
     
-    // Phone auth specific logging (NO reCAPTCHA)
-    console.log('📱 Phone Authentication Setup (NO reCAPTCHA):');
-    console.log('   🚫 reCAPTCHA completely disabled');
-    console.log('   ✅ Using Firebase test number configuration');
-    console.log('   📞 Works with test numbers: +1 888-888-8888');
-    console.log('   📱 Works with real numbers: Any legitimate phone number');
-    console.log('   🚀 Fast authentication - no reCAPTCHA delays');
+    // Phone auth specific logging (PRODUCTION)
+    console.log('📱 Phone Authentication Setup (PRODUCTION):');
+    console.log('   🛡️ reCAPTCHA verification: MANDATORY');
+    console.log('   📱 Real SMS will be sent to phone numbers');
+    console.log('   💰 SMS charges apply to your Firebase billing');
+    console.log('   ⚠️ Rate limits apply to prevent abuse');
+    console.log('   🚫 No test numbers - production use only');
     
   } catch (error) {
     console.error('❌ Firebase configuration error:', error);
@@ -381,14 +413,15 @@ document.addEventListener('DOMContentLoaded', function() {
 // Export for use in other modules (maintaining compatibility)
 window.firebaseConfig = firebaseConfig;
 
-// Utility functions available globally (NO reCAPTCHA versions)
+// Utility functions available globally (PRODUCTION versions)
 window.createRecaptchaVerifier = createRecaptchaVerifier;
 window.clearRecaptchaVerifier = clearRecaptchaVerifier;
 window.resetRecaptcha = resetRecaptcha;
 window.handleAuthError = handleAuthError;
 
-console.log('🍽️ Vedi Firebase initialized successfully (NO reCAPTCHA)');
+console.log('🍽️ Vedi Firebase initialized successfully (PRODUCTION PHONE AUTH)');
 console.log('📊 Analytics tracking enabled');
 console.log('🔐 Enhanced authentication with social login ready!');
-console.log('📱 Phone authentication configured - NO reCAPTCHA required!');
-console.log('🔥 Enhanced Firebase configuration loaded successfully (reCAPTCHA-FREE)!');
+console.log('📱 Phone authentication configured - reCAPTCHA REQUIRED!');
+console.log('💰 Real SMS will be sent - charges apply!');
+console.log('🔥 Production Firebase configuration loaded successfully!');
