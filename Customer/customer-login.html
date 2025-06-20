@@ -1157,44 +1157,49 @@
             resetPhoneForm();
         }
 
-        // Initialize reCAPTCHA for phone auth
-        async function initializePhoneRecaptcha() {
+       // Initialize reCAPTCHA for phone auth
+async function initializePhoneRecaptcha() {
+    try {
+        console.log('🔐 Initializing reCAPTCHA for phone auth with direct key...');
+        
+        // Your working reCAPTCHA site key - DIRECT INJECTION
+        const WORKING_SITE_KEY = '6LdITGcrAAAAAD2YzHqa70NpNWD9e9T_JZfkv7Z5';
+        
+        // Clear any existing reCAPTCHA
+        if (window.recaptchaVerifier) {
             try {
-                console.log('🔐 Initializing reCAPTCHA for phone auth');
-                
-                // Clear any existing reCAPTCHA
-                if (window.VediAPI && window.VediAPI.clearRecaptcha) {
-                    await window.VediAPI.clearRecaptcha();
-                }
-                
-                // Initialize new reCAPTCHA
-                if (window.VediAPI && window.VediAPI.initializeRecaptcha) {
-                    const verifier = await window.VediAPI.initializeRecaptcha('phone-recaptcha-container', {
-                        'size': 'normal',
-                        'callback': function(response) {
-                            console.log('✅ reCAPTCHA solved for phone auth');
-                        },
-                        'expired-callback': function() {
-                            console.log('⏰ reCAPTCHA expired for phone auth');
-                            showPhoneError('reCAPTCHA expired. Please try again.');
-                        },
-                        'error-callback': function(error) {
-                            console.error('❌ reCAPTCHA error for phone auth:', error);
-                            showPhoneError('reCAPTCHA error. Please refresh and try again.');
-                        }
-                    });
-                    
-                    console.log('✅ reCAPTCHA initialized for phone auth');
-                    return verifier;
-                } else {
-                    throw new Error('VediAPI phone auth functions not available');
-                }
-            } catch (error) {
-                console.error('❌ Error initializing reCAPTCHA for phone auth:', error);
-                showPhoneError('Failed to initialize security verification. Please refresh the page.');
-                return null;
+                window.recaptchaVerifier.clear();
+            } catch (e) {
+                console.log('Old verifier cleared');
             }
         }
+        
+        // Create verifier with DIRECT site key injection
+        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('phone-recaptcha-container', {
+            'size': 'normal',
+            'sitekey': WORKING_SITE_KEY,  // 🔑 THIS IS THE KEY FIX
+            'callback': function(response) {
+                console.log('✅ reCAPTCHA solved for phone auth');
+            },
+            'expired-callback': function() {
+                console.log('⏰ reCAPTCHA expired for phone auth');
+                showPhoneError('reCAPTCHA expired. Please try again.');
+            },
+            'error-callback': function(error) {
+                console.error('❌ reCAPTCHA error for phone auth:', error);
+                showPhoneError('reCAPTCHA error. Please refresh and try again.');
+            }
+        });
+        
+        console.log('✅ reCAPTCHA initialized for phone auth with direct key');
+        return window.recaptchaVerifier;
+        
+    } catch (error) {
+        console.error('❌ Error initializing reCAPTCHA for phone auth:', error);
+        showPhoneError('Failed to initialize security verification. Please refresh the page.');
+        return null;
+    }
+}
 
         // Handle phone form submission
         async function handlePhoneSubmit(e) {
