@@ -2164,26 +2164,34 @@
         async function saveCategoriesOrder() {
             try {
                 console.log('💾 Saving categories order...');
+                showLoading('Updating category order...');
                 
-                // Update each category's order in Firebase
-                const updatePromises = categories.map(async (category, index) => {
-                    const updatedOrder = index + 1;
-                    if (category.order !== updatedOrder) {
-                        return VediAPI.updateMenuCategory(category.id, { order: updatedOrder });
-                    }
-                    return Promise.resolve();
+                // Use the existing reorderMenuCategories function from menu-categories.js
+                const categoryIds = categories.map(cat => cat.id);
+                console.log('📝 New category order:', categoryIds);
+                
+                await VediAPI.reorderMenuCategories(currentRestaurant.id, categoryIds);
+                
+                // Update local categories with new order
+                categories.forEach((category, index) => {
+                    category.order = index + 1;
                 });
                 
-                await Promise.all(updatePromises);
+                hideLoading();
                 showSuccess('Category order updated successfully!');
-                console.log('✅ Categories order saved');
+                console.log('✅ Categories order saved using reorderMenuCategories');
                 
             } catch (error) {
                 console.error('❌ Error saving categories order:', error);
+                hideLoading();
                 showError('Failed to save category order: ' + error.message);
                 
                 // Reload data to restore original order
-                await loadMenuData();
+                try {
+                    await loadMenuData();
+                } catch (reloadError) {
+                    console.error('❌ Error reloading menu data:', reloadError);
+                }
             }
         }
 
