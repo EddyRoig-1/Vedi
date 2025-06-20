@@ -1157,13 +1157,10 @@
             resetPhoneForm();
         }
 
-     // Initialize reCAPTCHA for phone auth
+    // Initialize reCAPTCHA for phone auth
 async function initializePhoneRecaptcha() {
     try {
-        console.log('🔐 Initializing reCAPTCHA for phone auth with direct key...');
-        
-        // Your working reCAPTCHA site key
-        const WORKING_SITE_KEY = '6LdITGcrAAAAAD2YzHqa70NpNWD9e9T_JZfkv7Z5';
+        console.log('🔐 Initializing reCAPTCHA for phone auth (fallback method)...');
         
         // Clear any existing reCAPTCHA
         if (window.recaptchaVerifier) {
@@ -1187,12 +1184,11 @@ async function initializePhoneRecaptcha() {
         container.innerHTML = '';
         
         console.log('🔧 Container found:', containerId);
-        console.log('🔑 Using site key:', WORKING_SITE_KEY);
+        console.log('🔧 Using Firebase auto-managed reCAPTCHA (no custom site key)');
         
-        // Create verifier with direct site key injection
+        // Create verifier WITHOUT site key (let Firebase handle it)
         window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(containerId, {
             'size': 'normal',
-            'sitekey': WORKING_SITE_KEY,
             'callback': function(response) {
                 console.log('✅ reCAPTCHA solved for phone auth');
             },
@@ -1210,7 +1206,7 @@ async function initializePhoneRecaptcha() {
         console.log('🎨 Rendering reCAPTCHA...');
         await window.recaptchaVerifier.render();
         
-        console.log('✅ reCAPTCHA initialized and rendered successfully');
+        console.log('✅ reCAPTCHA initialized successfully (fallback method)');
         return window.recaptchaVerifier;
         
     } catch (error) {
