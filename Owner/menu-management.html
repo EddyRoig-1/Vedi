@@ -951,32 +951,29 @@
             { id: 'spicy', name: 'Spicy Food', icon: '🌶️' }
         ];
 
-        // Initialize app
+        // Initialize app using secure iframe init
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Menu Management initializing...');
             
             try {
-                // Wait for secure iframe init to complete
-                console.log('⏳ Waiting for secure iframe initialization...');
-                await waitForSecureIframeInit();
+                // Use the specialized menu page initializer
+                const { user, restaurant, categories: loadedCategories, menuItems: loadedMenuItems } = 
+                    await window.initializeMenuPage('Menu Management');
                 
-                // Get current user and restaurant
-                currentUser = await getCurrentUser();
-                if (!currentUser) {
-                    console.log('❌ No authenticated user');
-                    return;
-                }
-
-                currentRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
-                if (!currentRestaurant) {
-                    console.log('❌ No restaurant found');
-                    return;
-                }
-
+                // Set global variables
+                currentUser = user;
+                currentRestaurant = restaurant;
+                categories = loadedCategories.sort((a, b) => (a.order || 0) - (b.order || 0));
+                menuItems = loadedMenuItems;
+                
                 console.log('✅ Restaurant loaded:', currentRestaurant.name);
+                console.log('✅ Categories loaded:', categories.length);
+                console.log('✅ Menu items loaded:', menuItems.length);
 
-                // Load menu data
-                await loadMenuData();
+                // Render the data
+                renderCategories();
+                renderMenuItems();
+                populateCategoryFilter();
                 
                 // Setup UI
                 setupNavigation();
@@ -987,55 +984,15 @@
                 
             } catch (error) {
                 console.error('❌ Error initializing Menu Management:', error);
-                showError('Failed to load menu management: ' + error.message);
+                
+                // Use the enhanced error handling from secure iframe init
+                if (window.showSecurityError) {
+                    window.showSecurityError(error);
+                } else {
+                    showError('Failed to load menu management: ' + error.message);
+                }
             }
         });
-
-        // Wait for secure iframe initialization to complete
-        function waitForSecureIframeInit() {
-            return new Promise((resolve) => {
-                let attempts = 0;
-                const maxAttempts = 100; // 20 seconds
-                
-                const checkInit = () => {
-                    attempts++;
-                    
-                    // Check if VediAPI and required functions are available
-                    if (window.VediAPI && 
-                        typeof window.VediAPI.getRestaurantByOwner === 'function' &&
-                        typeof window.VediAPI.getMenuCategories === 'function' &&
-                        typeof window.VediAPI.getMenuItems === 'function' &&
-                        typeof firebase !== 'undefined' &&
-                        firebase.apps.length > 0) {
-                        console.log('✅ Secure iframe initialization complete');
-                        resolve();
-                        return;
-                    }
-                    
-                    if (attempts >= maxAttempts) {
-                        console.warn('⚠️ Secure iframe init timeout, proceeding anyway...');
-                        resolve();
-                        return;
-                    }
-                    
-                    console.log(`⏳ Waiting for secure iframe init... (${attempts}/${maxAttempts})`);
-                    setTimeout(checkInit, 200);
-                };
-                
-                checkInit();
-            });
-        }
-
-        // Get current user (simplified for iframe)
-        async function getCurrentUser() {
-            try {
-                // Use VediAPI method from secure iframe init
-                return await VediAPI.getCurrentUser();
-            } catch (error) {
-                console.error('❌ Error getting current user:', error);
-                return null;
-            }
-        }
 
         // Data loading functions
         async function loadMenuData() {
