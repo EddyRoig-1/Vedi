@@ -956,9 +956,9 @@
             console.log('🚀 Menu Management initializing...');
             
             try {
-                // Wait for Firebase and VediAPI to be ready
-                await waitForFirebaseReady();
-                await waitForVediAPIReady();
+                // Wait for secure iframe init to complete
+                console.log('⏳ Waiting for secure iframe initialization...');
+                await waitForSecureIframeInit();
                 
                 // Get current user and restaurant
                 currentUser = await getCurrentUser();
@@ -973,9 +973,7 @@
                     return;
                 }
 
-                // Update page title and restaurant name
-                document.getElementById('pageTitle').textContent = 'Menu Management';
-                document.getElementById('restaurantName').textContent = currentRestaurant.name;
+                console.log('✅ Restaurant loaded:', currentRestaurant.name);
 
                 // Load menu data
                 await loadMenuData();
@@ -993,85 +991,50 @@
             }
         });
 
-        // Wait for Firebase to be ready
-        function waitForFirebaseReady() {
-            return new Promise((resolve) => {
-                if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-                    resolve();
-                } else {
-                    const checkFirebase = setInterval(() => {
-                        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-                            clearInterval(checkFirebase);
-                            resolve();
-                        }
-                    }, 100);
-                }
-            });
-        }
-
-        // Wait for VediAPI modules to be ready
-        function waitForVediAPIReady() {
+        // Wait for secure iframe initialization to complete
+        function waitForSecureIframeInit() {
             return new Promise((resolve) => {
                 let attempts = 0;
-                const maxAttempts = 50;
+                const maxAttempts = 100; // 20 seconds
                 
-                const checkVediAPI = () => {
+                const checkInit = () => {
                     attempts++;
                     
+                    // Check if VediAPI and required functions are available
                     if (window.VediAPI && 
                         typeof window.VediAPI.getRestaurantByOwner === 'function' &&
                         typeof window.VediAPI.getMenuCategories === 'function' &&
-                        typeof window.VediAPI.getMenuItems === 'function') {
-                        console.log('✅ VediAPI business functions are ready');
+                        typeof window.VediAPI.getMenuItems === 'function' &&
+                        typeof firebase !== 'undefined' &&
+                        firebase.apps.length > 0) {
+                        console.log('✅ Secure iframe initialization complete');
                         resolve();
                         return;
                     }
                     
                     if (attempts >= maxAttempts) {
-                        console.warn('⚠️ VediAPI functions not ready after timeout, proceeding anyway...');
+                        console.warn('⚠️ Secure iframe init timeout, proceeding anyway...');
                         resolve();
                         return;
                     }
                     
-                    setTimeout(checkVediAPI, 200);
+                    console.log(`⏳ Waiting for secure iframe init... (${attempts}/${maxAttempts})`);
+                    setTimeout(checkInit, 200);
                 };
-                checkVediAPI();
+                
+                checkInit();
             });
         }
 
-        // Get current user
+        // Get current user (simplified for iframe)
         async function getCurrentUser() {
-            return new Promise((resolve) => {
-                try {
-                    const auth = firebase.auth();
-                    
-                    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-                        unsubscribe();
-                        
-                        if (user) {
-                            try {
-                                const db = firebase.firestore();
-                                const doc = await db.collection('users').doc(user.uid).get();
-                                
-                                if (doc.exists) {
-                                    const userData = { id: doc.id, ...doc.data() };
-                                    resolve(userData);
-                                } else {
-                                    resolve(null);
-                                }
-                            } catch (error) {
-                                console.error('❌ Error getting user data:', error);
-                                resolve(null);
-                            }
-                        } else {
-                            resolve(null);
-                        }
-                    });
-                } catch (error) {
-                    console.error('❌ getCurrentUser setup error:', error);
-                    resolve(null);
-                }
-            });
+            try {
+                // Use VediAPI method from secure iframe init
+                return await VediAPI.getCurrentUser();
+            } catch (error) {
+                console.error('❌ Error getting current user:', error);
+                return null;
+            }
         }
 
         // Data loading functions
