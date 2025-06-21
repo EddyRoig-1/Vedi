@@ -701,6 +701,15 @@
                         </select>
                     </div>
                     <div class="filter-group">
+                        <label class="filter-label">Severity Level</label>
+                        <select class="filter-select" id="severityFilter">
+                            <option value="all">All Levels</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label class="filter-label">Status</label>
                         <select class="filter-select" id="statusFilter">
                             <option value="all">All Status</option>
@@ -709,9 +718,6 @@
                             <option value="resolved">Resolved</option>
                             <option value="closed">Closed</option>
                         </select>
-                    </div>
-                    <div class="filter-group">
-                        <button class="btn-primary" onclick="applyFilters()" id="applyFiltersBtn" style="width: auto; padding: 12px 24px; justify-content: center;">Apply Filters</button>
                     </div>
                 </div>
             </div>
@@ -811,6 +817,7 @@
         let currentFilters = {
             timePeriod: 'month',
             incidentType: 'all',
+            severity: 'all',
             status: 'all'
         };
 
@@ -922,6 +929,7 @@
         function setupFilterHandlers() {
             document.getElementById('timePeriod').addEventListener('change', applyFilters);
             document.getElementById('incidentType').addEventListener('change', applyFilters);
+            document.getElementById('severityFilter').addEventListener('change', applyFilters);
             document.getElementById('statusFilter').addEventListener('change', applyFilters);
             
             // Setup form submission
@@ -938,6 +946,7 @@
                 const filterOptions = {
                     timePeriod: currentFilters.timePeriod !== 'all' ? currentFilters.timePeriod : undefined,
                     type: currentFilters.incidentType !== 'all' ? currentFilters.incidentType : undefined,
+                    severity: currentFilters.severity !== 'all' ? currentFilters.severity : undefined,
                     status: currentFilters.status !== 'all' ? currentFilters.status : undefined,
                     limit: 1000
                 };
@@ -1551,13 +1560,10 @@
 
         async function applyFilters() {
             try {
-                const applyBtn = document.getElementById('applyFiltersBtn');
-                applyBtn.disabled = true;
-                applyBtn.innerHTML = 'Applying...';
-
                 currentFilters = {
                     timePeriod: document.getElementById('timePeriod').value,
                     incidentType: document.getElementById('incidentType').value,
+                    severity: document.getElementById('severityFilter').value,
                     status: document.getElementById('statusFilter').value
                 };
 
@@ -1566,10 +1572,6 @@
 
             } catch (error) {
                 console.error('❌ Apply filters error:', error);
-            } finally {
-                const applyBtn = document.getElementById('applyFiltersBtn');
-                applyBtn.disabled = false;
-                applyBtn.innerHTML = 'Apply Filters';
             }
         }
 
