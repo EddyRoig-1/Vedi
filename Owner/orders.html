@@ -263,7 +263,7 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 0px;
         }
 
         .stat-card {
@@ -345,6 +345,7 @@
             padding: 16px;
             margin-bottom: 16px;
             border: 1px solid #E5E5E7;
+            margin-top: 0px;
         }
 
         .controls-row {
@@ -813,29 +814,7 @@
             border-top: 1px solid #F1F3F4;
         }
 
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            background: #34C759;
-            color: #FFFFFF;
-            padding: 16px 20px;
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-            z-index: 1000;
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
-            font-weight: 500;
-        }
 
-        .notification.show {
-            transform: translateX(0);
-        }
-
-        .notification.error {
-            background: #FF3B30;
-        }
 
         /* Loading Overlay */
         .loading-overlay {
@@ -1265,10 +1244,7 @@
         </div>
     </div>
 
-    <!-- Notification -->
-    <div class="notification" id="notification">
-        <strong>New Order!</strong> Table 5 has placed an order.
-    </div>
+
 
     <script>
         // Debug logging
@@ -1686,7 +1662,6 @@
         // Toggle status dropdown (only if API is available)
         function toggleStatusDropdown() {
             if (!statusApiAvailable) {
-                showNotification('Status management not available', 'error');
                 return;
             }
             
@@ -1727,7 +1702,6 @@
         // Update restaurant status (only if API is available)
         async function updateRestaurantStatus(isOnline, reason = '') {
             if (!statusApiAvailable) {
-                showNotification('Status management not available', 'error');
                 return;
             }
             
@@ -1749,23 +1723,17 @@
                     // Update status in Firebase
                     await VediAPI.updateRestaurantStatus(currentRestaurant.id, isOnline, reason);
                     
-                    // Show success message
-                    const statusMessage = isOnline ? 'Restaurant is now ONLINE' : `Restaurant is now OFFLINE${reason ? ': ' + reason : ''}`;
-                    showNotification(statusMessage, 'success');
-                    
                     debugLog('✅ Restaurant status updated', isOnline ? 'ONLINE' : 'OFFLINE');
                 }
                 
             } catch (error) {
                 debugLog('❌ Failed to update restaurant status', error.message);
-                showNotification('Failed to update restaurant status', 'error');
             }
         }
 
         // Show offline options modal
         function showOfflineOptions() {
             if (!statusApiAvailable) {
-                showNotification('Status management not available', 'error');
                 return;
             }
             
@@ -1817,7 +1785,6 @@
         async function confirmGoOffline() {
             const selectedReason = document.querySelector('input[name="offlineReason"]:checked');
             if (!selectedReason) {
-                showNotification('Please select a reason', 'error');
                 return;
             }
             
@@ -1843,7 +1810,6 @@
                     const customText = document.getElementById('customReasonText');
                     offlineReason = customText ? customText.value.trim() : '';
                     if (!offlineReason) {
-                        showNotification('Please enter a custom reason', 'error');
                         return;
                     }
                     break;
@@ -2044,7 +2010,6 @@
                     startOptimizedRealTimeUpdates();
                 }, delay);
             } else {
-                showNotification('Connection lost. Please refresh the page.', 'error');
                 updatePerformanceIndicator('Offline', 'error');
             }
         }
@@ -2627,16 +2592,8 @@
         }
 
         function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            if (!notification) return;
-            
-            notification.className = `notification ${type}`;
-            notification.innerHTML = `<strong>${type === 'success' ? 'Success:' : 'Error:'}</strong> ${message}`;
-            notification.classList.add('show');
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
+            // Notifications disabled - function does nothing
+            return;
         }
 
         function toggleSound() {
@@ -2774,12 +2731,6 @@
         function handleCriticalError(error) {
             hideLoading();
             
-            const errorMessage = error.message.includes('timeout') 
-                ? 'The page is taking too long to load. Please check your internet connection and refresh the page.'
-                : `A critical error occurred: ${error.message}. Please refresh the page and try again.`;
-            
-            showNotification(errorMessage, 'error');
-            
             setTimeout(() => {
                 if (confirm('Would you like to retry loading the page?')) {
                     window.location.reload();
@@ -2813,7 +2764,7 @@
 
         // Export functions (implement as needed)
         function exportOrders() {
-            showNotification('Export feature coming soon', 'warning');
+            // Export functionality without notification
         }
 
         function clearHistory() {
@@ -2823,7 +2774,6 @@
             
             historyOrders.clear();
             renderHistoryOrders();
-            showNotification('Order history cleared', 'success');
         }
 
         // Cleanup on page unload
