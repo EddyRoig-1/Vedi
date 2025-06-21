@@ -81,6 +81,10 @@ function ensureHelpers() {
  */
 async function sendPhoneVerification(phoneNumber) {
     try {
+        console.log('firebase:', firebase);
+        console.log('firebase.auth:', firebase.auth);
+        console.log('getFirebaseAuth:', window.getFirebaseAuth && window.getFirebaseAuth());
+
         console.log('📱 Sending SMS verification to:', window.maskPhoneNumber(phoneNumber));
         
         // Validate phone number format
