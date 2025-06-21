@@ -81,7 +81,7 @@ function ensureHelpers() {
  */
 async function sendPhoneVerification(phoneNumber) {
     try {
-        console.log('📱 Sending SMS verification (NO reCAPTCHA) to:', window.maskPhoneNumber(phoneNumber));
+        console.log('📱 Sending SMS verification to:', window.maskPhoneNumber(phoneNumber));
         
         // Validate phone number format
         if (!validatePhoneNumber(phoneNumber)) {
@@ -90,12 +90,18 @@ async function sendPhoneVerification(phoneNumber) {
         
         const auth = window.getFirebaseAuth();
         
-        console.log('🚀 Using Firebase test number config - NO reCAPTCHA needed!');
+        // Initialize reCAPTCHA verifier
+        const recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha_container', {
+            'size': 'invisible',
+            'callback': (response) => {
+                console.log('reCAPTCHA solved');
+            }
+        });
         
-        // Direct Firebase call - NO reCAPTCHA parameter
-        const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber);
+        // Firebase call with reCAPTCHA verifier
+        const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
         
-        // Store verification ID for convenience
+        // Store verification ID
         window.phoneVerificationId = confirmationResult.verificationId;
         
         // Track success
@@ -103,7 +109,7 @@ async function sendPhoneVerification(phoneNumber) {
             phoneNumber: window.maskPhoneNumber(phoneNumber)
         });
         
-        console.log('✅ SMS sent successfully (NO reCAPTCHA)');
+        console.log('✅ SMS sent successfully');
         return confirmationResult;
         
     } catch (error) {
