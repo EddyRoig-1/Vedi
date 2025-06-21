@@ -268,8 +268,29 @@
             margin-bottom: 16px;
         }
 
+        .chart-container.dual {
+            height: 200px;
+            margin-bottom: 12px;
+        }
+
         .chart-small {
             height: 300px;
+        }
+
+        .dual-charts-container {
+            display: none;
+        }
+
+        .dual-charts-container.show {
+            display: block;
+        }
+
+        .single-chart-container {
+            display: block;
+        }
+
+        .single-chart-container.hide {
+            display: none;
         }
 
         /* Analytics Grid */
@@ -459,6 +480,11 @@
             color: #1D1D1F;
             font-family: inherit;
             transition: border-color 0.2s ease;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%238E8E93" d="M6 8L0 0h12z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 28px;
         }
 
         .filter-select:focus {
@@ -638,8 +664,22 @@
                             <option value="both">Both</option>
                         </select>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="revenueChart"></canvas>
+                    
+                    <!-- Single Chart Container -->
+                    <div class="single-chart-container" id="singleChartContainer">
+                        <div class="chart-container">
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Dual Charts Container -->
+                    <div class="dual-charts-container" id="dualChartsContainer">
+                        <div class="chart-container dual">
+                            <canvas id="revenueChartDual"></canvas>
+                        </div>
+                        <div class="chart-container dual">
+                            <canvas id="ordersChartDual"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -1382,98 +1422,213 @@
         }
 
         function updateRevenueChart(timeData) {
-            const ctx = document.getElementById('revenueChart').getContext('2d');
-            
-            if (charts.revenue) {
-                charts.revenue.destroy();
-            }
-
             const chartType = document.getElementById('revenueChartType').value;
-            let datasets = [];
-
-            if (chartType === 'revenue' || chartType === 'both') {
-                datasets.push({
-                    label: 'Revenue',
-                    data: timeData.revenue,
-                    borderColor: '#34C759',
-                    backgroundColor: 'rgba(52, 199, 89, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y'
-                });
-            }
-
-            if (chartType === 'orders' || chartType === 'both') {
-                datasets.push({
-                    label: 'Orders',
-                    data: timeData.orders,
-                    borderColor: '#007AFF',
-                    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-                    tension: 0.4,
-                    yAxisID: chartType === 'both' ? 'y1' : 'y'
-                });
-            }
-
-            const scales = {
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: {
-                        display: true,
-                        text: chartType === 'orders' ? 'Number of Orders' : 'Revenue ($)'
-                    },
-                    beginAtZero: true
-                }
-            };
-
+            
             if (chartType === 'both') {
-                scales.y1 = {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: {
-                        display: true,
-                        text: 'Number of Orders'
+                // Show dual charts
+                document.getElementById('singleChartContainer').classList.add('hide');
+                document.getElementById('dualChartsContainer').classList.add('show');
+                
+                // Destroy existing charts
+                if (charts.revenue) {
+                    charts.revenue.destroy();
+                }
+                if (charts.revenueDual) {
+                    charts.revenueDual.destroy();
+                }
+                if (charts.ordersDual) {
+                    charts.ordersDual.destroy();
+                }
+                
+                // Create revenue chart
+                const revenueCtx = document.getElementById('revenueChartDual').getContext('2d');
+                charts.revenueDual = new Chart(revenueCtx, {
+                    type: 'line',
+                    data: {
+                        labels: timeData.labels,
+                        datasets: [{
+                            label: 'Revenue',
+                            data: timeData.revenue,
+                            borderColor: '#34C759',
+                            backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
                     },
-                    grid: {
-                        drawOnChartArea: false,
-                    },
-                    beginAtZero: true
-                };
-            }
-
-            charts.revenue = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: timeData.labels,
-                    datasets: datasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: scales,
-                    plugins: {
-                        legend: {
-                            position: 'top'
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Revenue ($)'
+                                }
+                            }
                         },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.dataset.label || '';
-                                    const value = context.parsed.y;
-                                    
-                                    if (label === 'Revenue') {
-                                        return `${label}: ${formatCurrency(value)}`;
-                                    } else {
-                                        return `${label}: ${value}`;
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Revenue: ${formatCurrency(context.parsed.y)}`;
                                     }
                                 }
                             }
                         }
                     }
+                });
+                
+                // Create orders chart
+                const ordersCtx = document.getElementById('ordersChartDual').getContext('2d');
+                charts.ordersDual = new Chart(ordersCtx, {
+                    type: 'line',
+                    data: {
+                        labels: timeData.labels,
+                        datasets: [{
+                            label: 'Orders',
+                            data: timeData.orders,
+                            borderColor: '#007AFF',
+                            backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Number of Orders'
+                                },
+                                ticks: {
+                                    stepSize: 1,
+                                    callback: function(value) {
+                                        if (Number.isInteger(value)) {
+                                            return value;
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Orders: ${context.parsed.y}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+            } else {
+                // Show single chart
+                document.getElementById('singleChartContainer').classList.remove('hide');
+                document.getElementById('dualChartsContainer').classList.remove('show');
+                
+                // Destroy dual charts
+                if (charts.revenueDual) {
+                    charts.revenueDual.destroy();
                 }
-            });
+                if (charts.ordersDual) {
+                    charts.ordersDual.destroy();
+                }
+                
+                const ctx = document.getElementById('revenueChart').getContext('2d');
+                
+                if (charts.revenue) {
+                    charts.revenue.destroy();
+                }
+
+                let datasets = [];
+
+                if (chartType === 'revenue') {
+                    datasets.push({
+                        label: 'Revenue',
+                        data: timeData.revenue,
+                        borderColor: '#34C759',
+                        backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    });
+                } else if (chartType === 'orders') {
+                    datasets.push({
+                        label: 'Orders',
+                        data: timeData.orders,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    });
+                }
+
+                const scales = {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: chartType === 'orders' ? 'Number of Orders' : 'Revenue ($)'
+                        },
+                        beginAtZero: true
+                    }
+                };
+
+                if (chartType === 'orders') {
+                    scales.y.ticks = {
+                        stepSize: 1,
+                        callback: function(value) {
+                            if (Number.isInteger(value)) {
+                                return value;
+                            }
+                        }
+                    };
+                }
+
+                charts.revenue = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: timeData.labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: scales,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.dataset.label || '';
+                                        const value = context.parsed.y;
+                                        
+                                        if (label === 'Revenue') {
+                                            return `${label}: ${formatCurrency(value)}`;
+                                        } else {
+                                            return `${label}: ${value}`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         function updateInsights(analytics) {
