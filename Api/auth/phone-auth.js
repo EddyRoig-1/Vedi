@@ -80,11 +80,10 @@ function ensureHelpers() {
  * @returns {Promise<Object>} Confirmation result for code verification
  */
 async function sendPhoneVerification(phoneNumber) {
-    try {
-        console.log('firebase:', firebase);
+            console.log('firebase:', firebase);
         console.log('firebase.auth:', firebase.auth);
         console.log('getFirebaseAuth:', window.getFirebaseAuth && window.getFirebaseAuth());
-
+    try {
         console.log('📱 Sending SMS verification to:', window.maskPhoneNumber(phoneNumber));
         
         // Validate phone number format
