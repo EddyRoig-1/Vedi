@@ -773,16 +773,18 @@
                 showLoading(true);
                 
                 // Load all data in parallel
-                const [orders, lossIncidents, menuItems] = await Promise.all([
+                const [orders, lossIncidents, menuItems, customerProfiles] = await Promise.all([
                     loadOrdersData(),
                     loadLossData(),
-                    loadMenuData()
+                    loadMenuData(),
+                    loadCustomerProfiles()
                 ]);
 
                 analyticsData = {
                     orders,
                     lossIncidents,
                     menuItems,
+                    customerProfiles,
                     timePeriod: currentTimePeriod
                 };
 
@@ -923,11 +925,12 @@
 
         function calculateAnalytics(data) {
             console.log('🔢 Calculating analytics with data:', data);
-            const { orders, lossIncidents, menuItems } = data;
+            const { orders, lossIncidents, menuItems, customerProfiles } = data;
             
             console.log('📊 Processing orders:', orders.length);
             console.log('📉 Processing loss incidents:', lossIncidents.length);
             console.log('🍽️ Processing menu items:', menuItems.length);
+            console.log('👥 Processing customer profiles:', customerProfiles.length);
             
             // Basic KPIs
             const totalRevenue = orders.reduce((sum, order) => {
@@ -945,11 +948,11 @@
             console.log('✅ Completed orders:', completedOrders.length);
             console.log('📉 Total losses:', totalLosses);
             
-            // Customer analytics
-            const uniqueCustomers = new Set(orders.map(order => order.customerPhone)).size;
+            // Customer analytics - now using actual customer profiles
+            const uniqueCustomers = customerProfiles.length;
             const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
             
-            console.log('👥 Unique customers:', uniqueCustomers);
+            console.log('👥 Unique customers (from profiles):', uniqueCustomers);
             console.log('🎯 Average order value:', avgOrderValue);
             
             // Popular items analysis
@@ -979,8 +982,8 @@
             const timeData = generateTimeSeriesData(orders, data.timePeriod);
             console.log('📈 Time series data:', timeData);
 
-            // Calculate customer metrics
-            const customerMetrics = calculateRealCustomerMetrics(orders);
+            // Calculate customer metrics using actual profiles and orders
+            const customerMetrics = calculateRealCustomerMetrics(orders, customerProfiles);
             console.log('👥 Customer metrics:', customerMetrics);
 
             const analytics = {
@@ -995,7 +998,7 @@
                 popularItems,
                 timeData,
                 customerMetrics,
-                insights: generateInsights({ orders, lossIncidents, menuItems })
+                insights: generateInsights({ orders, lossIncidents, menuItems, customerProfiles })
             };
             
             console.log('✅ Final analytics calculated:', analytics);
@@ -1083,7 +1086,7 @@
             };
         }
 
-        function calculateRealCustomerMetrics(orders) {
+        function calculateRealCustomerMetrics(orders, customerProfiles) {
             // Calculate actual average preparation time
             const completedOrders = orders.filter(order => order.status === 'completed');
             let totalPrepTime = 0;
@@ -1106,23 +1109,66 @@
                 `${Math.round(totalPrepTime / ordersWithPrepTime)} min` : 
                 'No data';
 
-            // Calculate real customer data
-            const customerData = {};
+            // Calculate real customer data using actual customer profiles
+            const customerOrderData = {};
+            
+            // Map orders to customer profiles
+            customerProfiles.forEach(customer => {
+                // Try to match by phone or email
+                const customerPhone = customer.phone || customer.phoneNumber;
+                const customerEmail = customer.email;
+                
+                customerOrderData[customer.id] = {
+                    profile: customer,
+                    orders: [],
+                    orderCount: 0,
+                    revenue: 0,
+                    phone: customerPhone,
+                    email: customerEmail
+                };
+            });
+            
+            // Associate orders with customer profiles
             orders.forEach(order => {
-                const phone = order.customerPhone;
-                if (!customerData[phone]) {
-                    customerData[phone] = { orders: 0, revenue: 0, firstOrder: order.createdAt };
+                let matchedCustomerId = null;
+                
+                // Try to match by phone number
+                if (order.customerPhone) {
+                    for (const [customerId, customerData] of Object.entries(customerOrderData)) {
+                        if (customerData.phone && 
+                            (customerData.phone === order.customerPhone || 
+                             customerData.phone.replace(/[^\d]/g, '') === order.customerPhone.replace(/[^\d]/g, ''))) {
+                            matchedCustomerId = customerId;
+                            break;
+                        }
+                    }
                 }
-                customerData[phone].orders += 1;
-                customerData[phone].revenue += order.total || 0;
+                
+                // Try to match by email if phone didn't work
+                if (!matchedCustomerId && order.customerEmail) {
+                    for (const [customerId, customerData] of Object.entries(customerOrderData)) {
+                        if (customerData.email && customerData.email === order.customerEmail) {
+                            matchedCustomerId = customerId;
+                            break;
+                        }
+                    }
+                }
+                
+                // Associate order with customer if match found
+                if (matchedCustomerId) {
+                    customerOrderData[matchedCustomerId].orders.push(order);
+                    customerOrderData[matchedCustomerId].orderCount += 1;
+                    customerOrderData[matchedCustomerId].revenue += order.total || 0;
+                }
             });
 
-            const totalCustomers = Object.keys(customerData).length;
-            const repeatCustomers = Object.values(customerData).filter(customer => customer.orders > 1).length;
-            const repeatRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers) * 100 : 0;
+            const totalCustomers = customerProfiles.length;
+            const customersWithOrders = Object.values(customerOrderData).filter(customer => customer.orderCount > 0);
+            const repeatCustomers = customersWithOrders.filter(customer => customer.orderCount > 1).length;
+            const repeatRate = customersWithOrders.length > 0 ? (repeatCustomers / customersWithOrders.length) * 100 : 0;
             
-            const avgOrdersPerCustomer = totalCustomers > 0 ? 
-                Object.values(customerData).reduce((sum, customer) => sum + customer.orders, 0) / totalCustomers : 0;
+            const avgOrdersPerCustomer = customersWithOrders.length > 0 ? 
+                customersWithOrders.reduce((sum, customer) => sum + customer.orderCount, 0) / customersWithOrders.length : 0;
 
             // Calculate actual peak hour from real data
             const hourlyOrders = {};
@@ -1146,17 +1192,25 @@
                                     peakHour === 12 ? '12 PM' :
                                     `${peakHour - 12} PM`;
 
+            console.log('👥 Customer metrics calculated:');
+            console.log('- Total customer profiles:', totalCustomers);
+            console.log('- Customers with orders:', customersWithOrders.length);
+            console.log('- Repeat customers:', repeatCustomers);
+            console.log('- Repeat rate:', repeatRate);
+
             return {
                 repeatRate,
                 avgOrdersPerCustomer,
                 peakHour: maxOrders > 0 ? peakHourFormatted : 'No data',
-                avgPrepTime
+                avgPrepTime,
+                totalCustomers,
+                customersWithOrders: customersWithOrders.length
             };
         }
 
         function generateInsights(data) {
             const insights = [];
-            const { orders, lossIncidents } = data;
+            const { orders, lossIncidents, customerProfiles } = data;
 
             // Revenue insights
             const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
@@ -1166,6 +1220,33 @@
                     title: 'Revenue Performance',
                     description: `Generated ${formatCurrency(totalRevenue)} in revenue with ${orders.length} orders.`
                 });
+            }
+
+            // Customer insights
+            if (customerProfiles.length > 0) {
+                const customersWithOrders = customerProfiles.filter(customer => {
+                    return orders.some(order => 
+                        order.customerPhone === customer.phone || 
+                        order.customerPhone === customer.phoneNumber ||
+                        order.customerEmail === customer.email
+                    );
+                }).length;
+                
+                const engagementRate = (customersWithOrders / customerProfiles.length) * 100;
+                
+                if (engagementRate >= 80) {
+                    insights.push({
+                        type: 'positive',
+                        title: 'High Customer Engagement',
+                        description: `${engagementRate.toFixed(1)}% of registered customers have placed orders.`
+                    });
+                } else if (engagementRate < 50) {
+                    insights.push({
+                        type: 'warning',
+                        title: 'Customer Engagement Opportunity',
+                        description: `Only ${engagementRate.toFixed(1)}% of registered customers have placed orders. Consider engagement campaigns.`
+                    });
+                }
             }
 
             // Loss insights
@@ -1231,7 +1312,7 @@
                     updateChangeIndicator('ordersChange', ordersChange);
                     
                     const currentCustomers = analytics.kpis.uniqueCustomers;
-                    const previousCustomers = new Set(previousPeriodData.orders.map(o => o.customerPhone)).size;
+                    const previousCustomers = previousPeriodData.customerProfiles ? previousPeriodData.customerProfiles.length : 0;
                     const customersChange = calculatePercentageChange(currentCustomers, previousCustomers);
                     updateChangeIndicator('customersChange', customersChange);
                     
