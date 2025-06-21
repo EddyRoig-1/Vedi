@@ -1164,17 +1164,14 @@ async function handlePhoneSubmit(e) {
     const phoneInput = document.getElementById('phoneNumber');
     const countryCode = document.getElementById('countryCode').value;
 
-    // Disable button and show loading
     sendCodeBtn.disabled = true;
     sendCodeText.style.display = 'none';
     sendCodeSpinner.style.display = 'block';
 
     try {
-        // Get form values
         userFullName = fullNameInput.value.trim();
         const rawPhoneNumber = phoneInput.value.replace(/\D/g, '');
 
-        // Validate inputs
         if (!userFullName || userFullName.length < 2) {
             throw new Error('Please enter your full name');
         }
@@ -1183,54 +1180,23 @@ async function handlePhoneSubmit(e) {
             throw new Error('Please enter a valid phone number');
         }
 
-        // Format phone number to E.164
         userPhoneNumber = countryCode + rawPhoneNumber;
-        
+        console.log('📱 Prepared to send to:', userPhoneNumber);
 
-        console.log('📱 Sending verification to:', userPhoneNumber);
+        await sendPhoneVerification(userPhoneNumber);
 
-        // Set up invisible reCAPTCHA
-      const recaptchaId = 'recaptcha_container';
-
-// Ensure container exists
-const container = document.getElementById(recaptchaId);
-if (!container) {
-  throw new Error('Missing #recaptcha_container element in HTML');
-}
-
-// Create and render verifier
-const recaptchaVerifier = new firebase.auth.RecaptchaVerifier(recaptchaId, {
-  size: 'invisible',
-  callback: (response) => {
-    console.log('✔️ reCAPTCHA solved:', response);
-  }
-});
-
-await recaptchaVerifier.render(); // ✅ this is critical!
-
-const auth = firebase.auth();
-phoneConfirmationResult = await auth.signInWithPhoneNumber(userPhoneNumber, recaptchaVerifier);
-
-
-        // Store verification ID
-    phoneVerificationId = phoneConfirmationResult.verificationId;
-
-
-        console.log('✅ SMS sent successfully');
-
-        // Show step 2
         showVerificationStep();
 
     } catch (error) {
         console.error('❌ Error sending phone verification:', error);
         showPhoneError(error.message || 'Failed to send verification code. Please try again.');
 
-        // Re-enable button
         sendCodeBtn.disabled = false;
         sendCodeText.style.display = 'block';
         sendCodeSpinner.style.display = 'none';
     }
 }
+
 
 
         // Handle verification code submission
