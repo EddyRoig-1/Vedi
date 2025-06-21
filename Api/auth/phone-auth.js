@@ -90,7 +90,7 @@ async function sendPhoneVerification(phoneNumber) {
         
         const auth = window.getFirebaseAuth();
         
-        // Initialize reCAPTCHA verifier
+        // Initialize reCAPTCHA verifier (required even for test numbers)
         const recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha_container', {
             'size': 'invisible',
             'callback': (response) => {
@@ -98,10 +98,10 @@ async function sendPhoneVerification(phoneNumber) {
             }
         });
         
-        // Firebase call with reCAPTCHA verifier
+        // Firebase call with reCAPTCHA verifier as second parameter
         const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
         
-        // Store verification ID
+        // Store verification ID for convenience
         window.phoneVerificationId = confirmationResult.verificationId;
         
         // Track success
@@ -120,7 +120,6 @@ async function sendPhoneVerification(phoneNumber) {
         throw new Error(getPhoneAuthErrorMessage(error.code || error.message));
     }
 }
-
 /**
  * Verify SMS code and complete authentication
  * @param {Object} confirmationResult - Result from sendPhoneVerification
