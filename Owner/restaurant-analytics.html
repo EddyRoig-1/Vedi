@@ -117,6 +117,7 @@
             font-family: inherit;
             transition: border-color 0.2s ease;
             font-weight: 500;
+            text-align: center;
         }
 
         .time-period-selector:focus {
@@ -527,38 +528,6 @@
                 gap: 12px;
             }
         }
-
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10000;
-            background: #34C759;
-            color: white;
-            padding: 16px 24px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            font-weight: 600;
-            opacity: 0;
-            transition: all 0.3s ease;
-            transform: translateX(100%);
-            font-size: 15px;
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-        }
-
-        .notification.show {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        .notification.error {
-            background: #FF3B30;
-        }
-
-        .notification.info {
-            background: #007AFF;
-        }
     </style>
 </head>
 <body>
@@ -583,7 +552,6 @@
                 </div>
                 <div class="action-buttons">
                     <div class="time-period-group">
-                        <span class="control-label">Time Period</span>
                         <select class="time-period-selector" id="timePeriodSelect">
                             <option value="today">Today</option>
                             <option value="week">This Week</option>
@@ -592,7 +560,6 @@
                             <option value="year">This Year</option>
                         </select>
                     </div>
-                    <button class="btn-secondary" onclick="refreshAnalytics()">Refresh</button>
                     <button class="btn-primary" onclick="exportAnalytics()">Export</button>
                 </div>
             </div>
@@ -733,9 +700,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Notification -->
-    <div class="notification" id="notification"></div>
 
     <script>
         // Global variables
@@ -1700,12 +1664,6 @@
             return `${currency.symbol}${Number(amount).toFixed(2)}`;
         }
 
-        async function refreshAnalytics() {
-            showNotification('Refreshing analytics data...', 'info');
-            await loadAnalyticsData();
-            showNotification('Analytics refreshed successfully!');
-        }
-
         function exportAnalytics() {
             try {
                 const exportData = {
@@ -1723,10 +1681,8 @@
                 link.download = `${currentRestaurant.name}-analytics-${currentTimePeriod}-${new Date().toISOString().split('T')[0]}.json`;
                 link.click();
 
-                showNotification('Analytics exported successfully!');
             } catch (error) {
                 console.error('Export error:', error);
-                showNotification('Failed to export analytics', 'error');
             }
         }
 
@@ -1741,17 +1697,6 @@
         function showError(message) {
             document.getElementById('errorText').textContent = message;
             document.getElementById('errorMessage').style.display = 'block';
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            
-            setTimeout(() => notification.classList.add('show'), 100);
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
         }
 
         function showSecurityError(error) {
