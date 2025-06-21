@@ -139,9 +139,15 @@
         }
 
         .toggle-control.enabled {
-            background: #007AFF;
+            background: #34C759;
             color: #FFFFFF;
-            border-color: #007AFF;
+            border-color: #34C759;
+        }
+
+        .toggle-control.disabled {
+            background: #FF3B30;
+            color: #FFFFFF;
+            border-color: #FF3B30;
         }
 
         /* Restaurant Status */
@@ -2648,10 +2654,12 @@
             if (button) {
                 if (soundEnabled) {
                     button.textContent = 'Sound On';
+                    button.classList.remove('disabled');
                     button.classList.add('enabled');
                 } else {
                     button.textContent = 'Sound Off';
                     button.classList.remove('enabled');
+                    button.classList.add('disabled');
                 }
             }
             
@@ -2839,14 +2847,39 @@
             }
         });
 
-        // Load sound preference
+        // Load sound preference and set initial state
         try {
             const savedSoundPref = localStorage.getItem('ordersPageSoundEnabled');
-            if (savedSoundPref === 'false') {
-                toggleSound();
+            if (savedSoundPref !== null) {
+                soundEnabled = savedSoundPref === 'true';
+                
+                // Set initial button state
+                const button = document.getElementById('soundToggle');
+                if (button) {
+                    if (soundEnabled) {
+                        button.textContent = 'Sound On';
+                        button.classList.add('enabled');
+                        button.classList.remove('disabled');
+                    } else {
+                        button.textContent = 'Sound Off';
+                        button.classList.add('disabled');
+                        button.classList.remove('enabled');
+                    }
+                }
+            } else {
+                // Default to sound enabled with green state
+                const button = document.getElementById('soundToggle');
+                if (button) {
+                    button.classList.add('enabled');
+                }
             }
         } catch (error) {
             debugLog('Could not load sound preference');
+            // Default to enabled state
+            const button = document.getElementById('soundToggle');
+            if (button) {
+                button.classList.add('enabled');
+            }
         }
 
         console.log('iOS-Style Orders Management loaded');
