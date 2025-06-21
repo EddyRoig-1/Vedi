@@ -892,6 +892,74 @@
             }
         }
 
+        async function loadCustomerProfiles() {
+            try {
+                console.log('👥 Loading customer profiles...');
+                
+                // Try multiple ways to get customer profiles
+                let customerProfiles = [];
+                
+                if (typeof VediAPI?.getCustomerProfiles === 'function') {
+                    console.log('✅ Using iframe VediAPI.getCustomerProfiles');
+                    customerProfiles = await VediAPI.getCustomerProfiles(currentRestaurant.id, {
+                        limit: 1000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else if (window.parent?.VediAPI?.getCustomerProfiles) {
+                    console.log('🔧 Using parent window VediAPI.getCustomerProfiles');
+                    customerProfiles = await window.parent.VediAPI.getCustomerProfiles(currentRestaurant.id, {
+                        limit: 1000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else if (window.parent?.getCustomerProfiles) {
+                    console.log('🔧 Using parent window getCustomerProfiles');
+                    customerProfiles = await window.parent.getCustomerProfiles(currentRestaurant.id, {
+                        limit: 1000,
+                        orderBy: 'createdAt',
+                        orderDirection: 'desc'
+                    });
+                } else {
+                    console.warn('⚠️ No getCustomerProfiles function available, trying to fetch collection directly');
+                    
+                    // Fallback: try to access Firebase collection directly through parent
+                    if (window.parent?.firebase && window.parent?.firebase.firestore) {
+                        const db = window.parent.firebase.firestore();
+                        const snapshot = await db.collection('customerProfiles')
+                            .where('restaurantId', '==', currentRestaurant.id)
+                            .orderBy('createdAt', 'desc')
+                            .limit(1000)
+                            .get();
+                        
+                        customerProfiles = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        console.log('🔧 Used direct Firebase access for customer profiles');
+                    } else {
+                        console.warn('⚠️ No customer profile access method available');
+                        return [];
+                    }
+                }
+                
+                console.log('👥 Raw customer profiles from Firebase:', customerProfiles);
+                
+                // Debug: Check structure of first customer profile
+                if (customerProfiles.length > 0) {
+                    console.log('🔍 First customer profile structure:', customerProfiles[0]);
+                    console.log('🔍 Customer profile keys:', Object.keys(customerProfiles[0]));
+                }
+                
+                console.log('👥 Total customer profiles loaded:', customerProfiles.length);
+                
+                return customerProfiles;
+            } catch (error) {
+                console.error('❌ Error loading customer profiles:', error);
+                return [];
+            }
+        }
+
         function filterByTimePeriod(data, period) {
             const now = new Date();
             let startDate;
