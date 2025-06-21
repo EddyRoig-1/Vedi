@@ -1154,62 +1154,73 @@
         }
 
         // Handle phone form submission - NO reCAPTCHA
-        async function handlePhoneSubmit(e) {
-            e.preventDefault();
-            
-            const sendCodeBtn = document.getElementById('sendCodeBtn');
-            const sendCodeText = document.getElementById('sendCodeText');
-            const sendCodeSpinner = document.getElementById('sendCodeSpinner');
-            const fullNameInput = document.getElementById('fullName');
-            const phoneInput = document.getElementById('phoneNumber');
-            const countryCode = document.getElementById('countryCode').value;
-            
-            // Disable button and show loading
-            sendCodeBtn.disabled = true;
-            sendCodeText.style.display = 'none';
-            sendCodeSpinner.style.display = 'block';
-            
-            try {
-                // Get form values
-                userFullName = fullNameInput.value.trim();
-                const rawPhoneNumber = phoneInput.value.replace(/\D/g, '');
-                
-                // Validate inputs
-                if (!userFullName || userFullName.length < 2) {
-                    throw new Error('Please enter your full name');
-                }
-                
-                if (!rawPhoneNumber || rawPhoneNumber.length < 10) {
-                    throw new Error('Please enter a valid phone number');
-                }
-                
-                // Format phone number to E.164
-                userPhoneNumber = countryCode + rawPhoneNumber;
-                
-                console.log('📱 Sending verification to:', userPhoneNumber, '(NO reCAPTCHA)');
-                
-                // Send verification code WITHOUT reCAPTCHA
-                const auth = firebase.auth();
-                phoneConfirmationResult = await auth.signInWithPhoneNumber(userPhoneNumber);
-                
-                // Store verification ID
-                phoneVerificationId = phoneConfirmationResult.verificationId;
-                
-                console.log('✅ SMS sent successfully without reCAPTCHA!');
-                
-                // Show step 2
-                showVerificationStep();
-                
-            } catch (error) {
-                console.error('❌ Error sending phone verification:', error);
-                showPhoneError(error.message || 'Failed to send verification code. Please try again.');
-                
-                // Re-enable button
-                sendCodeBtn.disabled = false;
-                sendCodeText.style.display = 'block';
-                sendCodeSpinner.style.display = 'none';
-            }
+async function handlePhoneSubmit(e) {
+    e.preventDefault();
+
+    const sendCodeBtn = document.getElementById('sendCodeBtn');
+    const sendCodeText = document.getElementById('sendCodeText');
+    const sendCodeSpinner = document.getElementById('sendCodeSpinner');
+    const fullNameInput = document.getElementById('fullName');
+    const phoneInput = document.getElementById('phoneNumber');
+    const countryCode = document.getElementById('countryCode').value;
+
+    // Disable button and show loading
+    sendCodeBtn.disabled = true;
+    sendCodeText.style.display = 'none';
+    sendCodeSpinner.style.display = 'block';
+
+    try {
+        // Get form values
+        userFullName = fullNameInput.value.trim();
+        const rawPhoneNumber = phoneInput.value.replace(/\D/g, '');
+
+        // Validate inputs
+        if (!userFullName || userFullName.length < 2) {
+            throw new Error('Please enter your full name');
         }
+
+        if (!rawPhoneNumber || rawPhoneNumber.length < 10) {
+            throw new Error('Please enter a valid phone number');
+        }
+
+        // Format phone number to E.164
+        userPhoneNumber = countryCode + rawPhoneNumber;
+
+        console.log('📱 Sending verification to:', userPhoneNumber);
+
+        // Set up invisible reCAPTCHA
+        const recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha_container', {
+            size: 'invisible',
+            callback: (response) => {
+                console.log('✔️ reCAPTCHA solved:', response);
+            }
+        });
+
+        await recaptchaVerifier.render();
+
+        // Send verification code
+        const auth = firebase.auth();
+        const confirmationResult = await auth.signInWithPhoneNumber(userPhoneNumber, recaptchaVerifier);
+
+        // Store verification ID
+        phoneVerificationId = confirmationResult.verificationId;
+
+        console.log('✅ SMS sent successfully');
+
+        // Show step 2
+        showVerificationStep();
+
+    } catch (error) {
+        console.error('❌ Error sending phone verification:', error);
+        showPhoneError(error.message || 'Failed to send verification code. Please try again.');
+
+        // Re-enable button
+        sendCodeBtn.disabled = false;
+        sendCodeText.style.display = 'block';
+        sendCodeSpinner.style.display = 'none';
+    }
+}
+
 
         // Handle verification code submission
         async function handleVerifySubmit(e) {
