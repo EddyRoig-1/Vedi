@@ -172,6 +172,117 @@ async function getOrdersByCustomerUID(customerUID) {
 }
 
 /**
+ * Get customer profiles for a restaurant
+ * @param {string} restaurantId - Restaurant ID
+ * @param {Object} options - Query options (limit, orderBy, etc.)
+ * @returns {Promise<Array>} Array of customer profiles
+ */
+async function getCustomerProfiles(restaurantId, options = {}) {
+  const endTracking = VediAPI.startPerformanceMeasurement('getCustomerProfiles');
+  
+  try {
+    const db = getFirebaseDb();
+    
+    // Note: Customer profiles are stored globally but we can filter by orders
+    // First approach: get all customer profiles that have placed orders at this restaurant
+    const orders = await getOrders(restaurantId, { limit: 1000 });
+    const customerUIDs = [...new Set(orders.map(order => order.customerUID).filter(uid => uid))];
+    const customerPhones = [...new Set(orders.map(order => order.customerPhone).filter(phone => phone))];
+    const customerEmails = [...new Set(orders.map(order => order.customerEmail).filter(email => email))];
+    
+    console.log('🔍 Found unique customer identifiers:', {
+      uids: customerUIDs.length,
+      phones: customerPhones.length, 
+      emails: customerEmails.length
+    });
+    
+    let customerProfiles = [];
+    
+    // Get profiles by UID (most reliable)
+    if (customerUIDs.length > 0) {
+      // Firebase 'in' queries are limited to 10 items, so we need to batch
+      const batchSize = 10;
+      for (let i = 0; i < customerUIDs.length; i += batchSize) {
+        const batch = customerUIDs.slice(i, i + batchSize);
+        const querySnapshot = await db.collection('customerProfiles')
+          .where('uid', 'in', batch)
+          .get();
+        
+        const batchProfiles = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        customerProfiles.push(...batchProfiles);
+      }
+    }
+    
+    // If we didn't get enough profiles via UID, try phone numbers
+    if (customerProfiles.length < customerPhones.length && customerPhones.length > 0) {
+      const foundUIDs = new Set(customerProfiles.map(profile => profile.uid));
+      const remainingPhones = customerPhones.filter(phone => {
+        // Check if we already have a profile for an order with this phone
+        const orderWithPhone = orders.find(order => order.customerPhone === phone);
+        return orderWithPhone && !foundUIDs.has(orderWithPhone.customerUID);
+      });
+      
+      if (remainingPhones.length > 0) {
+        const batchSize = 10;
+        for (let i = 0; i < remainingPhones.length; i += batchSize) {
+          const batch = remainingPhones.slice(i, i + batchSize);
+          try {
+            const querySnapshot = await db.collection('customerProfiles')
+              .where('phone', 'in', batch)
+              .get();
+            
+            const batchProfiles = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            customerProfiles.push(...batchProfiles);
+          } catch (phoneError) {
+            console.warn('⚠️ Could not query by phone numbers:', phoneError.message);
+          }
+        }
+      }
+    }
+    
+    // Remove duplicates by UID or ID
+    const uniqueProfiles = customerProfiles.reduce((acc, profile) => {
+      const key = profile.uid || profile.id;
+      if (!acc.has(key)) {
+        acc.set(key, profile);
+      }
+      return acc;
+    }, new Map());
+    
+    const finalProfiles = Array.from(uniqueProfiles.values());
+    
+    // Apply ordering
+    if (options.orderBy) {
+      finalProfiles.sort((a, b) => {
+        const aVal = a[options.orderBy];
+        const bVal = b[options.orderBy];
+        
+        if (options.orderDirection === 'asc') {
+          return aVal > bVal ? 1 : -1;
+        } else {
+          return aVal < bVal ? 1 : -1;
+        }
+      });
+    }
+    
+    // Apply limit
+    const limitedProfiles = options.limit ? finalProfiles.slice(0, options.limit) : finalProfiles;
+    
+    await endTracking(true);
+    
+    console.log('✅ Retrieved customer profiles:', limitedProfiles.length, 'for restaurant:', restaurantId);
+    return limitedProfiles;
+    
+  } catch (error) {
+    await endTracking(false, { error: error.message });
+    await VediAPI.trackError(error, 'getCustomerProfiles', { restaurantId, options });
+    
+    console.error('❌ Get customer profiles error:', error);
+    throw error;
+  }
+}
+
+/**
  * Get customer's most recent active order
  * @param {string} customerPhone - Customer phone number
  * @returns {Promise<Object|null>} Most recent active order or null
@@ -417,6 +528,7 @@ Object.assign(window.VediAPI, {
   // Customer order tracking
   getOrdersByCustomer,
   getOrdersByCustomerUID,
+  getCustomerProfiles,
   getMostRecentActiveOrder,
   getMostRecentActiveOrderByUID,
   
@@ -431,7 +543,7 @@ Object.assign(window.VediAPI, {
 
 console.log('📍 Enhanced Order Tracking Module loaded');
 console.log('🔧 Core: getOrders, getOrder - comprehensive order retrieval');
-console.log('👤 Customer: getOrdersByCustomer, getOrdersByCustomerUID, getMostRecentActiveOrder, getMostRecentActiveOrderByUID');
+console.log('👤 Customer: getOrdersByCustomer, getOrdersByCustomerUID, getCustomerProfiles, getMostRecentActiveOrder, getMostRecentActiveOrderByUID');
 console.log('📅 Date Queries: getTodaysOrders, getOrdersByDateRange with flexible filtering');
 console.log('🔍 Status Queries: getActiveOrders, getCompletedOrders for real-time tracking');
 console.log('✅ All venue-financials.html dependencies satisfied');
