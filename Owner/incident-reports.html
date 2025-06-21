@@ -979,7 +979,8 @@
         // Global variables
         let currentUser = null;
         let currentRestaurant = null;
-        let allIncidents = [];
+        let allIncidents = []; // This will contain ALL incidents for recent incidents display
+        let filteredIncidents = []; // This will contain filtered incidents for stats/charts
         let combinedChart = null;
         let realtimeUnsubscribe = null;
         let currentFilters = {
@@ -1117,6 +1118,12 @@
             try {
                 console.log('🔄 Loading incident data...');
                 
+                // Load ALL incidents for recent incidents display (no filters)
+                allIncidents = await VediAPI.getLossIncidents(currentRestaurant.id, {
+                    limit: 1000
+                });
+
+                // Load FILTERED incidents for stats and charts
                 const filterOptions = {
                     timePeriod: currentFilters.timePeriod !== 'all' ? currentFilters.timePeriod : undefined,
                     type: currentFilters.incidentType !== 'all' ? currentFilters.incidentType : undefined,
@@ -1125,9 +1132,9 @@
                     limit: 1000
                 };
 
-                allIncidents = await VediAPI.getLossIncidents(currentRestaurant.id, filterOptions);
+                filteredIncidents = await VediAPI.getLossIncidents(currentRestaurant.id, filterOptions);
 
-                console.log('✅ Incident data loaded:', allIncidents.length);
+                console.log('✅ Incident data loaded:', allIncidents.length, 'total,', filteredIncidents.length, 'filtered');
                 updateDashboard();
 
             } catch (error) {
@@ -1137,8 +1144,8 @@
 
         function updateDashboard() {
             updateStats();
-            updateIncidentsGrid();
-            updateCharts();
+            updateIncidentsGrid(); // Uses allIncidents (not filtered)
+            updateCharts(); // Uses filteredIncidents
         }
 
         // ============================================================================
@@ -1146,19 +1153,20 @@
         // ============================================================================
 
         function updateStats() {
-            const totalIncidents = allIncidents.length;
-            const totalLoss = allIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
+            // Use filtered incidents for stats
+            const totalIncidents = filteredIncidents.length;
+            const totalLoss = filteredIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
             
-            // Calculate monthly loss
+            // Calculate monthly loss from filtered incidents
             const now = new Date();
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            const monthlyIncidents = allIncidents.filter(incident => 
+            const monthlyIncidents = filteredIncidents.filter(incident => 
                 VediAPI.timestampToDate(incident.createdAt) >= monthStart
             );
             const monthlyLoss = monthlyIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
             
-            // Calculate most common incident type
-            const mostCommonIncident = calculateMostCommonIncident();
+            // Calculate most common incident type from filtered incidents
+            const mostCommonIncident = calculateMostCommonIncident(filteredIncidents);
 
             document.getElementById('totalIncidents').textContent = totalIncidents;
             document.getElementById('totalLoss').textContent = formatCurrency(totalLoss);
@@ -1166,12 +1174,12 @@
             document.getElementById('mostCommonIncident').textContent = mostCommonIncident;
         }
 
-        function calculateMostCommonIncident() {
-            if (allIncidents.length === 0) return 'None';
+        function calculateMostCommonIncident(incidents) {
+            if (incidents.length === 0) return 'None';
             
             // Count incidents by type
             const incidentCounts = {};
-            allIncidents.forEach(incident => {
+            incidents.forEach(incident => {
                 const type = incident.type || 'other';
                 incidentCounts[type] = (incidentCounts[type] || 0) + 1;
             });
@@ -1194,6 +1202,7 @@
         function updateIncidentsGrid() {
             const grid = document.getElementById('incidentsGrid');
             
+            // Always use ALL incidents for recent incidents display (not filtered)
             if (allIncidents.length === 0) {
                 grid.innerHTML = `
                     <div class="empty-state">
@@ -1569,8 +1578,8 @@
                     break;
             }
 
-            // Populate data from incidents
-            allIncidents.forEach(incident => {
+            // Populate data from FILTERED incidents
+            filteredIncidents.forEach(incident => {
                 if (!incident.createdAt) return;
                 
                 const incidentDate = VediAPI.timestampToDate(incident.createdAt);
