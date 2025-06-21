@@ -317,32 +317,7 @@
             100% { transform: rotate(360deg); }
         }
 
-        .notification {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            z-index: 10000;
-            background: #30D158;
-            color: #FFFFFF;
-            padding: 16px 24px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 15px;
-            opacity: 0;
-            transition: all 0.3s ease;
-            transform: translateX(100%);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            max-width: 400px;
-        }
 
-        .notification.show {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        .notification.error {
-            background: #FF3B30;
-        }
 
         @media (max-width: 768px) {
             body {
@@ -381,9 +356,7 @@
             }
 
             .notification {
-                right: 16px;
-                left: 16px;
-                max-width: none;
+                display: none;
             }
         }
 
@@ -499,7 +472,7 @@
     </div>
 
     <!-- Notification -->
-    <div class="notification" id="notification"></div>
+    <div class="notification" id="notification" style="display: none;"></div>
 
     <!-- QRious Library for QR Code Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
@@ -547,11 +520,11 @@
                 updateRestaurantDisplay();
                 
                 hideLoading();
-                showSuccess('QR codes generated successfully!');
+                // showSuccess('QR codes generated successfully!'); // Removed toast notification
                 
             } catch (error) {
                 console.error('❌ QR generator initialization error:', error);
-                showError('Failed to load QR generator: ' + error.message);
+                // showError('Failed to load QR generator: ' + error.message); // Removed toast notification
                 hideLoading();
             }
         }
@@ -595,7 +568,7 @@
                         Error generating QR codes: ${error.message}
                     </div>
                 `;
-                showError('Failed to generate QR codes');
+                // showError('Failed to generate QR codes'); // Removed toast notification
             }
         }
 
@@ -696,7 +669,7 @@
                 }
             }, 100);
 
-            showSuccess(`Added ${endTable - startTable + 1} new table QR codes!`);
+            // showSuccess(`Added ${endTable - startTable + 1} new table QR codes!`); // Removed toast notification
         }
 
         // Remove excess table QR codes (when restaurant decreases table count)
@@ -716,7 +689,7 @@
                 }
             }
 
-            showSuccess(`Removed excess table QR codes. Now showing ${newTableCount} tables.`);
+            // showSuccess(`Removed excess table QR codes. Now showing ${newTableCount} tables.`); // Removed toast notification
         }
 
         // Helper function to create QR card HTML
@@ -778,7 +751,7 @@
             try {
                 const canvas = document.getElementById(`qr-${tableNumber}`);
                 if (!canvas) {
-                    showError('QR code not found. Please regenerate QR codes.');
+                    // showError('QR code not found. Please regenerate QR codes.'); // Removed toast notification
                     return;
                 }
                 
@@ -791,11 +764,11 @@
                 link.href = canvas.toDataURL('image/png');
                 link.click();
                 
-                showSuccess(`Downloaded QR code for ${tableNumber === 'counter' ? 'counter' : `table ${tableNumber}`}`);
+                // showSuccess(`Downloaded QR code for ${tableNumber === 'counter' ? 'counter' : `table ${tableNumber}`}`); // Removed toast notification
                 
             } catch (error) {
                 console.error('Error downloading QR code:', error);
-                showError('Failed to download QR code');
+                // showError('Failed to download QR code'); // Removed toast notification
             }
         }
 
@@ -811,7 +784,7 @@
                     button.style.background = '';
                 }, 1500);
                 
-                showSuccess('URL copied to clipboard!');
+                // showSuccess('URL copied to clipboard!'); // Removed toast notification
             }).catch((error) => {
                 console.error('Error copying URL:', error);
                 // Fallback: show URL in alert
@@ -821,7 +794,7 @@
 
         function downloadAllQRCodes() {
             if (currentQRCodes.length === 0) {
-                showError('Please generate QR codes first.');
+                // showError('Please generate QR codes first.'); // Removed toast notification
                 return;
             }
 
@@ -832,32 +805,32 @@
                     }, index * 300);
                 });
 
-                showSuccess(`Downloading ${currentQRCodes.length} QR codes...`);
+                // showSuccess(`Downloading ${currentQRCodes.length} QR codes...`); // Removed toast notification
                 
             } catch (error) {
                 console.error('Error downloading all QR codes:', error);
-                showError('Failed to download QR codes');
+                // showError('Failed to download QR codes'); // Removed toast notification
             }
         }
 
         function printAllQRCodes() {
             if (currentQRCodes.length === 0) {
-                showError('Please generate QR codes first.');
+                // showError('Please generate QR codes first.'); // Removed toast notification
                 return;
             }
 
             try {
                 window.print();
-                showSuccess('Print dialog opened');
+                // showSuccess('Print dialog opened'); // Removed toast notification
             } catch (error) {
                 console.error('Error printing QR codes:', error);
-                showError('Failed to open print dialog');
+                // showError('Failed to open print dialog'); // Removed toast notification
             }
         }
 
         function copyAllURLs() {
             if (currentQRCodes.length === 0) {
-                showError('Please generate QR codes first.');
+                // showError('Please generate QR codes first.'); // Removed toast notification
                 return;
             }
 
@@ -867,7 +840,7 @@
                 }).join('\n');
                 
                 navigator.clipboard.writeText(urls).then(() => {
-                    showSuccess('All URLs copied to clipboard!');
+                    // showSuccess('All URLs copied to clipboard!'); // Removed toast notification
                 }).catch(() => {
                     // Fallback: show URLs in alert
                     alert('URLs:\n\n' + urls);
@@ -875,7 +848,7 @@
                 
             } catch (error) {
                 console.error('Error copying all URLs:', error);
-                showError('Failed to copy URLs');
+                // showError('Failed to copy URLs'); // Removed toast notification
             }
         }
 
@@ -893,28 +866,18 @@
         }
 
         function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => notification.classList.add('show'), 100);
-            setTimeout(() => {
-                notification.classList.remove('show');
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.style.display = 'none';
-                    }
-                }, 300);
-            }, 3000);
+            // Notifications disabled - no toast popups
+            return;
         }
 
         function showSuccess(message) {
-            showNotification(message, 'success');
+            // Notifications disabled - no toast popups
+            return;
         }
 
         function showError(message) {
-            showNotification(message, 'error');
+            // Notifications disabled - no toast popups
+            return;
         }
 
         // Listen for restaurant data updates from parent window (if embedded in iframe)
