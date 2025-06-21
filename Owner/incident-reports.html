@@ -123,7 +123,7 @@
             color: #FFFFFF;
             border: none;
             padding: 12px 20px;
-            border-radius: 10px;
+            border-radius: 22px;
             font-weight: 600;
             font-size: 15px;
             cursor: pointer;
@@ -136,18 +136,26 @@
 
         .btn-primary:hover {
             background: #0056CC;
-            transform: translateY(-1px);
         }
 
         .btn-secondary {
-            background: transparent;
-            color: #007AFF;
-            border: 1px solid #007AFF;
+            background: #F2F2F7;
+            color: #1D1D1F;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 22px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .btn-secondary:hover {
-            background: #007AFF;
-            color: #FFFFFF;
+            background: #E5E5EA;
         }
 
         .btn-danger {
@@ -638,7 +646,10 @@
             <div class="stats-section">
                 <div class="stats-header">
                     <h2 class="section-title">Loss Reports</h2>
-                    <button class="btn-primary btn-danger" onclick="openReportModal()">Report Incident</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn-secondary" onclick="exportReport()">Export Report</button>
+                        <button class="btn-primary btn-danger" onclick="openReportModal()">Report Incident</button>
+                    </div>
                 </div>
                 
                 <div class="stats-grid">
@@ -706,7 +717,6 @@
             <div class="chart-section">
                 <div class="chart-header">
                     <h2 class="section-title">Loss Analytics</h2>
-                    <button class="btn-secondary" onclick="exportReport()">Export Report</button>
                 </div>
                 <div class="chart-container">
                     <canvas id="combinedChart"></canvas>
@@ -717,7 +727,6 @@
             <div class="incidents-section">
                 <div class="incidents-header">
                     <h2 class="section-title">Recent Incidents</h2>
-                    <button class="btn-secondary" onclick="refreshData()" id="refreshBtn">Refresh</button>
                 </div>
                 <div class="incidents-grid" id="incidentsGrid">
                     <!-- Will be populated dynamically -->
@@ -937,7 +946,6 @@
 
             } catch (error) {
                 console.error('❌ Load incident data error:', error);
-                showNotification('Error loading incident data', 'error');
             }
         }
 
@@ -1487,7 +1495,6 @@
                 const actions = document.getElementById('reportActions').value.trim();
 
                 if (!type || !title || !severity) {
-                    showNotification('Please fill in all required fields', 'error');
                     return;
                 }
 
@@ -1515,13 +1522,11 @@
                 console.log('✅ Incident created:', newIncident.id);
                 
                 closeReportModal();
-                showNotification('Incident reported successfully');
                 
                 await loadIncidentData();
 
             } catch (error) {
                 console.error('❌ Submit incident error:', error);
-                showNotification('Error reporting incident', 'error');
             }
         }
 
@@ -1555,37 +1560,13 @@
 
                 console.log('🔍 Applying filters:', currentFilters);
                 await loadIncidentData();
-                
-                showNotification('Filters applied successfully');
 
             } catch (error) {
                 console.error('❌ Apply filters error:', error);
-                showNotification('Error applying filters', 'error');
             } finally {
                 const applyBtn = document.getElementById('applyFiltersBtn');
                 applyBtn.disabled = false;
                 applyBtn.innerHTML = 'Apply Filters';
-            }
-        }
-
-        async function refreshData() {
-            try {
-                const refreshBtn = document.getElementById('refreshBtn');
-                refreshBtn.disabled = true;
-                refreshBtn.innerHTML = 'Refreshing...';
-
-                console.log('🔄 Manual refresh triggered...');
-                await loadIncidentData();
-                
-                showNotification('Data refreshed successfully');
-
-            } catch (error) {
-                console.error('❌ Refresh error:', error);
-                showNotification('Error refreshing data', 'error');
-            } finally {
-                const refreshBtn = document.getElementById('refreshBtn');
-                refreshBtn.disabled = false;
-                refreshBtn.innerHTML = 'Refresh';
             }
         }
 
@@ -1658,35 +1639,28 @@
                     link.click();
                     document.body.removeChild(link);
                 }
-                
-                showNotification('CSV report exported successfully');
 
             } catch (error) {
                 console.error('❌ Export error:', error);
-                showNotification('Error exporting CSV report', 'error');
             }
         }
 
         function viewIncidentDetails(incidentId) {
             const incident = allIncidents.find(inc => inc.id === incidentId);
             if (!incident) {
-                showNotification('Incident not found', 'error');
                 return;
             }
             
             console.log('👁️ Viewing incident details:', incident.title);
-            showNotification('Incident details feature coming soon');
         }
 
         function updateIncidentStatus(incidentId) {
             const incident = allIncidents.find(inc => inc.id === incidentId);
             if (!incident) {
-                showNotification('Incident not found', 'error');
                 return;
             }
             
             console.log('🔄 Updating incident status:', incident.title);
-            showNotification('Status update feature coming soon');
         }
 
         // ============================================================================
@@ -1714,30 +1688,6 @@
         function showError(message) {
             document.getElementById('errorText').textContent = message;
             document.getElementById('errorMessage').style.display = 'block';
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.createElement('div');
-            const bgColor = type === 'error' ? 
-                '#FF3B30' : 
-                '#34C759';
-                
-            notification.style.cssText = `
-                position: fixed; top: 20px; right: 20px; z-index: 10000;
-                background: ${bgColor}; color: white; padding: 16px 24px; 
-                border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-                font-weight: 600; opacity: 0; transition: all 0.3s ease;
-                max-width: 400px; word-wrap: break-word; font-size: 15px;
-                font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-            `;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => notification.style.opacity = '1', 100);
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                setTimeout(() => document.body.removeChild(notification), 300);
-            }, 3000);
         }
 
         function showSecurityError(error) {
