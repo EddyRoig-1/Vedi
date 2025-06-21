@@ -1154,7 +1154,7 @@
             };
         }
 
-        function calculateRealCustomerMetrics(orders, customerProfiles) {
+        function calculateRealCustomerMetrics(orders, customerProfiles = []) {
             // Calculate actual average preparation time
             const completedOrders = orders.filter(order => order.status === 'completed');
             let totalPrepTime = 0;
@@ -1180,57 +1180,60 @@
             // Calculate real customer data using actual customer profiles
             const customerOrderData = {};
             
-            // Map orders to customer profiles
-            customerProfiles.forEach(customer => {
-                // Try to match by phone or email
-                const customerPhone = customer.phone || customer.phoneNumber;
-                const customerEmail = customer.email;
+            // Only proceed if we have customer profiles
+            if (customerProfiles && customerProfiles.length > 0) {
+                // Map orders to customer profiles
+                customerProfiles.forEach(customer => {
+                    // Try to match by phone or email
+                    const customerPhone = customer.phone || customer.phoneNumber;
+                    const customerEmail = customer.email;
+                    
+                    customerOrderData[customer.id] = {
+                        profile: customer,
+                        orders: [],
+                        orderCount: 0,
+                        revenue: 0,
+                        phone: customerPhone,
+                        email: customerEmail
+                    };
+                });
                 
-                customerOrderData[customer.id] = {
-                    profile: customer,
-                    orders: [],
-                    orderCount: 0,
-                    revenue: 0,
-                    phone: customerPhone,
-                    email: customerEmail
-                };
-            });
-            
-            // Associate orders with customer profiles
-            orders.forEach(order => {
-                let matchedCustomerId = null;
-                
-                // Try to match by phone number
-                if (order.customerPhone) {
-                    for (const [customerId, customerData] of Object.entries(customerOrderData)) {
-                        if (customerData.phone && 
-                            (customerData.phone === order.customerPhone || 
-                             customerData.phone.replace(/[^\d]/g, '') === order.customerPhone.replace(/[^\d]/g, ''))) {
-                            matchedCustomerId = customerId;
-                            break;
+                // Associate orders with customer profiles
+                orders.forEach(order => {
+                    let matchedCustomerId = null;
+                    
+                    // Try to match by phone number
+                    if (order.customerPhone) {
+                        for (const [customerId, customerData] of Object.entries(customerOrderData)) {
+                            if (customerData.phone && 
+                                (customerData.phone === order.customerPhone || 
+                                 customerData.phone.replace(/[^\d]/g, '') === order.customerPhone.replace(/[^\d]/g, ''))) {
+                                matchedCustomerId = customerId;
+                                break;
+                            }
                         }
                     }
-                }
-                
-                // Try to match by email if phone didn't work
-                if (!matchedCustomerId && order.customerEmail) {
-                    for (const [customerId, customerData] of Object.entries(customerOrderData)) {
-                        if (customerData.email && customerData.email === order.customerEmail) {
-                            matchedCustomerId = customerId;
-                            break;
+                    
+                    // Try to match by email if phone didn't work
+                    if (!matchedCustomerId && order.customerEmail) {
+                        for (const [customerId, customerData] of Object.entries(customerOrderData)) {
+                            if (customerData.email && customerData.email === order.customerEmail) {
+                                matchedCustomerId = customerId;
+                                break;
+                            }
                         }
                     }
-                }
-                
-                // Associate order with customer if match found
-                if (matchedCustomerId) {
-                    customerOrderData[matchedCustomerId].orders.push(order);
-                    customerOrderData[matchedCustomerId].orderCount += 1;
-                    customerOrderData[matchedCustomerId].revenue += order.total || 0;
-                }
-            });
+                    
+                    // Associate order with customer if match found
+                    if (matchedCustomerId) {
+                        customerOrderData[matchedCustomerId].orders.push(order);
+                        customerOrderData[matchedCustomerId].orderCount += 1;
+                        customerOrderData[matchedCustomerId].revenue += order.total || 0;
+                    }
+                });
+            }
 
-            const totalCustomers = customerProfiles.length;
+            const totalCustomers = customerProfiles ? customerProfiles.length : 0;
             const customersWithOrders = Object.values(customerOrderData).filter(customer => customer.orderCount > 0);
             const repeatCustomers = customersWithOrders.filter(customer => customer.orderCount > 1).length;
             const repeatRate = customersWithOrders.length > 0 ? (repeatCustomers / customersWithOrders.length) * 100 : 0;
