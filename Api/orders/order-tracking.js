@@ -204,12 +204,40 @@ async function getCustomerProfiles(restaurantId, options = {}) {
       const batchSize = 10;
       for (let i = 0; i < customerUIDs.length; i += batchSize) {
         const batch = customerUIDs.slice(i, i + batchSize);
-        const querySnapshot = await db.collection('customerProfiles')
-          .where('uid', 'in', batch)
-          .get();
         
-        const batchProfiles = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        customerProfiles.push(...batchProfiles);
+        // Try to find by uid field first
+        try {
+          const querySnapshot = await db.collection('customerProfiles')
+            .where('uid', 'in', batch)
+            .get();
+          
+          const batchProfiles = querySnapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            uid: doc.data().uid || doc.id, // Use doc.id as uid if uid field is missing
+            ...doc.data() 
+          }));
+          customerProfiles.push(...batchProfiles);
+        } catch (error) {
+          console.log('🔧 No uid field found, trying document IDs as UIDs');
+        }
+        
+        // If no profiles found by uid field, try document IDs directly
+        if (customerProfiles.length === 0) {
+          for (const uid of batch) {
+            try {
+              const doc = await db.collection('customerProfiles').doc(uid).get();
+              if (doc.exists) {
+                customerProfiles.push({ 
+                  id: doc.id, 
+                  uid: doc.id, // Document ID is the UID
+                  ...doc.data() 
+                });
+              }
+            } catch (error) {
+              console.warn('⚠️ Could not fetch profile for UID:', uid);
+            }
+          }
+        }
       }
     }
     
