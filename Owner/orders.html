@@ -2562,7 +2562,18 @@
             if (!soundEnabled) return;
             
             try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // Create audio context with user gesture requirement handling
+                if (!window.audioContext) {
+                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const audioContext = window.audioContext;
+                
+                // Resume audio context if suspended
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
                 
@@ -2572,13 +2583,28 @@
                 oscillator.frequency.value = 800;
                 oscillator.type = 'square';
                 
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
                 
                 oscillator.start();
                 oscillator.stop(audioContext.currentTime + 0.5);
+                
+                debugLog('🔊 Notification sound played');
             } catch (error) {
-                debugLog('Could not play notification sound');
+                debugLog('❌ Could not play notification sound', error.message);
+                
+                // Fallback: try HTML5 audio with data URI
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBzeO1O/CdSYFJnLH7+WcSAkXYrjp5KZTFgxIouHvwm0hBDOZ2O+vYhAHTr/t6Vh/NwgdcLNu6YVTJF8X/9+mfgMAAAB4cEBAAEBoTANAGgAAAAAGAAgAQACAAIDVwB4AIAAIAAAABA=');
+                    audio.volume = 0.3;
+                    audio.play().then(() => {
+                        debugLog('🔊 Fallback notification sound played');
+                    }).catch(e => {
+                        debugLog('❌ Fallback sound also failed', e.message);
+                    });
+                } catch (fallbackError) {
+                    debugLog('❌ All sound methods failed', fallbackError.message);
+                }
             }
         }
 
@@ -2586,8 +2612,19 @@
             if (!soundEnabled) return;
             
             try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // Create audio context with user gesture requirement handling
+                if (!window.audioContext) {
+                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
                 
+                const audioContext = window.audioContext;
+                
+                // Resume audio context if suspended
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
+                // Play a sequence of beeps for new orders
                 [800, 1000, 800].forEach((freq, index) => {
                     setTimeout(() => {
                         const oscillator = audioContext.createOscillator();
@@ -2599,17 +2636,48 @@
                         oscillator.frequency.value = freq;
                         oscillator.type = 'sine';
                         
-                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
                         gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
                         
                         oscillator.start();
                         oscillator.stop(audioContext.currentTime + 0.3);
                     }, index * 200);
                 });
+                
+                debugLog('🔊 New order notification played');
             } catch (error) {
-                debugLog('Could not play new order notification');
+                debugLog('❌ Could not play new order notification', error.message);
+                
+                // Fallback: try HTML5 audio
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBzeO1O/CdSYFJnLH7+WcSAkXYrjp5KZTFgxIouHvwm0hBDOZ2O+vYhAHTr/t6Vh/NwgdcLNu6YVTJF8X/9+mfgMAAAB4cEBAAEBoTANAGgAAAAAGAAgAQACAAIDVwB4AIAAIAAAABA=');
+                    audio.volume = 0.5;
+                    audio.play().then(() => {
+                        debugLog('🔊 Fallback new order sound played');
+                    }).catch(e => {
+                        debugLog('❌ Fallback new order sound also failed', e.message);
+                    });
+                } catch (fallbackError) {
+                    debugLog('❌ All new order sound methods failed', fallbackError.message);
+                }
             }
         }
+
+        // Initialize audio context on first user interaction
+        function initializeAudioContext() {
+            if (!window.audioContext) {
+                try {
+                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    debugLog('🔊 Audio context initialized');
+                } catch (error) {
+                    debugLog('❌ Failed to initialize audio context', error.message);
+                }
+            }
+        }
+
+        // Add click listener to initialize audio on first interaction
+        document.addEventListener('click', initializeAudioContext, { once: true });
+        document.addEventListener('touchstart', initializeAudioContext, { once: true });
 
         // Helper functions for history
         function clearDateFilter() {
