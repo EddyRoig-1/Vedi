@@ -783,57 +783,72 @@
         }
 
         function copyURL(url) {
-            navigator.clipboard.writeText(url).then(() => {
-                // Show temporary feedback
-                const button = event.target;
-                const originalText = button.textContent;
-                button.textContent = 'Copied!';
-                button.style.background = '#30D158';
-                button.style.color = '#FFFFFF';
-                button.style.borderColor = '#30D158';
+            // Use the modern clipboard API if available
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showCopyFeedback();
+                }).catch((error) => {
+                    console.error('Clipboard API failed:', error);
+                    fallbackCopyURL(url);
+                });
+            } else {
+                // Use fallback method
+                fallbackCopyURL(url);
+            }
+        }
+
+        function fallbackCopyURL(url) {
+            try {
+                // Create a temporary textarea element
+                const textArea = document.createElement('textarea');
+                textArea.value = url;
+                textArea.style.position = 'absolute';
+                textArea.style.left = '-9999px';
+                textArea.style.top = '-9999px';
+                textArea.style.opacity = '0';
+                textArea.setAttribute('readonly', '');
+                textArea.setAttribute('tabindex', '-1');
                 
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.style.background = '';
-                    button.style.color = '';
-                    button.style.borderColor = '';
-                }, 2000);
+                document.body.appendChild(textArea);
                 
-            }).catch((error) => {
-                console.error('Error copying URL:', error);
-                // Fallback for copying - try using the older method
-                try {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = url;
-                    textArea.style.position = 'fixed';
-                    textArea.style.left = '-999999px';
-                    textArea.style.top = '-999999px';
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    document.execCommand('copy');
-                    textArea.remove();
-                    
-                    // Show temporary feedback for fallback method too
-                    const button = event.target;
-                    const originalText = button.textContent;
-                    button.textContent = 'Copied!';
-                    button.style.background = '#30D158';
-                    button.style.color = '#FFFFFF';
-                    button.style.borderColor = '#30D158';
-                    
-                    setTimeout(() => {
-                        button.textContent = originalText;
-                        button.style.background = '';
-                        button.style.color = '';
-                        button.style.borderColor = '';
-                    }, 2000);
-                } catch (fallbackError) {
-                    console.error('Fallback copy method also failed:', fallbackError);
-                    // Last resort - show the URL in a temporary prompt
-                    prompt('Copy this URL:', url);
+                // Select and copy the text
+                textArea.select();
+                textArea.setSelectionRange(0, 99999); // For mobile devices
+                
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                if (successful) {
+                    showCopyFeedback();
+                } else {
+                    console.error('Fallback copy method failed');
                 }
-            });
+                
+            } catch (fallbackError) {
+                console.error('All copy methods failed:', fallbackError);
+            }
+        }
+
+        function showCopyFeedback() {
+            const button = event.target;
+            const originalText = button.textContent;
+            const originalBackground = button.style.background;
+            const originalColor = button.style.color;
+            const originalBorderColor = button.style.borderColor;
+            
+            // Change button appearance
+            button.textContent = 'Copied!';
+            button.style.background = '#30D158';
+            button.style.color = '#FFFFFF';
+            button.style.borderColor = '#30D158';
+            
+            // Reset after 2 seconds
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = originalBackground;
+                button.style.color = originalColor;
+                button.style.borderColor = originalBorderColor;
+            }, 2000);
         }
 
         function downloadAllQRCodes() {
