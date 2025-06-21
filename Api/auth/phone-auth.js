@@ -1,24 +1,15 @@
-// api/auth/phone-auth.js - Streamlined NO reCAPTCHA Phone Authentication
+// api/auth/phone-auth.js - Phone Authentication with reCAPTCHA v2 Invisible
 /**
- * Streamlined NO reCAPTCHA Phone Authentication Module
+ * Phone Authentication Module with reCAPTCHA v2 Invisible
  * 
- * Simplified, fast, and reliable phone authentication using Firebase test number configuration.
- * Works with both test numbers AND real phone numbers without any reCAPTCHA.
+ * Properly implements Firebase phone authentication with reCAPTCHA v2 invisible
+ * as required by Firebase for production environments.
  * 
- * Features:
- * - NO reCAPTCHA whatsoever
- * - Direct Firebase phone authentication
- * - Works with test numbers AND real numbers
- * - Enhanced error handling
- * - Customer profile management
- * - Full VediAPI integration
- * - Production-ready and fast
- * 
- * @version 4.0.0 - Streamlined reCAPTCHA-FREE
+ * @version 3.0.0 - Proper reCAPTCHA v2 Implementation
  */
 
 // ============================================================================
-// COMPATIBILITY LAYER - LIGHTWEIGHT VERSION
+// COMPATIBILITY LAYER
 // ============================================================================
 
 /**
@@ -71,21 +62,101 @@ function ensureHelpers() {
 }
 
 // ============================================================================
-// CORE PHONE AUTHENTICATION - NO reCAPTCHA
+// reCAPTCHA v2 INVISIBLE MANAGEMENT
 // ============================================================================
 
 /**
- * Send SMS verification code - NO reCAPTCHA required
+ * Initialize reCAPTCHA v2 invisible verifier
+ * @param {string} containerId - ID of the container element
+ * @returns {Promise<firebase.auth.RecaptchaVerifier>} Configured reCAPTCHA verifier
+ */
+async function initializeRecaptchaVerifier(containerId = 'recaptcha_container') {
+    try {
+        console.log('🔒 Initializing reCAPTCHA v2 invisible verifier...');
+
+        // Clear any existing verifier first
+        clearRecaptchaVerifier();
+
+        // Ensure container exists
+        let container = document.getElementById(containerId);
+        if (!container) {
+            container = document.createElement('div');
+            container.id = containerId;
+            container.style.display = 'none'; // Hidden for invisible reCAPTCHA
+            document.body.appendChild(container);
+            console.log('📦 Created reCAPTCHA container:', containerId);
+        }
+
+        // Initialize reCAPTCHA v2 invisible verifier
+        window.recaptchaVerifierInstance = new firebase.auth.RecaptchaVerifier(containerId, {
+            size: 'invisible',
+            callback: (response) => {
+                console.log('✅ reCAPTCHA solved successfully');
+            },
+            'expired-callback': () => {
+                console.warn('⚠️ reCAPTCHA expired');
+            },
+            'error-callback': (error) => {
+                console.error('❌ reCAPTCHA error:', error);
+            }
+        });
+
+        // Render the reCAPTCHA
+        console.log('🎨 Rendering reCAPTCHA v2 invisible...');
+        await window.recaptchaVerifierInstance.render();
+        
+        console.log('✅ reCAPTCHA v2 invisible initialized successfully');
+        return window.recaptchaVerifierInstance;
+
+    } catch (error) {
+        console.error('❌ Failed to initialize reCAPTCHA:', error);
+        throw new Error(`reCAPTCHA initialization failed: ${error.message}`);
+    }
+}
+
+/**
+ * Clear reCAPTCHA verifier
+ */
+function clearRecaptchaVerifier() {
+    if (window.recaptchaVerifierInstance) {
+        try {
+            window.recaptchaVerifierInstance.clear();
+            window.recaptchaVerifierInstance = null;
+            console.log('🧹 reCAPTCHA verifier cleared');
+        } catch (error) {
+            console.warn('⚠️ Error clearing reCAPTCHA verifier:', error);
+        }
+    }
+}
+
+/**
+ * Reset reCAPTCHA verifier (for retry scenarios)
+ */
+async function resetRecaptchaVerifier(containerId = 'recaptcha_container') {
+    try {
+        console.log('🔄 Resetting reCAPTCHA verifier...');
+        clearRecaptchaVerifier();
+        await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay
+        return await initializeRecaptchaVerifier(containerId);
+    } catch (error) {
+        console.error('❌ Failed to reset reCAPTCHA:', error);
+        throw error;
+    }
+}
+
+// ============================================================================
+// PHONE AUTHENTICATION WITH reCAPTCHA v2
+// ============================================================================
+
+/**
+ * Send SMS verification code with reCAPTCHA v2 invisible
  * @param {string} phoneNumber - Phone number in E.164 format (+1234567890)
+ * @param {string} containerId - reCAPTCHA container ID
  * @returns {Promise<Object>} Confirmation result for code verification
  */
-async function sendPhoneVerification(phoneNumber) {
-    console.log('firebase:', firebase);
-    console.log('firebase.auth:', firebase.auth);
-    console.log('getFirebaseAuth:', window.getFirebaseAuth && window.getFirebaseAuth());
-
+async function sendPhoneVerification(phoneNumber, containerId = 'recaptcha_container') {
     try {
-        console.log('📱 Sending SMS verification to:', window.maskPhoneNumber(phoneNumber));
+        console.log('📱 Starting phone verification for:', window.maskPhoneNumber(phoneNumber));
 
         // Validate phone number format
         if (!validatePhoneNumber(phoneNumber)) {
@@ -97,36 +168,24 @@ async function sendPhoneVerification(phoneNumber) {
             throw new Error('Firebase Auth is not initialized correctly.');
         }
 
-        // Clear previous reCAPTCHA if it exists
-        if (window.recaptchaVerifierInstance) {
-            window.recaptchaVerifierInstance.clear();
-        }
+        // Initialize reCAPTCHA v2 invisible verifier
+        const recaptchaVerifier = await initializeRecaptchaVerifier(containerId);
 
-        // Initialize new reCAPTCHA instance
-        window.recaptchaVerifierInstance = new firebase.auth.RecaptchaVerifier('recaptcha_container', {
-            size: 'invisible',
-            callback: (response) => {
-                console.log('🧠 reCAPTCHA solved:', response);
-            },
-            'expired-callback': () => {
-                console.warn('⚠️ reCAPTCHA expired. Please try again.');
-            }
-        });
-
-        await window.recaptchaVerifierInstance.render();
+        console.log('📤 Sending SMS with reCAPTCHA v2 invisible...');
 
         // Send SMS verification code
-        const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, window.recaptchaVerifierInstance);
+        const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
 
-        // Store verification ID globally
+        // Store verification ID globally for fallback
         window.phoneVerificationId = confirmationResult.verificationId;
 
-        // Log success
+        // Track success
         await window.trackAPICall('sendPhoneVerification', Date.now(), true, {
-            phoneNumber: window.maskPhoneNumber(phoneNumber)
+            phoneNumber: window.maskPhoneNumber(phoneNumber),
+            hasRecaptcha: true
         });
 
-        console.log('✅ SMS sent successfully');
+        console.log('✅ SMS sent successfully with reCAPTCHA v2');
         return confirmationResult;
 
     } catch (error) {
@@ -134,12 +193,46 @@ async function sendPhoneVerification(phoneNumber) {
 
         // Track failure
         await window.trackAPICall('sendPhoneVerification', Date.now(), false, {
-            error: error.code || error.message
+            error: error.code || error.message,
+            phoneNumber: window.maskPhoneNumber(phoneNumber)
         });
+
+        // Handle specific reCAPTCHA errors
+        if (error.code === 'auth/invalid-app-credential' || 
+            error.code === 'auth/app-not-authorized') {
+            throw new Error('reCAPTCHA configuration error. Please check your Firebase settings.');
+        }
+
+        if (error.code === 'auth/too-many-requests') {
+            throw new Error('Too many verification attempts. Please try again later.');
+        }
 
         throw new Error(getPhoneAuthErrorMessage(error.code || error.message));
     }
 }
+
+/**
+ * Retry SMS sending with fresh reCAPTCHA
+ * @param {string} phoneNumber - Phone number in E.164 format
+ * @param {string} containerId - reCAPTCHA container ID
+ * @returns {Promise<Object>} Confirmation result
+ */
+async function retrySendPhoneVerification(phoneNumber, containerId = 'recaptcha_container') {
+    try {
+        console.log('🔄 Retrying SMS send with fresh reCAPTCHA...');
+        
+        // Reset reCAPTCHA verifier
+        await resetRecaptchaVerifier(containerId);
+        
+        // Retry sending
+        return await sendPhoneVerification(phoneNumber, containerId);
+        
+    } catch (error) {
+        console.error('❌ Retry SMS send failed:', error);
+        throw error;
+    }
+}
+
 /**
  * Verify SMS code and complete authentication
  * @param {Object} confirmationResult - Result from sendPhoneVerification
@@ -165,6 +258,9 @@ async function verifyPhoneCode(confirmationResult, code) {
         // Create or update customer profile
         const customerProfile = await createOrUpdateCustomerProfile(user);
         
+        // Clear reCAPTCHA after successful verification
+        clearRecaptchaVerifier();
+        
         // Track success
         await window.trackAPICall('verifyPhoneCode', Date.now(), true, {
             userId: user.uid,
@@ -181,9 +277,20 @@ async function verifyPhoneCode(confirmationResult, code) {
         
     } catch (error) {
         console.error('❌ Code verification error:', error);
+        
         await window.trackAPICall('verifyPhoneCode', Date.now(), false, {
             error: error.code || error.message
         });
+        
+        // Handle specific verification errors
+        if (error.code === 'auth/invalid-verification-code') {
+            throw new Error('Invalid verification code. Please check and try again.');
+        }
+        
+        if (error.code === 'auth/code-expired') {
+            throw new Error('Verification code expired. Please request a new code.');
+        }
+        
         throw new Error(getPhoneAuthErrorMessage(error.code || error.message));
     }
 }
@@ -215,6 +322,9 @@ async function verifyPhoneCodeDirect(verificationId, code) {
         
         // Create or update customer profile
         const customerProfile = await createOrUpdateCustomerProfile(user);
+        
+        // Clear reCAPTCHA after successful verification
+        clearRecaptchaVerifier();
         
         // Track success
         await window.trackAPICall('verifyPhoneCodeDirect', Date.now(), true, {
@@ -271,8 +381,8 @@ async function createOrUpdateCustomerProfile(firebaseUser) {
             const newProfile = {
                 phoneNumber: firebaseUser.phoneNumber,
                 phoneVerified: true,
-                name: '',
-                email: '',
+                name: firebaseUser.displayName || '',
+                email: firebaseUser.email || '',
                 accountType: 'customer',
                 authMethod: 'phone',
                 preferences: {
@@ -403,7 +513,8 @@ function getPhoneAuthErrorMessage(errorCode) {
         'auth/network-request-failed': 'Network error. Check your connection and try again.',
         'auth/internal-error': 'Service error. Please contact support.',
         'auth/app-not-authorized': 'App not authorized for phone authentication.',
-        'auth/unauthorized-domain': 'Domain not authorized for phone authentication.'
+        'auth/unauthorized-domain': 'Domain not authorized for phone authentication.',
+        'auth/invalid-app-credential': 'reCAPTCHA configuration error. Please contact support.'
     };
     
     return errorMessages[errorCode] || 'Phone authentication error. Please try again.';
@@ -422,15 +533,16 @@ function checkPhoneAuthReadiness() {
         firebase: typeof firebase !== 'undefined',
         auth: !!(typeof firebase !== 'undefined' && firebase.auth),
         firestore: !!(typeof firebase !== 'undefined' && firebase.firestore),
-        phoneAuth: true, // Always true since no reCAPTCHA needed
-        recaptchaReady: true, // Always true since we don't use reCAPTCHA
+        recaptcha: typeof firebase !== 'undefined' && 
+                  typeof firebase.auth !== 'undefined' && 
+                  typeof firebase.auth.RecaptchaVerifier !== 'undefined',
         ready: false
     };
     
     // Overall readiness
-    status.ready = status.firebase && status.auth && status.firestore;
+    status.ready = status.firebase && status.auth && status.firestore && status.recaptcha;
     
-    console.log('📱 Phone Auth Readiness (NO reCAPTCHA):', status);
+    console.log('📱 Phone Auth Readiness (reCAPTCHA v2):', status);
     return status;
 }
 
@@ -443,6 +555,7 @@ function isPhoneAuthReady() {
         typeof firebase !== 'undefined' && 
         firebase.auth &&
         firebase.firestore &&
+        firebase.auth.RecaptchaVerifier &&
         firebase.apps.length > 0
     );
 }
@@ -461,10 +574,16 @@ if (!window.VediAPI) {
 
 // Attach methods to VediAPI
 Object.assign(window.VediAPI, {
-    // Core phone auth methods (NO reCAPTCHA)
+    // Core phone auth methods (with reCAPTCHA v2)
     sendPhoneVerification,
+    retrySendPhoneVerification,
     verifyPhoneCode,
     verifyPhoneCodeDirect,
+    
+    // reCAPTCHA management
+    initializeRecaptchaVerifier,
+    clearRecaptchaVerifier,
+    resetRecaptchaVerifier,
     
     // Utility methods
     formatPhoneNumber,
@@ -479,29 +598,21 @@ Object.assign(window.VediAPI, {
     isPhoneAuthReady,
     
     // Customer profile management
-    createOrUpdateCustomerProfile,
-    
-    // No-op reCAPTCHA methods (for compatibility)
-    clearRecaptcha: () => {
-        console.log('🚫 clearRecaptcha called (no-op - no reCAPTCHA)');
-        return Promise.resolve();
-    },
-    resetRecaptcha: () => {
-        console.log('🚫 resetRecaptcha called (no-op - no reCAPTCHA)');
-        return Promise.resolve();
-    },
-    initializeRecaptcha: () => {
-        console.log('🚫 initializeRecaptcha called (disabled - no reCAPTCHA)');
-        return Promise.resolve(null);
-    }
+    createOrUpdateCustomerProfile
 });
 
 // Create CustomerAuthAPI namespace
 window.CustomerAuthAPI = {
-    // Phone methods
+    // Phone methods with reCAPTCHA
     sendPhoneVerification,
+    retrySendPhoneVerification,
     verifyPhoneCode,
     verifyPhoneCodeDirect,
+    
+    // reCAPTCHA methods
+    initializeRecaptchaVerifier,
+    clearRecaptchaVerifier,
+    resetRecaptchaVerifier,
     
     // Utility methods
     formatPhoneNumber,
@@ -520,19 +631,17 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         const readiness = checkPhoneAuthReadiness();
         if (readiness.ready) {
-            console.log('✅ Streamlined phone authentication ready (NO reCAPTCHA)!');
-            console.log('📱 Test numbers: +1 888-888-8888 (and any real numbers)');
+            console.log('✅ Phone authentication ready with reCAPTCHA v2!');
         } else {
             console.warn('⚠️ Phone authentication not ready:', readiness);
         }
     }, 1000);
 });
 
-console.log('📱 Streamlined Phone Authentication Module loaded');
-console.log('🚫 reCAPTCHA: COMPLETELY DISABLED');
-console.log('✅ Works with: Test numbers + Real phone numbers');
-console.log('🚀 Fast: No reCAPTCHA delays or verification steps');
-console.log('📞 Methods: sendPhoneVerification, verifyPhoneCode, verifyPhoneCodeDirect');
-console.log('🔧 Utils: formatPhoneNumber, validatePhoneNumber, maskPhoneNumber');
+console.log('📱 Phone Authentication Module loaded');
+console.log('🔒 reCAPTCHA: v2 Invisible Implementation (REQUIRED)');
+console.log('✅ Methods: sendPhoneVerification, verifyPhoneCode, verifyPhoneCodeDirect');
+console.log('🔧 reCAPTCHA Utils: initializeRecaptchaVerifier, clearRecaptchaVerifier, resetRecaptchaVerifier');
+console.log('🛠️ Phone Utils: formatPhoneNumber, validatePhoneNumber, maskPhoneNumber');
 console.log('👤 Profiles: Automatic customer profile creation');
-console.log('🎯 Production Ready: Uses Firebase test number configuration');
+console.log('🎯 Production Ready: Firebase + reCAPTCHA v2 invisible integration');
