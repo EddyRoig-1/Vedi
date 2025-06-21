@@ -717,7 +717,7 @@
                     <div class="qr-url">${url}</div>
                     <div class="qr-actions">
                         <button class="btn btn-small ${downloadClass}" onclick="downloadQR('${tableId}')">Download</button>
-                        <button class="btn btn-small btn-secondary" onclick="copyURL('${url}')">Copy URL</button>
+                        <button class="btn btn-small btn-secondary" onclick="copyURL('${url}', this)">Copy URL</button>
                     </div>
                 </div>
             `;
@@ -782,22 +782,22 @@
             }
         }
 
-        function copyURL(url) {
+        function copyURL(url, buttonElement) {
             // Use the modern clipboard API if available
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(url).then(() => {
-                    showCopyFeedback();
+                    showCopyFeedback(buttonElement);
                 }).catch((error) => {
                     console.error('Clipboard API failed:', error);
-                    fallbackCopyURL(url);
+                    fallbackCopyURL(url, buttonElement);
                 });
             } else {
                 // Use fallback method
-                fallbackCopyURL(url);
+                fallbackCopyURL(url, buttonElement);
             }
         }
 
-        function fallbackCopyURL(url) {
+        function fallbackCopyURL(url, buttonElement) {
             try {
                 // Create a temporary textarea element
                 const textArea = document.createElement('textarea');
@@ -819,7 +819,7 @@
                 document.body.removeChild(textArea);
                 
                 if (successful) {
-                    showCopyFeedback();
+                    showCopyFeedback(buttonElement);
                 } else {
                     console.error('Fallback copy method failed');
                 }
@@ -829,8 +829,12 @@
             }
         }
 
-        function showCopyFeedback() {
-            const button = event.target;
+        function showCopyFeedback(button) {
+            if (!button) {
+                console.error('Button element not provided to showCopyFeedback');
+                return;
+            }
+            
             const originalText = button.textContent;
             const originalBackground = button.style.background;
             const originalColor = button.style.color;
