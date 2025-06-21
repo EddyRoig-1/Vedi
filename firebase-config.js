@@ -312,9 +312,9 @@ function configureEnvironment() {
  */
 function createRecaptchaVerifier(containerId = 'recaptcha-container', options = {}) {
   console.log('🛡️ Creating reCAPTCHA verifier for production phone auth');
-  
+
   const defaultOptions = {
-    'size': 'normal', // Use normal for better reliability in production
+    'size': 'invisible',  // Use invisible if you want a badge-less experience
     'callback': function(response) {
       console.log('✅ reCAPTCHA solved successfully');
     },
@@ -325,6 +325,20 @@ function createRecaptchaVerifier(containerId = 'recaptcha-container', options = 
       console.error('❌ reCAPTCHA error:', error);
     }
   };
+
+  const finalOptions = { ...defaultOptions, ...options };
+
+  // 🔁 Inject the new site key explicitly
+  const verifier = new firebase.auth.RecaptchaVerifier(containerId, finalOptions, auth);
+  verifier.render().then(widgetId => {
+    console.log('✅ reCAPTCHA rendered with widget ID:', widgetId);
+    // 🔒 Optional: store widget ID if needed
+  });
+
+  window.recaptchaVerifier = verifier; // ensure it's globally available
+  return verifier;
+}
+
 
   const finalOptions = { ...defaultOptions, ...options };
   
