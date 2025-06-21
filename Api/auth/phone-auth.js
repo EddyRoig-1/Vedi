@@ -80,46 +80,63 @@ function ensureHelpers() {
  * @returns {Promise<Object>} Confirmation result for code verification
  */
 async function sendPhoneVerification(phoneNumber) {
-            console.log('firebase:', firebase);
-        console.log('firebase.auth:', firebase.auth);
-        console.log('getFirebaseAuth:', window.getFirebaseAuth && window.getFirebaseAuth());
+    console.log('firebase:', firebase);
+    console.log('firebase.auth:', firebase.auth);
+    console.log('getFirebaseAuth:', window.getFirebaseAuth && window.getFirebaseAuth());
+
     try {
         console.log('📱 Sending SMS verification to:', window.maskPhoneNumber(phoneNumber));
-        
+
         // Validate phone number format
         if (!validatePhoneNumber(phoneNumber)) {
             throw new Error('Please enter a valid phone number.');
         }
-        
+
         const auth = window.getFirebaseAuth();
-        
-        // Initialize reCAPTCHA verifier (required even for test numbers)
-        const recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha_container', {
-            'size': 'invisible',
-            'callback': (response) => {
-                console.log('reCAPTCHA solved');
+        if (!auth || typeof auth.signInWithPhoneNumber !== 'function') {
+            throw new Error('Firebase Auth is not initialized correctly.');
+        }
+
+        // Clear previous reCAPTCHA if it exists
+        if (window.recaptchaVerifierInstance) {
+            window.recaptchaVerifierInstance.clear();
+        }
+
+        // Initialize new reCAPTCHA instance
+        window.recaptchaVerifierInstance = new firebase.auth.RecaptchaVerifier('recaptcha_container', {
+            size: 'invisible',
+            callback: (response) => {
+                console.log('🧠 reCAPTCHA solved:', response);
+            },
+            'expired-callback': () => {
+                console.warn('⚠️ reCAPTCHA expired. Please try again.');
             }
         });
-        
-        // Firebase call with reCAPTCHA verifier as second parameter
-        const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, recaptchaVerifier);
-        
-        // Store verification ID for convenience
+
+        await window.recaptchaVerifierInstance.render();
+
+        // Send SMS verification code
+        const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, window.recaptchaVerifierInstance);
+
+        // Store verification ID globally
         window.phoneVerificationId = confirmationResult.verificationId;
-        
-        // Track success
+
+        // Log success
         await window.trackAPICall('sendPhoneVerification', Date.now(), true, {
             phoneNumber: window.maskPhoneNumber(phoneNumber)
         });
-        
+
         console.log('✅ SMS sent successfully');
         return confirmationResult;
-        
+
     } catch (error) {
         console.error('❌ SMS send error:', error);
+
+        // Track failure
         await window.trackAPICall('sendPhoneVerification', Date.now(), false, {
             error: error.code || error.message
         });
+
         throw new Error(getPhoneAuthErrorMessage(error.code || error.message));
     }
 }
