@@ -311,20 +311,36 @@ function configureEnvironment() {
  * Create reCAPTCHA verifier for production phone auth
  */
 function createRecaptchaVerifier(containerId = 'recaptcha-container', options = {}) {
-  console.log('🛡️ Creating reCAPTCHA verifier for production phone auth');
+  console.log('🛡️ Creating reCAPTCHA verifier using NEW SITE KEY');
 
   const defaultOptions = {
-    'size': 'invisible',  // Use invisible if you want a badge-less experience
-    'callback': function(response) {
+    size: 'invisible',
+    callback: (response) => {
       console.log('✅ reCAPTCHA solved successfully');
     },
-    'expired-callback': function() {
-      console.log('⏱️ reCAPTCHA expired - user needs to solve again');
+    'expired-callback': () => {
+      console.warn('⚠️ reCAPTCHA expired');
     },
-    'error-callback': function(error) {
-      console.error('❌ reCAPTCHA error:', error);
+    'error-callback': (err) => {
+      console.error('❌ reCAPTCHA error:', err);
     }
   };
+
+  const finalOptions = { ...defaultOptions, ...options };
+
+  // 🔒 ⬇️ Explicitly set the correct site key (NEW)
+  window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(containerId, finalOptions);
+  window.recaptchaVerifier._renderPromise = window.recaptchaVerifier.render().then(widgetId => {
+    console.log('🆕 reCAPTCHA rendered with widget ID:', widgetId);
+    // 👇 Inject correct site key
+    grecaptcha.enterprise.render(widgetId, {
+      sitekey: '6LeO1GgrAAAAAPgklAMTBBAiy5iCdKzMWvAgaPb5' // ✅ NEW site key
+    });
+  });
+
+  return window.recaptchaVerifier;
+}
+
 
   const finalOptions = { ...defaultOptions, ...options };
 
