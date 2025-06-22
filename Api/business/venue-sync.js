@@ -28,10 +28,27 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
     const auth = getFirebaseAuth();
     
     // Get restaurant and venue info for the request
-    const [restaurant, venue] = await Promise.all([
-      getRestaurantById(restaurantId), // Use direct function instead of VediAPI.getRestaurant
-      VediAPI.getVenue(venueId)
-    ]);
+    let restaurant, venue;
+    
+    try {
+      if (typeof VediAPI.getRestaurant === 'function') {
+        restaurant = await VediAPI.getRestaurant(restaurantId);
+      } else {
+        restaurant = await getRestaurantById(restaurantId);
+      }
+    } catch (error) {
+      throw new Error('Could not find restaurant: ' + error.message);
+    }
+    
+    try {
+      if (typeof VediAPI.getVenue === 'function') {
+        venue = await VediAPI.getVenue(venueId);
+      } else {
+        throw new Error('Venue service not available');
+      }
+    } catch (error) {
+      throw new Error('Could not find venue: ' + error.message);
+    }
 
     // Check if restaurant is already associated with a venue
     if (restaurant.venueId) {
@@ -64,24 +81,28 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
     // Save to venueRequests collection
     const docRef = await db.collection('venueRequests').add(requestData);
 
-    // Add activity log to venue
-    await VediAPI.logVenueActivity(venueId, {
-      type: 'request',
-      title: 'New Restaurant Join Request',
-      description: `${restaurant.name} has requested to join the venue`,
-      metadata: {
-        restaurantId: restaurantId,
-        restaurantName: restaurant.name,
-        requestId: docRef.id
-      }
-    });
+    // Add activity log to venue if function is available
+    if (typeof VediAPI.logVenueActivity === 'function') {
+      await VediAPI.logVenueActivity(venueId, {
+        type: 'request',
+        title: 'New Restaurant Join Request',
+        description: `${restaurant.name} has requested to join the venue`,
+        metadata: {
+          restaurantId: restaurantId,
+          restaurantName: restaurant.name,
+          requestId: docRef.id
+        }
+      });
+    }
 
-    // Track activity
-    await VediAPI.trackUserActivity('venue_join_requested', {
-      restaurantId: restaurantId,
-      venueId: venueId,
-      requestId: docRef.id
-    });
+    // Track activity if function is available
+    if (typeof VediAPI.trackUserActivity === 'function') {
+      await VediAPI.trackUserActivity('venue_join_requested', {
+        restaurantId: restaurantId,
+        venueId: venueId,
+        requestId: docRef.id
+      });
+    }
 
     await endTracking(true);
 
@@ -90,7 +111,9 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'requestToJoinVenue', { restaurantId, venueId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'requestToJoinVenue', { restaurantId, venueId });
+    }
     
     console.error('❌ Error creating venue join request:', error);
     throw error;
@@ -131,24 +154,28 @@ async function cancelVenueRequest(requestId) {
       cancelledByUserId: auth.currentUser?.uid || null
     });
 
-    // Add activity log
-    await VediAPI.logVenueActivity(request.venueId, {
-      type: 'request',
-      title: 'Restaurant Request Cancelled',
-      description: `${request.restaurantName} cancelled their join request`,
-      metadata: {
-        restaurantId: request.restaurantId,
-        restaurantName: request.restaurantName,
-        requestId: requestId
-      }
-    });
+    // Add activity log if function is available
+    if (typeof VediAPI.logVenueActivity === 'function') {
+      await VediAPI.logVenueActivity(request.venueId, {
+        type: 'request',
+        title: 'Restaurant Request Cancelled',
+        description: `${request.restaurantName} cancelled their join request`,
+        metadata: {
+          restaurantId: request.restaurantId,
+          restaurantName: request.restaurantName,
+          requestId: requestId
+        }
+      });
+    }
 
     await endTracking(true);
     console.log('✅ Venue request cancelled successfully');
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'cancelVenueRequest', { requestId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'cancelVenueRequest', { requestId });
+    }
     
     console.error('❌ Error cancelling venue request:', error);
     throw error;
@@ -184,7 +211,9 @@ async function getRestaurantRequests(restaurantId) {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'getRestaurantRequests', { restaurantId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'getRestaurantRequests', { restaurantId });
+    }
     
     console.error('❌ Error getting restaurant requests:', error);
     throw error;
@@ -241,18 +270,20 @@ async function createVenueInvitation(venueId, restaurantData, personalMessage = 
     const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
     const invitationLink = `${baseUrl}venue-invitation.html?invite=${inviteCode}`;
 
-    // Add activity log
-    await VediAPI.logVenueActivity(venueId, {
-      type: 'invitation',
-      title: 'Invitation Sent',
-      description: `Invitation sent to ${restaurantData.restaurantName}`,
-      metadata: {
-        restaurantName: restaurantData.restaurantName,
-        contactEmail: restaurantData.contactEmail,
-        invitationId: docRef.id,
-        inviteCode: inviteCode
-      }
-    });
+    // Add activity log if function is available
+    if (typeof VediAPI.logVenueActivity === 'function') {
+      await VediAPI.logVenueActivity(venueId, {
+        type: 'invitation',
+        title: 'Invitation Sent',
+        description: `Invitation sent to ${restaurantData.restaurantName}`,
+        metadata: {
+          restaurantName: restaurantData.restaurantName,
+          contactEmail: restaurantData.contactEmail,
+          invitationId: docRef.id,
+          inviteCode: inviteCode
+        }
+      });
+    }
 
     await endTracking(true);
 
@@ -265,7 +296,9 @@ async function createVenueInvitation(venueId, restaurantData, personalMessage = 
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'createVenueInvitation', { venueId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'createVenueInvitation', { venueId });
+    }
     
     console.error('❌ Error creating venue invitation:', error);
     throw error;
@@ -308,7 +341,9 @@ async function getVenueInvitations(venueId, status = null) {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'getVenueInvitations', { venueId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'getVenueInvitations', { venueId });
+    }
     
     console.error('❌ Error getting venue invitations:', error);
     throw error;
@@ -349,23 +384,27 @@ async function cancelInvitation(invitationId) {
       cancelledByUserId: auth.currentUser?.uid || null
     });
 
-    // Add activity log
-    await VediAPI.logVenueActivity(invitation.venueId, {
-      type: 'invitation',
-      title: 'Invitation Cancelled',
-      description: `Invitation to ${invitation.restaurantName} was cancelled`,
-      metadata: {
-        restaurantName: invitation.restaurantName,
-        invitationId: invitationId
-      }
-    });
+    // Add activity log if function is available
+    if (typeof VediAPI.logVenueActivity === 'function') {
+      await VediAPI.logVenueActivity(invitation.venueId, {
+        type: 'invitation',
+        title: 'Invitation Cancelled',
+        description: `Invitation to ${invitation.restaurantName} was cancelled`,
+        metadata: {
+          restaurantName: invitation.restaurantName,
+          invitationId: invitationId
+        }
+      });
+    }
 
     await endTracking(true);
     console.log('✅ Invitation cancelled successfully');
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'cancelInvitation', { invitationId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'cancelInvitation', { invitationId });
+    }
     
     console.error('❌ Error cancelling invitation:', error);
     throw error;
@@ -406,7 +445,7 @@ async function acceptVenueInvitation(invitationId, restaurantId) {
     }
 
     // Check if restaurant is available
-    const restaurant = await getRestaurantById(restaurantId); // Use direct function
+    const restaurant = await getRestaurantById(restaurantId);
     if (restaurant.venueId) {
       throw new Error('Restaurant is already associated with a venue');
     }
@@ -492,7 +531,7 @@ async function declineVenueInvitation(invitationId) {
       declinedByUserId: firebase.auth().currentUser?.uid || null
     });
 
-    // Add activity log
+    // Add activity log if function is available
     await addVenueActivity(invitation.venueId, {
       type: 'invitation',
       title: 'Invitation Declined',
@@ -581,7 +620,7 @@ async function approveRestaurantRequest(requestId) {
     }
 
     // Check if restaurant is still available (not joined another venue)
-    const restaurant = await getRestaurantById(request.restaurantId); // Use direct function
+    const restaurant = await getRestaurantById(request.restaurantId);
     if (restaurant.venueId && restaurant.venueId !== request.venueId) {
       throw new Error('Restaurant has already joined another venue');
     }
@@ -606,8 +645,10 @@ async function approveRestaurantRequest(requestId) {
       });
     });
 
-    // Update venue statistics
-    await VediAPI.updateVenueStatistics(request.venueId);
+    // Update venue statistics if function is available
+    if (typeof VediAPI.updateVenueStatistics === 'function') {
+      await VediAPI.updateVenueStatistics(request.venueId);
+    }
 
     // Add activity logs
     await Promise.all([
@@ -631,7 +672,9 @@ async function approveRestaurantRequest(requestId) {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'approveRestaurantRequest', { requestId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'approveRestaurantRequest', { requestId });
+    }
     
     console.error('❌ Error approving restaurant request:', error);
     throw error;
@@ -674,18 +717,20 @@ async function denyRestaurantRequest(requestId, reason = '') {
       denialReason: VediAPI.sanitizeInput(reason.trim())
     });
 
-    // Add activity log
-    await VediAPI.logVenueActivity(request.venueId, {
-      type: 'request',
-      title: 'Restaurant Request Denied',
-      description: `Request from ${request.restaurantName} was denied`,
-      metadata: {
-        restaurantId: request.restaurantId,
-        restaurantName: request.restaurantName,
-        requestId: requestId,
-        reason: reason
-      }
-    });
+    // Add activity log if function is available
+    if (typeof VediAPI.logVenueActivity === 'function') {
+      await VediAPI.logVenueActivity(request.venueId, {
+        type: 'request',
+        title: 'Restaurant Request Denied',
+        description: `Request from ${request.restaurantName} was denied`,
+        metadata: {
+          restaurantId: request.restaurantId,
+          restaurantName: request.restaurantName,
+          requestId: requestId,
+          reason: reason
+        }
+      });
+    }
 
     await endTracking(true);
 
@@ -693,7 +738,9 @@ async function denyRestaurantRequest(requestId, reason = '') {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'denyRestaurantRequest', { requestId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'denyRestaurantRequest', { requestId });
+    }
     
     console.error('❌ Error denying restaurant request:', error);
     throw error;
@@ -715,7 +762,7 @@ async function syncRestaurantToVenue(restaurantId, venueId, syncReason = 'Manual
     
     // Get venue and restaurant info
     const [restaurant, venue] = await Promise.all([
-      getRestaurantById(restaurantId), // Use direct function
+      getRestaurantById(restaurantId),
       VediAPI.getVenue(venueId)
     ]);
 
@@ -735,21 +782,25 @@ async function syncRestaurantToVenue(restaurantId, venueId, syncReason = 'Manual
       syncReason: VediAPI.sanitizeInput(syncReason)
     });
 
-    // Update venue statistics
-    await VediAPI.updateVenueStatistics(venueId);
+    // Update venue statistics if function is available
+    if (typeof VediAPI.updateVenueStatistics === 'function') {
+      await VediAPI.updateVenueStatistics(venueId);
+    }
 
-    // Add activity log
-    await VediAPI.logVenueActivity(venueId, {
-      type: 'restaurant',
-      title: 'Restaurant Manually Synced',
-      description: `${restaurant.name} was manually synced to the venue`,
-      metadata: {
-        restaurantId: restaurantId,
-        restaurantName: restaurant.name,
-        syncMethod: 'manual_sync',
-        syncReason: syncReason
-      }
-    });
+    // Add activity log if function is available
+    if (typeof VediAPI.logVenueActivity === 'function') {
+      await VediAPI.logVenueActivity(venueId, {
+        type: 'restaurant',
+        title: 'Restaurant Manually Synced',
+        description: `${restaurant.name} was manually synced to the venue`,
+        metadata: {
+          restaurantId: restaurantId,
+          restaurantName: restaurant.name,
+          syncMethod: 'manual_sync',
+          syncReason: syncReason
+        }
+      });
+    }
 
     await endTracking(true);
 
@@ -758,7 +809,9 @@ async function syncRestaurantToVenue(restaurantId, venueId, syncReason = 'Manual
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'syncRestaurantToVenue', { restaurantId, venueId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'syncRestaurantToVenue', { restaurantId, venueId });
+    }
     
     console.error('❌ Error syncing restaurant to venue:', error);
     throw error;
@@ -778,7 +831,12 @@ async function unsyncRestaurantFromVenue(restaurantId, reason = 'Left venue') {
     console.log('🔄 Unsyncing restaurant from venue:', restaurantId);
     
     // Get current restaurant info
-    const restaurant = await getRestaurantById(restaurantId); // Use direct function
+    let restaurant;
+    if (typeof VediAPI.getRestaurant === 'function') {
+      restaurant = await VediAPI.getRestaurant(restaurantId);
+    } else {
+      restaurant = await getRestaurantById(restaurantId);
+    }
     
     if (!restaurant.venueId) {
       throw new Error('Restaurant is not currently associated with any venue');
@@ -788,29 +846,46 @@ async function unsyncRestaurantFromVenue(restaurantId, reason = 'Left venue') {
     const previousVenueName = restaurant.venueName;
 
     // Update restaurant to remove venue association
-    const updatedRestaurant = await VediAPI.updateRestaurant(restaurantId, {
-      venueId: null,
-      venueName: null,
-      venueAddress: null,
-      leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
-      venueStatus: null,
-      unsyncReason: VediAPI.sanitizeInput(reason)
-    });
+    let updatedRestaurant;
+    if (typeof VediAPI.updateRestaurant === 'function') {
+      updatedRestaurant = await VediAPI.updateRestaurant(restaurantId, {
+        venueId: null,
+        venueName: null,
+        venueAddress: null,
+        leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
+        venueStatus: null,
+        unsyncReason: VediAPI.sanitizeInput(reason)
+      });
+    } else {
+      throw new Error('Restaurant update service not available');
+    }
 
-    // Update venue statistics
-    await VediAPI.updateVenueStatistics(previousVenueId);
-
-    // Add activity log
-    await VediAPI.logVenueActivity(previousVenueId, {
-      type: 'restaurant',
-      title: 'Restaurant Left Venue',
-      description: `${restaurant.name} has left the venue`,
-      metadata: {
-        restaurantId: restaurantId,
-        restaurantName: restaurant.name,
-        reason: reason
+    // Update venue statistics if function is available
+    if (typeof VediAPI.updateVenueStatistics === 'function') {
+      try {
+        await VediAPI.updateVenueStatistics(previousVenueId);
+      } catch (error) {
+        console.warn('⚠️ Could not update venue statistics:', error);
       }
-    });
+    }
+
+    // Add activity log if function is available
+    if (typeof VediAPI.logVenueActivity === 'function') {
+      try {
+        await VediAPI.logVenueActivity(previousVenueId, {
+          type: 'restaurant',
+          title: 'Restaurant Left Venue',
+          description: `${restaurant.name} has left the venue`,
+          metadata: {
+            restaurantId: restaurantId,
+            restaurantName: restaurant.name,
+            reason: reason
+          }
+        });
+      } catch (error) {
+        console.warn('⚠️ Could not log venue activity:', error);
+      }
+    }
 
     await endTracking(true);
 
@@ -819,7 +894,9 @@ async function unsyncRestaurantFromVenue(restaurantId, reason = 'Left venue') {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'unsyncRestaurantFromVenue', { restaurantId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'unsyncRestaurantFromVenue', { restaurantId });
+    }
     
     console.error('❌ Error unsyncing restaurant from venue:', error);
     throw error;
@@ -835,7 +912,13 @@ async function getRestaurantSyncStatus(restaurantId) {
   const endTracking = VediAPI.startPerformanceMeasurement('getRestaurantSyncStatus');
   
   try {
-    const restaurant = await getRestaurantById(restaurantId); // Use direct function
+    // Try to get restaurant using available function
+    let restaurant = null;
+    if (typeof VediAPI.getRestaurant === 'function') {
+      restaurant = await VediAPI.getRestaurant(restaurantId);
+    } else {
+      restaurant = await getRestaurantById(restaurantId);
+    }
     
     const status = {
       isAssociated: !!restaurant.venueId,
@@ -848,19 +931,36 @@ async function getRestaurantSyncStatus(restaurantId) {
 
     // Get pending requests if not associated
     if (!status.isAssociated) {
-      status.pendingRequests = await getRestaurantRequests(restaurantId);
+      try {
+        status.pendingRequests = await getRestaurantRequests(restaurantId);
+      } catch (error) {
+        console.warn('⚠️ Could not load pending requests:', error);
+        status.pendingRequests = [];
+      }
     }
 
     await endTracking(true);
-
     return status;
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'getRestaurantSyncStatus', { restaurantId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'getRestaurantSyncStatus', { restaurantId });
+    }
     
     console.error('❌ Error getting restaurant sync status:', error);
-    throw error;
+    
+    // Return a default status object even on error
+    return {
+      isAssociated: false,
+      venueId: null,
+      venueName: null,
+      joinedAt: null,
+      syncMethod: null,
+      status: null,
+      pendingRequests: [],
+      error: error.message
+    };
   }
 }
 
@@ -884,10 +984,113 @@ async function getVenueRestaurants(venueId) {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'getVenueRestaurants', { venueId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'getVenueRestaurants', { venueId });
+    }
     
     console.error('❌ Error getting venue restaurants:', error);
     throw error;
+  }
+}
+
+// ============================================================================
+// ENHANCED FUNCTIONS FOR RESTAURANT SETTINGS PAGE
+// ============================================================================
+
+/**
+ * Get all venues that a restaurant can potentially join
+ * @param {string} restaurantId - Restaurant ID
+ * @param {Object} filters - Additional filters
+ * @returns {Promise<Array>} Array of available venues
+ */
+async function getAvailableVenuesForRestaurant(restaurantId, filters = {}) {
+  try {
+    const db = getFirebaseDb();
+    
+    // Get restaurant details if VediAPI.getRestaurant is available
+    let restaurant = null;
+    if (typeof VediAPI.getRestaurant === 'function') {
+      restaurant = await VediAPI.getRestaurant(restaurantId);
+    }
+    
+    // Get all active venues
+    let venues = [];
+    if (typeof VediAPI.getAllVenues === 'function') {
+      venues = await VediAPI.getAllVenues({
+        status: 'active',
+        verified: true,
+        ...filters
+      });
+    }
+    
+    // Filter venues that might be relevant (same city/state) if restaurant data available
+    if (restaurant && restaurant.city) {
+      venues = venues.filter(venue => 
+        venue.city.toLowerCase() === restaurant.city.toLowerCase() ||
+        venue.state === restaurant.state
+      );
+    }
+    
+    console.log('✅ Found available venues for restaurant:', venues.length);
+    return venues;
+    
+  } catch (error) {
+    console.error('❌ Error getting available venues:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if restaurant can join a specific venue
+ * @param {string} restaurantId - Restaurant ID
+ * @param {string} venueId - Venue ID
+ * @returns {Promise<Object>} Eligibility status
+ */
+async function checkVenueEligibility(restaurantId, venueId) {
+  try {
+    const eligibility = {
+      eligible: true,
+      reasons: []
+    };
+    
+    // Get restaurant and venue if functions are available
+    let restaurant = null;
+    let venue = null;
+    
+    if (typeof VediAPI.getRestaurant === 'function') {
+      restaurant = await VediAPI.getRestaurant(restaurantId);
+    }
+    
+    if (typeof VediAPI.getVenue === 'function') {
+      venue = await VediAPI.getVenue(venueId);
+    }
+    
+    // Check if restaurant is already associated
+    if (restaurant && restaurant.venueId) {
+      eligibility.eligible = false;
+      eligibility.reasons.push('Restaurant is already associated with a venue');
+    }
+    
+    // Check if venue has reached max restaurants
+    if (venue && venue.maxRestaurants && venue.restaurantCount >= venue.maxRestaurants) {
+      eligibility.eligible = false;
+      eligibility.reasons.push('Venue has reached maximum number of restaurants');
+    }
+    
+    // Check if venue requires approval and has pending request
+    if (venue && venue.requireApproval) {
+      const pendingRequest = await getPendingRequestByRestaurant(restaurantId, venueId);
+      if (pendingRequest) {
+        eligibility.eligible = false;
+        eligibility.reasons.push('A request to join this venue is already pending');
+      }
+    }
+    
+    return eligibility;
+    
+  } catch (error) {
+    console.error('❌ Error checking venue eligibility:', error);
+    return { eligible: false, reasons: ['Error checking eligibility'] };
   }
 }
 
@@ -975,7 +1178,9 @@ async function getVenueRequests(venueId) {
 
   } catch (error) {
     await endTracking(false, { error: error.message });
-    await VediAPI.trackError(error, 'getVenueRequests', { venueId });
+    if (typeof VediAPI.trackError === 'function') {
+      await VediAPI.trackError(error, 'getVenueRequests', { venueId });
+    }
     
     console.error('❌ Error getting venue requests:', error);
     throw error;
@@ -1068,6 +1273,10 @@ Object.assign(window.VediAPI, {
   // Venue management
   getVenueRestaurants,
   
+  // Enhanced functions for settings page
+  getAvailableVenuesForRestaurant,
+  checkVenueEligibility,
+  
   // Helper functions
   getPendingRequestByRestaurant,
   getVenueRequests,
@@ -1085,7 +1294,9 @@ window.VenueSync = {
   getRestaurantRequests: VediAPI.getRestaurantRequests,
   acceptVenueInvitation: VediAPI.acceptVenueInvitation,
   declineVenueInvitation: VediAPI.declineVenueInvitation,
-  validateInviteCode: VediAPI.validateInviteCode
+  validateInviteCode: VediAPI.validateInviteCode,
+  getAvailableVenuesForRestaurant: VediAPI.getAvailableVenuesForRestaurant,
+  checkVenueEligibility: VediAPI.checkVenueEligibility
 };
 
 console.log('🔄 Venue Sync Module loaded');
@@ -1096,4 +1307,5 @@ console.log('✅ Approval: approveRestaurantRequest, denyRestaurantRequest');
 console.log('🔗 Sync: syncRestaurantToVenue, unsyncRestaurantFromVenue, getRestaurantSyncStatus');
 console.log('🍽️ Management: getVenueRestaurants');
 console.log('📋 Queries: getVenueRequests, getPendingRequestByRestaurant');
-console.log('🎯 Complete venue-restaurant relationship management');
+console.log('🔧 Enhanced: getAvailableVenuesForRestaurant, checkVenueEligibility for settings page');
+console.log('🎯 Complete venue-restaurant relationship management with enhanced error handling');
