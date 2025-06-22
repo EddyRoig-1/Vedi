@@ -270,6 +270,59 @@
             gap: 16px;
         }
 
+        /* Venue Association Styles */
+        .venue-status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .venue-status-badge.active {
+            background: #E6FFFA;
+            color: #047857;
+        }
+
+        .current-venue-card {
+            background: #FFFFFF;
+            border: 1px solid #E5E5E7;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .venue-selector-section {
+            background: #FFFFFF;
+            border: 1px dashed #D1D5DB;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .venue-selector {
+            width: 100%;
+            min-height: 44px;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 10px;
+            font-size: 17px;
+            background: #FFFFFF;
+            margin-bottom: 16px;
+        }
+
+        .join-message-textarea {
+            width: 100%;
+            min-height: 88px;
+            padding: 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 10px;
+            font-size: 17px;
+            margin-bottom: 16px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
         /* Checkboxes */
         .checkbox-group {
             display: grid;
@@ -810,6 +863,67 @@
                         <option value="CA">Canada</option>
                         <option value="GB">United Kingdom</option>
                         <option value="AU">Australia</option>
+                        <option value="DE">Germany</option>
+                        <option value="FR">France</option>
+                        <option value="IT">Italy</option>
+                        <option value="ES">Spain</option>
+                        <option value="NL">Netherlands</option>
+                        <option value="BE">Belgium</option>
+                        <option value="CH">Switzerland</option>
+                        <option value="AT">Austria</option>
+                        <option value="SE">Sweden</option>
+                        <option value="NO">Norway</option>
+                        <option value="DK">Denmark</option>
+                        <option value="FI">Finland</option>
+                        <option value="IE">Ireland</option>
+                        <option value="PT">Portugal</option>
+                        <option value="GR">Greece</option>
+                        <option value="CZ">Czech Republic</option>
+                        <option value="PL">Poland</option>
+                        <option value="HU">Hungary</option>
+                        <option value="SK">Slovakia</option>
+                        <option value="SI">Slovenia</option>
+                        <option value="HR">Croatia</option>
+                        <option value="EE">Estonia</option>
+                        <option value="LV">Latvia</option>
+                        <option value="LT">Lithuania</option>
+                        <option value="RO">Romania</option>
+                        <option value="BG">Bulgaria</option>
+                        <option value="JP">Japan</option>
+                        <option value="KR">South Korea</option>
+                        <option value="CN">China</option>
+                        <option value="IN">India</option>
+                        <option value="TH">Thailand</option>
+                        <option value="VN">Vietnam</option>
+                        <option value="SG">Singapore</option>
+                        <option value="MY">Malaysia</option>
+                        <option value="ID">Indonesia</option>
+                        <option value="PH">Philippines</option>
+                        <option value="BR">Brazil</option>
+                        <option value="MX">Mexico</option>
+                        <option value="AR">Argentina</option>
+                        <option value="CL">Chile</option>
+                        <option value="CO">Colombia</option>
+                        <option value="PE">Peru</option>
+                        <option value="UY">Uruguay</option>
+                        <option value="VE">Venezuela</option>
+                        <option value="ZA">South Africa</option>
+                        <option value="EG">Egypt</option>
+                        <option value="MA">Morocco</option>
+                        <option value="TN">Tunisia</option>
+                        <option value="KE">Kenya</option>
+                        <option value="NG">Nigeria</option>
+                        <option value="GH">Ghana</option>
+                        <option value="IL">Israel</option>
+                        <option value="AE">United Arab Emirates</option>
+                        <option value="SA">Saudi Arabia</option>
+                        <option value="TR">Turkey</option>
+                        <option value="RU">Russia</option>
+                        <option value="UA">Ukraine</option>
+                        <option value="BY">Belarus</option>
+                        <option value="KZ">Kazakhstan</option>
+                        <option value="UZ">Uzbekistan</option>
+                        <option value="NZ">New Zealand</option>
                     </select>
                 </div>
                 
@@ -1012,6 +1126,20 @@
             try {
                 showLoading('Initializing settings...', 'Loading your restaurant data');
                 
+                // Wait for the secure initialization
+                if (typeof initializeRestaurantPage === 'undefined') {
+                    console.log('⏳ Waiting for initializeRestaurantPage function...');
+                    let attempts = 0;
+                    while (typeof initializeRestaurantPage === 'undefined' && attempts < 100) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        attempts++;
+                    }
+                    
+                    if (typeof initializeRestaurantPage === 'undefined') {
+                        throw new Error('initializeRestaurantPage function not available after waiting');
+                    }
+                }
+                
                 const { user, restaurant } = await initializeRestaurantPage('Settings');
                 
                 currentUser = user;
@@ -1022,7 +1150,14 @@
                 console.log('✅ User authenticated:', currentUser.name);
                 console.log('✅ Restaurant loaded:', currentRestaurant.name, 'ID:', restaurantId);
                 
-                await loadVenueAssociationData();
+                // Load venue association data with error handling
+                try {
+                    await loadVenueAssociationData();
+                } catch (error) {
+                    console.error('⚠️ Venue association loading failed, but continuing:', error);
+                    setupFallbackVenueUI();
+                }
+                
                 populateFieldsFromFirebase(currentRestaurant);
                 setupCurrencySelection();
                 updateProgress();
@@ -1035,15 +1170,33 @@
                 
             } catch (error) {
                 console.error('❌ Settings initialization error:', error);
-                showSecurityError(error);
                 hideLoading();
+                showError('Failed to initialize settings: ' + error.message);
             }
         });
 
-        // Venue Association Functions
+        // Setup fallback venue UI when venue sync fails
+        function setupFallbackVenueUI() {
+            const venueContainer = document.getElementById('venueAssociationContainer');
+            if (venueContainer) {
+                venueContainer.innerHTML = `
+                    <div class="form-input" style="background: #FEF3C7; border-color: #FDE68A; cursor: default; color: #92400E;">
+                        Venue association feature temporarily unavailable. Your restaurant settings will still save properly.
+                    </div>
+                `;
+            }
+        }
+
+        // Venue Association Functions with better error handling
         async function loadAvailableVenues() {
             try {
                 console.log('📍 Loading available venues...');
+                
+                if (typeof VediAPI === 'undefined' || !VediAPI.getAllVenues) {
+                    console.warn('⚠️ VediAPI.getAllVenues not available');
+                    return [];
+                }
+                
                 availableVenues = await VediAPI.getAllVenues({ orderBy: 'name', orderDirection: 'asc' });
                 console.log('✅ Loaded available venues:', availableVenues.length);
                 return availableVenues;
@@ -1057,6 +1210,13 @@
         async function loadVenueAssociationData() {
             try {
                 console.log('🔄 Loading venue association data...');
+                
+                // Check if VenueSync is available
+                if (typeof VenueSync === 'undefined' || !VenueSync.getRestaurantSyncStatus) {
+                    console.warn('⚠️ VenueSync not available, setting up fallback UI');
+                    setupFallbackVenueUI();
+                    return;
+                }
                 
                 restaurantSyncStatus = await VenueSync.getRestaurantSyncStatus(restaurantId);
                 console.log('✅ Sync status refreshed:', restaurantSyncStatus);
@@ -1076,23 +1236,19 @@
                 
             } catch (error) {
                 console.error('❌ Error loading venue association data:', error);
-                showError('Failed to load venue information: ' + error.message);
-                
-                const venueContainer = document.getElementById('venueAssociationContainer');
-                if (venueContainer) {
-                    venueContainer.innerHTML = `
-                        <div class="form-input" style="background: #FEF2F2; border-color: #FECACA; cursor: default; color: #DC2626;">
-                            Error loading venue information. Please refresh the page.
-                        </div>
-                    `;
-                }
+                setupFallbackVenueUI();
             }
         }
 
         function setupVenueAssociationUI() {
             const venueContainer = document.getElementById('venueAssociationContainer');
             
-            if (restaurantSyncStatus.isAssociated) {
+            if (!venueContainer) {
+                console.error('❌ venueAssociationContainer not found');
+                return;
+            }
+            
+            if (restaurantSyncStatus && restaurantSyncStatus.isAssociated) {
                 venueContainer.innerHTML = `
                     <div class="form-input" style="background: #F8F9FA; cursor: default;">
                         Currently associated with: ${restaurantSyncStatus.venueName || 'Unknown Venue'}
@@ -1181,6 +1337,11 @@
                 return;
             }
             
+            if (typeof VenueSync === 'undefined' || !VenueSync.requestToJoinVenue) {
+                showError('Venue association feature is not available right now');
+                return;
+            }
+            
             try {
                 showLoading('Sending join request...', 'Contacting venue manager');
                 
@@ -1208,6 +1369,11 @@
                 return;
             }
             
+            if (typeof VenueSync === 'undefined' || !VenueSync.cancelVenueRequest) {
+                showError('Venue association feature is not available right now');
+                return;
+            }
+            
             try {
                 showLoading('Cancelling request...', 'Please wait');
                 
@@ -1225,6 +1391,11 @@
 
         async function leaveVenue() {
             if (!confirm('Are you sure you want to leave this venue? This action cannot be undone and you will need to request to rejoin.')) {
+                return;
+            }
+            
+            if (typeof VenueSync === 'undefined' || !VenueSync.unsyncRestaurantFromVenue) {
+                showError('Venue association feature is not available right now');
                 return;
             }
             
@@ -1269,14 +1440,12 @@
 
         function showError(message) {
             console.log('ERROR:', message);
+            // Could add visual toast here in future
         }
 
         function showSuccess(message) {
             console.log('SUCCESS:', message);
-        }
-
-        function showSecurityError(error) {
-            console.error('SECURITY ERROR:', error);
+            // Could add visual toast here in future
         }
 
         // Currency selection functions
@@ -1284,14 +1453,16 @@
             const currencySelect = document.getElementById('currencySelect');
             const customSection = document.getElementById('customCurrencySection');
 
-            currencySelect.addEventListener('change', function() {
-                selectedCurrency = this.value;
-                if (this.value === 'CUSTOM') {
-                    customSection.classList.add('show');
-                } else {
-                    customSection.classList.remove('show');
-                }
-            });
+            if (currencySelect && customSection) {
+                currencySelect.addEventListener('change', function() {
+                    selectedCurrency = this.value;
+                    if (this.value === 'CUSTOM') {
+                        customSection.classList.add('show');
+                    } else {
+                        customSection.classList.remove('show');
+                    }
+                });
+            }
         }
 
         function getSelectedCurrencyData() {
@@ -1454,7 +1625,7 @@
                 formData.email = document.getElementById('email').value.trim();
                 formData.website = document.getElementById('website').value.trim();
             } else if (currentStep === 3) {
-                formData.tableCount = parseInt(document.getElementById('tableCount').value);
+                formData.tableCount = parseInt(document.getElementById('tableCount').value) || null;
                 formData.seatingCapacity = parseInt(document.getElementById('seatingCapacity').value) || null;
                 formData.operatingHours = operatingHours;
                 formData.operatingHoursString = generateOperatingHoursString();
@@ -1487,6 +1658,11 @@
                 
                 console.log('📦 Complete restaurant data to save:', formData);
                 
+                // Check if VediAPI is available
+                if (typeof VediAPI === 'undefined' || !VediAPI.updateRestaurant) {
+                    throw new Error('VediAPI.updateRestaurant is not available. Please refresh the page and try again.');
+                }
+                
                 const updatedRestaurant = await VediAPI.updateRestaurant(restaurantId, formData);
                 
                 console.log('✅ Restaurant updated in Firebase:', updatedRestaurant);
@@ -1494,6 +1670,7 @@
                 currentRestaurant = updatedRestaurant;
                 
                 hideLoading();
+                showSuccess('Settings saved successfully!');
                 
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ 
@@ -1522,6 +1699,7 @@
             const selectedDays = Array.from(selectedDayCheckboxes).map(cb => cb.value);
             
             if (selectedDays.length === 0) {
+                showError('Please select at least one day.');
                 return;
             }
 
@@ -1544,10 +1722,12 @@
                 const close = groupedInputs[period].close;
                 
                 if (!open || !close) {
+                    showError('Please fill in all time fields.');
                     return;
                 }
                 
                 if (open >= close) {
+                    showError('Opening time must be before closing time.');
                     return;
                 }
                 
@@ -1561,6 +1741,8 @@
             selectedDayCheckboxes.forEach(cb => cb.checked = false);
             resetTimePeriods();
             updateHoursDisplay();
+            
+            showSuccess('Hours saved for ' + selectedDays.length + ' day(s)!');
         }
 
         function addTimePeriod() {
@@ -1621,6 +1803,7 @@
         function removeDayHours(day) {
             delete operatingHours[day];
             updateHoursDisplay();
+            showSuccess(`Hours removed for ${day}`);
         }
 
         function updateHoursDisplay() {
