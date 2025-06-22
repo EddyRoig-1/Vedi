@@ -68,14 +68,14 @@ async function createRestaurant(restaurantData) {
       };
     }
     
-    // Process dining options array
+    // FIXED: Process dining options array - ensure native JavaScript array
     const diningOptions = Array.isArray(restaurantData.diningOptions) 
-      ? restaurantData.diningOptions.filter(option => typeof option === 'string' && option.trim())
+      ? [...restaurantData.diningOptions].filter(option => typeof option === 'string' && option.trim())
       : [];
     
-    // Process payment methods array
+    // FIXED: Process payment methods array - ensure native JavaScript array
     const paymentMethods = Array.isArray(restaurantData.paymentMethods) 
-      ? restaurantData.paymentMethods.filter(method => typeof method === 'string' && method.trim())
+      ? [...restaurantData.paymentMethods].filter(method => typeof method === 'string' && method.trim())
       : [];
     
     // Process operating hours
@@ -107,8 +107,8 @@ async function createRestaurant(restaurantData) {
       // === OPERATIONAL DETAILS ===
       tableCount: restaurantData.tableCount ? parseInt(restaurantData.tableCount) : null,
       seatingCapacity: restaurantData.seatingCapacity ? parseInt(restaurantData.seatingCapacity) : null,
-      diningOptions: diningOptions,
-      paymentMethods: paymentMethods,
+      diningOptions: diningOptions, // Native JavaScript array
+      paymentMethods: paymentMethods, // Native JavaScript array
       operatingHours: operatingHours,
       
       // === OPERATIONAL STATUS ===
@@ -206,20 +206,26 @@ async function updateRestaurant(restaurantId, restaurantData) {
       }
     }
     
-    // Process dining options array if provided
+    // FIXED: Process dining options array if provided - ensure native JavaScript array
     let diningOptions = undefined;
     if (restaurantData.diningOptions !== undefined) {
-      diningOptions = Array.isArray(restaurantData.diningOptions) 
-        ? restaurantData.diningOptions.filter(option => typeof option === 'string' && option.trim())
-        : [];
+      if (Array.isArray(restaurantData.diningOptions)) {
+        // Convert to native array and filter
+        diningOptions = [...restaurantData.diningOptions].filter(option => typeof option === 'string' && option.trim());
+      } else {
+        diningOptions = [];
+      }
     }
     
-    // Process payment methods array if provided
+    // FIXED: Process payment methods array if provided - ensure native JavaScript array
     let paymentMethods = undefined;
     if (restaurantData.paymentMethods !== undefined) {
-      paymentMethods = Array.isArray(restaurantData.paymentMethods) 
-        ? restaurantData.paymentMethods.filter(method => typeof method === 'string' && method.trim())
-        : [];
+      if (Array.isArray(restaurantData.paymentMethods)) {
+        // Convert to native array and filter
+        paymentMethods = [...restaurantData.paymentMethods].filter(method => typeof method === 'string' && method.trim());
+      } else {
+        paymentMethods = [];
+      }
     }
     
     // Sanitize and validate updates - organized but flat structure
@@ -251,8 +257,8 @@ async function updateRestaurant(restaurantId, restaurantData) {
         (restaurantData.tableCount ? parseInt(restaurantData.tableCount) : null) : undefined,
       seatingCapacity: restaurantData.seatingCapacity !== undefined ? 
         (restaurantData.seatingCapacity ? parseInt(restaurantData.seatingCapacity) : null) : undefined,
-      diningOptions: diningOptions,
-      paymentMethods: paymentMethods,
+      diningOptions: diningOptions, // Native JavaScript array
+      paymentMethods: paymentMethods, // Native JavaScript array
       operatingHours: restaurantData.operatingHours !== undefined ? restaurantData.operatingHours : undefined,
       
       // === OPERATIONAL STATUS ===
@@ -285,6 +291,11 @@ async function updateRestaurant(restaurantId, restaurantData) {
     if (updates.phone && !VediAPI.validatePhoneNumber(updates.phone)) {
       throw new Error('Please provide a valid phone number');
     }
+    
+    // DEBUGGING: Log the data being sent to Firebase
+    console.log('🔧 Updates being sent to Firebase:', updates);
+    console.log('🔧 diningOptions type:', typeof updates.diningOptions, updates.diningOptions);
+    console.log('🔧 paymentMethods type:', typeof updates.paymentMethods, updates.paymentMethods);
     
     // Update restaurant
     await db.collection('restaurants').doc(restaurantId).update(updates);
@@ -787,6 +798,152 @@ async function getRestaurantsByLocation(city, state = null, options = {}) {
 }
 
 // ============================================================================
+// NEW FUNCTIONS FOR SETTINGS PAGE SUPPORT
+// ============================================================================
+
+/**
+ * Get restaurant profile with venue information
+ * @param {string} restaurantId - Restaurant ID
+ * @returns {Promise<Object>} Complete restaurant profile
+ */
+async function getRestaurantProfile(restaurantId) {
+  try {
+    const restaurant = await getRestaurant(restaurantId);
+    
+    // Add venue information if associated
+    if (restaurant.venueId && typeof VediAPI.getVenue === 'function') {
+      try {
+        const venue = await VediAPI.getVenue(restaurant.venueId);
+        restaurant.venueDetails = venue;
+      } catch (venueError) {
+        console.warn('⚠️ Could not load venue details:', venueError);
+        restaurant.venueDetails = null;
+      }
+    }
+    
+    // Add sync status if function is available
+    if (typeof VediAPI.getRestaurantSyncStatus === 'function') {
+      restaurant.syncStatus = await VediAPI.getRestaurantSyncStatus(restaurantId);
+    }
+    
+    return restaurant;
+    
+  } catch (error) {
+    console.error('❌ Error getting restaurant profile:', error);
+    throw error;
+  }
+}
+
+/**
+ * Validate restaurant data before saving
+ * @param {Object} restaurantData - Restaurant data to validate
+ * @returns {Object} Validation result
+ */
+function validateRestaurantData(restaurantData) {
+  const validation = {
+    valid: true,
+    errors: []
+  };
+  
+  // Required fields
+  const requiredFields = ['name', 'address', 'city', 'state', 'phone'];
+  requiredFields.forEach(field => {
+    if (!restaurantData[field] || !restaurantData[field].trim()) {
+      validation.valid = false;
+      validation.errors.push(`${field} is required`);
+    }
+  });
+  
+  // Email validation
+  if (restaurantData.email && !VediAPI.validateEmail(restaurantData.email)) {
+    validation.valid = false;
+    validation.errors.push('Please provide a valid email address');
+  }
+  
+  // Phone validation
+  if (restaurantData.phone && !VediAPI.validatePhoneNumber(restaurantData.phone)) {
+    validation.valid = false;
+    validation.errors.push('Please provide a valid phone number');
+  }
+  
+  // Numeric field validation
+  if (restaurantData.tableCount && (isNaN(restaurantData.tableCount) || restaurantData.tableCount < 1)) {
+    validation.valid = false;
+    validation.errors.push('Table count must be a positive number');
+  }
+  
+  if (restaurantData.seatingCapacity && (isNaN(restaurantData.seatingCapacity) || restaurantData.seatingCapacity < 1)) {
+    validation.valid = false;
+    validation.errors.push('Seating capacity must be a positive number');
+  }
+  
+  return validation;
+}
+
+/**
+ * Format operating hours for display
+ * @param {Object} operatingHours - Operating hours object
+ * @returns {string} Formatted hours string
+ */
+function formatOperatingHours(operatingHours) {
+  if (!operatingHours || Object.keys(operatingHours).length === 0) {
+    return 'No operating hours set';
+  }
+  
+  const dayNames = {
+    monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed',
+    thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun'
+  };
+  
+  const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const lines = [];
+  
+  dayOrder.forEach(day => {
+    if (operatingHours[day]) {
+      const timesText = operatingHours[day]
+        .map(period => `${period.open}-${period.close}`)
+        .join(', ');
+      lines.push(`${dayNames[day]}: ${timesText}`);
+    }
+  });
+  
+  return lines.join(' | ');
+}
+
+/**
+ * Get restaurant status display
+ * @param {Object} restaurant - Restaurant object
+ * @returns {Object} Status display information
+ */
+function getRestaurantStatusDisplay(restaurant) {
+  const status = {
+    text: 'Unknown',
+    color: '#86868B',
+    icon: '❓'
+  };
+  
+  if (!restaurant.isOnline) {
+    status.text = 'Offline';
+    status.color = '#FF3B30';
+    status.icon = '🔴';
+  } else if (!restaurant.verified) {
+    status.text = 'Pending Verification';
+    status.color = '#FF9500';
+    status.icon = '⏳';
+  } else if (!restaurant.acceptingOrders) {
+    status.text = 'Not Accepting Orders';
+    status.color = '#FF9500';
+    status.icon = '⏸️';
+  } else {
+    status.text = 'Online';
+    status.color = '#30D158';
+    status.icon = '🟢';
+  }
+  
+  return status;
+}
+
+// ============================================================================
 // GLOBAL EXPORTS AND VEDIAPI INTEGRATION
 // ============================================================================
 
@@ -812,7 +969,13 @@ Object.assign(window.VediAPI, {
   // Search and discovery
   searchRestaurants,
   getRestaurantsByCuisine,
-  getRestaurantsByLocation
+  getRestaurantsByLocation,
+  
+  // New functions for settings page
+  getRestaurantProfile,
+  validateRestaurantData,
+  formatOperatingHours,
+  getRestaurantStatusDisplay
 });
 
 console.log('🏪 Restaurant Management Module loaded');
@@ -823,4 +986,6 @@ console.log('🔄 Status: updateRestaurantStatus, updateRestaurantVerification')
 console.log('🔍 Search: searchRestaurants, getRestaurantsByCuisine, getRestaurantsByLocation');
 console.log('💰 Enhanced: Full currency object support, dining options, payment methods, operating hours');
 console.log('🔧 Complete: Table count, seating capacity, venue location, setup completion tracking');
+console.log('🔧 NEW: getRestaurantProfile, validateRestaurantData, formatOperatingHours, getRestaurantStatusDisplay');
+console.log('✅ FIXED: Firebase array conversion issue - all arrays are now native JavaScript arrays');
 console.log('✅ Comprehensive validation, tracking, and error handling included');
