@@ -110,7 +110,7 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Progress */
+        /* Progress - Updated for 3 steps */
         .step-dots {
             display: flex;
             justify-content: center;
@@ -915,19 +915,19 @@
         <div id="successMessage" class="message success"></div>
         <div id="infoMessage" class="message info"></div>
 
+        <!-- Updated for 3 steps -->
         <div class="step-dots">
             <div class="dot active" data-step="1"></div>
             <div class="dot" data-step="2"></div>
             <div class="dot" data-step="3"></div>
-            <div class="dot" data-step="4"></div>
         </div>
 
-        <!-- Step 1: Basic Information -->
+        <!-- Step 1: Basic Information & Venue Association -->
         <div class="step active" id="step1">
             <h2 class="step-title">Restaurant Information</h2>
-            <p class="step-description">Update your restaurant's basic information and profile details.</p>
+            <p class="step-description">Update your restaurant's basic information and venue association.</p>
 
-            <!-- Venue Association -->
+            <!-- Venue Association - Moved to Step 1 -->
             <div class="form-group">
                 <label class="form-label" for="venueAssociation">Venue Association</label>
                 <div id="venueAssociationContainer">
@@ -1133,20 +1133,8 @@
             </div>
         </div>
 
-        <!-- Step 3: Venue Association -->
+        <!-- Step 3: Operating Details (previously Step 4) -->
         <div class="step" id="step3">
-            <h2 class="step-title">Venue Association</h2>
-            <p class="step-description">Manage your restaurant's association with food halls and venues.</p>
-
-            <!-- Venue Association Content - Now managed from Step 1 -->
-            <div class="empty-state">
-                <h3>Venue Association Moved</h3>
-                <p>Venue association is now managed from the first step of the settings.</p>
-            </div>
-        </div>
-
-        <!-- Step 4: Operating Details -->
-        <div class="step" id="step4">
             <h2 class="step-title">Operating Details</h2>
             <p class="step-description">Configure your restaurant's operational settings and hours.</p>
 
@@ -1284,9 +1272,9 @@
     </div>
 
     <script>
-        // Global variables
+        // Global variables - Updated for 3 steps
         let currentStep = 1;
-        const totalSteps = 4;
+        const totalSteps = 3; // Changed from 4 to 3
         let formData = {};
         let operatingHours = {};
         let currentPeriodCount = 1;
@@ -1303,14 +1291,14 @@
             USD: { symbol: '$', name: 'US Dollar', code: 'USD' },
             EUR: { symbol: '€', name: 'Euro', code: 'EUR' },
             GBP: { symbol: '£', name: 'British Pound', code: 'GBP' },
-            CAD: { symbol: 'C$', name: 'Canadian Dollar', code: 'CAD' },
-            AUD: { symbol: 'A$', name: 'Australian Dollar', code: 'AUD' },
+            CAD: { symbol: 'C, name: 'Canadian Dollar', code: 'CAD' },
+            AUD: { symbol: 'A, name: 'Australian Dollar', code: 'AUD' },
             JPY: { symbol: '¥', name: 'Japanese Yen', code: 'JPY' },
             CHF: { symbol: '₣', name: 'Swiss Franc', code: 'CHF' },
             CNY: { symbol: '¥', name: 'Chinese Yuan', code: 'CNY' },
             INR: { symbol: '₹', name: 'Indian Rupee', code: 'INR' },
-            BRL: { symbol: 'R$', name: 'Brazilian Real', code: 'BRL' },
-            MXN: { symbol: '$', name: 'Mexican Peso', code: 'MXN' },
+            BRL: { symbol: 'R, name: 'Brazilian Real', code: 'BRL' },
+            MXN: { symbol: ', name: 'Mexican Peso', code: 'MXN' },
             KRW: { symbol: '₩', name: 'South Korean Won', code: 'KRW' },
             THB: { symbol: '฿', name: 'Thai Baht', code: 'THB' },
             SEK: { symbol: 'kr', name: 'Swedish Krona', code: 'SEK' },
@@ -1350,8 +1338,6 @@
                 setupPhoneFormatting();
                 
                 hideLoading();
-                // showSuccess('Settings loaded successfully!'); // Toast disabled
-                
                 console.log('✅ Restaurant Settings initialization complete');
                 
             } catch (error) {
@@ -1473,48 +1459,6 @@
             }
         }
 
-        function populateVenueSelector() {
-            const venueSelector = document.getElementById('venueSelector');
-            venueSelector.innerHTML = '<option value="">Select a venue to join...</option>';
-            
-            availableVenues.forEach(venue => {
-                const option = document.createElement('option');
-                option.value = venue.id;
-                option.textContent = `${venue.name} - ${venue.address || 'Address not provided'}`;
-                venueSelector.appendChild(option);
-            });
-        }
-
-        function displayPendingRequests(requestsToShow = null) {
-            const pendingRequestsList = document.getElementById('pendingRequestsList');
-            const requestsToDisplay = requestsToShow || pendingRequests;
-            
-            pendingRequestsList.innerHTML = requestsToDisplay.map(request => `
-                <div class="request-item">
-                    <div class="request-header">
-                        <div>
-                            <div class="request-venue-name">${request.venueName}</div>
-                            <div class="request-date">Requested: ${VediAPI.timestampToDate(request.requestedAt).toLocaleDateString()}</div>
-                        </div>
-                        <div class="request-status ${request.status}">${request.status.toUpperCase()}</div>
-                    </div>
-                    ${request.message ? `<div class="request-message">"${request.message}"</div>` : ''}
-                    <div class="request-actions">
-                        ${request.status === 'pending' ? `
-                            <button class="btn btn-danger btn-small" onclick="cancelVenueRequest('${request.id}')">
-                                Cancel Request
-                            </button>
-                        ` : ''}
-                        ${request.status === 'denied' && request.denialReason ? `
-                            <div style="color: #991b1b; font-size: 0.8rem; margin-top: 5px;">
-                                <strong>Reason:</strong> ${request.denialReason}
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `).join('');
-        }
-
         async function requestToJoinVenue() {
             const venueSelector = document.getElementById('venueSelector');
             const joinRequestMessage = document.getElementById('joinRequestMessage');
@@ -1523,7 +1467,6 @@
             const message = joinRequestMessage.value.trim();
             
             if (!selectedVenueId) {
-                // showError('Please select a venue to join'); // Toast disabled
                 return;
             }
             
@@ -1542,7 +1485,6 @@
                 joinRequestMessage.value = '';
                 
                 hideLoading();
-                // showSuccess('Join request sent successfully! The venue manager will review your request.'); // Toast disabled
                 
             } catch (error) {
                 console.error('❌ Error sending join request:', error);
@@ -1565,7 +1507,6 @@
                 await loadVenueAssociationData();
                 
                 hideLoading();
-                // showSuccess('Venue request cancelled successfully'); // Toast disabled
                 
             } catch (error) {
                 console.error('❌ Error cancelling request:', error);
@@ -1590,45 +1531,11 @@
                 await loadVenueAssociationData();
                 
                 hideLoading();
-                // showSuccess('Successfully left the venue. You are now an independent restaurant.'); // Toast disabled
                 
             } catch (error) {
                 console.error('❌ Error leaving venue:', error);
                 hideLoading();
                 showError('Failed to leave venue: ' + error.message);
-            }
-        }
-
-        async function refreshVenueList() {
-            try {
-                showLoading('Refreshing venue information...', 'Loading latest data');
-                
-                // Refresh all venue-related data
-                await loadVenueAssociationData();
-                
-                hideLoading();
-                
-                if (restaurantSyncStatus.isAssociated) {
-                    // showSuccess('Venue information refreshed successfully'); // Toast disabled
-                } else if (availableVenues.length > 0) {
-                    // showSuccess(`Found ${availableVenues.length} available venues`); // Toast disabled
-                } else {
-                    // showInfo('No venues are currently accepting new restaurants'); // Toast disabled
-                }
-                
-            } catch (error) {
-                console.error('❌ Error refreshing venues:', error);
-                hideLoading();
-                showError('Failed to refresh venue information: ' + error.message);
-            }
-        }
-
-        function getSyncMethodText(syncMethod) {
-            switch(syncMethod) {
-                case 'venue_invitation': return 'Venue Invitation';
-                case 'restaurant_request': return 'Restaurant Request';
-                case 'manual_sync': return 'Manual Sync';
-                default: return 'Unknown';
             }
         }
 
@@ -1702,7 +1609,6 @@
                 const name = document.getElementById('customCurrencyName').value.trim();
 
                 if (!code || !symbol || !name) {
-                    // showError('Please fill in all custom currency fields.'); // Toast disabled
                     return null;
                 }
 
@@ -1789,7 +1695,7 @@
             }
         }
 
-        // Main navigation functions
+        // Main navigation functions - Updated for 3 steps
         function nextStep() {
             saveCurrentStepData();
             
@@ -1848,7 +1754,7 @@
             }
         }
 
-        // Data management functions
+        // Data management functions - Updated for 3 steps
         function saveCurrentStepData() {
             if (currentStep === 1) {
                 // Save currency data
@@ -1871,10 +1777,7 @@
                 formData.phone = document.getElementById('phone').value.trim();
                 formData.email = document.getElementById('email').value.trim();
                 formData.website = document.getElementById('website').value.trim();
-            } else if (currentStep === 3) {
-                // Venue association step - data is handled by venue functions
-                // No form data to save here as venue association is handled separately
-            } else if (currentStep === 4) {
+            } else if (currentStep === 3) { // Previously step 4
                 formData.tableCount = parseInt(document.getElementById('tableCount').value);
                 formData.seatingCapacity = parseInt(document.getElementById('seatingCapacity').value) || null;
                 formData.operatingHours = operatingHours;
@@ -1919,7 +1822,6 @@
                 currentRestaurant = updatedRestaurant;
                 
                 hideLoading();
-                // showSuccess('Settings saved successfully! Your restaurant information has been updated.'); // Toast disabled
                 
                 // Notify parent window (dashboard) of the update
                 if (window.parent && window.parent !== window) {
@@ -1950,7 +1852,6 @@
             const selectedDays = Array.from(selectedDayCheckboxes).map(cb => cb.value);
             
             if (selectedDays.length === 0) {
-                // showError('Please select at least one day.'); // Toast disabled
                 return;
             }
 
@@ -1973,12 +1874,10 @@
                 const close = groupedInputs[period].close;
                 
                 if (!open || !close) {
-                    // showError('Please fill in all time fields.'); // Toast disabled
                     return;
                 }
                 
                 if (open >= close) {
-                    // showError('Opening time must be before closing time.'); // Toast disabled
                     return;
                 }
                 
@@ -1992,8 +1891,6 @@
             selectedDayCheckboxes.forEach(cb => cb.checked = false);
             resetTimePeriods();
             updateHoursDisplay();
-            
-            // showSuccess('Hours saved for ' + selectedDays.length + ' day(s)!'); // Toast disabled
         }
 
         function addTimePeriod() {
@@ -2054,7 +1951,6 @@
         function removeDayHours(day) {
             delete operatingHours[day];
             updateHoursDisplay();
-            // showSuccess(`Hours removed for ${day}`); // Toast disabled
         }
 
         function updateHoursDisplay() {
