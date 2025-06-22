@@ -1350,11 +1350,19 @@
         // Venue Association Functions
         async function loadAvailableVenues() {
             try {
+                console.log('📍 Loading available venues...');
                 availableVenues = await VediAPI.getAllVenues({ orderBy: 'name', orderDirection: 'asc' });
                 console.log('✅ Loaded available venues:', availableVenues.length);
+                
+                if (availableVenues.length === 0) {
+                    console.log('ℹ️ No venues found in the system yet');
+                }
+                
+                return availableVenues;
             } catch (error) {
                 console.error('❌ Error loading venues:', error);
                 availableVenues = [];
+                return [];
             }
         }
 
@@ -1368,13 +1376,16 @@
                 
                 // Load available venues if not associated
                 if (!restaurantSyncStatus.isAssociated) {
-                    console.log('📍 Loading available venues...');
+                    console.log('📍 Restaurant not associated, loading available venues...');
                     await loadAvailableVenues();
+                } else {
+                    console.log('🏢 Restaurant already associated with:', restaurantSyncStatus.venueName);
                 }
                 
                 // Load pending requests
                 console.log('📨 Loading pending requests...');
                 pendingRequests = await VenueSync.getRestaurantRequests(restaurantId);
+                console.log('📨 Found pending requests:', pendingRequests.length);
                 
                 // Setup the UI with the refreshed data
                 setupVenueAssociationUI();
@@ -1382,6 +1393,16 @@
             } catch (error) {
                 console.error('❌ Error loading venue association data:', error);
                 showError('Failed to load venue information: ' + error.message);
+                
+                // Setup UI with error state
+                const venueContainer = document.getElementById('venueAssociationContainer');
+                if (venueContainer) {
+                    venueContainer.innerHTML = `
+                        <div class="form-input" style="background: #FEF2F2; border-color: #FECACA; cursor: default; color: #DC2626;">
+                            Error loading venue information. Please refresh the page.
+                        </div>
+                    `;
+                }
             }
         }
 
@@ -1400,31 +1421,31 @@
                 `;
                 
             } else {
-                // Show venue selection dropdown
+                // Always show venue selection dropdown - even if empty
+                let venueOptions = '<option value="">No venues available at the moment</option>';
                 if (availableVenues.length > 0) {
-                    let venueOptions = '<option value="">Not associated with any venue</option>';
+                    venueOptions = '<option value="">Not associated with any venue</option>';
                     availableVenues.forEach(venue => {
                         venueOptions += `<option value="${venue.id}">${venue.name} - ${venue.address || 'Address not provided'}</option>`;
                     });
-                    
-                    venueContainer.innerHTML = `
-                        <select class="form-select" id="venueSelector" onchange="handleVenueSelection()">
-                            ${venueOptions}
-                        </select>
-                        <div id="joinRequestSection" style="display: none; margin-top: 16px;">
-                            <textarea class="form-textarea" id="joinRequestMessage" placeholder="Add a message to the venue manager (optional)"></textarea>
-                            <button class="btn btn-success btn-small" onclick="requestToJoinVenue()" style="margin-top: 8px;">
-                                Send Join Request
-                            </button>
-                        </div>
-                    `;
-                } else {
-                    venueContainer.innerHTML = `
-                        <div class="form-input" style="background: #F8F9FA; cursor: default;">
-                            No venues available - Venue managers can send you invitations directly
-                        </div>
-                    `;
                 }
+                
+                venueContainer.innerHTML = `
+                    <select class="form-select" id="venueSelector" onchange="handleVenueSelection()">
+                        ${venueOptions}
+                    </select>
+                    <div id="joinRequestSection" style="display: none; margin-top: 16px;">
+                        <textarea class="form-textarea" id="joinRequestMessage" placeholder="Add a message to the venue manager (optional)"></textarea>
+                        <button class="btn btn-success btn-small" onclick="requestToJoinVenue()" style="margin-top: 8px;">
+                            Send Join Request
+                        </button>
+                    </div>
+                    ${availableVenues.length === 0 ? `
+                        <div style="background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 12px; margin-top: 8px; color: #92400E; font-size: 14px;">
+                            <strong>No venues available:</strong> Venue managers can send you invitations directly, or venues will appear here once they are created in the system.
+                        </div>
+                    ` : ''}
+                `;
                 
                 // Show pending requests if any
                 const activePendingRequests = pendingRequests.filter(request => 
@@ -1452,9 +1473,9 @@
             const venueSelector = document.getElementById('venueSelector');
             const joinRequestSection = document.getElementById('joinRequestSection');
             
-            if (venueSelector.value) {
+            if (venueSelector && joinRequestSection && venueSelector.value && availableVenues.length > 0) {
                 joinRequestSection.style.display = 'block';
-            } else {
+            } else if (joinRequestSection) {
                 joinRequestSection.style.display = 'none';
             }
         }
@@ -1463,10 +1484,21 @@
             const venueSelector = document.getElementById('venueSelector');
             const joinRequestMessage = document.getElementById('joinRequestMessage');
             
+            if (!venueSelector || !joinRequestMessage) {
+                console.error('❌ Venue selector elements not found');
+                return;
+            }
+            
             const selectedVenueId = venueSelector.value;
             const message = joinRequestMessage.value.trim();
             
             if (!selectedVenueId) {
+                showError('Please select a venue to request to join');
+                return;
+            }
+            
+            if (availableVenues.length === 0) {
+                showError('No venues available to join at the moment');
                 return;
             }
             
@@ -1485,6 +1517,7 @@
                 joinRequestMessage.value = '';
                 
                 hideLoading();
+                showSuccess('Join request sent successfully!');
                 
             } catch (error) {
                 console.error('❌ Error sending join request:', error);
