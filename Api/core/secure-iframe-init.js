@@ -458,9 +458,148 @@ window.initializeMenuPage = async function(pageName) {
     };
 };
 
+// NEW: Venue management page initialization
+window.initializeVenuePage = async function(pageName) {
+    const requiredMethods = [
+        'getVenueByManager',
+        'updateVenue',
+        'getAllVenues',
+        'getVenueRestaurants',
+        'getVenueRequests',
+        'approveRestaurantRequest',
+        'denyRestaurantRequest',
+        'createVenueInvitation',
+        'getVenueInvitations',
+        'cancelInvitation'
+    ];
+    const initializer = new SecureIframeInitializer(pageName, requiredMethods);
+    
+    const user = await initializer.initialize();
+    
+    // Load venue data for venue managers
+    let venue = null;
+    if (typeof VediAPI.getVenueByManager === 'function') {
+        venue = await VediAPI.getVenueByManager(user.id);
+    }
+    
+    if (!venue) {
+        throw new Error('No venue found for user - you must be a venue manager to access this page');
+    }
+    
+    return { user, venue };
+};
+
+// NEW: Admin page initialization  
+window.initializeAdminPage = async function(pageName) {
+    const requiredMethods = [
+        'getAllRestaurants',
+        'getAllVenues', 
+        'updateRestaurantVerification',
+        'updateVenueVerification',
+        'getSystemStats'
+    ];
+    const initializer = new SecureIframeInitializer(pageName, requiredMethods);
+    
+    const user = await initializer.initialize();
+    
+    // Verify admin permissions
+    if (!user.isAdmin && !user.roles?.includes('admin')) {
+        throw new Error('Access denied: Admin privileges required');
+    }
+    
+    return { user };
+};
+
+// Global Firebase helper functions that are commonly needed
+window.getFirebaseDb = function() {
+    if (window.firebase && window.firebase.firestore) {
+        return window.firebase.firestore();
+    }
+    throw new Error('Firebase Firestore not available');
+};
+
+window.getFirebaseAuth = function() {
+    if (window.firebase && window.firebase.auth) {
+        return window.firebase.auth();
+    }
+    throw new Error('Firebase Auth not available');
+};
+
+window.getFirebaseStorage = function() {
+    if (window.firebase && window.firebase.storage) {
+        return window.firebase.storage();
+    }
+    throw new Error('Firebase Storage not available');
+};
+
+// Utility function to check if we're in an iframe
+window.isInIframe = function() {
+    return window.self !== window.top;
+};
+
+// Utility function to communicate with parent window
+window.sendMessageToParent = function(type, data = {}) {
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+            type: type,
+            source: window.location.pathname,
+            timestamp: Date.now(),
+            ...data
+        }, window.location.origin);
+    }
+};
+
+// Enhanced debugging function
+window.debugVediAPI = function() {
+    if (!window.VediAPI) {
+        console.log('❌ VediAPI not available');
+        return;
+    }
+    
+    const functions = Object.keys(window.VediAPI).filter(key => 
+        typeof window.VediAPI[key] === 'function'
+    );
+    
+    const venueFunctions = functions.filter(name => 
+        name.toLowerCase().includes('venue') || 
+        name.toLowerCase().includes('sync')
+    );
+    
+    const restaurantFunctions = functions.filter(name => 
+        name.toLowerCase().includes('restaurant')
+    );
+    
+    const orderFunctions = functions.filter(name => 
+        name.toLowerCase().includes('order')
+    );
+    
+    const menuFunctions = functions.filter(name => 
+        name.toLowerCase().includes('menu') || 
+        name.toLowerCase().includes('item') || 
+        name.toLowerCase().includes('category')
+    );
+    
+    console.log('🔍 VediAPI Debug Information:');
+    console.log(`📊 Total functions: ${functions.length}`);
+    console.log(`🏢 Venue functions: ${venueFunctions.length}`, venueFunctions);
+    console.log(`🏪 Restaurant functions: ${restaurantFunctions.length}`, restaurantFunctions);
+    console.log(`📋 Order functions: ${orderFunctions.length}`, orderFunctions);
+    console.log(`🍽️ Menu functions: ${menuFunctions.length}`, menuFunctions);
+    
+    return {
+        total: functions.length,
+        venue: venueFunctions,
+        restaurant: restaurantFunctions,
+        order: orderFunctions,
+        menu: menuFunctions,
+        all: functions
+    };
+};
+
 console.log('🔐 Secure Iframe Initialization Module loaded');
 console.log('🔧 Enhanced with utility functions for restaurant settings page');
 console.log('✅ Available utilities: generateInviteCode, validateEmail, validatePhoneNumber');
 console.log('✅ Available utilities: removeUndefinedValues, sanitizeInput, startPerformanceMeasurement');
 console.log('✅ Available utilities: trackUserActivity, trackError (console-only versions)');
 console.log('🔄 NEW: Inherits ALL VediAPI functions from parent, including venue-sync functions');
+console.log('🎯 NEW: Added venue page, admin page, and enhanced debugging support');
