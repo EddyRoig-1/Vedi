@@ -1238,65 +1238,63 @@ async function addRestaurantActivity(restaurantId, activity) {
 }
 
 // ============================================================================
-// GLOBAL EXPORTS AND VEDIAPI INTEGRATION
+// GLOBAL EXPORTS AND VEDIAPI INTEGRATION - IMMEDIATE ATTACHMENT
 // ============================================================================
 
 // Ensure VediAPI namespace exists
-if (!window.VediAPI) {
-  window.VediAPI = {};
-}
+window.VediAPI = window.VediAPI || {};
 
-// Attach venue sync functions to VediAPI
-Object.assign(window.VediAPI, {
-  // Restaurant-initiated requests
-  requestToJoinVenue,
-  cancelVenueRequest,
-  getRestaurantRequests,
-  
-  // Venue-initiated invitations  
-  createVenueInvitation,
-  getVenueInvitations,
-  cancelInvitation,
-  acceptVenueInvitation,
-  declineVenueInvitation,
-  validateInviteCode,
-  
-  // Approval processes
-  approveRestaurantRequest,
-  denyRestaurantRequest,
-  
-  // Core sync functionality
-  syncRestaurantToVenue,
-  unsyncRestaurantFromVenue,
-  getRestaurantSyncStatus,
-  
-  // Venue management
-  getVenueRestaurants,
-  
-  // Enhanced functions for settings page
-  getAvailableVenuesForRestaurant,
-  checkVenueEligibility,
-  
-  // Helper functions
-  getPendingRequestByRestaurant,
-  getVenueRequests,
-  addVenueActivity,
-  addRestaurantActivity,
-  getRestaurantById
-});
+// FIXED: Attach functions immediately with individual assignments
+// This ensures proper timing and availability during iframe inheritance
+
+// Restaurant-initiated requests
+window.VediAPI.requestToJoinVenue = requestToJoinVenue;
+window.VediAPI.cancelVenueRequest = cancelVenueRequest;
+window.VediAPI.getRestaurantRequests = getRestaurantRequests;
+
+// Venue-initiated invitations  
+window.VediAPI.createVenueInvitation = createVenueInvitation;
+window.VediAPI.getVenueInvitations = getVenueInvitations;
+window.VediAPI.cancelInvitation = cancelInvitation;
+window.VediAPI.acceptVenueInvitation = acceptVenueInvitation;
+window.VediAPI.declineVenueInvitation = declineVenueInvitation;
+window.VediAPI.validateInviteCode = validateInviteCode;
+
+// Approval processes
+window.VediAPI.approveRestaurantRequest = approveRestaurantRequest;
+window.VediAPI.denyRestaurantRequest = denyRestaurantRequest;
+
+// Core sync functionality
+window.VediAPI.syncRestaurantToVenue = syncRestaurantToVenue;
+window.VediAPI.unsyncRestaurantFromVenue = unsyncRestaurantFromVenue;
+window.VediAPI.getRestaurantSyncStatus = getRestaurantSyncStatus;
+
+// Venue management
+window.VediAPI.getVenueRestaurants = getVenueRestaurants;
+
+// Enhanced functions for settings page
+window.VediAPI.getAvailableVenuesForRestaurant = getAvailableVenuesForRestaurant;
+window.VediAPI.checkVenueEligibility = checkVenueEligibility;
+
+// Helper functions
+window.VediAPI.getPendingRequestByRestaurant = getPendingRequestByRestaurant;
+window.VediAPI.getVenueRequests = getVenueRequests;
+window.VediAPI.addVenueActivity = addVenueActivity;
+window.VediAPI.addRestaurantActivity = addRestaurantActivity;
+window.VediAPI.getRestaurantById = getRestaurantById;
 
 // Create VenueSync namespace for restaurant-settings.html compatibility
 window.VenueSync = {
-  getRestaurantSyncStatus: VediAPI.getRestaurantSyncStatus,
-  requestToJoinVenue: VediAPI.requestToJoinVenue,
-  cancelVenueRequest: VediAPI.cancelVenueRequest,
-  unsyncRestaurantFromVenue: VediAPI.unsyncRestaurantFromVenue,
-  getRestaurantRequests: VediAPI.getRestaurantRequests,
-  acceptVenueInvitation: VediAPI.acceptVenueInvitation,
-  declineVenueInvitation: VediAPI.declineVenueInvitation,
-  validateInviteCode: VediAPI.validateInviteCode,
-  getAvailableVenuesForRestaurant: VediAPI.getAvailableVenuesForRestaurant,
-  checkVenueEligibility: VediAPI.checkVenueEligibility
+  getRestaurantSyncStatus: window.VediAPI.getRestaurantSyncStatus,
+  requestToJoinVenue: window.VediAPI.requestToJoinVenue,
+  cancelVenueRequest: window.VediAPI.cancelVenueRequest,
+  unsyncRestaurantFromVenue: window.VediAPI.unsyncRestaurantFromVenue,
+  getRestaurantRequests: window.VediAPI.getRestaurantRequests,
+  acceptVenueInvitation: window.VediAPI.acceptVenueInvitation,
+  declineVenueInvitation: window.VediAPI.declineVenueInvitation,
+  validateInviteCode: window.VediAPI.validateInviteCode,
+  getAvailableVenuesForRestaurant: window.VediAPI.getAvailableVenuesForRestaurant,
+  checkVenueEligibility: window.VediAPI.checkVenueEligibility
 };
 
 console.log('🔄 Venue Sync Module loaded');
@@ -1309,3 +1307,4 @@ console.log('🍽️ Management: getVenueRestaurants');
 console.log('📋 Queries: getVenueRequests, getPendingRequestByRestaurant');
 console.log('🔧 Enhanced: getAvailableVenuesForRestaurant, checkVenueEligibility for settings page');
 console.log('🎯 Complete venue-restaurant relationship management with enhanced error handling');
+console.log('⚡ FIXED: Functions attached immediately with individual assignments for proper iframe inheritance');
