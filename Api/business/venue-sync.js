@@ -29,7 +29,7 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
     
     // Get restaurant and venue info for the request
     const [restaurant, venue] = await Promise.all([
-      VediAPI.getRestaurant(restaurantId),
+      getRestaurantById(restaurantId), // Use direct function instead of VediAPI.getRestaurant
       VediAPI.getVenue(venueId)
     ]);
 
@@ -406,7 +406,7 @@ async function acceptVenueInvitation(invitationId, restaurantId) {
     }
 
     // Check if restaurant is available
-    const restaurant = await VediAPI.getRestaurant(restaurantId);
+    const restaurant = await getRestaurantById(restaurantId); // Use direct function
     if (restaurant.venueId) {
       throw new Error('Restaurant is already associated with a venue');
     }
@@ -434,7 +434,7 @@ async function acceptVenueInvitation(invitationId, restaurantId) {
 
     // Add activity logs
     await Promise.all([
-      this.addVenueActivity(invitation.venueId, {
+      addVenueActivity(invitation.venueId, {
         type: 'restaurant',
         title: 'Restaurant Joined via Invitation',
         description: `${restaurant.name} has accepted the invitation and joined the venue`,
@@ -445,7 +445,7 @@ async function acceptVenueInvitation(invitationId, restaurantId) {
           syncMethod: 'venue_invitation'
         }
       }),
-      this.addRestaurantActivity(restaurantId, {
+      addRestaurantActivity(restaurantId, {
         type: 'venue',
         title: 'Accepted Venue Invitation',
         description: `Successfully joined ${invitation.venueName} via invitation`,
@@ -493,7 +493,7 @@ async function declineVenueInvitation(invitationId) {
     });
 
     // Add activity log
-    await this.addVenueActivity(invitation.venueId, {
+    await addVenueActivity(invitation.venueId, {
       type: 'invitation',
       title: 'Invitation Declined',
       description: `${invitation.restaurantName} declined the venue invitation`,
@@ -581,7 +581,7 @@ async function approveRestaurantRequest(requestId) {
     }
 
     // Check if restaurant is still available (not joined another venue)
-    const restaurant = await VediAPI.getRestaurant(request.restaurantId);
+    const restaurant = await getRestaurantById(request.restaurantId); // Use direct function
     if (restaurant.venueId && restaurant.venueId !== request.venueId) {
       throw new Error('Restaurant has already joined another venue');
     }
@@ -715,7 +715,7 @@ async function syncRestaurantToVenue(restaurantId, venueId, syncReason = 'Manual
     
     // Get venue and restaurant info
     const [restaurant, venue] = await Promise.all([
-      VediAPI.getRestaurant(restaurantId),
+      getRestaurantById(restaurantId), // Use direct function
       VediAPI.getVenue(venueId)
     ]);
 
@@ -778,7 +778,7 @@ async function unsyncRestaurantFromVenue(restaurantId, reason = 'Left venue') {
     console.log('🔄 Unsyncing restaurant from venue:', restaurantId);
     
     // Get current restaurant info
-    const restaurant = await VediAPI.getRestaurant(restaurantId);
+    const restaurant = await getRestaurantById(restaurantId); // Use direct function
     
     if (!restaurant.venueId) {
       throw new Error('Restaurant is not currently associated with any venue');
@@ -835,7 +835,7 @@ async function getRestaurantSyncStatus(restaurantId) {
   const endTracking = VediAPI.startPerformanceMeasurement('getRestaurantSyncStatus');
   
   try {
-    const restaurant = await VediAPI.getRestaurant(restaurantId);
+    const restaurant = await getRestaurantById(restaurantId); // Use direct function
     
     const status = {
       isAssociated: !!restaurant.venueId,
@@ -894,6 +894,27 @@ async function getVenueRestaurants(venueId) {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+/**
+ * Get restaurant by ID directly from Firestore
+ * @param {string} restaurantId - Restaurant ID
+ * @returns {Promise<Object>} Restaurant data
+ */
+async function getRestaurantById(restaurantId) {
+  try {
+    const db = getFirebaseDb();
+    const doc = await db.collection('restaurants').doc(restaurantId).get();
+    
+    if (!doc.exists) {
+      throw new Error('Restaurant not found');
+    }
+    
+    return { id: doc.id, ...doc.data() };
+  } catch (error) {
+    console.error('❌ Error getting restaurant by ID:', error);
+    throw error;
+  }
+}
 
 /**
  * Check if restaurant has pending venue request for specific venue
@@ -1051,7 +1072,8 @@ Object.assign(window.VediAPI, {
   getPendingRequestByRestaurant,
   getVenueRequests,
   addVenueActivity,
-  addRestaurantActivity
+  addRestaurantActivity,
+  getRestaurantById
 });
 
 // Create VenueSync namespace for restaurant-settings.html compatibility
