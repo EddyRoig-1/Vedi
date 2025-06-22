@@ -1305,6 +1305,8 @@
                 if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurantSyncStatus) {
                     restaurantSyncStatus = await VediAPI.getRestaurantSyncStatus(restaurantId);
                     console.log('📊 Restaurant sync status:', restaurantSyncStatus);
+                } else {
+                    console.warn('⚠️ getRestaurantSyncStatus not available');
                 }
                 
                 // Load available venues for selection
@@ -1315,12 +1317,18 @@
                         limit: 100
                     });
                     console.log('🏢 Available venues:', availableVenues.length);
+                } else {
+                    console.warn('⚠️ getAllVenues not available - venue features will be limited');
+                    availableVenues = [];
                 }
                 
                 // Load pending requests
                 if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurantRequests) {
                     pendingRequests = await VediAPI.getRestaurantRequests(restaurantId);
                     console.log('📋 Pending requests:', pendingRequests.length);
+                } else {
+                    console.warn('⚠️ getRestaurantRequests not available');
+                    pendingRequests = [];
                 }
                 
                 renderVenueAssociationUI();
@@ -1420,7 +1428,12 @@
                         <span style="font-size: 16px;">🏢</span>
                         <div>
                             <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Venue Association</div>
-                            <div style="font-size: 14px;">Currently not associated with any venue. Venue managers can send you invitations directly.</div>
+                            <div style="font-size: 14px;">
+                                ${availableVenues.length === 0 && typeof VediAPI.getAllVenues === 'undefined' 
+                                    ? 'Venue features are loading... Please refresh if this persists.' 
+                                    : 'Currently not associated with any venue. Venue managers can send you invitations directly.'
+                                }
+                            </div>
                         </div>
                     </div>
                 `;
