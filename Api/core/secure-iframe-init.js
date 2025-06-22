@@ -288,15 +288,10 @@ window.showSecurityError = function(error) {
 
 // Page-specific initialization functions
 window.initializeRestaurantPage = async function(pageName) {
+    // Only require essential methods - venue functions are optional
     const requiredMethods = [
         'getRestaurantByOwner',
         'updateRestaurant',
-        'getAllVenues',
-        'getRestaurantSyncStatus',
-        'requestToJoinVenue',
-        'cancelVenueRequest',
-        'unsyncRestaurantFromVenue',
-        'getRestaurantRequests',
         'validateEmail',
         'validatePhoneNumber',
         'sanitizeInput',
@@ -311,6 +306,17 @@ window.initializeRestaurantPage = async function(pageName) {
     if (!restaurant) {
         throw new Error('No restaurant found for user');
     }
+    
+    // Log available functions for debugging
+    console.log('🔍 Available VediAPI functions:', Object.keys(VediAPI).length);
+    console.log('🔍 Venue functions available:', {
+        getAllVenues: typeof VediAPI.getAllVenues,
+        getRestaurantSyncStatus: typeof VediAPI.getRestaurantSyncStatus,
+        requestToJoinVenue: typeof VediAPI.requestToJoinVenue,
+        cancelVenueRequest: typeof VediAPI.cancelVenueRequest,
+        unsyncRestaurantFromVenue: typeof VediAPI.unsyncRestaurantFromVenue,
+        getRestaurantRequests: typeof VediAPI.getRestaurantRequests
+    });
     
     return { user, restaurant };
 };
