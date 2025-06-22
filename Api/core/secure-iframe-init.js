@@ -26,10 +26,13 @@ class SecureIframeInitializer {
             // Step 2: Inherit Firebase from parent with validation
             await this.inheritFirebaseSecurely();
             
-            // Step 3: Validate inherited Firebase
+            // Step 3: Add missing utility functions
+            await this.addMissingUtilityFunctions();
+            
+            // Step 4: Validate inherited Firebase
             await this.validateFirebaseIntegrity();
             
-            // Step 4: Verify authentication state
+            // Step 5: Verify authentication state
             const user = await this.verifyAuthentication();
             
             console.log(`✅ [${this.pageName}] Secure initialization complete for user: ${user.email}`);
@@ -98,6 +101,97 @@ class SecureIframeInitializer {
                 await this.delay(this.retryDelay * attempts); // Exponential backoff
             }
         }
+    }
+
+    async addMissingUtilityFunctions() {
+        // Ensure VediAPI namespace exists
+        if (!window.VediAPI) {
+            window.VediAPI = {};
+        }
+
+        // Add missing utility functions only if they don't already exist
+
+        // Generate unique invitation code
+        if (!VediAPI.generateInviteCode) {
+            VediAPI.generateInviteCode = function() {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let result = '';
+                for (let i = 0; i < 8; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            };
+        }
+
+        // Enhanced email validation
+        if (!VediAPI.validateEmail) {
+            VediAPI.validateEmail = function(email) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return emailRegex.test(email);
+            };
+        }
+
+        // Enhanced phone number validation
+        if (!VediAPI.validatePhoneNumber) {
+            VediAPI.validatePhoneNumber = function(phone) {
+                // Remove all non-digit characters
+                const cleaned = phone.replace(/\D/g, '');
+                // Check if it's 10 or 11 digits (US format)
+                return cleaned.length >= 10 && cleaned.length <= 11;
+            };
+        }
+
+        // Remove undefined values from object
+        if (!VediAPI.removeUndefinedValues) {
+            VediAPI.removeUndefinedValues = function(obj) {
+                const cleaned = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    if (value !== undefined) {
+                        cleaned[key] = value;
+                    }
+                }
+                return cleaned;
+            };
+        }
+
+        // Sanitize input string
+        if (!VediAPI.sanitizeInput) {
+            VediAPI.sanitizeInput = function(input) {
+                if (typeof input !== 'string') return input;
+                return input.trim().replace(/[<>]/g, '');
+            };
+        }
+
+        // Start performance measurement
+        if (!VediAPI.startPerformanceMeasurement) {
+            VediAPI.startPerformanceMeasurement = function(operation) {
+                const startTime = Date.now();
+                return async function(success = true, metadata = {}) {
+                    const duration = Date.now() - startTime;
+                    console.log(`⚡ ${operation}: ${duration}ms ${success ? '✅' : '❌'}`, metadata);
+                };
+            };
+        }
+
+        // Track user activity (simplified version that doesn't hit Firebase)
+        if (!VediAPI.trackUserActivity) {
+            VediAPI.trackUserActivity = async function(action, metadata = {}) {
+                console.log(`📊 User Activity: ${action}`, metadata);
+                // Note: Actual Firebase tracking is disabled to reduce costs
+                // This is just a console log placeholder
+            };
+        }
+
+        // Track errors (simplified version that doesn't hit Firebase)
+        if (!VediAPI.trackError) {
+            VediAPI.trackError = async function(error, context = 'unknown', metadata = {}) {
+                console.error(`❌ Error [${context}]:`, error.message, metadata);
+                // Note: Actual Firebase error tracking is disabled to reduce costs
+                // This is just a console log placeholder
+            };
+        }
+
+        console.log(`🔧 [${this.pageName}] Missing utility functions added to VediAPI`);
     }
 
     async validateFirebaseIntegrity() {
@@ -194,7 +288,20 @@ window.showSecurityError = function(error) {
 
 // Page-specific initialization functions
 window.initializeRestaurantPage = async function(pageName) {
-    const requiredMethods = ['getRestaurantByOwner'];
+    const requiredMethods = [
+        'getRestaurantByOwner',
+        'updateRestaurant',
+        'getAllVenues',
+        'getRestaurantSyncStatus',
+        'requestToJoinVenue',
+        'cancelVenueRequest',
+        'unsyncRestaurantFromVenue',
+        'getRestaurantRequests',
+        'validateEmail',
+        'validatePhoneNumber',
+        'sanitizeInput',
+        'removeUndefinedValues'
+    ];
     const initializer = new SecureIframeInitializer(pageName, requiredMethods);
     
     const user = await initializer.initialize();
@@ -272,3 +379,7 @@ window.initializeMenuPage = async function(pageName) {
 };
 
 console.log('🔐 Secure Iframe Initialization Module loaded');
+console.log('🔧 Enhanced with utility functions for restaurant settings page');
+console.log('✅ Available utilities: generateInviteCode, validateEmail, validatePhoneNumber');
+console.log('✅ Available utilities: removeUndefinedValues, sanitizeInput, startPerformanceMeasurement');
+console.log('✅ Available utilities: trackUserActivity, trackError (console-only versions)');
