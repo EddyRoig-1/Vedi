@@ -26,13 +26,16 @@ class SecureIframeInitializer {
             // Step 2: Inherit Firebase from parent with validation
             await this.inheritFirebaseSecurely();
             
-            // Step 3: Add missing utility functions
+            // Step 3: Inherit ALL VediAPI functions from parent (including venue-sync)
+            await this.inheritAllVediAPIFunctions();
+            
+            // Step 4: Add missing utility functions
             await this.addMissingUtilityFunctions();
             
-            // Step 4: Validate inherited Firebase
+            // Step 5: Validate inherited Firebase
             await this.validateFirebaseIntegrity();
             
-            // Step 5: Verify authentication state
+            // Step 6: Verify authentication state
             const user = await this.verifyAuthentication();
             
             console.log(`✅ [${this.pageName}] Secure initialization complete for user: ${user.email}`);
@@ -100,6 +103,77 @@ class SecureIframeInitializer {
                 
                 await this.delay(this.retryDelay * attempts); // Exponential backoff
             }
+        }
+    }
+
+    async inheritAllVediAPIFunctions() {
+        console.log(`🔄 [${this.pageName}] Inheriting ALL VediAPI functions from parent...`);
+        
+        try {
+            if (!window.parent || !window.parent.VediAPI) {
+                throw new Error('Parent VediAPI not available');
+            }
+
+            // Get all function names from parent VediAPI
+            const parentFunctions = Object.keys(window.parent.VediAPI);
+            console.log(`📋 [${this.pageName}] Found ${parentFunctions.length} functions in parent VediAPI`);
+
+            // Ensure local VediAPI exists
+            if (!window.VediAPI) {
+                window.VediAPI = {};
+            }
+
+            // Copy ALL functions from parent
+            let inheritedCount = 0;
+            parentFunctions.forEach(funcName => {
+                if (typeof window.parent.VediAPI[funcName] === 'function') {
+                    window.VediAPI[funcName] = window.parent.VediAPI[funcName];
+                    inheritedCount++;
+                }
+            });
+
+            console.log(`✅ [${this.pageName}] Successfully inherited ${inheritedCount} functions from parent`);
+
+            // Specifically check for venue-sync functions
+            const venueFunctions = [
+                'getAllVenues',
+                'getVenue', 
+                'getRestaurantSyncStatus',
+                'requestToJoinVenue',
+                'cancelVenueRequest',
+                'unsyncRestaurantFromVenue',
+                'getRestaurantRequests',
+                'logVenueActivity',
+                'getAvailableVenuesForRestaurant',
+                'checkVenueEligibility',
+                'createVenueInvitation',
+                'getVenueInvitations',
+                'cancelInvitation',
+                'acceptVenueInvitation',
+                'declineVenueInvitation',
+                'validateInviteCode',
+                'approveRestaurantRequest',
+                'denyRestaurantRequest',
+                'syncRestaurantToVenue',
+                'getVenueRestaurants',
+                'getPendingRequestByRestaurant',
+                'getVenueRequests'
+            ];
+
+            const availableVenueFunctions = venueFunctions.filter(func => 
+                typeof window.VediAPI[func] === 'function'
+            );
+
+            console.log(`🏢 [${this.pageName}] Venue functions available: ${availableVenueFunctions.length}/${venueFunctions.length}`);
+            console.log(`🏢 [${this.pageName}] Available venue functions:`, availableVenueFunctions);
+
+            if (availableVenueFunctions.length === 0) {
+                console.warn(`⚠️ [${this.pageName}] No venue functions found - venue features will be limited`);
+            }
+
+        } catch (error) {
+            console.error(`❌ [${this.pageName}] Error inheriting VediAPI functions:`, error);
+            throw error;
         }
     }
 
@@ -389,3 +463,4 @@ console.log('🔧 Enhanced with utility functions for restaurant settings page')
 console.log('✅ Available utilities: generateInviteCode, validateEmail, validatePhoneNumber');
 console.log('✅ Available utilities: removeUndefinedValues, sanitizeInput, startPerformanceMeasurement');
 console.log('✅ Available utilities: trackUserActivity, trackError (console-only versions)');
+console.log('🔄 NEW: Inherits ALL VediAPI functions from parent, including venue-sync functions');
