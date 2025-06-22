@@ -8,7 +8,6 @@
     <!-- SECURE INITIALIZATION - ONLY THIS SCRIPT NEEDED -->
     <script src="../Api/core/secure-iframe-init.js"></script>
     
-    
     <style>
         * {
             margin: 0;
@@ -1243,11 +1242,16 @@
             };
         }
 
-        // Initialize when page loads
+        // Initialize when page loads - WAIT FOR PARENT TO FULLY LOAD
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🔐 Restaurant Settings initializing...');
             
             try {
+                showLoading('Waiting for parent to load...', 'Loading all API modules');
+                
+                // CRITICAL: Wait for parent to finish loading ALL modules
+                await waitForParentModulesToLoad();
+                
                 showLoading('Initializing settings...', 'Loading your restaurant data');
                 
                 // Wait for the secure initialization
@@ -1274,6 +1278,13 @@
                 console.log('✅ User authenticated:', currentUser.name);
                 console.log('✅ Restaurant loaded:', currentRestaurant.name, 'ID:', restaurantId);
                 
+                // Now venue functions should be available
+                console.log('🔍 Final check - Venue functions:', {
+                    getAllVenues: typeof VediAPI.getAllVenues,
+                    getRestaurantSyncStatus: typeof VediAPI.getRestaurantSyncStatus,
+                    requestToJoinVenue: typeof VediAPI.requestToJoinVenue
+                });
+                
                 // Setup venue association UI
                 await setupVenueAssociationUI();
                 
@@ -1294,24 +1305,87 @@
             }
         });
 
-        // Fixed venue association setup with retry mechanism
+        // NEW FUNCTION: Wait for parent to finish loading all modules
+        async function waitForParentModulesToLoad() {
+            console.log('⏳ Waiting for parent to finish loading all modules...');
+            
+            const maxWaitTime = 30000; // 30 seconds max
+            const checkInterval = 500; // Check every 500ms
+            let elapsed = 0;
+            
+            // Required venue functions that must be loaded
+            const requiredVenueFunctions = [
+                'getAllVenues',
+                'getRestaurantSyncStatus',
+                'requestToJoinVenue',
+                'cancelVenueRequest',
+                'unsyncRestaurantFromVenue',
+                'getRestaurantRequests'
+            ];
+            
+            while (elapsed < maxWaitTime) {
+                try {
+                    // Check if parent has finished loading
+                    if (window.parent && 
+                        window.parent.VediAPI && 
+                        window.parent.document.readyState === 'complete') {
+                        
+                        // Check if all required venue functions are available in parent
+                        const availableFunctions = requiredVenueFunctions.filter(funcName => 
+                            typeof window.parent.VediAPI[funcName] === 'function'
+                        );
+                        
+                        console.log(`📊 Parent loading progress: ${availableFunctions.length}/${requiredVenueFunctions.length} venue functions available`);
+                        
+                        // If all venue functions are available, we're good to go
+                        if (availableFunctions.length >= 4) { // Need at least 4 core functions
+                            console.log('✅ Parent has loaded sufficient venue functions');
+                            return;
+                        }
+                        
+                        // Alternative check: Look for the dashboard completion flag
+                        if (window.parent.document.querySelector('#loadingOverlay') && 
+                            !window.parent.document.querySelector('#loadingOverlay').classList.contains('show')) {
+                            console.log('✅ Parent dashboard appears to be fully loaded');
+                            
+                            // Give it one more second for final module loading
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    // Cross-origin issues are normal, continue waiting
+                    console.log('🔒 Cross-origin check (normal security behavior)');
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, checkInterval));
+                elapsed += checkInterval;
+                
+                // Log progress every 5 seconds
+                if (elapsed % 5000 === 0) {
+                    console.log(`⏳ Still waiting for parent modules... (${elapsed/1000}s elapsed)`);
+                }
+            }
+            
+            console.warn('⚠️ Timeout waiting for parent modules, proceeding anyway');
+        }
+
+        // SIMPLIFIED venue association setup - remove the retry mechanism
         async function setupVenueAssociationUI() {
             console.log('🏢 Setting up venue association UI...');
             
-            // Try to ensure venue functions are available
-            await ensureVenueFunctions();
-            
             try {
                 // Check if restaurant has venue sync status
-                if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurantSyncStatus) {
+                if (typeof VediAPI.getRestaurantSyncStatus === 'function') {
                     restaurantSyncStatus = await VediAPI.getRestaurantSyncStatus(restaurantId);
                     console.log('📊 Restaurant sync status:', restaurantSyncStatus);
                 } else {
                     console.warn('⚠️ getRestaurantSyncStatus not available');
+                    restaurantSyncStatus = null;
                 }
                 
                 // Load available venues for selection
-                if (typeof VediAPI !== 'undefined' && VediAPI.getAllVenues) {
+                if (typeof VediAPI.getAllVenues === 'function') {
                     availableVenues = await VediAPI.getAllVenues({
                         status: 'active',
                         verified: true,
@@ -1324,7 +1398,7 @@
                 }
                 
                 // Load pending requests
-                if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurantRequests) {
+                if (typeof VediAPI.getRestaurantRequests === 'function') {
                     pendingRequests = await VediAPI.getRestaurantRequests(restaurantId);
                     console.log('📋 Pending requests:', pendingRequests.length);
                 } else {
@@ -1338,75 +1412,6 @@
                 console.error('❌ Error setting up venue association:', error);
                 setupFallbackVenueUI();
             }
-        }
-
-        // Function to ensure venue functions are available with retry mechanism
-        async function ensureVenueFunctions() {
-            console.log('🔄 Ensuring venue functions are available...');
-            
-            // If functions aren't available, try to wait for parent to load them
-            let attempts = 0;
-            const maxAttempts = 10;
-            const delay = 1000; // 1 second between attempts
-            
-            while (attempts < maxAttempts) {
-                console.log(`🔄 Attempt ${attempts + 1}/${maxAttempts} to get venue functions...`);
-                
-                // Check if parent has the functions now
-                if (window.parent && window.parent.VediAPI) {
-                    console.log('🔍 Checking parent VediAPI functions...');
-                    console.log('🔍 Parent VediAPI keys:', Object.keys(window.parent.VediAPI).length);
-                    
-                    // List of venue functions to inherit
-                    const venueFunctions = [
-                        'getAllVenues',
-                        'getVenue', 
-                        'getRestaurantSyncStatus',
-                        'requestToJoinVenue',
-                        'cancelVenueRequest',
-                        'unsyncRestaurantFromVenue',
-                        'getRestaurantRequests',
-                        'logVenueActivity',
-                        'getAvailableVenuesForRestaurant',
-                        'checkVenueEligibility'
-                    ];
-                    
-                    let foundFunctions = 0;
-                    
-                    // Copy functions from parent if they exist
-                    venueFunctions.forEach(funcName => {
-                        if (window.parent.VediAPI[funcName] && typeof window.parent.VediAPI[funcName] === 'function') {
-                            VediAPI[funcName] = window.parent.VediAPI[funcName];
-                            foundFunctions++;
-                            console.log(`✅ Inherited ${funcName} from parent`);
-                        }
-                    });
-                    
-                    if (foundFunctions > 0) {
-                        console.log(`✅ Successfully inherited ${foundFunctions} venue functions`);
-                        break;
-                    } else {
-                        console.log(`⏳ No venue functions found yet, waiting... (attempt ${attempts + 1})`);
-                    }
-                } else {
-                    console.log(`⏳ Parent VediAPI not ready yet (attempt ${attempts + 1})`);
-                }
-                
-                attempts++;
-                
-                if (attempts < maxAttempts) {
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-            
-            console.log('🔍 Final venue functions status:', {
-                getAllVenues: typeof VediAPI.getAllVenues,
-                getRestaurantSyncStatus: typeof VediAPI.getRestaurantSyncStatus,
-                requestToJoinVenue: typeof VediAPI.requestToJoinVenue,
-                cancelVenueRequest: typeof VediAPI.cancelVenueRequest,
-                unsyncRestaurantFromVenue: typeof VediAPI.unsyncRestaurantFromVenue,
-                getRestaurantRequests: typeof VediAPI.getRestaurantRequests
-            });
         }
 
         // Render the venue association UI based on current status
@@ -1507,54 +1512,8 @@
                                 }
                             </div>
                         </div>
-                        ${!hasVenueFunctions ? `
-                            <button class="btn btn-secondary btn-small" onclick="retryVenueSetup()" style="margin-left: 12px;">
-                                Refresh Venue Features
-                            </button>
-                        ` : ''}
                     </div>
                 `;
-            }
-        }
-
-        // Function to retry venue setup with detailed debugging
-        async function retryVenueSetup() {
-            console.log('🔄 Retrying venue setup...');
-            showLoading('Loading venue features...', 'Please wait');
-            
-            try {
-                // Debug parent VediAPI
-                if (window.parent && window.parent.VediAPI) {
-                    console.log('🔍 Parent VediAPI functions available:');
-                    const parentFunctions = Object.keys(window.parent.VediAPI);
-                    parentFunctions.forEach(funcName => {
-                        if (typeof window.parent.VediAPI[funcName] === 'function') {
-                            console.log(`  ✅ ${funcName}: function`);
-                        }
-                    });
-                    
-                    // Look specifically for venue-related functions
-                    const venueRelated = parentFunctions.filter(name => 
-                        name.toLowerCase().includes('venue') || 
-                        name.toLowerCase().includes('sync') ||
-                        name === 'getAllVenues'
-                    );
-                    console.log('🏢 Venue-related functions in parent:', venueRelated);
-                } else {
-                    console.log('❌ Parent VediAPI not accessible');
-                }
-                
-                await setupVenueAssociationUI();
-                hideLoading();
-                
-                if (typeof VediAPI.getAllVenues === 'function') {
-                    showSuccess('Venue features loaded successfully!');
-                } else {
-                    showError('Venue features are still not available. The parent window may not have loaded all modules yet.');
-                }
-            } catch (error) {
-                hideLoading();
-                showError('Failed to load venue features: ' + error.message);
             }
         }
 
