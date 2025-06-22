@@ -1342,47 +1342,73 @@
             }
         }
 
-        // Function to ensure venue functions are available
+        // Function to ensure venue functions are available with retry mechanism
         async function ensureVenueFunctions() {
             console.log('🔄 Ensuring venue functions are available...');
             
-            // If functions aren't available, try to inherit them from parent
-            if (!VediAPI.getAllVenues && window.parent && window.parent.VediAPI) {
-                console.log('🔄 Attempting to inherit venue functions from parent...');
+            // If functions aren't available, try to wait for parent to load them
+            let attempts = 0;
+            const maxAttempts = 10;
+            const delay = 1000; // 1 second between attempts
+            
+            while (attempts < maxAttempts) {
+                console.log(`🔄 Attempt ${attempts + 1}/${maxAttempts} to get venue functions...`);
                 
-                // List of venue functions to inherit
-                const venueFunctions = [
-                    'getAllVenues',
-                    'getVenue', 
-                    'getRestaurantSyncStatus',
-                    'requestToJoinVenue',
-                    'cancelVenueRequest',
-                    'unsyncRestaurantFromVenue',
-                    'getRestaurantRequests',
-                    'logVenueActivity',
-                    'getAvailableVenuesForRestaurant',
-                    'checkVenueEligibility'
-                ];
-                
-                // Copy functions from parent if they exist
-                venueFunctions.forEach(funcName => {
-                    if (window.parent.VediAPI[funcName] && typeof window.parent.VediAPI[funcName] === 'function') {
-                        VediAPI[funcName] = window.parent.VediAPI[funcName];
-                        console.log(`✅ Inherited ${funcName} from parent`);
+                // Check if parent has the functions now
+                if (window.parent && window.parent.VediAPI) {
+                    console.log('🔍 Checking parent VediAPI functions...');
+                    console.log('🔍 Parent VediAPI keys:', Object.keys(window.parent.VediAPI).length);
+                    
+                    // List of venue functions to inherit
+                    const venueFunctions = [
+                        'getAllVenues',
+                        'getVenue', 
+                        'getRestaurantSyncStatus',
+                        'requestToJoinVenue',
+                        'cancelVenueRequest',
+                        'unsyncRestaurantFromVenue',
+                        'getRestaurantRequests',
+                        'logVenueActivity',
+                        'getAvailableVenuesForRestaurant',
+                        'checkVenueEligibility'
+                    ];
+                    
+                    let foundFunctions = 0;
+                    
+                    // Copy functions from parent if they exist
+                    venueFunctions.forEach(funcName => {
+                        if (window.parent.VediAPI[funcName] && typeof window.parent.VediAPI[funcName] === 'function') {
+                            VediAPI[funcName] = window.parent.VediAPI[funcName];
+                            foundFunctions++;
+                            console.log(`✅ Inherited ${funcName} from parent`);
+                        }
+                    });
+                    
+                    if (foundFunctions > 0) {
+                        console.log(`✅ Successfully inherited ${foundFunctions} venue functions`);
+                        break;
                     } else {
-                        console.warn(`⚠️ ${funcName} not available in parent`);
+                        console.log(`⏳ No venue functions found yet, waiting... (attempt ${attempts + 1})`);
                     }
-                });
+                } else {
+                    console.log(`⏳ Parent VediAPI not ready yet (attempt ${attempts + 1})`);
+                }
                 
-                console.log('🔍 Available venue functions after inheritance:', {
-                    getAllVenues: typeof VediAPI.getAllVenues,
-                    getRestaurantSyncStatus: typeof VediAPI.getRestaurantSyncStatus,
-                    requestToJoinVenue: typeof VediAPI.requestToJoinVenue,
-                    cancelVenueRequest: typeof VediAPI.cancelVenueRequest,
-                    unsyncRestaurantFromVenue: typeof VediAPI.unsyncRestaurantFromVenue,
-                    getRestaurantRequests: typeof VediAPI.getRestaurantRequests
-                });
+                attempts++;
+                
+                if (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
             }
+            
+            console.log('🔍 Final venue functions status:', {
+                getAllVenues: typeof VediAPI.getAllVenues,
+                getRestaurantSyncStatus: typeof VediAPI.getRestaurantSyncStatus,
+                requestToJoinVenue: typeof VediAPI.requestToJoinVenue,
+                cancelVenueRequest: typeof VediAPI.cancelVenueRequest,
+                unsyncRestaurantFromVenue: typeof VediAPI.unsyncRestaurantFromVenue,
+                getRestaurantRequests: typeof VediAPI.getRestaurantRequests
+            });
         }
 
         // Render the venue association UI based on current status
@@ -1493,19 +1519,40 @@
             }
         }
 
-        // Function to retry venue setup
+        // Function to retry venue setup with detailed debugging
         async function retryVenueSetup() {
             console.log('🔄 Retrying venue setup...');
             showLoading('Loading venue features...', 'Please wait');
             
             try {
+                // Debug parent VediAPI
+                if (window.parent && window.parent.VediAPI) {
+                    console.log('🔍 Parent VediAPI functions available:');
+                    const parentFunctions = Object.keys(window.parent.VediAPI);
+                    parentFunctions.forEach(funcName => {
+                        if (typeof window.parent.VediAPI[funcName] === 'function') {
+                            console.log(`  ✅ ${funcName}: function`);
+                        }
+                    });
+                    
+                    // Look specifically for venue-related functions
+                    const venueRelated = parentFunctions.filter(name => 
+                        name.toLowerCase().includes('venue') || 
+                        name.toLowerCase().includes('sync') ||
+                        name === 'getAllVenues'
+                    );
+                    console.log('🏢 Venue-related functions in parent:', venueRelated);
+                } else {
+                    console.log('❌ Parent VediAPI not accessible');
+                }
+                
                 await setupVenueAssociationUI();
                 hideLoading();
                 
                 if (typeof VediAPI.getAllVenues === 'function') {
                     showSuccess('Venue features loaded successfully!');
                 } else {
-                    showError('Venue features are still not available. Please refresh the page.');
+                    showError('Venue features are still not available. The parent window may not have loaded all modules yet.');
                 }
             } catch (error) {
                 hideLoading();
