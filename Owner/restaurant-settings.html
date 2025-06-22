@@ -1150,13 +1150,8 @@
                 console.log('✅ User authenticated:', currentUser.name);
                 console.log('✅ Restaurant loaded:', currentRestaurant.name, 'ID:', restaurantId);
                 
-                // Load venue association data with error handling
-                try {
-                    await loadVenueAssociationData();
-                } catch (error) {
-                    console.error('⚠️ Venue association loading failed, but continuing:', error);
-                    setupFallbackVenueUI();
-                }
+                // Setup venue association UI (simplified for now)
+                setupFallbackVenueUI();
                 
                 populateFieldsFromFirebase(currentRestaurant);
                 setupCurrencySelection();
@@ -1180,64 +1175,26 @@
             const venueContainer = document.getElementById('venueAssociationContainer');
             if (venueContainer) {
                 venueContainer.innerHTML = `
-                    <div class="form-input" style="background: #FEF3C7; border-color: #FDE68A; cursor: default; color: #92400E;">
-                        Venue association feature temporarily unavailable. Your restaurant settings will still save properly.
+                    <div class="form-input" style="background: #F8F9FA; border-color: #E5E5E7; cursor: default; color: #86868B; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 16px;">🏢</span>
+                        <div>
+                            <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Venue Association</div>
+                            <div style="font-size: 14px;">Currently not associated with any venue. Venue managers can send you invitations directly.</div>
+                        </div>
                     </div>
                 `;
             }
         }
 
-        // Venue Association Functions with better error handling
+        // Venue Association Functions - TEMPORARILY DISABLED
         async function loadAvailableVenues() {
-            try {
-                console.log('📍 Loading available venues...');
-                
-                if (typeof VediAPI === 'undefined' || !VediAPI.getAllVenues) {
-                    console.warn('⚠️ VediAPI.getAllVenues not available');
-                    return [];
-                }
-                
-                availableVenues = await VediAPI.getAllVenues({ orderBy: 'name', orderDirection: 'asc' });
-                console.log('✅ Loaded available venues:', availableVenues.length);
-                return availableVenues;
-            } catch (error) {
-                console.error('❌ Error loading venues:', error);
-                availableVenues = [];
-                return [];
-            }
+            // Temporarily disabled - will be fixed in next update
+            return [];
         }
 
         async function loadVenueAssociationData() {
-            try {
-                console.log('🔄 Loading venue association data...');
-                
-                // Check if VenueSync is available
-                if (typeof VenueSync === 'undefined' || !VenueSync.getRestaurantSyncStatus) {
-                    console.warn('⚠️ VenueSync not available, setting up fallback UI');
-                    setupFallbackVenueUI();
-                    return;
-                }
-                
-                restaurantSyncStatus = await VenueSync.getRestaurantSyncStatus(restaurantId);
-                console.log('✅ Sync status refreshed:', restaurantSyncStatus);
-                
-                if (!restaurantSyncStatus.isAssociated) {
-                    console.log('📍 Restaurant not associated, loading available venues...');
-                    await loadAvailableVenues();
-                } else {
-                    console.log('🏢 Restaurant already associated with:', restaurantSyncStatus.venueName);
-                }
-                
-                console.log('📨 Loading pending requests...');
-                pendingRequests = await VenueSync.getRestaurantRequests(restaurantId);
-                console.log('📨 Found pending requests:', pendingRequests.length);
-                
-                setupVenueAssociationUI();
-                
-            } catch (error) {
-                console.error('❌ Error loading venue association data:', error);
-                setupFallbackVenueUI();
-            }
+            console.log('🔄 Venue association temporarily disabled due to Firebase context issues');
+            setupFallbackVenueUI();
         }
 
         function setupVenueAssociationUI() {
@@ -1604,7 +1561,7 @@
             }
         }
 
-        // Data management functions
+        // Data management functions - FIXED Firebase array issue
         function saveCurrentStepData() {
             if (currentStep === 1) {
                 const currencyInfo = getSelectedCurrencyData();
@@ -1630,11 +1587,15 @@
                 formData.operatingHours = operatingHours;
                 formData.operatingHoursString = generateOperatingHoursString();
                 
-                const diningOptions = document.querySelectorAll('input[name="diningOptions"]:checked');
-                formData.diningOptions = Array.from(diningOptions).map(cb => cb.value);
+                // FIXED: Convert NodeList to proper JavaScript arrays
+                const diningOptionsNodeList = document.querySelectorAll('input[name="diningOptions"]:checked');
+                const paymentMethodsNodeList = document.querySelectorAll('input[name="paymentMethods"]:checked');
                 
-                const paymentMethods = document.querySelectorAll('input[name="paymentMethods"]:checked');
-                formData.paymentMethods = Array.from(paymentMethods).map(cb => cb.value);
+                formData.diningOptions = [];
+                diningOptionsNodeList.forEach(cb => formData.diningOptions.push(cb.value));
+                
+                formData.paymentMethods = [];
+                paymentMethodsNodeList.forEach(cb => formData.paymentMethods.push(cb.value));
             }
             
             console.log('💾 Settings - Current form data saved:', formData);
