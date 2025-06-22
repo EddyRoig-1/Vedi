@@ -1296,9 +1296,12 @@
             }
         });
 
-        // Fixed venue association setup
+        // Fixed venue association setup with retry mechanism
         async function setupVenueAssociationUI() {
             console.log('🏢 Setting up venue association UI...');
+            
+            // Try to ensure venue functions are available
+            await ensureVenueFunctions();
             
             try {
                 // Check if restaurant has venue sync status
@@ -1336,6 +1339,49 @@
             } catch (error) {
                 console.error('❌ Error setting up venue association:', error);
                 setupFallbackVenueUI();
+            }
+        }
+
+        // Function to ensure venue functions are available
+        async function ensureVenueFunctions() {
+            console.log('🔄 Ensuring venue functions are available...');
+            
+            // If functions aren't available, try to inherit them from parent
+            if (!VediAPI.getAllVenues && window.parent && window.parent.VediAPI) {
+                console.log('🔄 Attempting to inherit venue functions from parent...');
+                
+                // List of venue functions to inherit
+                const venueFunctions = [
+                    'getAllVenues',
+                    'getVenue', 
+                    'getRestaurantSyncStatus',
+                    'requestToJoinVenue',
+                    'cancelVenueRequest',
+                    'unsyncRestaurantFromVenue',
+                    'getRestaurantRequests',
+                    'logVenueActivity',
+                    'getAvailableVenuesForRestaurant',
+                    'checkVenueEligibility'
+                ];
+                
+                // Copy functions from parent if they exist
+                venueFunctions.forEach(funcName => {
+                    if (window.parent.VediAPI[funcName] && typeof window.parent.VediAPI[funcName] === 'function') {
+                        VediAPI[funcName] = window.parent.VediAPI[funcName];
+                        console.log(`✅ Inherited ${funcName} from parent`);
+                    } else {
+                        console.warn(`⚠️ ${funcName} not available in parent`);
+                    }
+                });
+                
+                console.log('🔍 Available venue functions after inheritance:', {
+                    getAllVenues: typeof VediAPI.getAllVenues,
+                    getRestaurantSyncStatus: typeof VediAPI.getRestaurantSyncStatus,
+                    requestToJoinVenue: typeof VediAPI.requestToJoinVenue,
+                    cancelVenueRequest: typeof VediAPI.cancelVenueRequest,
+                    unsyncRestaurantFromVenue: typeof VediAPI.unsyncRestaurantFromVenue,
+                    getRestaurantRequests: typeof VediAPI.getRestaurantRequests
+                });
             }
         }
 
@@ -1423,20 +1469,47 @@
         function setupFallbackVenueUI() {
             const venueContainer = document.getElementById('venueAssociationContainer');
             if (venueContainer) {
+                const hasVenueFunctions = typeof VediAPI.getAllVenues === 'function';
+                
                 venueContainer.innerHTML = `
                     <div class="form-input" style="background: #F8F9FA; border-color: #E5E5E7; cursor: default; color: #86868B; display: flex; align-items: center; gap: 12px;">
                         <span style="font-size: 16px;">🏢</span>
-                        <div>
+                        <div style="flex: 1;">
                             <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Venue Association</div>
                             <div style="font-size: 14px;">
-                                ${availableVenues.length === 0 && typeof VediAPI.getAllVenues === 'undefined' 
+                                ${availableVenues.length === 0 && !hasVenueFunctions 
                                     ? 'Venue features are loading... Please refresh if this persists.' 
                                     : 'Currently not associated with any venue. Venue managers can send you invitations directly.'
                                 }
                             </div>
                         </div>
+                        ${!hasVenueFunctions ? `
+                            <button class="btn btn-secondary btn-small" onclick="retryVenueSetup()" style="margin-left: 12px;">
+                                Refresh Venue Features
+                            </button>
+                        ` : ''}
                     </div>
                 `;
+            }
+        }
+
+        // Function to retry venue setup
+        async function retryVenueSetup() {
+            console.log('🔄 Retrying venue setup...');
+            showLoading('Loading venue features...', 'Please wait');
+            
+            try {
+                await setupVenueAssociationUI();
+                hideLoading();
+                
+                if (typeof VediAPI.getAllVenues === 'function') {
+                    showSuccess('Venue features loaded successfully!');
+                } else {
+                    showError('Venue features are still not available. Please refresh the page.');
+                }
+            } catch (error) {
+                hideLoading();
+                showError('Failed to load venue features: ' + error.message);
             }
         }
 
