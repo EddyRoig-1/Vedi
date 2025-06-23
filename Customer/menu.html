@@ -139,6 +139,7 @@
             box-shadow: var(--shadow);
             width: 100%;
             gap: 16px;
+            position: relative;
         }
 
         .welcome-text {
@@ -161,47 +162,55 @@
             box-shadow: var(--shadow);
         }
 
-        .header-actions {
-            display: flex;
-            justify-content: center;
-            margin-top: 16px;
-        }
-
         .allergen-header-btn {
-            background: var(--ios-blue);
-            color: white;
-            padding: 14px 20px;
-            border-radius: var(--radius);
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--surface-tertiary);
+            color: var(--text-secondary);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s ease;
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            font-size: 15px;
+            font-size: 18px;
             display: flex;
             align-items: center;
-            gap: 8px;
-            flex: 1;
             justify-content: center;
-            max-width: 200px;
-            height: var(--button-height);
-            box-shadow: var(--shadow);
             border: none;
             font-family: var(--ios-font);
+            box-shadow: var(--shadow);
         }
 
         .allergen-header-btn:hover {
-            background: var(--ios-blue-dark);
+            background: var(--ios-blue);
+            color: white;
             transform: translateY(-1px);
             box-shadow: var(--shadow-heavy);
         }
 
         .allergen-header-btn.has-allergens {
             background: var(--ios-error);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
 
         .allergen-header-btn.has-allergens:hover {
             background: #E5392F;
+            animation: none;
+        }
+
+        /* Hide allergen button text */
+        #allergenBtnText {
+            display: none;
         }
 
         /* Loading States */
@@ -1028,16 +1037,12 @@
                 font-size: 15px;
             }
 
-            .header-actions {
-                justify-content: flex-end;
-                margin-top: 20px;
-            }
-
             .allergen-header-btn {
-                flex: none;
-                min-width: 140px;
-                padding: 16px 24px;
-                font-size: 16px;
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+                top: 16px;
+                right: 16px;
             }
 
             .restaurant-title {
@@ -1099,14 +1104,16 @@
             }
 
             .customer-info {
-                padding: 12px;
-                gap: 8px;
+                padding: 16px;
+                gap: 12px;
             }
 
             .allergen-header-btn {
-                padding: 12px 16px;
-                font-size: 14px;
-                height: 44px;
+                width: 32px;
+                height: 32px;
+                font-size: 16px;
+                top: 10px;
+                right: 10px;
             }
 
             .cart-summary {
@@ -1162,11 +1169,8 @@
                     Welcome, <strong id="displayName">Guest</strong>
                 </div>
                 <div class="table-badge" id="tableBadge">Loading...</div>
-            </div>
-            <div class="header-actions">
-                <button class="allergen-header-btn" id="allergenHeaderBtn" onclick="openAllergenModal()">
-                    <span>🛡️</span>
-                    <span id="allergenBtnText">Allergies</span>
+                <button class="allergen-header-btn" id="allergenHeaderBtn" onclick="openAllergenModal()" title="Allergy Settings">
+                    🛡️
                 </button>
             </div>
         </div>
@@ -1696,14 +1700,13 @@
 
         function updateAllergenStatusBar() {
             const headerBtn = document.getElementById('allergenHeaderBtn');
-            const btnText = document.getElementById('allergenBtnText');
             
             if (customerAllergens.length > 0) {
                 headerBtn.classList.add('has-allergens');
-                btnText.textContent = `${customerAllergens.length} Active`;
+                headerBtn.title = `${customerAllergens.length} active allergies - Click to manage`;
             } else {
                 headerBtn.classList.remove('has-allergens');
-                btnText.textContent = 'Allergies';
+                headerBtn.title = 'Allergy Settings - Click to set dietary restrictions';
             }
         }
 
