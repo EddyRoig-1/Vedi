@@ -271,7 +271,7 @@
             50% { opacity: 0.3; }
         }
 
-        /* Hide restaurant offline section completely */
+        /* Hide restaurant offline section but keep functionality */
         .restaurant-offline {
             display: none !important;
         }
@@ -1060,6 +1060,11 @@
         async function handleInlinePhoneSubmit(e) {
             e.preventDefault();
 
+            if (!isRestaurantOnline) {
+                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
+                return;
+            }
+
             const sendCodeBtn = document.getElementById('sendCodeBtnInline');
             const sendCodeText = document.getElementById('sendCodeTextInline');
             const sendCodeSpinner = document.getElementById('sendCodeSpinnerInline');
@@ -1502,7 +1507,7 @@
             console.log('🔍 Google sign-in button clicked');
             
             if (!isRestaurantOnline) {
-                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
                 return;
             }
 
@@ -1535,7 +1540,7 @@
             console.log('📘 Facebook sign-in button clicked');
             
             if (!isRestaurantOnline) {
-                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
                 return;
             }
 
@@ -1568,7 +1573,7 @@
             console.log('🍎 Apple sign-in button clicked');
             
             if (!isRestaurantOnline) {
-                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
+                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
                 return;
             }
 
@@ -1864,9 +1869,9 @@
                 // Update global status
                 isRestaurantOnline = status.isOnline;
                 
-                // If restaurant is offline, show offline status
+                // If restaurant is offline, show offline status in main card
                 if (!status.isOnline) {
-                    console.log('🔴 Restaurant is OFFLINE - showing offline status');
+                    console.log('🔴 Restaurant is OFFLINE - showing offline status in main card');
                     hideStatusChecking();
                     showRestaurantOffline(restaurantData.name, status.offlineReason);
                 } else {
