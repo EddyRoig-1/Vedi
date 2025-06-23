@@ -129,77 +129,42 @@
 
         .customer-info {
             background: var(--surface-elevated);
-            padding: var(--spacing);
+            padding: 20px;
             border-radius: var(--radius);
-            font-size: 15px;
             display: flex;
-            flex-direction: column;
-            gap: 12px;
+            justify-content: space-between;
+            align-items: center;
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             box-shadow: var(--shadow);
             width: 100%;
-        }
-
-        .welcome-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
+            gap: 16px;
         }
 
         .welcome-text {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex: 1;
             font-weight: 600;
-            font-size: 15px;
-            min-width: 0;
+            font-size: 16px;
             color: var(--text-primary);
-        }
-
-        .auth-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--ios-success);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            white-space: nowrap;
-            flex-shrink: 0;
-            box-shadow: var(--shadow);
-        }
-
-        .auth-indicator.social {
-            background: var(--ios-blue);
-        }
-
-        .auth-indicator.phone {
-            background: var(--ios-warning);
+            flex: 1;
+            min-width: 0;
         }
 
         .table-badge {
-            background: var(--surface-tertiary);
-            padding: 8px 16px;
-            border-radius: var(--radius);
+            background: var(--ios-blue);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 12px;
             font-weight: 600;
             font-size: 14px;
             white-space: nowrap;
             flex-shrink: 0;
-            color: var(--text-primary);
             box-shadow: var(--shadow);
         }
 
         .header-actions {
             display: flex;
             justify-content: center;
-            gap: 12px;
-            width: 100%;
+            margin-top: 16px;
         }
 
         .allergen-header-btn {
@@ -1050,14 +1015,22 @@
             }
 
             .customer-info {
-                flex-direction: row;
-                align-items: center;
-                padding: 20px;
-                font-size: 16px;
+                padding: 24px;
+                font-size: 17px;
+            }
+
+            .welcome-text {
+                font-size: 17px;
+            }
+
+            .table-badge {
+                padding: 12px 20px;
+                font-size: 15px;
             }
 
             .header-actions {
                 justify-content: flex-end;
+                margin-top: 20px;
             }
 
             .allergen-header-btn {
@@ -1185,22 +1158,16 @@
         <div class="menu-header">
             <h1 class="restaurant-title" id="restaurantName">Loading...</h1>
             <div class="customer-info">
-                <div class="welcome-row">
-                    <div class="welcome-text">
-                        <span>Welcome, <strong id="displayName">Guest</strong></span>
-                        <div class="auth-indicator" id="authIndicator">
-                            <span id="authIcon">🔐</span>
-                            <span id="authText">Secured</span>
-                        </div>
-                    </div>
-                    <div class="table-badge" id="tableBadge">Loading...</div>
+                <div class="welcome-text">
+                    Welcome, <strong id="displayName">Guest</strong>
                 </div>
-                <div class="header-actions">
-                    <button class="allergen-header-btn" id="allergenHeaderBtn" onclick="openAllergenModal()">
-                        <span>🛡️</span>
-                        <span id="allergenBtnText">Allergies</span>
-                    </button>
-                </div>
+                <div class="table-badge" id="tableBadge">Loading...</div>
+            </div>
+            <div class="header-actions">
+                <button class="allergen-header-btn" id="allergenHeaderBtn" onclick="openAllergenModal()">
+                    <span>🛡️</span>
+                    <span id="allergenBtnText">Allergies</span>
+                </button>
             </div>
         </div>
 
@@ -1563,7 +1530,7 @@
             return `${currency.symbol}${formattedAmount}`;
         }
 
-        // Update customer display with authentication status
+        // Update customer display
         function updateCustomerDisplay() {
             document.getElementById('restaurantName').textContent = currentRestaurant.name;
             document.getElementById('tableBadge').textContent = customerData.tableDisplay;
@@ -1578,45 +1545,6 @@
             }
             
             document.getElementById('displayName').textContent = displayName;
-            updateAuthenticationIndicator();
-        }
-
-        // Update authentication indicator
-        function updateAuthenticationIndicator() {
-            const authIndicator = document.getElementById('authIndicator');
-            const authIcon = document.getElementById('authIcon');
-            const authText = document.getElementById('authText');
-            
-            if (!currentUser) {
-                authIndicator.className = 'auth-indicator';
-                authIcon.textContent = '❌';
-                authText.textContent = 'Not Signed In';
-                return;
-            }
-            
-            const providerId = currentUser.providerData[0]?.providerId;
-            
-            if (providerId === 'phone') {
-                authIndicator.className = 'auth-indicator phone';
-                authIcon.textContent = '📱';
-                authText.textContent = 'Phone';
-            } else if (providerId === 'google.com') {
-                authIndicator.className = 'auth-indicator social';
-                authIcon.textContent = '🔍';
-                authText.textContent = 'Google';
-            } else if (providerId === 'facebook.com') {
-                authIndicator.className = 'auth-indicator social';
-                authIcon.textContent = '📘';
-                authText.textContent = 'Facebook';
-            } else if (providerId === 'apple.com') {
-                authIndicator.className = 'auth-indicator social';
-                authIcon.textContent = '🍎';
-                authText.textContent = 'Apple';
-            } else {
-                authIndicator.className = 'auth-indicator';
-                authIcon.textContent = '🔐';
-                authText.textContent = 'Secured';
-            }
         }
 
         // Allergen Management Functions
@@ -2163,11 +2091,9 @@
                     console.warn('⚠️ User signed out unexpectedly');
                     showSessionWarning();
                     currentUser = null;
-                    updateAuthenticationIndicator();
                 } else if (user && !currentUser) {
                     console.log('✅ User signed in during session');
                     currentUser = user;
-                    updateAuthenticationIndicator();
                     hideSessionWarning();
                 }
             });
