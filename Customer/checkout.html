@@ -33,28 +33,77 @@
    <script src="../Api/payments/fee-configurations.js"></script>
     
     <style>
+        /* iOS Dark Theme Design System */
+        :root {
+            /* iOS Colors */
+            --ios-blue: #007AFF;
+            --ios-blue-dark: #0056D6;
+            --ios-purple-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --ios-success: #30D158;
+            --ios-error: #FF453A;
+            --ios-warning: #FF9F0A;
+            
+            /* Dark Theme Colors */
+            --background: var(--ios-purple-gradient);
+            --surface: rgba(60, 60, 67, 0.95);
+            --surface-elevated: rgba(72, 72, 74, 0.95);
+            --surface-tertiary: rgba(84, 84, 88, 0.95);
+            
+            /* Text Colors - Always White with Opacity */
+            --text-primary: rgba(255, 255, 255, 1.0);
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.5);
+            
+            /* iOS System Font */
+            --ios-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+            
+            /* iOS Design Tokens */
+            --radius: 16px;
+            --radius-large: 20px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            --shadow-heavy: 0 16px 48px rgba(0, 0, 0, 0.24);
+            --button-height: 50px;
+            --spacing: 16px;
+        }
+
+        /* Reset and Base Styles */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        html {
+            height: 100%;
+            -webkit-text-size-adjust: 100%;
+            color-scheme: dark; /* Force dark appearance */
+        }
+
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            color: #2d3748;
+            font-family: var(--ios-font);
+            background: var(--background);
+            color: var(--text-primary);
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 0;
+            margin: 0;
+            overflow-x: hidden;
         }
 
         .container {
-            max-width: 420px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--background);
+            width: 100vw;
+            max-width: 100vw;
             min-height: 100vh;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-height: 100dvh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            overflow-x: hidden;
         }
 
         /* Loading States */
@@ -64,29 +113,33 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.6);
+            background: var(--background);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 9999;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .loading-card {
-            background: white;
+            background: var(--surface);
             padding: 40px;
-            border-radius: 20px;
+            border-radius: var(--radius-large);
             text-align: center;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            box-shadow: var(--shadow-heavy);
             max-width: 320px;
             width: 90%;
+            margin: 20px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--text-tertiary);
+            border-top: 3px solid var(--ios-blue);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
@@ -98,28 +151,29 @@
         }
 
         .loading-text {
-            color: #2d3748;
-            font-size: 1.1rem;
+            color: var(--text-primary);
+            font-size: 18px;
             font-weight: 600;
             margin-bottom: 8px;
         }
 
         .loading-subtext {
-            color: #718096;
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 15px;
         }
 
         /* Session Warning */
         .session-warning {
-            background: linear-gradient(135deg, #fef5e7, #fed7aa);
-            border: 1px solid #f6ad55;
-            color: #c05621;
+            background: var(--surface);
+            color: var(--text-primary);
             padding: 16px 20px;
             display: none;
             align-items: center;
             gap: 12px;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(246, 173, 85, 0.2);
+            font-size: 15px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .session-warning.show {
@@ -127,44 +181,49 @@
         }
 
         .session-warning-icon {
-            font-size: 1.2rem;
+            font-size: 20px;
             flex-shrink: 0;
+            color: var(--ios-warning);
         }
 
         .session-warning-text {
             flex: 1;
             line-height: 1.4;
+            color: var(--text-secondary);
         }
 
         .reauth-btn {
-            background: #c05621;
+            background: var(--ios-blue);
             color: white;
             border: none;
             padding: 8px 16px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 14px;
             transition: all 0.3s ease;
             white-space: nowrap;
+            font-family: var(--ios-font);
+            box-shadow: var(--shadow);
         }
 
         .reauth-btn:hover {
-            background: #9c4221;
+            background: var(--ios-blue-dark);
             transform: translateY(-1px);
         }
 
-        /* Phone Notice - Optional SMS */
+        /* Phone Notice */
         .phone-notice {
-            background: linear-gradient(135deg, #e6fffa, #b2f5ea);
-            border: 1px solid #4fd1c7;
-            color: #234e52;
+            background: var(--surface-elevated);
+            color: var(--text-primary);
             padding: 16px 20px;
             display: none;
             align-items: center;
             gap: 12px;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(79, 209, 199, 0.2);
+            font-size: 15px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .phone-notice.show {
@@ -172,31 +231,34 @@
         }
 
         .add-phone-btn {
-            background: #319795;
+            background: var(--ios-success);
             color: white;
             border: none;
             padding: 8px 16px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 14px;
             transition: all 0.3s ease;
             white-space: nowrap;
+            font-family: var(--ios-font);
+            box-shadow: var(--shadow);
         }
 
         .add-phone-btn:hover {
-            background: #2c7a7b;
+            background: #28BE4B;
             transform: translateY(-1px);
         }
 
         /* Phone Input Section */
         .phone-input-section {
-            background: white;
-            border-radius: 16px;
+            background: var(--surface);
+            border-radius: var(--radius);
             padding: 24px;
-            margin: 16px 20px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            border: 1px solid rgba(0, 0, 0, 0.04);
+            margin: var(--spacing);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .phone-input-header {
@@ -205,14 +267,15 @@
         }
 
         .phone-input-header h3 {
-            color: #2d3748;
-            font-size: 1.2rem;
+            color: var(--text-primary);
+            font-size: 20px;
             margin-bottom: 8px;
+            font-weight: 700;
         }
 
         .phone-input-header p {
-            color: #718096;
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 15px;
         }
 
         .phone-input-form {
@@ -223,18 +286,26 @@
 
         .phone-input-field {
             padding: 16px;
-            border: 2px solid #e2e8f0;
+            background: var(--surface-elevated);
+            color: var(--text-primary);
+            border: none;
             border-radius: 12px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
+            font-size: 16px;
+            transition: all 0.3s ease;
             text-align: center;
-            font-family: inherit;
+            font-family: var(--ios-font);
+            box-shadow: var(--shadow);
+            height: var(--button-height);
         }
 
         .phone-input-field:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: var(--surface-tertiary);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        .phone-input-field::placeholder {
+            color: var(--text-tertiary);
         }
 
         .phone-input-buttons {
@@ -244,58 +315,68 @@
 
         .save-phone-btn, .skip-phone-btn {
             flex: 1;
-            padding: 12px 24px;
+            padding: 0;
             border-radius: 12px;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.3s ease;
             border: none;
+            height: var(--button-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--ios-font);
+            box-shadow: var(--shadow);
         }
 
         .save-phone-btn {
-            background: linear-gradient(135deg, #48bb78, #38a169);
+            background: var(--ios-success);
             color: white;
         }
 
         .save-phone-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
+            background: #28BE4B;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-heavy);
         }
 
         .skip-phone-btn {
-            background: #f7fafc;
-            color: #4a5568;
-            border: 2px solid #e2e8f0;
+            background: var(--surface-tertiary);
+            color: var(--text-primary);
         }
 
         .skip-phone-btn:hover {
-            background: #edf2f7;
-            border-color: #cbd5e0;
+            background: var(--surface-elevated);
+            transform: translateY(-1px);
         }
 
-        /* Header Styles */
+        /* Header Styles - Matching Menu Page */
         .checkout-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 24px 20px;
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: var(--text-primary);
+            padding: var(--spacing);
             position: sticky;
             top: 0;
             z-index: 100;
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: var(--shadow);
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
         }
 
         .header-content {
             display: flex;
             align-items: center;
             gap: 16px;
+            margin-bottom: 12px;
         }
 
         .back-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            color: white;
+            background: var(--surface-elevated);
+            color: var(--text-primary);
             width: 44px;
             height: 44px;
             border-radius: 12px;
@@ -303,77 +384,86 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            font-size: 1.3rem;
+            font-size: 20px;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: none;
+            font-family: var(--ios-font);
+            box-shadow: var(--shadow);
         }
 
         .back-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateX(-2px);
+            background: var(--ios-blue);
+            color: white;
+            transform: translateY(-1px);
         }
 
         .header-info {
             flex: 1;
+            min-width: 0;
         }
 
         .restaurant-title {
-            font-size: 1.75rem;
+            font-size: clamp(22px, 5vw, 28px);
             font-weight: 700;
             margin-bottom: 4px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            color: var(--text-primary);
+            word-break: break-word;
         }
 
         .customer-info {
-            background: rgba(255, 255, 255, 0.15);
-            padding: 8px 12px;
+            background: var(--surface-elevated);
+            padding: 12px 16px;
             border-radius: 12px;
-            font-size: 0.9rem;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            display: inline-flex;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 8px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: var(--shadow);
+            gap: 12px;
         }
 
-        .auth-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: rgba(46, 204, 113, 0.2);
-            color: rgba(255, 255, 255, 0.9);
-            padding: 3px 8px;
-            border-radius: 8px;
-            font-size: 0.75rem;
+        .customer-text {
             font-weight: 600;
-            border: 1px solid rgba(46, 204, 113, 0.3);
+            font-size: 15px;
+            color: var(--text-primary);
+            flex: 1;
+            min-width: 0;
         }
 
-        .auth-indicator.social {
-            background: rgba(52, 152, 219, 0.2);
-            border-color: rgba(52, 152, 219, 0.3);
-        }
-
-        .auth-indicator.phone {
-            background: rgba(155, 89, 182, 0.2);
-            border-color: rgba(155, 89, 182, 0.3);
+        .checkout-badge {
+            background: var(--ios-success);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            box-shadow: var(--shadow);
         }
 
         /* Content Styles */
         .checkout-content {
-            padding: 24px 20px;
+            padding: var(--spacing);
             padding-bottom: 120px;
+            flex: 1;
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
         }
 
         .section {
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
 
         .section-title {
-            font-size: 1.3rem;
+            font-size: 20px;
             font-weight: 700;
-            color: #2d3748;
-            margin-bottom: 20px;
+            color: var(--text-primary);
+            margin-bottom: 16px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -383,39 +473,24 @@
         .cart-items {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
         }
 
         .cart-item {
-            background: white;
-            border-radius: 20px;
-            padding: 24px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            border: 1px solid rgba(0, 0, 0, 0.04);
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
-        }
-
-        .cart-item::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            transform: scaleX(0);
-            transition: transform 0.3s ease;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .cart-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-        }
-
-        .cart-item:hover::before {
-            transform: scaleX(1);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-heavy);
         }
 
         .item-header {
@@ -423,28 +498,33 @@
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 12px;
+            gap: 12px;
         }
 
         .item-name {
             font-weight: 700;
-            color: #2d3748;
-            font-size: 1.1rem;
+            color: var(--text-primary);
+            font-size: 18px;
             line-height: 1.3;
+            flex: 1;
+            word-break: break-word;
         }
 
         .item-unit-price {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: var(--ios-blue);
             color: white;
             padding: 6px 12px;
             border-radius: 10px;
             font-weight: 600;
-            font-size: 0.9rem;
-            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
+            font-size: 14px;
+            box-shadow: var(--shadow);
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .item-description {
-            color: #718096;
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 15px;
             margin-bottom: 16px;
             line-height: 1.4;
         }
@@ -453,52 +533,55 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
         }
 
         .quantity-controls {
             display: flex;
             align-items: center;
             gap: 16px;
-            background: #f7fafc;
+            background: var(--surface-elevated);
             padding: 8px 16px;
-            border-radius: 16px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
         }
 
         .qty-btn {
             width: 36px;
             height: 36px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
+            background: var(--ios-blue);
+            color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             font-weight: 700;
-            font-size: 1.2rem;
+            font-size: 18px;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow);
+            border: none;
+            font-family: var(--ios-font);
         }
 
         .qty-btn:hover:not(:disabled) {
-            background: #667eea;
-            color: white;
-            transform: scale(1.1);
+            background: var(--ios-blue-dark);
+            transform: translateY(-1px) scale(1.05);
         }
 
         .qty-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
             transform: none;
+            background: var(--text-tertiary);
         }
 
         .qty-display {
             font-weight: 700;
-            font-size: 1.2rem;
-            min-width: 32px;
+            font-size: 16px;
+            min-width: 24px;
             text-align: center;
-            color: #2d3748;
+            color: var(--text-primary);
         }
 
         .item-total {
@@ -510,34 +593,37 @@
 
         .item-total-price {
             font-weight: 700;
-            font-size: 1.2rem;
-            color: #2d3748;
+            font-size: 18px;
+            color: var(--text-primary);
         }
 
         .remove-btn {
-            background: #fed7d7;
-            color: #c53030;
+            background: var(--ios-error);
+            color: white;
             border: none;
-            padding: 8px 12px;
+            padding: 6px 12px;
             border-radius: 8px;
-            font-size: 0.8rem;
+            font-size: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: 600;
+            font-family: var(--ios-font);
+            box-shadow: var(--shadow);
         }
 
         .remove-btn:hover {
-            background: #feb2b2;
+            background: #E5392F;
             transform: translateY(-1px);
         }
 
         /* Order Summary */
         .order-summary {
-            background: white;
-            border-radius: 20px;
-            padding: 24px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            border: 1px solid rgba(0, 0, 0, 0.04);
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .summary-row {
@@ -545,95 +631,106 @@
             justify-content: space-between;
             align-items: center;
             padding: 12px 0;
-            font-size: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+            font-size: 16px;
+            color: var(--text-secondary);
         }
 
-        .summary-row:last-child {
-            border-bottom: none;
+        .summary-row:not(:last-child) {
+            border-bottom: 1px solid var(--surface-elevated);
         }
 
         .summary-row.total {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: var(--ios-blue);
             color: white;
-            margin: 16px -24px -24px -24px;
-            padding: 20px 24px;
-            border-radius: 0 0 20px 20px;
-            font-size: 1.2rem;
+            margin: 16px -20px -20px -20px;
+            padding: 20px;
+            border-radius: 0 0 var(--radius) var(--radius);
+            font-size: 20px;
             font-weight: 700;
+            border-bottom: none;
         }
 
         /* Special Instructions */
         .form-textarea {
             width: 100%;
             padding: 16px;
-            border: 2px solid #e2e8f0;
-            border-radius: 16px;
-            font-size: 1rem;
+            background: var(--surface);
+            color: var(--text-primary);
+            border: none;
+            border-radius: var(--radius);
+            font-size: 16px;
             resize: vertical;
             min-height: 100px;
-            transition: border-color 0.3s ease;
-            font-family: inherit;
-            background: white;
+            transition: all 0.3s ease;
+            font-family: var(--ios-font);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .form-textarea:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: var(--surface-elevated);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        .form-textarea::placeholder {
+            color: var(--text-tertiary);
         }
 
         .allergen-notice {
-            background: linear-gradient(135deg, #fed7e2, #fbb6ce);
-            color: #97266d;
+            background: var(--surface-elevated);
+            color: var(--text-primary);
             padding: 12px 16px;
             border-radius: 12px;
-            font-size: 0.9rem;
+            font-size: 14px;
             margin-bottom: 12px;
-            border: 1px solid #f687b3;
             display: flex;
             align-items: center;
             gap: 8px;
+            box-shadow: var(--shadow);
         }
 
         .allergen-notice-icon {
-            font-size: 1.1rem;
+            font-size: 16px;
+            color: var(--ios-warning);
         }
 
         /* Place Order Button */
         .place-order-section {
             position: fixed;
             bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: calc(100% - 40px);
-            max-width: 380px;
+            left: 20px;
+            right: 20px;
             z-index: 1000;
         }
 
         .place-order-btn {
             width: 100%;
-            background: linear-gradient(135deg, #48bb78, #38a169);
+            background: var(--ios-success);
             color: white;
             border: none;
-            padding: 20px 24px;
-            border-radius: 20px;
+            padding: 0;
+            border-radius: var(--radius);
             font-weight: 700;
-            font-size: 1.2rem;
+            font-size: 18px;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 20px 50px rgba(72, 187, 120, 0.4);
+            box-shadow: var(--shadow-heavy);
             backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            -webkit-backdrop-filter: blur(20px);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 12px;
+            height: 60px;
+            font-family: var(--ios-font);
         }
 
         .place-order-btn:hover:not(:disabled) {
-            transform: translateY(-3px);
-            box-shadow: 0 25px 60px rgba(72, 187, 120, 0.5);
+            background: #28BE4B;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-heavy);
         }
 
         .place-order-btn:disabled {
@@ -646,53 +743,70 @@
         .empty-cart {
             text-align: center;
             padding: 80px 20px;
-            color: #718096;
+            color: var(--text-secondary);
         }
 
         .empty-cart-icon {
-            font-size: 4rem;
+            font-size: 64px;
             margin-bottom: 24px;
             opacity: 0.5;
         }
 
         .empty-cart h3 {
-            font-size: 1.5rem;
+            font-size: 24px;
             margin-bottom: 12px;
-            color: #2d3748;
+            color: var(--text-primary);
+            font-weight: 700;
         }
 
         .empty-cart p {
             margin-bottom: 32px;
-            font-size: 1.1rem;
+            font-size: 16px;
+            color: var(--text-secondary);
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: var(--ios-blue);
             color: white;
             border: none;
-            padding: 16px 32px;
-            border-radius: 16px;
+            padding: 0;
+            border-radius: var(--radius);
             font-weight: 600;
-            font-size: 1.1rem;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            box-shadow: var(--shadow);
+            height: var(--button-height);
+            min-width: 160px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--ios-font);
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+            background: var(--ios-blue-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-heavy);
         }
 
         /* Error States */
         .error-message {
-            background: linear-gradient(135deg, #fed7d7, #feb2b2);
-            color: #c53030;
-            padding: 20px;
-            border-radius: 16px;
-            margin: 16px;
-            border: 1px solid #fc8181;
+            background: var(--surface);
+            color: var(--text-primary);
+            padding: 24px;
+            border-radius: var(--radius);
+            margin: var(--spacing);
             text-align: center;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .error-message h3 {
+            color: var(--ios-error);
+            margin-bottom: 12px;
+            font-weight: 700;
         }
 
         .button-spinner {
@@ -710,15 +824,17 @@
             top: 20px;
             right: 20px;
             z-index: 10000;
-            background: linear-gradient(135deg, #22c55e, #16a34a);
+            background: var(--ios-success);
             color: white;
             padding: 15px 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            box-shadow: var(--shadow-heavy);
             font-weight: 600;
             opacity: 0;
             transition: all 0.3s ease;
             transform: translateX(100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
         .notification.show {
@@ -727,65 +843,102 @@
         }
 
         .notification.error {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
+            background: var(--ios-error);
         }
 
-        /* Fee info badge for transparency */
+        /* Fee info badge */
         .fee-info-badge {
-            background: rgba(102, 126, 234, 0.1);
-            color: #667eea;
+            background: rgba(0, 122, 255, 0.2);
+            color: var(--ios-blue);
             padding: 4px 8px;
             border-radius: 6px;
-            font-size: 0.75rem;
+            font-size: 12px;
             font-weight: 600;
             margin-left: 8px;
-            border: 1px solid rgba(102, 126, 234, 0.2);
         }
 
         .fee-info-badge.negotiated {
-            background: rgba(245, 158, 11, 0.1);
-            color: #f59e0b;
-            border-color: rgba(245, 158, 11, 0.2);
+            background: rgba(255, 159, 10, 0.2);
+            color: var(--ios-warning);
         }
 
         /* Responsive Design */
-        @media (max-width: 480px) {
-            .container {
-                max-width: 100%;
-                border-radius: 0;
-            }
-
+        @media (min-width: 768px) {
             .checkout-header {
-                padding: 20px 16px;
+                padding: 32px;
             }
 
             .checkout-content {
-                padding: 20px 16px;
+                padding: 32px;
+                padding-bottom: 120px;
+            }
+
+            .customer-info {
+                padding: 16px 20px;
+                font-size: 16px;
+            }
+
+            .restaurant-title {
+                font-size: 32px;
+            }
+
+            .cart-item {
+                padding: 24px;
+            }
+
+            .place-order-section {
+                bottom: 24px;
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                width: calc(100% - 48px);
+                max-width: 400px;
+            }
+        }
+
+        @media (max-width: 375px) {
+            .checkout-header {
+                padding: 12px;
+            }
+
+            .checkout-content {
+                padding: 12px;
                 padding-bottom: 120px;
             }
 
             .cart-item {
-                padding: 20px;
+                padding: 16px;
             }
 
             .restaurant-title {
-                font-size: 1.5rem;
-            }
-
-            .place-order-section {
-                width: calc(100% - 20px);
-                bottom: 10px;
+                font-size: 20px;
             }
 
             .customer-info {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 4px;
+                padding: 10px 12px;
+                font-size: 14px;
             }
 
-            .auth-indicator {
-                font-size: 0.7rem;
-                padding: 2px 6px;
+            .place-order-section {
+                bottom: 16px;
+                left: 16px;
+                right: 16px;
+            }
+        }
+
+        /* Force dark appearance */
+        @media (prefers-color-scheme: light) {
+            :root {
+                color-scheme: dark;
+            }
+        }
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
             }
         }
     </style>
@@ -840,14 +993,11 @@
                 <button class="back-btn" onclick="goBackToMenu()">←</button>
                 <div class="header-info">
                     <h1 class="restaurant-title" id="restaurantName">Loading...</h1>
-                    <div class="customer-info" id="customerInfoDisplay">
-                        <span id="customerText">Loading...</span>
-                        <div class="auth-indicator" id="authIndicator">
-                            <span id="authIcon">🔐</span>
-                            <span id="authText">Secured</span>
-                        </div>
-                    </div>
                 </div>
+            </div>
+            <div class="customer-info">
+                <div class="customer-text" id="customerText">Loading...</div>
+                <div class="checkout-badge">Checkout</div>
             </div>
         </div>
 
@@ -909,7 +1059,7 @@
         <div class="error-message" id="errorMessage" style="display: none;">
             <h3>⚠️ Unable to load checkout</h3>
             <p>Please try refreshing the page or go back to the menu.</p>
-            <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+            <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: var(--ios-blue); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-family: var(--ios-font);">
                 Try Again
             </button>
         </div>
@@ -940,7 +1090,7 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Production checkout page initializing...');
+            console.log('🚀 iOS Dark Theme checkout page initializing...');
             
             try {
                 await initializeCheckoutPage();
@@ -980,7 +1130,7 @@
                 
                 hideLoading();
                 
-                console.log('✅ Production checkout page loaded successfully');
+                console.log('✅ iOS Dark Theme checkout page loaded successfully');
                 
             } catch (error) {
                 console.error('Checkout page initialization error:', error);
@@ -1309,51 +1459,11 @@
             let customerText = `${displayName} • ${customerData.tableDisplay}`;
             document.getElementById('customerText').textContent = customerText;
             
-            updateAuthenticationIndicator();
-            
             // Show phone notice for social auth users without phone
             if (currentUser && !hasPhoneNumber() && currentUser.providerData[0]?.providerId !== 'phone') {
                 showPhoneNotice();
             } else {
                 hidePhoneNotice();
-            }
-        }
-
-        // Update authentication indicator
-        function updateAuthenticationIndicator() {
-            const authIndicator = document.getElementById('authIndicator');
-            const authIcon = document.getElementById('authIcon');
-            const authText = document.getElementById('authText');
-            
-            if (!currentUser) {
-                authIndicator.className = 'auth-indicator';
-                authIcon.textContent = '❌';
-                authText.textContent = 'Not Signed In';
-                return;
-            }
-            
-            const providerId = currentUser.providerData[0]?.providerId;
-            
-            if (providerId === 'phone') {
-                authIndicator.className = 'auth-indicator phone';
-                authIcon.textContent = '📱';
-                authText.textContent = 'Phone';
-            } else if (providerId === 'google.com') {
-                authIndicator.className = 'auth-indicator social';
-                authIcon.textContent = '🔍';
-                authText.textContent = 'Google';
-            } else if (providerId === 'facebook.com') {
-                authIndicator.className = 'auth-indicator social';
-                authIcon.textContent = '📘';
-                authText.textContent = 'Facebook';
-            } else if (providerId === 'apple.com') {
-                authIndicator.className = 'auth-indicator social';
-                authIcon.textContent = '🍎';
-                authText.textContent = 'Apple';
-            } else {
-                authIndicator.className = 'auth-indicator';
-                authIcon.textContent = '🔐';
-                authText.textContent = 'Secured';
             }
         }
 
@@ -1811,7 +1921,7 @@
             document.getElementById('errorMessage').innerHTML = `
                 <h3>⚠️ Unable to load checkout</h3>
                 <p>${message}</p>
-                <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                <button onclick="location.reload()" style="margin-top: 16px; padding: 12px 24px; background: var(--ios-blue); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-family: var(--ios-font);">
                     Try Again
                 </button>
             `;
@@ -1847,7 +1957,6 @@
                     console.warn('⚠️ User signed out unexpectedly during checkout');
                     showSessionWarning();
                     currentUser = null;
-                    updateAuthenticationIndicator();
                 }
             });
         }
@@ -1857,7 +1966,7 @@
             monitorAuthenticationState();
         }, 1000);
 
-        console.log('🛒 Production checkout page with optional phone support loaded successfully');
+        console.log('🛒 iOS Dark Theme checkout page with optional phone support loaded successfully');
     </script>
 </body>
 </html>
