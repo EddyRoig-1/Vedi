@@ -165,7 +165,7 @@
             line-height: 1.4;
         }
 
-        /* Restaurant Info Card - Enhanced with integrated status */
+        /* Restaurant Info Card - Enhanced without border animation */
         .restaurant-info {
             background: var(--surface-2);
             padding: 24px;
@@ -178,22 +178,6 @@
             overflow: hidden;
             animation: cardSlideIn 0.6s ease-out;
             text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .restaurant-info.offline {
-            background: linear-gradient(135deg, #fef3c7, #fbbf24);
-            border-color: #f59e0b;
-            color: #92400e;
-        }
-
-        .restaurant-info.offline .restaurant-name,
-        .restaurant-info.offline .table-info {
-            color: #92400e;
-        }
-
-        .restaurant-info.offline .restaurant-status {
-            background: #f59e0b;
         }
 
         @keyframes cardSlideIn {
@@ -218,21 +202,6 @@
             color: var(--text-primary);
             font-size: 20px;
             margin: 0 0 12px 0;
-            text-align: center;
-        }
-
-        .restaurant-status-text {
-            font-weight: 600;
-            font-size: 16px;
-            margin: 8px 0;
-            text-align: center;
-        }
-
-        .restaurant-status-reason {
-            font-style: italic;
-            font-size: 14px;
-            opacity: 0.8;
-            margin: 4px 0 8px 0;
             text-align: center;
         }
 
@@ -262,18 +231,9 @@
             animation: statusBlink 2s ease-in-out infinite;
         }
 
-        .restaurant-status.offline {
-            background: #ef4444;
-        }
-
         @keyframes statusBlink {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
-        }
-
-        /* Hide restaurant offline section but keep functionality */
-        .restaurant-offline {
-            display: none !important;
         }
 
         /* Status Checking Overlay */
@@ -1060,11 +1020,6 @@
         async function handleInlinePhoneSubmit(e) {
             e.preventDefault();
 
-            if (!isRestaurantOnline) {
-                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
-                return;
-            }
-
             const sendCodeBtn = document.getElementById('sendCodeBtnInline');
             const sendCodeText = document.getElementById('sendCodeTextInline');
             const sendCodeSpinner = document.getElementById('sendCodeSpinnerInline');
@@ -1507,7 +1462,7 @@
             console.log('🔍 Google sign-in button clicked');
             
             if (!isRestaurantOnline) {
-                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
+                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
                 return;
             }
 
@@ -1540,7 +1495,7 @@
             console.log('📘 Facebook sign-in button clicked');
             
             if (!isRestaurantOnline) {
-                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
+                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
                 return;
             }
 
@@ -1573,7 +1528,7 @@
             console.log('🍎 Apple sign-in button clicked');
             
             if (!isRestaurantOnline) {
-                showError('Restaurant is currently unavailable. Please wait for it to come back online.');
+                showError('Cannot sign in while restaurant is unavailable. Please wait for restaurant to come online.');
                 return;
             }
 
@@ -1869,9 +1824,9 @@
                 // Update global status
                 isRestaurantOnline = status.isOnline;
                 
-                // If restaurant is offline, show offline status in main card
+                // If restaurant is offline, show offline status
                 if (!status.isOnline) {
-                    console.log('🔴 Restaurant is OFFLINE - showing offline status in main card');
+                    console.log('🔴 Restaurant is OFFLINE - showing offline status');
                     hideStatusChecking();
                     showRestaurantOffline(restaurantData.name, status.offlineReason);
                 } else {
@@ -1911,11 +1866,13 @@
                         // Restaurant went offline
                         console.log('🔴 Restaurant went OFFLINE during login session');
                         showRestaurantOffline(status.restaurantName || restaurantData?.name, status.offlineReason);
+                        showInfo(`${status.restaurantName || restaurantData?.name || 'Restaurant'} is now unavailable for orders. Please wait for it to come back online.`);
                         
                     } else if (status.isOnline && !previousStatus) {
                         // Restaurant came back online
                         console.log('🟢 Restaurant came ONLINE during login session');
                         hideRestaurantOffline();
+                        showSuccess(`${status.restaurantName || restaurantData?.name || 'Restaurant'} is now available for orders! You can sign in.`);
                     }
                 });
                 
@@ -1963,66 +1920,33 @@
         // UI UTILITY FUNCTIONS
         // =============================================================================
 
-        // Show/hide restaurant offline status - integrated into main card
+        // Show/hide restaurant offline status
         function showRestaurantOffline(restaurantName, reason) {
-            const restaurantCard = document.getElementById('restaurantInfo');
-            const statusText = document.getElementById('restaurantStatusText');
-            const statusReason = document.getElementById('restaurantStatusReason');
-            const statusDot = document.getElementById('restaurantStatusDot');
+            const offlineStatus = document.getElementById('restaurantOfflineStatus');
+            const offlineNameElement = document.getElementById('offlineRestaurantName');
+            const offlineReasonElement = document.getElementById('offlineReason');
             const loginContainer = document.getElementById('loginFormsContainer');
             
-            if (restaurantCard && statusText && loginContainer) {
-                // Update card styling
-                restaurantCard.classList.add('offline');
+            if (offlineStatus && loginContainer) {
+                offlineNameElement.textContent = restaurantName || 'This restaurant';
+                offlineReasonElement.textContent = reason || '';
                 
-                // Show status text
-                statusText.textContent = 'Currently Unavailable';
-                statusText.style.display = 'block';
-                
-                // Show reason if provided
-                if (reason) {
-                    statusReason.textContent = reason;
-                    statusReason.style.display = 'block';
-                } else {
-                    statusReason.style.display = 'none';
-                }
-                
-                // Update status dot
-                if (statusDot) {
-                    statusDot.classList.add('offline');
-                }
-                
-                // Disable login forms
+                offlineStatus.style.display = 'block';
                 loginContainer.classList.add('form-section-disabled');
                 
-                console.log('🔴 Restaurant offline status integrated into main card');
+                console.log('🔴 Restaurant offline UI shown');
             }
         }
 
         function hideRestaurantOffline() {
-            const restaurantCard = document.getElementById('restaurantInfo');
-            const statusText = document.getElementById('restaurantStatusText');
-            const statusReason = document.getElementById('restaurantStatusReason');
-            const statusDot = document.getElementById('restaurantStatusDot');
+            const offlineStatus = document.getElementById('restaurantOfflineStatus');
             const loginContainer = document.getElementById('loginFormsContainer');
             
-            if (restaurantCard && statusText && loginContainer) {
-                // Remove offline styling
-                restaurantCard.classList.remove('offline');
-                
-                // Hide status text
-                statusText.style.display = 'none';
-                statusReason.style.display = 'none';
-                
-                // Update status dot
-                if (statusDot) {
-                    statusDot.classList.remove('offline');
-                }
-                
-                // Enable login forms
+            if (offlineStatus && loginContainer) {
+                offlineStatus.style.display = 'none';
                 loginContainer.classList.remove('form-section-disabled');
                 
-                console.log('🟢 Restaurant online - status cleared from main card');
+                console.log('🟢 Restaurant online UI restored');
             }
         }
 
