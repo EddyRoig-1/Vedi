@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Menu - Digital Dining Experience</title>
     
    <!-- Firebase Scripts -->
@@ -28,33 +28,87 @@
 <script src="../Api/business/menu-items.js"></script>
     
     <style>
+        /* Mobile-First iOS Design System */
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #f59e0b;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --surface: #ffffff;
+            --surface-2: #f8fafc;
+            --surface-3: #f1f5f9;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius: 16px;
+            --radius-sm: 12px;
+            --radius-lg: 20px;
+            --system-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+        }
+
+        /* Reset and Base Styles */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            color: #2d3748;
-            line-height: 1.6;
+        html {
+            height: 100%;
+            -webkit-text-size-adjust: 100%;
         }
 
-        .container {
-            max-width: 420px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
+        body {
+            font-family: var(--system-font);
+            background: var(--surface);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             min-height: 100vh;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-height: 100dvh;
+            padding: 0;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        /* Main Container */
+        .container {
+            background: var(--background);
+            width: 100%;
+            max-width: 100%;
+            min-height: 100vh;
+            min-height: 100dvh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--surface);
+            margin: 0;
+            border-radius: 0;
+            box-shadow: none;
+            z-index: -1;
         }
 
         /* Header Styles */
         .menu-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--background);
             color: white;
             padding: 24px 20px;
             position: sticky;
@@ -65,22 +119,29 @@
         }
 
         .restaurant-title {
-            font-size: 1.75rem;
+            font-size: clamp(24px, 6vw, 28px);
             font-weight: 700;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
         }
 
         .customer-info {
             background: rgba(255, 255, 255, 0.15);
-            padding: 12px 16px;
-            border-radius: 16px;
-            font-size: 0.9rem;
+            padding: 16px;
+            border-radius: var(--radius);
+            font-size: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .welcome-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
             gap: 12px;
         }
 
@@ -89,6 +150,7 @@
             align-items: center;
             gap: 8px;
             flex: 1;
+            font-weight: 600;
         }
 
         .auth-indicator {
@@ -97,11 +159,12 @@
             gap: 4px;
             background: rgba(46, 204, 113, 0.2);
             color: rgba(255, 255, 255, 0.9);
-            padding: 4px 8px;
+            padding: 6px 10px;
             border-radius: 8px;
-            font-size: 0.75rem;
+            font-size: 12px;
             font-weight: 600;
             border: 1px solid rgba(46, 204, 113, 0.3);
+            white-space: nowrap;
         }
 
         .auth-indicator.social {
@@ -114,9 +177,18 @@
             border-color: rgba(155, 89, 182, 0.3);
         }
 
-        .header-right {
+        .table-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .header-actions {
             display: flex;
-            align-items: center;
+            justify-content: center;
             gap: 12px;
         }
 
@@ -124,23 +196,24 @@
             background: rgba(255, 255, 255, 0.2);
             border: 2px solid rgba(255, 255, 255, 0.3);
             color: white;
-            padding: 8px 16px;
-            border-radius: 12px;
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
-            font-size: 0.85rem;
+            font-size: 15px;
             display: flex;
             align-items: center;
-            gap: 6px;
-            white-space: nowrap;
+            gap: 8px;
+            flex: 1;
+            justify-content: center;
         }
 
         .allergen-header-btn:hover {
             background: rgba(255, 255, 255, 0.3);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: var(--shadow);
         }
 
         .allergen-header-btn.has-allergens {
@@ -152,14 +225,6 @@
             background: rgba(220, 53, 69, 0.9);
         }
 
-        .table-badge {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-
         /* Loading States */
         .loading-overlay {
             position: fixed;
@@ -167,7 +232,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.6);
+            background: var(--background);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -175,21 +240,35 @@
             backdrop-filter: blur(5px);
         }
 
+        .loading-overlay::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--surface);
+            margin: 0;
+            border-radius: 0;
+            z-index: -1;
+        }
+
         .loading-card {
-            background: white;
+            background: var(--surface);
             padding: 40px;
-            border-radius: 20px;
+            border-radius: var(--radius-lg);
             text-align: center;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            box-shadow: var(--shadow-lg);
             max-width: 320px;
             width: 90%;
+            margin: 20px;
         }
 
         .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
@@ -201,33 +280,35 @@
         }
 
         .loading-text {
-            color: #2d3748;
-            font-size: 1.1rem;
+            color: var(--text-primary);
+            font-size: 18px;
             font-weight: 600;
             margin-bottom: 8px;
         }
 
         .loading-subtext {
-            color: #718096;
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 15px;
         }
 
         /* Menu Content */
         .menu-content {
             padding: 20px;
             padding-bottom: 120px;
+            flex: 1;
         }
 
         /* Category Tabs */
         .menu-tabs {
             display: flex;
-            gap: 8px;
+            gap: 12px;
             margin-bottom: 24px;
             overflow-x: auto;
-            padding: 4px;
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 16px;
+            padding: 8px;
+            background: var(--surface-2);
+            border-radius: var(--radius);
             backdrop-filter: blur(10px);
+            box-shadow: var(--shadow);
         }
 
         .menu-tabs::-webkit-scrollbar {
@@ -238,29 +319,30 @@
             background: transparent;
             border: none;
             padding: 12px 20px;
-            border-radius: 12px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
             transition: all 0.3s ease;
             white-space: nowrap;
-            font-weight: 500;
-            font-size: 0.9rem;
+            font-weight: 600;
+            font-size: 15px;
             display: flex;
             align-items: center;
             gap: 8px;
-            color: #718096;
+            color: var(--text-secondary);
             min-width: fit-content;
+            font-family: var(--system-font);
         }
 
         .tab.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
         }
 
         .tab:hover:not(.active) {
-            background: rgba(102, 126, 234, 0.1);
-            color: #667eea;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
         }
 
         /* Menu Items */
@@ -273,12 +355,12 @@
         }
 
         .menu-item {
-            background: white;
-            border-radius: 20px;
+            background: var(--surface);
+            border-radius: var(--radius-lg);
             padding: 20px;
             margin-bottom: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            border: 1px solid rgba(0, 0, 0, 0.04);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-light);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
@@ -291,14 +373,14 @@
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
             transform: scaleX(0);
             transition: transform 0.3s ease;
         }
 
         .menu-item:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
         }
 
         .menu-item:hover::before {
@@ -308,13 +390,13 @@
         /* Out of Stock Styles */
         .menu-item.out-of-stock {
             opacity: 0.6;
-            background: #f8f9fa;
+            background: var(--surface-3);
             position: relative;
-            border: 2px solid #e2e8f0;
+            border: 2px solid var(--border);
         }
 
         .menu-item.out-of-stock::before {
-            background: linear-gradient(90deg, #dc3545, #c82333);
+            background: linear-gradient(90deg, var(--error), #dc2626);
         }
 
         .menu-item.out-of-stock::after {
@@ -328,8 +410,8 @@
                 45deg,
                 transparent,
                 transparent 8px,
-                rgba(220, 53, 69, 0.1) 8px,
-                rgba(220, 53, 69, 0.1) 16px
+                rgba(239, 68, 68, 0.1) 8px,
+                rgba(239, 68, 68, 0.1) 16px
             );
             pointer-events: none;
             z-index: 1;
@@ -337,21 +419,21 @@
 
         .menu-item.out-of-stock:hover {
             transform: none;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            box-shadow: var(--shadow);
         }
 
         .out-of-stock-badge {
             position: absolute;
             top: 16px;
             right: 16px;
-            background: linear-gradient(135deg, #dc3545, #c82333);
+            background: linear-gradient(135deg, var(--error), #dc2626);
             color: white;
             padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.8rem;
+            border-radius: var(--radius-lg);
+            font-size: 12px;
             font-weight: 700;
             z-index: 10;
-            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+            box-shadow: var(--shadow);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -361,14 +443,14 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(220, 53, 69, 0.95);
+            background: rgba(239, 68, 68, 0.95);
             color: white;
             padding: 12px 24px;
             border-radius: 25px;
             font-weight: 700;
-            font-size: 1rem;
+            font-size: 16px;
             z-index: 10;
-            box-shadow: 0 8px 25px rgba(220, 53, 69, 0.4);
+            box-shadow: var(--shadow-lg);
             text-transform: uppercase;
             letter-spacing: 1px;
         }
@@ -376,17 +458,17 @@
         /* Enhanced Menu Item with Image */
         .item-image {
             width: 100%;
-            height: 160px;
-            border-radius: 16px;
+            height: 180px;
+            border-radius: var(--radius);
             object-fit: cover;
             margin-bottom: 16px;
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #adb5bd;
-            font-size: 0.9rem;
-            border: 2px solid #f0f0f0;
+            color: var(--text-muted);
+            font-size: 15px;
+            border: 2px solid var(--border-light);
             overflow: hidden;
             position: relative;
         }
@@ -395,7 +477,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: 14px;
+            border-radius: calc(var(--radius) - 2px);
             transition: filter 0.3s ease;
         }
 
@@ -404,15 +486,15 @@
         }
 
         .item-image.no-image {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            color: #adb5bd;
-            font-size: 0.85rem;
+            background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+            color: var(--text-muted);
+            font-size: 14px;
             font-weight: 500;
         }
 
         .menu-item.out-of-stock .item-image.no-image {
-            background: linear-gradient(135deg, #e9ecef, #dee2e6);
-            color: #6c757d;
+            background: linear-gradient(135deg, var(--surface-3), #e2e8f0);
+            color: #6b7280;
         }
 
         .item-header {
@@ -422,38 +504,41 @@
             margin-bottom: 12px;
             position: relative;
             z-index: 2;
+            gap: 12px;
         }
 
         .item-name {
             font-weight: 700;
-            color: #2d3748;
-            font-size: 1.2rem;
+            color: var(--text-primary);
+            font-size: 20px;
             line-height: 1.3;
+            flex: 1;
         }
 
         .menu-item.out-of-stock .item-name {
-            color: #6c757d;
+            color: var(--text-muted);
             text-decoration: line-through;
         }
 
         .item-price {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: white;
             padding: 8px 16px;
-            border-radius: 12px;
+            border-radius: var(--radius-sm);
             font-weight: 700;
-            font-size: 1.1rem;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            font-size: 18px;
+            box-shadow: var(--shadow);
+            white-space: nowrap;
         }
 
         .menu-item.out-of-stock .item-price {
-            background: linear-gradient(135deg, #adb5bd, #6c757d);
-            box-shadow: 0 4px 12px rgba(173, 181, 189, 0.3);
+            background: linear-gradient(135deg, var(--text-muted), #64748b);
+            box-shadow: var(--shadow);
         }
 
         .item-description {
-            color: #718096;
-            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-size: 15px;
             margin-bottom: 20px;
             line-height: 1.5;
             position: relative;
@@ -461,7 +546,7 @@
         }
 
         .menu-item.out-of-stock .item-description {
-            color: #adb5bd;
+            color: var(--text-muted);
         }
 
         .quantity-price-row {
@@ -477,38 +562,44 @@
             display: flex;
             align-items: center;
             gap: 16px;
-            background: #f7fafc;
+            background: var(--surface-2);
             padding: 8px 16px;
-            border-radius: 16px;
+            border-radius: var(--radius);
             transition: all 0.3s ease;
+            box-shadow: var(--shadow);
         }
 
         .menu-item.out-of-stock .qty-section {
-            background: #e9ecef;
+            background: var(--surface-3);
             pointer-events: none;
         }
 
         .qty-btn {
-            width: 36px;
-            height: 36px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--primary);
+            background: var(--surface);
+            color: var(--primary);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             font-weight: 700;
-            font-size: 1.2rem;
+            font-size: 20px;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow);
+            font-family: var(--system-font);
         }
 
         .qty-btn:hover:not(:disabled) {
-            background: #667eea;
+            background: var(--primary);
             color: white;
             transform: scale(1.1);
+        }
+
+        .qty-btn:active:not(:disabled) {
+            transform: scale(0.95);
         }
 
         .qty-btn:disabled {
@@ -518,37 +609,40 @@
         }
 
         .menu-item.out-of-stock .qty-btn {
-            border-color: #adb5bd;
-            color: #adb5bd;
+            border-color: var(--text-muted);
+            color: var(--text-muted);
             cursor: not-allowed;
             opacity: 0.5;
         }
 
         .qty-display {
             font-weight: 700;
-            font-size: 1.2rem;
+            font-size: 20px;
             min-width: 32px;
             text-align: center;
-            color: #2d3748;
+            color: var(--text-primary);
         }
 
         .menu-item.out-of-stock .qty-display {
-            color: #adb5bd;
+            color: var(--text-muted);
         }
 
         .add-to-cart-btn {
             width: 100%;
-            background: linear-gradient(135deg, #48bb78, #38a169);
+            background: linear-gradient(135deg, var(--success), #059669);
             color: white;
             border: none;
-            padding: 12px 20px;
-            border-radius: 12px;
+            padding: 16px 20px;
+            border-radius: var(--radius-sm);
             font-weight: 600;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.3s ease;
             display: none;
             position: relative;
             z-index: 2;
+            font-family: var(--system-font);
+            box-shadow: var(--shadow);
         }
 
         .add-to-cart-btn.show {
@@ -557,18 +651,22 @@
 
         .add-to-cart-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.3);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .add-to-cart-btn:active {
+            transform: translateY(0);
         }
 
         .menu-item.out-of-stock .add-to-cart-btn {
-            background: linear-gradient(135deg, #dc3545, #c82333);
+            background: linear-gradient(135deg, var(--error), #dc2626);
             cursor: not-allowed;
             pointer-events: none;
         }
 
         .menu-item.out-of-stock .add-to-cart-btn:hover {
             transform: none;
-            box-shadow: none;
+            box-shadow: var(--shadow);
         }
 
         /* Cart Summary */
@@ -579,11 +677,11 @@
             transform: translateX(-50%);
             width: calc(100% - 40px);
             max-width: 380px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: white;
             padding: 20px 24px;
-            border-radius: 20px;
-            box-shadow: 0 20px 50px rgba(102, 126, 234, 0.4);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
             display: none;
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -612,14 +710,14 @@
         }
 
         .cart-items {
-            font-size: 0.9rem;
+            font-size: 15px;
             margin-bottom: 4px;
             opacity: 0.9;
         }
 
         .cart-total {
             font-weight: 700;
-            font-size: 1.3rem;
+            font-size: 22px;
         }
 
         .view-cart-btn {
@@ -627,11 +725,12 @@
             border: 2px solid rgba(255, 255, 255, 0.3);
             color: white;
             padding: 12px 24px;
-            border-radius: 16px;
+            border-radius: var(--radius);
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
+            font-family: var(--system-font);
         }
 
         .view-cart-btn:hover {
@@ -639,28 +738,32 @@
             transform: translateY(-2px);
         }
 
+        .view-cart-btn:active {
+            transform: translateY(0);
+        }
+
         /* Error States */
         .error-message {
-            background: linear-gradient(135deg, #fed7d7, #feb2b2);
-            color: #c53030;
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            color: var(--error);
             padding: 20px;
-            border-radius: 16px;
+            border-radius: var(--radius);
             margin: 16px;
-            border: 1px solid #fc8181;
+            border: 2px solid #fca5a5;
             text-align: center;
         }
 
         .empty-category {
-            background: #f7fafc;
-            border-radius: 16px;
+            background: var(--surface-2);
+            border-radius: var(--radius);
             margin: 16px 0;
             text-align: center;
             padding: 40px 20px;
-            color: #718096;
+            color: var(--text-secondary);
         }
 
         .empty-icon {
-            font-size: 3rem;
+            font-size: 48px;
             margin-bottom: 16px;
             opacity: 0.5;
         }
@@ -668,16 +771,16 @@
         /* Session Warning */
         .session-warning {
             background: linear-gradient(135deg, #fef5e7, #fed7aa);
-            border: 1px solid #f6ad55;
+            border: 2px solid var(--warning);
             color: #c05621;
             padding: 16px 20px;
-            border-radius: 12px;
+            border-radius: var(--radius-sm);
             margin: 16px 20px;
             display: none;
             align-items: center;
             gap: 12px;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(246, 173, 85, 0.2);
+            font-size: 15px;
+            box-shadow: var(--shadow);
         }
 
         .session-warning.show {
@@ -685,7 +788,7 @@
         }
 
         .session-warning-icon {
-            font-size: 1.2rem;
+            font-size: 20px;
             flex-shrink: 0;
         }
 
@@ -702,9 +805,10 @@
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 14px;
             transition: all 0.3s ease;
             white-space: nowrap;
+            font-family: var(--system-font);
         }
 
         .reauth-btn:hover {
@@ -720,12 +824,25 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.6);
+            background: var(--background);
             z-index: 2000;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 0;
             backdrop-filter: blur(5px);
+        }
+
+        .allergen-modal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--surface);
+            margin: 0;
+            border-radius: 0;
+            z-index: -1;
         }
 
         .allergen-modal.show {
@@ -733,15 +850,16 @@
         }
 
         .allergen-modal-content {
-            background: white;
-            border-radius: 25px;
+            background: var(--surface);
+            border-radius: var(--radius-lg);
             padding: 40px 35px;
             max-width: 450px;
-            width: 100%;
+            width: 90%;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow-lg);
             animation: modalSlideIn 0.4s ease;
+            margin: 20px;
         }
 
         @keyframes modalSlideIn {
@@ -755,20 +873,20 @@
         }
 
         .allergen-modal-icon {
-            font-size: 3rem;
+            font-size: 48px;
             margin-bottom: 15px;
         }
 
         .allergen-modal-title {
-            font-size: 1.5rem;
+            font-size: 24px;
             font-weight: 700;
-            color: #2d3748;
+            color: var(--text-primary);
             margin-bottom: 10px;
         }
 
         .allergen-modal-subtitle {
-            color: #718096;
-            font-size: 1rem;
+            color: var(--text-secondary);
+            font-size: 16px;
             line-height: 1.5;
         }
 
@@ -782,37 +900,38 @@
         .allergen-btn {
             padding: 16px 24px;
             border: none;
-            border-radius: 15px;
+            border-radius: var(--radius);
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
+            font-family: var(--system-font);
         }
 
         .allergen-btn-primary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: white;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            box-shadow: var(--shadow);
         }
 
         .allergen-btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            box-shadow: var(--shadow-lg);
         }
 
         .allergen-btn-secondary {
-            background: #f7fafc;
-            color: #4a5568;
-            border: 2px solid #e2e8f0;
+            background: var(--surface-2);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
         }
 
         .allergen-btn-secondary:hover {
-            background: #edf2f7;
-            border-color: #cbd5e0;
+            background: var(--surface-3);
+            border-color: var(--text-secondary);
         }
 
         .allergen-selection {
@@ -835,27 +954,27 @@
             align-items: center;
             gap: 12px;
             padding: 15px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
             transition: all 0.3s ease;
             cursor: pointer;
             user-select: none;
         }
 
         .allergen-item:hover {
-            border-color: #cbd5e0;
-            background: #f7fafc;
+            border-color: var(--text-secondary);
+            background: var(--surface-2);
         }
 
         .allergen-item.selected {
-            border-color: #667eea;
+            border-color: var(--primary);
             background: linear-gradient(135deg, #f0f3ff, #e6edff);
         }
 
         .allergen-checkbox {
             width: 20px;
             height: 20px;
-            border: 2px solid #e2e8f0;
+            border: 2px solid var(--border);
             border-radius: 4px;
             display: flex;
             align-items: center;
@@ -864,8 +983,8 @@
         }
 
         .allergen-item.selected .allergen-checkbox {
-            background: #667eea;
-            border-color: #667eea;
+            background: var(--primary);
+            border-color: var(--primary);
             color: white;
         }
 
@@ -874,26 +993,28 @@
             align-items: center;
             gap: 8px;
             font-weight: 500;
-            color: #2d3748;
+            color: var(--text-primary);
         }
 
         .allergen-icon {
-            font-size: 1.2rem;
+            font-size: 20px;
         }
 
         .custom-allergen-input {
             width: 100%;
             padding: 12px 16px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-sm);
             margin-top: 15px;
-            font-size: 0.95rem;
+            font-size: 15px;
             transition: border-color 0.3s ease;
+            font-family: var(--system-font);
         }
 
         .custom-allergen-input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
 
         .allergen-actions {
@@ -903,30 +1024,67 @@
         }
 
         .allergen-back-btn {
-            background: #e2e8f0;
-            color: #4a5568;
+            background: var(--surface-3);
+            color: var(--text-primary);
             flex: 1;
         }
 
         .allergen-save-btn {
-            background: linear-gradient(135deg, #48bb78, #38a169);
+            background: linear-gradient(135deg, var(--success), #059669);
             color: white;
             flex: 2;
-            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+            box-shadow: var(--shadow);
         }
 
         .allergen-save-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.4);
+            box-shadow: var(--shadow-lg);
         }
 
         /* Responsive Design */
-        @media (max-width: 480px) {
-            .container {
-                max-width: 100%;
-                border-radius: 0;
+        @media (min-width: 768px) {
+            .container::before {
+                margin: 40px;
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-lg);
             }
 
+            .allergen-modal::before {
+                margin: 40px;
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-lg);
+            }
+
+            .loading-overlay::before {
+                margin: 40px;
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-lg);
+            }
+
+            .menu-header {
+                padding: 32px 40px;
+            }
+
+            .menu-content {
+                padding: 32px 40px 120px 40px;
+            }
+
+            .customer-info {
+                flex-direction: row;
+                align-items: center;
+            }
+
+            .header-actions {
+                justify-content: flex-end;
+            }
+
+            .allergen-header-btn {
+                flex: none;
+                min-width: 140px;
+            }
+        }
+
+        @media (max-width: 480px) {
             .menu-header {
                 padding: 20px 16px;
             }
@@ -941,26 +1099,72 @@
             }
 
             .restaurant-title {
-                font-size: 1.5rem;
+                font-size: 22px;
             }
 
             .item-image {
-                height: 140px;
+                height: 160px;
             }
 
             .customer-info {
-                flex-direction: column;
+                padding: 12px;
                 gap: 8px;
-                align-items: stretch;
-            }
-
-            .header-right {
-                justify-content: space-between;
             }
 
             .auth-indicator {
-                font-size: 0.7rem;
-                padding: 3px 6px;
+                font-size: 11px;
+                padding: 4px 8px;
+            }
+
+            .item-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .item-price {
+                align-self: flex-end;
+            }
+
+            .qty-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 18px;
+            }
+
+            .qty-display {
+                font-size: 18px;
+            }
+        }
+
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            :root {
+                --border: #6b7280;
+                --text-secondary: #374151;
+            }
+        }
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --surface: #1e293b;
+                --surface-2: #334155;
+                --surface-3: #475569;
+                --text-primary: #f1f5f9;
+                --text-secondary: #cbd5e1;
+                --text-muted: #94a3b8;
+                --border: #475569;
+                --border-light: #374151;
             }
         }
     </style>
@@ -989,19 +1193,21 @@
         <div class="menu-header">
             <h1 class="restaurant-title" id="restaurantName">Loading...</h1>
             <div class="customer-info">
-                <div class="welcome-text">
-                    <span>Welcome, <strong id="displayName">Guest</strong></span>
-                    <div class="auth-indicator" id="authIndicator">
-                        <span id="authIcon">🔐</span>
-                        <span id="authText">Secured</span>
+                <div class="welcome-row">
+                    <div class="welcome-text">
+                        <span>Welcome, <strong id="displayName">Guest</strong></span>
+                        <div class="auth-indicator" id="authIndicator">
+                            <span id="authIcon">🔐</span>
+                            <span id="authText">Secured</span>
+                        </div>
                     </div>
+                    <div class="table-badge" id="tableBadge">Loading...</div>
                 </div>
-                <div class="header-right">
+                <div class="header-actions">
                     <button class="allergen-header-btn" id="allergenHeaderBtn" onclick="openAllergenModal()">
                         <span>🛡️</span>
                         <span id="allergenBtnText">Allergies</span>
                     </button>
-                    <div class="table-badge" id="tableBadge">Loading...</div>
                 </div>
             </div>
         </div>
@@ -1094,8 +1300,8 @@
         let menuItems = [];
         let cart = {};
         let customerData = {};
-        let customerSession = {}; // NEW: For enhanced session management
-        let currentUser = null; // NEW: Firebase user object
+        let customerSession = {};
+        let currentUser = null;
         let itemQuantities = {};
         let activeCategory = null;
         let customerAllergens = [];
@@ -1130,39 +1336,22 @@
             }
         });
 
-        // ENHANCED: Main initialization function with authentication check
+        // Main initialization function with authentication check
         async function initializeMenuPage() {
             showLoading();
             
             try {
-                // ENHANCED: Check authentication with session management
                 await checkAuthenticationAndSession();
-                
-                // Get customer data from URL parameters and session
                 customerData = getCustomerDataFromURL();
                 console.log('👤 Customer data:', customerData);
                 
-                // Load restaurant and menu data from Firebase
                 await loadRestaurantAndMenuData();
-                
-                // ENHANCED: Update customer display with auth status
                 updateCustomerDisplay();
-                
-                // Load saved allergen settings
                 loadSavedAllergens();
-                
-                // Load saved cart
                 loadSavedCart();
-                
-                // Filter menu based on allergens
                 filterMenuByAllergens();
-                
-                // Render the menu
                 renderMenu();
-                
                 hideLoading();
-                
-                // Check if allergen modal should be shown
                 checkAllergenPrompt();
                 
                 console.log('✅ Enhanced menu page loaded successfully');
@@ -1174,7 +1363,7 @@
             }
         }
 
-        // ENHANCED: Authentication and session check
+        // Authentication and session check
         async function checkAuthenticationAndSession() {
             return new Promise((resolve, reject) => {
                 firebase.auth().onAuthStateChanged(async function(user) {
@@ -1188,11 +1377,8 @@
                         });
                         
                         currentUser = user;
-                        
-                        // NEW: Load customer session data
                         await loadCustomerSession();
                         
-                        // NEW: Verify session consistency
                         if (!verifySessionConsistency()) {
                             console.warn('⚠️ Session inconsistency detected, redirecting to login');
                             redirectToLogin();
@@ -1212,16 +1398,14 @@
             });
         }
 
-        // NEW: Load customer session data
+        // Load customer session data
         async function loadCustomerSession() {
             try {
-                // Get session from sessionStorage
                 const sessionData = sessionStorage.getItem('customerSession');
                 if (sessionData) {
                     customerSession = JSON.parse(sessionData);
                     console.log('📱 Loaded customer session:', customerSession);
                     
-                    // Verify session belongs to current user
                     if (customerSession.firebaseUID !== currentUser.uid) {
                         console.warn('⚠️ Session UID mismatch');
                         customerSession = {};
@@ -1231,12 +1415,10 @@
                     customerSession = {};
                 }
                 
-                // Try to load customer profile from Firestore
                 try {
                     const profile = await VediAPI.getCustomerProfile(currentUser.uid);
                     if (profile) {
                         console.log('👤 Loaded customer profile from Firestore');
-                        // Merge profile data with session
                         customerSession = { ...customerSession, ...profile };
                     }
                 } catch (profileError) {
@@ -1249,16 +1431,14 @@
             }
         }
 
-        // NEW: Verify session consistency
+        // Verify session consistency
         function verifySessionConsistency() {
-            // Check if we have minimum required data
             const hasRestaurantId = customerSession.restaurantId || getCustomerDataFromURL().restaurantId;
             const hasUserAuth = currentUser && currentUser.uid;
-            
             return hasRestaurantId && hasUserAuth;
         }
 
-        // NEW: Show session warning
+        // Show session warning
         function showSessionWarning() {
             const warning = document.getElementById('sessionWarning');
             if (warning) {
@@ -1266,7 +1446,7 @@
             }
         }
 
-        // NEW: Redirect to login with current parameters
+        // Redirect to login with current parameters
         function redirectToLogin() {
             const currentParams = new URLSearchParams(window.location.search);
             const loginUrl = `customer-login.html?${currentParams.toString()}`;
@@ -1276,11 +1456,10 @@
             }, 2000);
         }
 
-        // ENHANCED: Get customer data from URL parameters and session
+        // Get customer data from URL parameters and session
         function getCustomerDataFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
             
-            // Get from URL or fallback to session
             const restaurantId = urlParams.get('restaurant') || 
                                urlParams.get('r') || 
                                customerSession.restaurantId;
@@ -1297,7 +1476,6 @@
                 throw new Error('No restaurant ID provided. Please scan a valid QR code.');
             }
             
-            // Determine display text for table/location
             let tableDisplay;
             if (location === 'counter') {
                 tableDisplay = 'At Counter';
@@ -1307,30 +1485,52 @@
                 tableDisplay = 'Restaurant Order';
             }
             
+            // Fix URL encoding issues with names
+            let customerName = urlParams.get('name') || 
+                              customerSession.name || 
+                              currentUser?.displayName ||
+                              null;
+            
+            // Decode and clean up the name if it exists
+            if (customerName) {
+                try {
+                    customerName = decodeURIComponent(customerName);
+                } catch (e) {
+                    // If decoding fails, use the name as is
+                    console.warn('Could not decode customer name:', customerName);
+                }
+            }
+            
+            let customerPhone = urlParams.get('phone') || 
+                               customerSession.phone || 
+                               currentUser?.phoneNumber ||
+                               null;
+            
+            // Decode phone number if needed
+            if (customerPhone) {
+                try {
+                    customerPhone = decodeURIComponent(customerPhone);
+                } catch (e) {
+                    console.warn('Could not decode phone number:', customerPhone);
+                }
+            }
+            
             return {
                 restaurantId: restaurantId,
                 tableNumber: tableNumber,
                 location: location,
                 tableDisplay: tableDisplay,
-                name: urlParams.get('name') || 
-                      customerSession.name || 
-                      currentUser?.displayName ||
-                      null,
-                phone: urlParams.get('phone') || 
-                       customerSession.phone || 
-                       currentUser?.phoneNumber ||
-                       null
+                name: customerName,
+                phone: customerPhone
             };
         }
 
         // Load restaurant and menu data from Firebase
         async function loadRestaurantAndMenuData() {
             try {
-                // Load restaurant data
                 currentRestaurant = await VediAPI.getRestaurant(customerData.restaurantId);
                 console.log('🏪 Loaded restaurant:', currentRestaurant.name);
                 
-                // Load categories and menu items
                 const [categoriesData, menuItemsData] = await Promise.all([
                     VediAPI.getMenuCategories(customerData.restaurantId),
                     VediAPI.getMenuItems(customerData.restaurantId)
@@ -1371,12 +1571,11 @@
             return `${currency.symbol}${formattedAmount}`;
         }
 
-        // ENHANCED: Update customer display with authentication status
+        // Update customer display with authentication status
         function updateCustomerDisplay() {
             document.getElementById('restaurantName').textContent = currentRestaurant.name;
             document.getElementById('tableBadge').textContent = customerData.tableDisplay;
             
-            // NEW: Enhanced display name logic
             let displayName = 'Guest';
             if (customerData.name) {
                 displayName = customerData.name.split(' ')[0];
@@ -1387,12 +1586,10 @@
             }
             
             document.getElementById('displayName').textContent = displayName;
-            
-            // NEW: Update authentication indicator
             updateAuthenticationIndicator();
         }
 
-        // NEW: Update authentication indicator
+        // Update authentication indicator
         function updateAuthenticationIndicator() {
             const authIndicator = document.getElementById('authIndicator');
             const authIcon = document.getElementById('authIcon');
@@ -1405,7 +1602,6 @@
                 return;
             }
             
-            // Determine auth method and display appropriate indicator
             const providerId = currentUser.providerData[0]?.providerId;
             
             if (providerId === 'phone') {
@@ -1449,7 +1645,6 @@
         }
 
         function checkAllergenPrompt() {
-            // Show allergen modal if no previous allergen settings found
             const hasSeenPrompt = sessionStorage.getItem('allergenPromptShown');
             if (!hasSeenPrompt && menuItems.length > 0) {
                 setTimeout(() => {
@@ -1530,7 +1725,6 @@
             closeAllergenModal();
             refreshMenuDisplay();
             
-            // Save allergen info for checkout page
             const allergenInfo = {
                 selectedAllergens: customerAllergens,
                 customAllergens: customAllergens,
@@ -1553,7 +1747,6 @@
             renderMenu();
             updateAllergenStatusBar();
             
-            // Restore cart quantities
             if (Object.keys(cart).length > 0) {
                 itemQuantities = { ...cart };
                 setTimeout(() => {
@@ -1800,7 +1993,7 @@
             updateCartSummary();
         }
 
-        // ENHANCED: Cart summary with authentication support
+        // Cart summary with authentication support
         function updateCartSummary() {
             let totalItems = 0;
             let totalPrice = 0;
@@ -1824,7 +2017,6 @@
                 cartTotal.textContent = formatPrice(totalPrice);
                 cartSummary.classList.add('show');
                 
-                // ENHANCED: Save cart with customer UID for security
                 const cartData = {
                     items: cart,
                     customerUID: currentUser ? currentUser.uid : null,
@@ -1838,14 +2030,13 @@
             }
         }
 
-        // ENHANCED: Load saved cart with authentication verification
+        // Load saved cart with authentication verification
         function loadSavedCart() {
             try {
                 const savedCartData = sessionStorage.getItem('customerCart');
                 if (savedCartData) {
                     const cartData = JSON.parse(savedCartData);
                     
-                    // NEW: Verify cart belongs to current user and restaurant
                     if (cartData.customerUID && 
                         currentUser && 
                         cartData.customerUID === currentUser.uid &&
@@ -1854,7 +2045,6 @@
                         cart = cartData.items || {};
                         console.log('🛒 Loaded saved cart for authenticated user:', cart);
                     } else if (!cartData.customerUID) {
-                        // Legacy cart without UID (backward compatibility)
                         cart = cartData.items || cartData || {};
                         console.log('🛒 Loaded legacy cart:', cart);
                     } else {
@@ -1906,9 +2096,8 @@
             });
         }
 
-        // ENHANCED: View cart with enhanced session data
+        // View cart with enhanced session data
         function viewCart() {
-            // ENHANCED: Save comprehensive cart and customer data
             const enhancedCartData = {
                 items: cart,
                 customerUID: currentUser ? currentUser.uid : null,
@@ -1917,7 +2106,6 @@
             };
             sessionStorage.setItem('customerCart', JSON.stringify(enhancedCartData));
             
-            // ENHANCED: Save comprehensive customer session
             const enhancedCustomerData = {
                 ...customerData,
                 ...customerSession,
@@ -1927,22 +2115,26 @@
                 sessionTimestamp: new Date().toISOString()
             };
             
-            // Include allergen information
             if (customerAllergens.length > 0 || customerData.customAllergens) {
                 enhancedCustomerData.allergens = customerAllergens;
             }
             
             sessionStorage.setItem('customerData', JSON.stringify(enhancedCustomerData));
             
-            // Build URL parameters for checkout
             const params = new URLSearchParams();
             params.set('restaurant', customerData.restaurantId);
             params.set('table', customerData.tableNumber);
             if (customerData.location) params.set('location', customerData.location);
-            if (customerData.name) params.set('name', customerData.name);
+            
+            // Properly encode the name to avoid %20 issues
+            if (customerData.name) {
+                // Clean the name and encode it properly
+                const cleanName = customerData.name.trim();
+                params.set('name', cleanName);
+            }
+            
             if (customerData.phone) params.set('phone', customerData.phone);
             
-            // NEW: Add authentication session parameter
             if (currentUser) {
                 params.set('session', 'authenticated');
             }
@@ -1972,17 +2164,15 @@
             document.getElementById('errorMessage').style.display = 'block';
         }
 
-        // NEW: Session monitoring for enhanced security
+        // Session monitoring for enhanced security
         function monitorAuthenticationState() {
             firebase.auth().onAuthStateChanged(function(user) {
                 if (!user && currentUser) {
-                    // User was signed out unexpectedly
                     console.warn('⚠️ User signed out unexpectedly');
                     showSessionWarning();
                     currentUser = null;
                     updateAuthenticationIndicator();
                 } else if (user && !currentUser) {
-                    // User signed in during session
                     console.log('✅ User signed in during session');
                     currentUser = user;
                     updateAuthenticationIndicator();
@@ -1991,7 +2181,7 @@
             });
         }
 
-        // NEW: Hide session warning
+        // Hide session warning
         function hideSessionWarning() {
             const warning = document.getElementById('sessionWarning');
             if (warning) {
