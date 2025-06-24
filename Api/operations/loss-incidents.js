@@ -76,7 +76,7 @@ function withTracking(methodName, originalMethod) {
 // LOSS INCIDENT MANAGEMENT API (EXACTLY LIKE YOUR VEDIAPI PATTERN)
 // ============================================================================
 
-const VediAPI = {
+const LossIncidentAPI = {
   
   /**
    * Create new loss incident (FIXED to handle undefined values)
@@ -488,12 +488,51 @@ const VediAPI = {
   }
 };
 
-// Make VediAPI available globally (EXACTLY LIKE YOUR PATTERN)
-window.VediAPI = VediAPI;
+// ============================================================================
+// GLOBAL EXPORTS AND VEDIAPI INTEGRATION (FIXED)
+// ============================================================================
+
+// Ensure VediAPI namespace exists (FIXED - no redeclaring)
+if (!window.VediAPI) {
+  window.VediAPI = {};
+}
+
+// Attach loss incident functions to existing VediAPI namespace (FIXED)
+Object.assign(window.VediAPI, {
+  // Loss incident CRUD operations
+  createLossIncident: LossIncidentAPI.createLossIncident,
+  getLossIncidents: LossIncidentAPI.getLossIncidents,
+  getLossIncidentsByVenue: LossIncidentAPI.getLossIncidentsByVenue,
+  updateLossIncident: LossIncidentAPI.updateLossIncident,
+  deleteLossIncident: LossIncidentAPI.deleteLossIncident,
+  
+  // Loss analytics
+  getLossAnalytics: LossIncidentAPI.getLossAnalytics,
+  getVenueLossAnalytics: LossIncidentAPI.getVenueLossAnalytics,
+  
+  // Real-time listeners
+  listenToLossIncidents: LossIncidentAPI.listenToLossIncidents,
+  listenToVenueLossIncidents: LossIncidentAPI.listenToVenueLossIncidents,
+  
+  // Helper methods
+  calculateLossAnalytics: LossIncidentAPI.calculateLossAnalytics.bind(LossIncidentAPI)
+});
 
 // Legacy support - also make it available as FirebaseAPI for backward compatibility
-window.FirebaseAPI = VediAPI;
+if (!window.FirebaseAPI) {
+  window.FirebaseAPI = {};
+}
+Object.assign(window.FirebaseAPI, {
+  createLossIncident: LossIncidentAPI.createLossIncident,
+  getLossIncidents: LossIncidentAPI.getLossIncidents,
+  getLossIncidentsByVenue: LossIncidentAPI.getLossIncidentsByVenue,
+  updateLossIncident: LossIncidentAPI.updateLossIncident,
+  deleteLossIncident: LossIncidentAPI.deleteLossIncident,
+  getLossAnalytics: LossIncidentAPI.getLossAnalytics,
+  getVenueLossAnalytics: LossIncidentAPI.getVenueLossAnalytics
+});
 
 console.log('📋 VediAPI Loss Incidents module loaded successfully');
-console.log('🔧 Available loss incident methods:', Object.keys(VediAPI).length, 'total methods');
+console.log('🔧 Available loss incident methods:', Object.keys(LossIncidentAPI).length, 'total methods');
 console.log('🚀 Ready for loss incident management!');
+console.log('✅ FIXED: No VediAPI namespace conflicts - attached to existing namespace');
