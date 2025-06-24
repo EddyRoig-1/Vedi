@@ -829,7 +829,26 @@
         // Load venue data
         async function loadVenueData() {
             try {
-                const venue = await VediAPI.getVenueByManager(currentUser.uid);
+                // Direct Firebase query if VediAPI function is not available
+                let venue;
+                
+                if (VediAPI.getVenueByManager) {
+                    venue = await VediAPI.getVenueByManager(currentUser.uid);
+                } else {
+                    // Fallback to direct Firebase query
+                    const db = getFirebaseDb();
+                    const venueQuery = await db.collection('venues')
+                        .where('managerUserId', '==', currentUser.uid)
+                        .limit(1)
+                        .get();
+                    
+                    if (venueQuery.empty) {
+                        throw new Error('No venue found for this manager');
+                    }
+                    
+                    const venueDoc = venueQuery.docs[0];
+                    venue = { id: venueDoc.id, ...venueDoc.data() };
+                }
                 
                 if (!venue) {
                     throw new Error('No venue found for this manager');
@@ -911,11 +930,29 @@
                 // Load orders for each restaurant
                 for (const restaurantId of restaurantIds) {
                     try {
-                        const orders = await VediAPI.getOrders(restaurantId, {
-                            limit: 1000,
-                            orderBy: 'createdAt',
-                            orderDirection: 'desc'
-                        });
+                        let orders;
+                        
+                        if (VediAPI.getOrders) {
+                            orders = await VediAPI.getOrders(restaurantId, {
+                                limit: 1000,
+                                orderBy: 'createdAt',
+                                orderDirection: 'desc'
+                            });
+                        } else {
+                            // Fallback to direct Firebase query
+                            const db = getFirebaseDb();
+                            const ordersQuery = await db.collection('orders')
+                                .where('restaurantId', '==', restaurantId)
+                                .orderBy('createdAt', 'desc')
+                                .limit(1000)
+                                .get();
+                            
+                            orders = ordersQuery.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+                        }
+                        
                         venueOrders.push(...orders);
                     } catch (error) {
                         console.warn('Could not load orders for restaurant:', restaurantId);
@@ -933,10 +970,23 @@
         // Load loss incidents
         async function loadLossIncidents() {
             try {
-                if (currentVenue.id) {
+                if (currentVenue.id && VediAPI.getLossIncidentsByVenue) {
                     lossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
                         limit: 1000
                     });
+                } else if (currentVenue.id) {
+                    // Fallback to direct Firebase query
+                    const db = getFirebaseDb();
+                    const incidentsQuery = await db.collection('lossIncidents')
+                        .where('venueId', '==', currentVenue.id)
+                        .orderBy('createdAt', 'desc')
+                        .limit(1000)
+                        .get();
+                    
+                    lossIncidents = incidentsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
                 } else {
                     lossIncidents = [];
                 }
