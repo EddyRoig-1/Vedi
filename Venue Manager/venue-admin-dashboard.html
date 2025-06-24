@@ -951,8 +951,15 @@
         // REMOVED: Duplicate Firebase configuration declaration
         // The firebase-config.js file already handles this
         
-        // Global variables
+        // Global variables - check if already declared
         let auth, db;
+        if (typeof window.auth !== 'undefined') {
+            auth = window.auth;
+        }
+        if (typeof window.db !== 'undefined') {
+            db = window.db;
+        }
+        
         let currentUser = null;
         let currentVenue = null;
         let allRestaurants = [];
@@ -974,8 +981,9 @@
                         typeof VediAPI !== 'undefined' && 
                         firebase.apps.length > 0) {
                         
-                        auth = firebase.auth();
-                        db = firebase.firestore();
+                        // Get Firebase references safely
+                        auth = auth || firebase.auth();
+                        db = db || firebase.firestore();
                         console.log('✅ All dependencies loaded successfully');
                         resolve(true);
                     } else {
@@ -994,6 +1002,40 @@
                 }, 10000);
             });
         }
+
+        // Make other functions global for onclick handlers
+        window.handleTimeRangeChange = handleTimeRangeChange;
+        window.applyFilters = applyFilters; - MOVED TO TOP LEVEL AND FIXED
+        window.showSection = function(sectionName) {
+            console.log('🔄 Switching to section:', sectionName);
+            
+            const sections = ['overview', 'performance', 'loss-tracking', 'data-quality', 'detailed-reports', 'venue-management', 'financials'];
+            
+            // Hide all sections
+            sections.forEach(section => {
+                const sectionElement = document.getElementById(`${section}-section`);
+                if (sectionElement) {
+                    sectionElement.classList.add('hidden');
+                }
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show target section
+            const targetSection = document.getElementById(`${sectionName}-section`);
+            if (targetSection) {
+                targetSection.classList.remove('hidden');
+            }
+            
+            // Add active class to clicked tab
+            const clickedTab = event ? event.target.closest('.nav-tab') : document.querySelector('.nav-tab');
+            if (clickedTab) {
+                clickedTab.classList.add('active');
+            }
+        };
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1616,22 +1658,9 @@
         }
 
         // Navigation
-        function showSection(sectionName) {
-            const sections = ['overview', 'performance', 'loss-tracking', 'data-quality', 'detailed-reports', 'venue-management', 'financials'];
-            
-            sections.forEach(section => {
-                document.getElementById(`${section}-section`).classList.add('hidden');
-            });
-            
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            document.getElementById(`${sectionName}-section`).classList.remove('hidden');
-            event.target.closest('.nav-tab').classList.add('active');
-        }
 
-        async function handleLogout() {
+        // Logout function - make it global
+        window.handleLogout = async function() {
             try {
                 await auth.signOut();
                 window.location.href = '../Landing-Signup-Login/login.html';
@@ -1639,7 +1668,7 @@
                 console.error('Logout error:', error);
                 alert('Error signing out. Please try again.');
             }
-        }
+        };
     </script>
 </body>
 </html>
