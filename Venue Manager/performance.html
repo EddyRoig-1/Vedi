@@ -798,6 +798,73 @@
             return window.firebaseDb || firebase.firestore();
         }
 
+        // Helper function for currency formatting
+        function formatCurrency(amount, currency = 'USD') {
+            try {
+                if (VediAPI && VediAPI.formatCurrency) {
+                    return VediAPI.formatCurrency(amount, currency);
+                } else {
+                    // Fallback formatting
+                    return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: currency
+                    }).format(amount);
+                }
+            } catch (error) {
+                console.error('❌ Currency formatting error:', error);
+                return `${amount.toFixed(2)}`;
+            }
+        }
+
+        // Helper function for time period start
+        function getTimePeriodStart(timePeriod) {
+            if (VediAPI && VediAPI.getTimePeriodStart) {
+                return VediAPI.getTimePeriodStart(timePeriod);
+            }
+            
+            // Fallback implementation
+            const now = new Date();
+            
+            switch (timePeriod.toLowerCase()) {
+                case 'today':
+                    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                case 'week':
+                    const weekStart = new Date(now);
+                    weekStart.setDate(now.getDate() - 7);
+                    return weekStart;
+                case 'month':
+                    return new Date(now.getFullYear(), now.getMonth(), 1);
+                case 'quarter':
+                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+                    return new Date(now.getFullYear(), quarterMonth, 1);
+                case 'year':
+                    return new Date(now.getFullYear(), 0, 1);
+                default:
+                    return null;
+            }
+        }
+
+        // Helper function for timestamp conversion
+        function timestampToDate(timestamp) {
+            try {
+                if (VediAPI && VediAPI.timestampToDate) {
+                    return VediAPI.timestampToDate(timestamp);
+                }
+                
+                // Fallback implementation
+                if (timestamp && timestamp.toDate) {
+                    return timestamp.toDate();
+                }
+                if (timestamp && timestamp.seconds) {
+                    return new Date(timestamp.seconds * 1000);
+                }
+                return new Date(timestamp);
+            } catch (error) {
+                console.error('❌ Timestamp conversion error:', error);
+                return new Date();
+            }
+        }
+
         // Initialize dashboard
         async function initializeDashboard() {
             try {
@@ -1074,10 +1141,10 @@
                 const totalLosses = filteredLosses.reduce((sum, incident) => sum + (parseFloat(incident.amount) || 0), 0);
                 
                 // Update displays
-                document.getElementById('totalRevenue').textContent = VediAPI.formatCurrency(totalRevenue, 'USD');
+                document.getElementById('totalRevenue').textContent = formatCurrency(totalRevenue, 'USD');
                 document.getElementById('totalOrders').textContent = totalOrders.toLocaleString();
-                document.getElementById('averageOrderValue').textContent = VediAPI.formatCurrency(averageOrderValue, 'USD');
-                document.getElementById('totalLosses').textContent = VediAPI.formatCurrency(totalLosses, 'USD');
+                document.getElementById('averageOrderValue').textContent = formatCurrency(averageOrderValue, 'USD');
+                document.getElementById('totalLosses').textContent = formatCurrency(totalLosses, 'USD');
                 
                 // Update change indicators (simplified)
                 document.getElementById('revenueChange').textContent = `${totalOrders} orders this period`;
@@ -1093,64 +1160,22 @@
 
         // Filter orders by time period
         function filterOrdersByTimePeriod(orders, timePeriod) {
-            const now = new Date();
-            let startDate;
-            
-            switch(timePeriod) {
-                case 'today':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    break;
-                case 'week':
-                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    break;
-                case 'month':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    break;
-                case 'quarter':
-                    const quarter = Math.floor(now.getMonth() / 3);
-                    startDate = new Date(now.getFullYear(), quarter * 3, 1);
-                    break;
-                case 'year':
-                    startDate = new Date(now.getFullYear(), 0, 1);
-                    break;
-                default:
-                    return orders;
-            }
+            const startDate = getTimePeriodStart(timePeriod);
+            if (!startDate) return orders;
             
             return orders.filter(order => {
-                const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                const orderDate = timestampToDate(order.createdAt);
                 return orderDate >= startDate;
             });
         }
 
         // Filter losses by time period
         function filterLossesByTimePeriod(incidents, timePeriod) {
-            const now = new Date();
-            let startDate;
-            
-            switch(timePeriod) {
-                case 'today':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    break;
-                case 'week':
-                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    break;
-                case 'month':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    break;
-                case 'quarter':
-                    const quarter = Math.floor(now.getMonth() / 3);
-                    startDate = new Date(now.getFullYear(), quarter * 3, 1);
-                    break;
-                case 'year':
-                    startDate = new Date(now.getFullYear(), 0, 1);
-                    break;
-                default:
-                    return incidents;
-            }
+            const startDate = getTimePeriodStart(timePeriod);
+            if (!startDate) return incidents;
             
             return incidents.filter(incident => {
-                const incidentDate = incident.createdAt?.toDate ? incident.createdAt.toDate() : new Date(incident.createdAt);
+                const incidentDate = timestampToDate(incident.createdAt);
                 return incidentDate >= startDate;
             });
         }
@@ -1175,7 +1200,7 @@
             // Group orders by date
             const revenueByDate = {};
             filteredOrders.forEach(order => {
-                const date = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                const date = timestampToDate(order.createdAt);
                 const dateKey = date.toISOString().split('T')[0];
                 revenueByDate[dateKey] = (revenueByDate[dateKey] || 0) + (parseFloat(order.total) || 0);
             });
@@ -1285,7 +1310,7 @@
             // Group orders by hour
             const ordersByHour = new Array(24).fill(0);
             filteredOrders.forEach(order => {
-                const date = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                const date = timestampToDate(order.createdAt);
                 const hour = date.getHours();
                 ordersByHour[hour]++;
             });
@@ -1367,13 +1392,13 @@
                             <div class="restaurant-cuisine">${restaurant.cuisineType || 'Restaurant'}</div>
                         </div>
                         <div>
-                            <div class="metric-value">${VediAPI.formatCurrency(restaurant.revenue, restaurant.currency?.code || 'USD')}</div>
+                            <div class="metric-value">${formatCurrency(restaurant.revenue, restaurant.currency?.code || 'USD')}</div>
                         </div>
                         <div>
                             <div class="metric-value">${restaurant.orderCount}</div>
                         </div>
                         <div>
-                            <div class="metric-value">${VediAPI.formatCurrency(restaurant.avgOrder, restaurant.currency?.code || 'USD')}</div>
+                            <div class="metric-value">${formatCurrency(restaurant.avgOrder, restaurant.currency?.code || 'USD')}</div>
                         </div>
                         <div>
                             <span class="status-badge ${status.class}">${status.text}</span>
