@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venue Management - Venue Manager</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+    
+    <!-- VediAPI Core -->
+    <script src="../Api/core/firebase-init.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    
+    <!-- Authentication -->
+    <script src="../Api/auth/email-auth.js"></script>
+    
+    <!-- Real-time Data -->
+    <script src="../Api/realtime/listeners.js"></script>
+    
+    <!-- Business APIs -->
+    <script src="../Api/business/venues.js"></script>
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/business/venue-sync.js"></script>
+    
+    <!-- Financial APIs -->
+    <script src="../Api/payments/fee-configurations.js"></script>
+    
+    <style>
+        /* iOS Design System */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+            background-color: #F8F9FA;
+            color: #1D1D1F;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .venue-info h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .venue-info p {
+            font-size: 15px;
+            color: #86868B;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .user-role {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .logout-btn {
+            background-color: #FF3B30;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #D70015;
+            transform: translateY(-1px);
+        }
+
+        /* Navigation */
+        .navigation {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 0 24px;
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-item {
+            padding: 16px 0;
+            font-size: 17px;
+            font-weight: 500;
+            color: #86868B;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active {
+            color: #007AFF;
+            border-bottom-color: #007AFF;
+        }
+
+        .nav-item:hover {
+            color: #007AFF;
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 17px;
+            color: #86868B;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .action-card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+            cursor: pointer;
+        }
+
+        .action-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .action-icon {
+            width: 48px;
+            height: 48px;
+            background-color: #007AFF;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            margin-bottom: 16px;
+        }
+
+        .action-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .action-description {
+            font-size: 15px;
+            color: #86868B;
+            margin-bottom: 16px;
+        }
+
+        .action-button {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .action-button:hover {
+            background-color: #0056CC;
+        }
+
+        .action-button.secondary {
+            background-color: #F1F3F4;
+            color: #007AFF;
+        }
+
+        .action-button.secondary:hover {
+            background-color: #E5E5E7;
+        }
+
+        /* Management Sections */
+        .management-section {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        .section-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .section-btn {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .section-btn:hover {
+            background-color: #0056CC;
+        }
+
+        .section-btn.secondary {
+            background-color: #F1F3F4;
+            color: #007AFF;
+        }
+
+        .section-btn.secondary:hover {
+            background-color: #E5E5E7;
+        }
+
+        /* Restaurant Management */
+        .restaurant-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .restaurant-card {
+            background-color: #F8F9FA;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #E5E5E7;
+            transition: all 0.2s ease;
+        }
+
+        .restaurant-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .restaurant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .restaurant-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .restaurant-cuisine {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .restaurant-status {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-online {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .status-offline {
+            background-color: #FFE5E5;
+            color: #D70015;
+        }
+
+        .status-pending {
+            background-color: #FFF3CD;
+            color: #B45309;
+        }
+
+        .restaurant-info {
+            margin-bottom: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .info-label {
+            color: #86868B;
+        }
+
+        .info-value {
+            color: #1D1D1F;
+            font-weight: 500;
+        }
+
+        .restaurant-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .restaurant-btn {
+            flex: 1;
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .restaurant-btn:hover {
+            background-color: #0056CC;
+        }
+
+        .restaurant-btn.danger {
+            background-color: #FF3B30;
+        }
+
+        .restaurant-btn.danger:hover {
+            background-color: #D70015;
+        }
+
+        .restaurant-btn.secondary {
+            background-color: #F1F3F4;
+            color: #007AFF;
+        }
+
+        .restaurant-btn.secondary:hover {
+            background-color: #E5E5E7;
+        }
+
+        /* Requests and Invitations */
+        .request-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .request-item {
+            background-color: #F8F9FA;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #E5E5E7;
+        }
+
+        .request-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .request-info h4 {
+            font-size: 17px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .request-meta {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .request-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .request-btn {
+            background-color: #30D158;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .request-btn:hover {
+            background-color: #28CD4F;
+        }
+
+        .request-btn.deny {
+            background-color: #FF3B30;
+        }
+
+        .request-btn.deny:hover {
+            background-color: #D70015;
+        }
+
+        .request-btn.cancel {
+            background-color: #86868B;
+        }
+
+        .request-btn.cancel:hover {
+            background-color: #6D6D70;
+        }
+
+        /* Venue Settings */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .setting-group {
+            background-color: #F8F9FA;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .setting-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 16px;
+        }
+
+        .setting-item {
+            margin-bottom: 16px;
+        }
+
+        .setting-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #86868B;
+            margin-bottom: 6px;
+        }
+
+        .setting-input {
+            width: 100%;
+            height: 44px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 0 16px;
+            font-size: 17px;
+            background-color: #FFFFFF;
+            transition: border-color 0.2s ease;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        .setting-textarea {
+            width: 100%;
+            min-height: 80px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 15px;
+            background-color: #FFFFFF;
+            resize: vertical;
+            transition: border-color 0.2s ease;
+        }
+
+        .setting-textarea:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        .setting-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .setting-checkbox input {
+            width: 18px;
+            height: 18px;
+        }
+
+        .update-btn {
+            background-color: #30D158;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 16px;
+        }
+
+        .update-btn:hover {
+            background-color: #28CD4F;
+        }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal.active .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .modal-subtitle {
+            font-size: 15px;
+            color: #86868B;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            height: 44px;
+            border: none;
+            border-radius: 8px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-btn.primary {
+            background-color: #007AFF;
+            color: white;
+        }
+
+        .modal-btn.primary:hover {
+            background-color: #0056CC;
+        }
+
+        .modal-btn.secondary {
+            background-color: #F1F3F4;
+            color: #007AFF;
+        }
+
+        .modal-btn.secondary:hover {
+            background-color: #E5E5E7;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 48px;
+            color: #86868B;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #E5E5E7;
+            border-top: 2px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error and Success Messages */
+        .message {
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 15px;
+        }
+
+        .message.error {
+            background-color: #FFE5E5;
+            color: #D70015;
+        }
+
+        .message.success {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .message.warning {
+            background-color: #FFF3CD;
+            color: #B45309;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                align-items: start;
+            }
+
+            .nav-content {
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .restaurant-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: start;
+            }
+
+            .section-actions {
+                width: 100%;
+            }
+
+            .section-btn {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="venue-info">
+                <h1 id="venueName">Loading...</h1>
+                <p id="venueLocation">Loading venue information...</p>
+            </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-name" id="userName">Venue Manager</div>
+                    <div class="user-role">Venue Management</div>
+                </div>
+                <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="navigation">
+        <div class="nav-content">
+            <a href="venue-overview.html" class="nav-item">Overview</a>
+            <a href="performance.html" class="nav-item">Performance</a>
+            <a href="loss-tracking.html" class="nav-item">Loss Tracking</a>
+            <a href="#" class="nav-item">Reports</a>
+            <a href="#" class="nav-item active">Management</a>
+            <a href="venue-financials.html" class="nav-item">Financials</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <section class="page-header">
+            <h1 class="page-title">Venue Management</h1>
+            <p class="page-subtitle">Comprehensive venue administration and restaurant management</p>
+        </section>
+
+        <!-- Quick Actions -->
+        <section class="quick-actions">
+            <div class="action-card" onclick="openInviteModal()">
+                <div class="action-icon">📨</div>
+                <h3 class="action-title">Invite Restaurant</h3>
+                <p class="action-description">Send an invitation to a restaurant to join your venue</p>
+                <button class="action-button">Send Invitation</button>
+            </div>
+
+            <div class="action-card" onclick="showVenueSettings()">
+                <div class="action-icon">⚙️</div>
+                <h3 class="action-title">Venue Settings</h3>
+                <p class="action-description">Configure venue details, hours, and operational settings</p>
+                <button class="action-button secondary">Manage Settings</button>
+            </div>
+
+            <div class="action-card" onclick="viewAllReports()">
+                <div class="action-icon">📊</div>
+                <h3 class="action-title">View Reports</h3>
+                <p class="action-description">Access comprehensive reports and analytics</p>
+                <button class="action-button secondary">Open Reports</button>
+            </div>
+        </section>
+
+        <!-- Restaurant Management -->
+        <section class="management-section">
+            <div class="section-header">
+                <h2 class="section-title">Restaurant Management</h2>
+                <div class="section-actions">
+                    <button class="section-btn secondary" onclick="refreshRestaurants()">Refresh</button>
+                    <button class="section-btn" onclick="openInviteModal()">Invite Restaurant</button>
+                </div>
+            </div>
+            
+            <div class="restaurant-grid" id="restaurantGrid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading restaurants...
+                </div>
+            </div>
+        </section>
+
+        <!-- Pending Requests -->
+        <section class="management-section">
+            <div class="section-header">
+                <h2 class="section-title">Join Requests</h2>
+                <div class="section-actions">
+                    <button class="section-btn secondary" onclick="refreshRequests()">Refresh</button>
+                </div>
+            </div>
+            
+            <div class="request-list" id="requestList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading requests...
+                </div>
+            </div>
+        </section>
+
+        <!-- Venue Settings Section -->
+        <section class="management-section" id="venueSettingsSection" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title">Venue Settings</h2>
+                <div class="section-actions">
+                    <button class="section-btn secondary" onclick="hideVenueSettings()">Cancel</button>
+                    <button class="section-btn" onclick="saveVenueSettings()">Save Changes</button>
+                </div>
+            </div>
+            
+            <div class="settings-grid">
+                <div class="setting-group">
+                    <h3 class="setting-title">Basic Information</h3>
+                    <div class="setting-item">
+                        <label class="setting-label">Venue Name</label>
+                        <input type="text" class="setting-input" id="venueName" placeholder="Enter venue name">
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">Description</label>
+                        <textarea class="setting-textarea" id="venueDescription" placeholder="Describe your venue"></textarea>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">Venue Type</label>
+                        <select class="setting-input" id="venueType">
+                            <option value="mall">Shopping Mall</option>
+                            <option value="plaza">Food Plaza</option>
+                            <option value="building">Office Building</option>
+                            <option value="market">Market Hall</option>
+                            <option value="mixed">Mixed Use</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3 class="setting-title">Contact Information</h3>
+                    <div class="setting-item">
+                        <label class="setting-label">Email</label>
+                        <input type="email" class="setting-input" id="venueEmail" placeholder="venue@example.com">
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">Phone</label>
+                        <input type="tel" class="setting-input" id="venuePhone" placeholder="+1 (555) 123-4567">
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">Website</label>
+                        <input type="url" class="setting-input" id="venueWebsite" placeholder="https://venue.com">
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3 class="setting-title">Operational Settings</h3>
+                    <div class="setting-item">
+                        <label class="setting-label">Default Venue Fee (%)</label>
+                        <input type="number" class="setting-input" id="defaultVenueFee" min="0" max="10" step="0.1" placeholder="1.0">
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">Maximum Restaurants</label>
+                        <input type="number" class="setting-input" id="maxRestaurants" min="1" placeholder="Unlimited">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-checkbox">
+                            <input type="checkbox" id="requireApproval">
+                            <label for="requireApproval">Require approval for new restaurants</label>
+                        </div>
+                        <div class="setting-checkbox">
+                            <input type="checkbox" id="allowCustomFees">
+                            <label for="allowCustomFees">Allow custom fee arrangements</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3 class="setting-title">Amenities</h3>
+                    <div class="setting-item">
+                        <div class="setting-checkbox">
+                            <input type="checkbox" id="parkingAvailable">
+                            <label for="parkingAvailable">Parking Available</label>
+                        </div>
+                        <div class="setting-checkbox">
+                            <input type="checkbox" id="wifiAvailable">
+                            <label for="wifiAvailable">WiFi Available</label>
+                        </div>
+                        <div class="setting-checkbox">
+                            <input type="checkbox" id="wheelchairAccessible">
+                            <label for="wheelchairAccessible">Wheelchair Accessible</label>
+                        </div>
+                        <div class="setting-checkbox">
+                            <input type="checkbox" id="outdoorSeating">
+                            <label for="outdoorSeating">Outdoor Seating</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Invite Restaurant Modal -->
+    <div class="modal" id="inviteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Invite Restaurant</h2>
+                <p class="modal-subtitle">Send an invitation to a restaurant to join your venue</p>
+            </div>
+            
+            <div class="setting-item">
+                <label class="setting-label">Restaurant Name</label>
+                <input type="text" class="setting-input" id="inviteRestaurantName" placeholder="Enter restaurant name">
+            </div>
+            
+            <div class="setting-item">
+                <label class="setting-label">Contact Email</label>
+                <input type="email" class="setting-input" id="inviteContactEmail" placeholder="restaurant@example.com">
+            </div>
+            
+            <div class="setting-item">
+                <label class="setting-label">Personal Message (Optional)</label>
+                <textarea class="setting-textarea" id="invitePersonalMessage" placeholder="Add a personal message to your invitation..."></textarea>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="modal-btn secondary" onclick="closeInviteModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="sendInvitation()">Send Invitation</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentVenue = null;
+        let venueRestaurants = [];
+        let venueRequests = [];
+        let realTimeListeners = [];
+
+        // Firebase utility functions
+        function getFirebaseAuth() {
+            return window.firebaseAuth || firebase.auth();
+        }
+
+        function getFirebaseDb() {
+            return window.firebaseDb || firebase.firestore();
+        }
+
+        // Initialize dashboard
+        async function initializeDashboard() {
+            try {
+                console.log('🚀 Initializing venue management dashboard...');
+                
+                // Wait for Firebase to be ready
+                await waitForFirebase();
+                
+                // Check authentication
+                await checkAuthentication();
+                
+                // Load venue data
+                await loadVenueData();
+                
+                // Load restaurants
+                await loadRestaurants();
+                
+                // Load requests
+                await loadRequests();
+                
+                // Setup real-time listeners
+                await setupRealTimeListeners();
+                
+                console.log('✅ Venue management dashboard initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Dashboard initialization error:', error);
+                showMessage('Failed to load venue management dashboard. Please refresh the page.', 'error');
+            }
+        }
+
+        // Wait for Firebase to be initialized
+        function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb && window.VediAPI) {
+                        console.log('✅ Firebase and VediAPI ready for venue management');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase initialization timeout'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Check user authentication and venue access
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                const auth = getFirebaseAuth();
+                
+                auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        try {
+                            const db = getFirebaseDb();
+                            const userDoc = await db.collection('users').doc(user.uid).get();
+                            
+                            if (!userDoc.exists) {
+                                throw new Error('User profile not found');
+                            }
+                            
+                            const userData = userDoc.data();
+                            
+                            if (userData.accountType !== 'venue') {
+                                throw new Error('Access denied. Venue manager account required.');
+                            }
+                            
+                            currentUser = { ...userData, uid: user.uid };
+                            updateUserDisplay();
+                            resolve();
+                            
+                        } catch (error) {
+                            console.error('❌ User verification error:', error);
+                            reject(error);
+                        }
+                    } else {
+                        window.location.href = '/login.html';
+                    }
+                });
+            });
+        }
+
+        // Load venue data
+        async function loadVenueData() {
+            try {
+                let venue;
+                
+                if (VediAPI.getVenueByManager) {
+                    venue = await VediAPI.getVenueByManager(currentUser.uid);
+                } else {
+                    // Fallback to direct Firebase query
+                    const db = getFirebaseDb();
+                    const venueQuery = await db.collection('venues')
+                        .where('managerUserId', '==', currentUser.uid)
+                        .limit(1)
+                        .get();
+                    
+                    if (venueQuery.empty) {
+                        throw new Error('No venue found for this manager');
+                    }
+                    
+                    const venueDoc = venueQuery.docs[0];
+                    venue = { id: venueDoc.id, ...venueDoc.data() };
+                }
+                
+                if (!venue) {
+                    throw new Error('No venue found for this manager');
+                }
+                
+                currentVenue = venue;
+                
+                document.getElementById('venueName').textContent = venue.name;
+                document.getElementById('venueLocation').textContent = 
+                    `${venue.city}, ${venue.state}`;
+                
+                console.log('✅ Venue loaded for management:', venue.name);
+                
+            } catch (error) {
+                console.error('❌ Load venue error:', error);
+                throw error;
+            }
+        }
+
+        // Load restaurants
+        async function loadRestaurants() {
+            try {
+                if (VediAPI.getRestaurantsByVenue) {
+                    venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                } else {
+                    venueRestaurants = [];
+                }
+                
+                updateRestaurantGrid();
+                
+                console.log('✅ Restaurants loaded for management:', venueRestaurants.length);
+                
+            } catch (error) {
+                console.error('❌ Load restaurants error:', error);
+                showMessage('Failed to load restaurants', 'error');
+            }
+        }
+
+        // Load venue requests
+        async function loadRequests() {
+            try {
+                if (VediAPI.getVenueRequests) {
+                    venueRequests = await VediAPI.getVenueRequests(currentVenue.id);
+                } else {
+                    venueRequests = [];
+                }
+                
+                updateRequestList();
+                
+                console.log('✅ Venue requests loaded:', venueRequests.length);
+                
+            } catch (error) {
+                console.error('❌ Load requests error:', error);
+                showMessage('Failed to load requests', 'error');
+            }
+        }
+
+        // Setup real-time listeners
+        async function setupRealTimeListeners() {
+            try {
+                // Listen to restaurant status changes
+                if (VediAPI.listenToMultipleRestaurantStatus && venueRestaurants.length > 0) {
+                    const restaurantIds = venueRestaurants.map(r => r.id);
+                    const unsubscribe = VediAPI.listenToMultipleRestaurantStatus(restaurantIds, (statusUpdate) => {
+                        updateRestaurantStatuses(statusUpdate);
+                    });
+                    realTimeListeners.push(unsubscribe);
+                }
+                
+                console.log('✅ Real-time listeners setup complete');
+                
+            } catch (error) {
+                console.error('❌ Setup real-time listeners error:', error);
+            }
+        }
+
+        // Update restaurant grid
+        function updateRestaurantGrid() {
+            const grid = document.getElementById('restaurantGrid');
+            
+            if (venueRestaurants.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 48px; color: #86868B;">
+                        <h3>No restaurants in this venue yet</h3>
+                        <p>Send invitations to restaurants to get started</p>
+                        <button class="action-button" onclick="openInviteModal()" style="margin-top: 16px; max-width: 200px;">
+                            Send First Invitation
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = venueRestaurants.map(restaurant => {
+                const status = getRestaurantStatus(restaurant);
+                
+                return `
+                    <div class="restaurant-card">
+                        <div class="restaurant-header">
+                            <div>
+                                <div class="restaurant-name">${restaurant.name}</div>
+                                <div class="restaurant-cuisine">${restaurant.cuisineType || 'Restaurant'}</div>
+                            </div>
+                            <span class="restaurant-status ${status.class}">${status.text}</span>
+                        </div>
+                        
+                        <div class="restaurant-info">
+                            <div class="info-row">
+                                <span class="info-label">Tables:</span>
+                                <span class="info-value">${restaurant.tableCount || 'N/A'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Capacity:</span>
+                                <span class="info-value">${restaurant.seatingCapacity || 'N/A'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Currency:</span>
+                                <span class="info-value">${restaurant.currency?.code || 'USD'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Phone:</span>
+                                <span class="info-value">${restaurant.phone || 'N/A'}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="restaurant-actions">
+                            <button class="restaurant-btn secondary" onclick="viewRestaurant('${restaurant.id}')">
+                                View Details
+                            </button>
+                            <button class="restaurant-btn" onclick="editRestaurantFees('${restaurant.id}')">
+                                Manage Fees
+                            </button>
+                            <button class="restaurant-btn danger" onclick="removeRestaurant('${restaurant.id}', '${restaurant.name}')">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Update request list
+        function updateRequestList() {
+            const list = document.getElementById('requestList');
+            
+            const pendingRequests = venueRequests.filter(req => req.status === 'pending');
+            
+            if (pendingRequests.length === 0) {
+                list.innerHTML = `
+                    <div style="text-align: center; padding: 48px; color: #86868B;">
+                        <h3>No pending requests</h3>
+                        <p>When restaurants request to join your venue, they'll appear here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = pendingRequests.map(request => `
+                <div class="request-item">
+                    <div class="request-header">
+                        <div class="request-info">
+                            <h4>${request.restaurantName}</h4>
+                            <div class="request-meta">
+                                ${request.restaurantCuisine} • ${request.restaurantEmail}
+                                <br>Requested: ${VediAPI.getRelativeTime ? VediAPI.getRelativeTime(request.requestedAt) : 'Recently'}
+                            </div>
+                            ${request.message ? `<p style="margin-top: 8px; font-style: italic;">"${request.message}"</p>` : ''}
+                        </div>
+                        <div class="request-actions">
+                            <button class="request-btn" onclick="approveRequest('${request.id}')">
+                                Approve
+                            </button>
+                            <button class="request-btn deny" onclick="denyRequest('${request.id}')">
+                                Deny
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Get restaurant status for display
+        function getRestaurantStatus(restaurant) {
+            if (!restaurant.verified) {
+                return { text: 'Pending', class: 'status-pending' };
+            }
+            if (!restaurant.isOnline) {
+                return { text: 'Offline', class: 'status-offline' };
+            }
+            return { text: 'Online', class: 'status-online' };
+        }
+
+        // Update restaurant statuses from real-time listener
+        function updateRestaurantStatuses(statusUpdate) {
+            // Update restaurant cards with new status information
+            console.log('📡 Restaurant status update received:', statusUpdate);
+            // This would update the visual status indicators in real-time
+        }
+
+        // Modal management
+        function openInviteModal() {
+            document.getElementById('inviteModal').classList.add('active');
+        }
+
+        function closeInviteModal() {
+            document.getElementById('inviteModal').classList.remove('active');
+            // Clear form
+            document.getElementById('inviteRestaurantName').value = '';
+            document.getElementById('inviteContactEmail').value = '';
+            document.getElementById('invitePersonalMessage').value = '';
+        }
+
+        // Send invitation
+        async function sendInvitation() {
+            try {
+                const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
+                const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+                const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
+                
+                if (!restaurantName || !contactEmail) {
+                    showMessage('Please fill in restaurant name and contact email', 'error');
+                    return;
+                }
+                
+                if (!VediAPI.validateEmail(contactEmail)) {
+                    showMessage('Please enter a valid email address', 'error');
+                    return;
+                }
+                
+                const invitation = await VediAPI.createVenueInvitation(currentVenue.id, {
+                    restaurantName,
+                    contactEmail
+                }, personalMessage);
+                
+                showMessage(`Invitation sent to ${restaurantName} successfully!`, 'success');
+                closeInviteModal();
+                
+                console.log('✅ Invitation sent:', invitation);
+                
+            } catch (error) {
+                console.error('❌ Send invitation error:', error);
+                showMessage('Failed to send invitation: ' + error.message, 'error');
+            }
+        }
+
+        // Approve restaurant request
+        async function approveRequest(requestId) {
+            try {
+                if (!confirm('Are you sure you want to approve this restaurant request?')) {
+                    return;
+                }
+                
+                await VediAPI.approveRestaurantRequest(requestId);
+                
+                showMessage('Restaurant request approved successfully!', 'success');
+                
+                // Reload data
+                await loadRestaurants();
+                await loadRequests();
+                
+            } catch (error) {
+                console.error('❌ Approve request error:', error);
+                showMessage('Failed to approve request: ' + error.message, 'error');
+            }
+        }
+
+        // Deny restaurant request
+        async function denyRequest(requestId) {
+            try {
+                const reason = prompt('Please provide a reason for denying this request (optional):');
+                if (reason === null) return; // User cancelled
+                
+                await VediAPI.denyRestaurantRequest(requestId, reason);
+                
+                showMessage('Restaurant request denied', 'success');
+                
+                // Reload requests
+                await loadRequests();
+                
+            } catch (error) {
+                console.error('❌ Deny request error:', error);
+                showMessage('Failed to deny request: ' + error.message, 'error');
+            }
+        }
+
+        // Restaurant management actions
+        function viewRestaurant(restaurantId) {
+            // This would open a detailed view of the restaurant
+            showMessage('Restaurant details view coming soon!', 'warning');
+        }
+
+        function editRestaurantFees(restaurantId) {
+            // Redirect to fee management or open modal
+            window.location.href = `venue-financials.html#restaurant-${restaurantId}`;
+        }
+
+        async function removeRestaurant(restaurantId, restaurantName) {
+            try {
+                if (!confirm(`Are you sure you want to remove ${restaurantName} from your venue?\n\nThis action cannot be undone.`)) {
+                    return;
+                }
+                
+                const reason = prompt('Please provide a reason for removing this restaurant:');
+                if (reason === null) return; // User cancelled
+                
+                await VediAPI.unsyncRestaurantFromVenue(restaurantId, reason);
+                
+                showMessage(`${restaurantName} has been removed from your venue`, 'success');
+                
+                // Reload restaurants
+                await loadRestaurants();
+                
+            } catch (error) {
+                console.error('❌ Remove restaurant error:', error);
+                showMessage('Failed to remove restaurant: ' + error.message, 'error');
+            }
+        }
+
+        // Venue settings management
+        function showVenueSettings() {
+            // Populate current venue data
+            if (currentVenue) {
+                document.getElementById('venueName').value = currentVenue.name || '';
+                document.getElementById('venueDescription').value = currentVenue.description || '';
+                document.getElementById('venueType').value = currentVenue.type || 'mixed';
+                document.getElementById('venueEmail').value = currentVenue.email || '';
+                document.getElementById('venuePhone').value = currentVenue.phone || '';
+                document.getElementById('venueWebsite').value = currentVenue.website || '';
+                document.getElementById('defaultVenueFee').value = currentVenue.defaultFeePercentage || '';
+                document.getElementById('maxRestaurants').value = currentVenue.maxRestaurants || '';
+                document.getElementById('requireApproval').checked = currentVenue.requireApproval || false;
+                document.getElementById('allowCustomFees').checked = currentVenue.allowCustomFees !== false;
+                document.getElementById('parkingAvailable').checked = currentVenue.parkingAvailable || false;
+                document.getElementById('wifiAvailable').checked = currentVenue.wifiAvailable || false;
+                document.getElementById('wheelchairAccessible').checked = (currentVenue.amenities || []).includes('accessibility');
+                document.getElementById('outdoorSeating').checked = (currentVenue.amenities || []).includes('outdoor');
+            }
+            
+            document.getElementById('venueSettingsSection').style.display = 'block';
+            document.getElementById('venueSettingsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideVenueSettings() {
+            document.getElementById('venueSettingsSection').style.display = 'none';
+        }
+
+        async function saveVenueSettings() {
+            try {
+                const amenities = [];
+                if (document.getElementById('wheelchairAccessible').checked) amenities.push('accessibility');
+                if (document.getElementById('outdoorSeating').checked) amenities.push('outdoor');
+                if (document.getElementById('parkingAvailable').checked) amenities.push('parking');
+                if (document.getElementById('wifiAvailable').checked) amenities.push('wifi');
+                
+                const venueData = {
+                    name: document.getElementById('venueName').value.trim(),
+                    description: document.getElementById('venueDescription').value.trim(),
+                    type: document.getElementById('venueType').value,
+                    email: document.getElementById('venueEmail').value.trim(),
+                    phone: document.getElementById('venuePhone').value.trim(),
+                    website: document.getElementById('venueWebsite').value.trim(),
+                    defaultFeePercentage: parseFloat(document.getElementById('defaultVenueFee').value) || 0,
+                    maxRestaurants: parseInt(document.getElementById('maxRestaurants').value) || null,
+                    requireApproval: document.getElementById('requireApproval').checked,
+                    allowCustomFees: document.getElementById('allowCustomFees').checked,
+                    parkingAvailable: document.getElementById('parkingAvailable').checked,
+                    wifiAvailable: document.getElementById('wifiAvailable').checked,
+                    amenities: amenities
+                };
+                
+                await VediAPI.updateVenue(currentVenue.id, venueData);
+                
+                showMessage('Venue settings saved successfully!', 'success');
+                hideVenueSettings();
+                
+                // Reload venue data
+                await loadVenueData();
+                
+            } catch (error) {
+                console.error('❌ Save venue settings error:', error);
+                showMessage('Failed to save venue settings: ' + error.message, 'error');
+            }
+        }
+
+        // Utility functions
+        async function refreshRestaurants() {
+            await loadRestaurants();
+        }
+
+        async function refreshRequests() {
+            await loadRequests();
+        }
+
+        function viewAllReports() {
+            // Navigate to reports page
+            showMessage('Reports page coming soon!', 'warning');
+        }
+
+        // Update user display
+        function updateUserDisplay() {
+            if (currentUser) {
+                document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
+            }
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            try {
+                // Clean up real-time listeners
+                realTimeListeners.forEach(unsubscribe => {
+                    try {
+                        unsubscribe();
+                    } catch (error) {
+                        console.warn('Error cleaning up listener:', error);
+                    }
+                });
+                
+                const auth = getFirebaseAuth();
+                await auth.signOut();
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('❌ Logout error:', error);
+                showMessage('Failed to sign out', 'error');
+            }
+        }
+
+        // Show message
+        function showMessage(message, type = 'info') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = message;
+            
+            const mainContent = document.querySelector('.main-content');
+            mainContent.insertBefore(messageDiv, mainContent.firstChild);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                closeInviteModal();
+            }
+        });
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🏢 Venue Management Dashboard starting...');
+            initializeDashboard();
+        });
+
+        // Cleanup listeners on page unload
+        window.addEventListener('beforeunload', () => {
+            realTimeListeners.forEach(unsubscribe => {
+                try {
+                    unsubscribe();
+                } catch (error) {
+                    console.warn('Error cleaning up listener on unload:', error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
