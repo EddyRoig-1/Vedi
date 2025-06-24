@@ -973,83 +973,84 @@
             toDate: null
         };
 
-        // Wait for all dependencies to load
-        function waitForDependencies() {
-            return new Promise((resolve) => {
-                const checkDependencies = () => {
-                    if (typeof firebase !== 'undefined' && 
-                        typeof VediAPI !== 'undefined' && 
-                        firebase.apps.length > 0) {
-                        
-                        // Get Firebase references safely
-                        auth = auth || firebase.auth();
-                        db = db || firebase.firestore();
-                        console.log('✅ All dependencies loaded successfully');
-                        resolve(true);
-                    } else {
-                        console.log('⏳ Waiting for dependencies...');
-                        setTimeout(checkDependencies, 100);
-                    }
-                };
+       // Wait for all dependencies to load
+function waitForDependencies() {
+    return new Promise((resolve) => {
+        const checkDependencies = () => {
+            if (typeof firebase !== 'undefined' && 
+                typeof VediAPI !== 'undefined' && 
+                firebase.apps.length > 0) {
                 
-                checkDependencies();
-                
-                // Timeout after 10 seconds
-                setTimeout(() => {
-                    console.error('❌ Dependencies failed to load within 10 seconds');
-                    showError('Failed to load required dependencies. Please refresh the page.');
-                    resolve(false);
-                }, 10000);
-            });
-        }
-
-        // Make other functions global for onclick handlers
-        window.handleTimeRangeChange = handleTimeRangeChange;
-        window.applyFilters = applyFilters; - MOVED TO TOP LEVEL AND FIXED
-        window.showSection = function(sectionName) {
-            console.log('🔄 Switching to section:', sectionName);
-            
-            const sections = ['overview', 'performance', 'loss-tracking', 'data-quality', 'detailed-reports', 'venue-management', 'financials'];
-            
-            // Hide all sections
-            sections.forEach(section => {
-                const sectionElement = document.getElementById(`${section}-section`);
-                if (sectionElement) {
-                    sectionElement.classList.add('hidden');
-                }
-            });
-            
-            // Remove active class from all tabs
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show target section
-            const targetSection = document.getElementById(`${sectionName}-section`);
-            if (targetSection) {
-                targetSection.classList.remove('hidden');
-            }
-            
-            // Add active class to clicked tab
-            const clickedTab = event ? event.target.closest('.nav-tab') : document.querySelector('.nav-tab');
-            if (clickedTab) {
-                clickedTab.classList.add('active');
+                // Get Firebase references safely
+                auth = auth || firebase.auth();
+                db = db || firebase.firestore();
+                console.log('✅ All dependencies loaded successfully');
+                resolve(true);
+            } else {
+                console.log('⏳ Waiting for dependencies...');
+                setTimeout(checkDependencies, 100);
             }
         };
+        
+        checkDependencies();
+        
+        // Timeout after 10 seconds
+        setTimeout(() => {
+            console.error('❌ Dependencies failed to load within 10 seconds');
+            showError('Failed to load required dependencies. Please refresh the page.');
+            resolve(false);
+        }, 10000);
+    });
+}
 
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🔄 DOM loaded, initializing...');
-            
-            // Wait for all dependencies
-            const dependenciesReady = await waitForDependencies();
-            if (!dependenciesReady) {
-                return;
-            }
-            
-            // Check authentication
-            checkVenueAuth();
-        });
+// Make other functions global for onclick handlers
+window.handleTimeRangeChange = handleTimeRangeChange;
+window.applyFilters = applyFilters;
+
+window.showSection = function(sectionName) {
+    console.log('🔄 Switching to section:', sectionName);
+    
+    const sections = ['overview', 'performance', 'loss-tracking', 'data-quality', 'detailed-reports', 'venue-management', 'financials'];
+    
+    // Hide all sections
+    sections.forEach(section => {
+        const sectionElement = document.getElementById(`${section}-section`);
+        if (sectionElement) {
+            sectionElement.classList.add('hidden');
+        }
+    });
+    
+    // Remove active class from all tabs
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Show target section
+    const targetSection = document.getElementById(`${sectionName}-section`);
+    if (targetSection) {
+        targetSection.classList.remove('hidden');
+    }
+    
+    // Add active class to clicked tab
+    const clickedTab = event ? event.target.closest('.nav-tab') : document.querySelector('.nav-tab');
+    if (clickedTab) {
+        clickedTab.classList.add('active');
+    }
+};
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🔄 DOM loaded, initializing...');
+    
+    // Wait for all dependencies
+    const dependenciesReady = await waitForDependencies();
+    if (!dependenciesReady) {
+        return;
+    }
+    
+    // Check authentication
+    checkVenueAuth();
+});
 
         // Show error message
         function showError(message) {
