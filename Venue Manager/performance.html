@@ -1098,6 +1098,9 @@
         // Load loss incidents
         async function loadLossIncidents() {
             try {
+                // Initialize lossIncidents array first
+                lossIncidents = [];
+                
                 if (currentVenue.id && VediAPI.getLossIncidentsByVenue) {
                     lossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
                         limit: 1000
@@ -1115,8 +1118,6 @@
                         id: doc.id,
                         ...doc.data()
                     }));
-                } else {
-                    lossIncidents = [];
                 }
                 
                 console.log('✅ Loss incidents loaded:', lossIncidents.length);
@@ -1131,8 +1132,8 @@
         async function updatePerformanceStats() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
-                const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
-                const filteredLosses = filterLossesByTimePeriod(lossIncidents, timePeriod);
+                const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
+                const filteredLosses = filterLossesByTimePeriod(lossIncidents || [], timePeriod);
                 
                 // Calculate revenue stats
                 const totalRevenue = filteredOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
@@ -1150,7 +1151,7 @@
                 
                 // Update change indicators (simplified)
                 document.getElementById('revenueChange').textContent = `${totalOrders} orders this period`;
-                document.getElementById('ordersChange').textContent = `$${totalRevenue.toFixed(2)} total value`;
+                document.getElementById('ordersChange').textContent = `${totalRevenue.toFixed(2)} total value`;
                 document.getElementById('aovChange').textContent = 'across all restaurants';
                 document.getElementById('lossesChange').textContent = `${filteredLosses.length} incidents`;
                 
@@ -1464,4 +1465,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
