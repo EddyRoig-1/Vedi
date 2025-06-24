@@ -973,81 +973,30 @@
             }
         });
 
-        // Check venue authentication with improved error handling
+        // Check venue authentication
         async function checkVenueAuth() {
             try {
+                // Wait for auth state
                 const auth = firebase.auth();
                 
                 auth.onAuthStateChanged(async (user) => {
                     if (user) {
                         try {
-                            console.log('🔍 DEBUG: Firebase user found:', {
-                                uid: user.uid,
-                                email: user.email,
-                                displayName: user.displayName
-                            });
-                            
                             console.log('🔄 Getting current user data...');
+                            currentUser = await VediAPI.getCurrentUser();
                             
-                            // Try VediAPI.getCurrentUser first
-                            try {
-                                currentUser = await VediAPI.getCurrentUser();
-                                console.log('🔍 DEBUG: VediAPI.getCurrentUser() returned:', currentUser);
-                            } catch (vediApiError) {
-                                console.warn('⚠️ VediAPI.getCurrentUser failed, trying direct Firestore query:', vediApiError);
-                                
-                                // Fallback: Direct Firestore query
-                                const db = firebase.firestore();
-                                const userDoc = await db.collection('users').doc(user.uid).get();
-                                
-                                if (userDoc.exists) {
-                                    currentUser = { id: userDoc.id, ...userDoc.data() };
-                                    console.log('✅ Got user data via direct query:', currentUser);
-                                } else {
-                                    throw new Error('User document not found in Firestore');
-                                }
-                            }
-                            
-                            // Check if we have user data
-                            if (!currentUser) {
-                                throw new Error('No user data available');
-                            }
-                            
-                            console.log('🔍 DEBUG: User account type:', currentUser.accountType);
-                            console.log('🔍 DEBUG: Expected account type: venue');
-                            
-                            // Check account type
-                            if (currentUser.accountType === 'venue') {
-                                console.log('✅ Venue manager authenticated:', currentUser.name || currentUser.email);
+                            if (currentUser && currentUser.accountType === 'venue') {
+                                console.log('✅ Venue manager authenticated:', currentUser.name);
                                 await initializeVenueDashboard();
                             } else {
-                                console.log('❌ User is not a venue manager:', {
-                                    actualType: currentUser.accountType,
-                                    expectedType: 'venue',
-                                    userEmail: currentUser.email
-                                });
-                                
-                                alert(`Access denied. This dashboard is for venue managers only.
-                                
-Your account type: ${currentUser.accountType || 'undefined'}
-Expected: venue
-
-Please contact support if you believe this is an error.`);
-                                
+                                console.log('❌ User is not a venue manager:', currentUser?.accountType);
+                                alert('Access denied. This dashboard is for venue managers only.');
                                 window.location.href = '../Landing-Signup-Login/login.html';
                             }
                         } catch (error) {
                             console.error('❌ Authentication error:', error);
-                            
-                            alert(`Authentication error: ${error.message}
-
-Please try:
-1. Refreshing the page
-2. Logging out and back in
-3. Contacting support if the issue persists`);
-                            
-                            // Comment out redirect for debugging
-                            // window.location.href = '../Landing-Signup-Login/login.html';
+                            alert('Authentication error: ' + error.message);
+                            window.location.href = '../Landing-Signup-Login/login.html';
                         }
                     } else {
                         console.log('❌ No user authenticated');
@@ -1056,91 +1005,21 @@ Please try:
                 });
                 
             } catch (error) {
-                console.error('❌ Auth check setup failed:', error);
-                alert('Failed to initialize authentication: ' + error.message);
-                // window.location.href = '../Landing-Signup-Login/login.html';
+                console.error('❌ Auth check failed:', error);
+                window.location.href = '../Landing-Signup-Login/login.html';
             }
         }
 
-        // Initialize venue dashboard with fallback methods
+        // Initialize venue dashboard
         async function initializeVenueDashboard() {
             try {
                 console.log('🔄 Initializing venue dashboard...');
                 
-                // Get venue data with detailed debugging
-                console.log('🔍 Looking for venue with managerUserId:', currentUser.id);
-                
-                try {
-                    if (VediAPI.getVenueByManager) {
-                        currentVenue = await VediAPI.getVenueByManager(currentUser.id);
-                        console.log('✅ Got venue via VediAPI:', currentVenue?.name);
-                    } else {
-                        throw new Error('VediAPI.getVenueByManager not available');
-                    }
-                } catch (venueError) {
-                    console.warn('⚠️ VediAPI venue lookup failed, trying direct query:', venueError);
-                    
-                    // Fallback: Direct Firestore query with debugging
-                    const db = firebase.firestore();
-                    
-                    console.log('🔍 Searching venues collection for managerUserId:', currentUser.id);
-                    
-                    // First, let's see all venues to debug
-                    const allVenuesQuery = await db.collection('venues').get();
-                    console.log('🔍 All venues in database:');
-                    allVenuesQuery.docs.forEach(doc => {
-                        const data = doc.data();
-                        console.log(`  - Venue: ${data.name || 'Unknown'}, managerUserId: ${data.managerUserId || 'missing'}, id: ${doc.id}`);
-                    });
-                    
-                    // Now try to find our specific venue
-                    const venueQuery = await db.collection('venues')
-                        .where('managerUserId', '==', currentUser.id)
-                        .limit(1)
-                        .get();
-                    
-                    console.log('🔍 Query result:', {
-                        empty: venueQuery.empty,
-                        size: venueQuery.size,
-                        searchingFor: currentUser.id
-                    });
-                    
-                    if (!venueQuery.empty) {
-                        const venueDoc = venueQuery.docs[0];
-                        currentVenue = { id: venueDoc.id, ...venueDoc.data() };
-                        console.log('✅ Got venue via direct query:', currentVenue.name);
-                    } else {
-                        console.log('❌ No venue found with managerUserId:', currentUser.id);
-                        
-                        // Let's also try searching by email as a fallback
-                        console.log('🔍 Trying to find venue by email:', currentUser.email);
-                        const emailVenueQuery = await db.collection('venues')
-                            .where('email', '==', currentUser.email)
-                            .limit(1)
-                            .get();
-                            
-                        if (!emailVenueQuery.empty) {
-                            const venueDoc = emailVenueQuery.docs[0];
-                            currentVenue = { id: venueDoc.id, ...venueDoc.data() };
-                            console.log('✅ Found venue by email:', currentVenue.name);
-                            console.log('⚠️ Note: Venue managerUserId will be updated to match user ID');
-                            
-                            // Update the venue to have correct managerUserId
-                            await db.collection('venues').doc(venueDoc.id).update({
-                                managerUserId: currentUser.id
-                            });
-                        } else {
-                            throw new Error(`No venue found for manager. 
-                            User ID: ${currentUser.id}
-                            Email: ${currentUser.email}
-                            Please check that a venue exists with the correct managerUserId.`);
-                        }
-                    }
-                }
-                
+                // Get venue data
+                currentVenue = await VediAPI.getVenueByManager(currentUser.id);
                 if (!currentVenue) {
                     console.log('❌ No venue found for this manager');
-                    alert('No venue found. Please contact administrator to set up your venue.');
+                    alert('No venue found. Please contact administrator.');
                     return;
                 }
 
@@ -1162,73 +1041,27 @@ Please try:
 
             } catch (error) {
                 console.error('❌ Error initializing venue dashboard:', error);
-                alert(`Error loading venue dashboard: ${error.message}
-
-This might happen if:
-1. No venue is associated with your account
-2. The venue data is not properly set up
-3. There's a temporary connection issue
-
-Please contact support for assistance.`);
+                alert('Error loading venue dashboard: ' + error.message);
             }
         }
 
-        // Load venue data with fallback methods
+        // Load venue data
         async function loadVenueData() {
             try {
                 console.log('🔄 Loading venue data...');
-                const db = firebase.firestore();
                 
-                // Load restaurants for this venue - try VediAPI first, then fallback
-                try {
-                    if (VediAPI.getRestaurantsByVenue) {
-                        allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
-                        console.log('✅ Loaded restaurants via VediAPI:', allRestaurants.length);
-                    } else {
-                        throw new Error('VediAPI.getRestaurantsByVenue not available');
-                    }
-                } catch (restaurantError) {
-                    console.warn('⚠️ VediAPI restaurant lookup failed, trying direct query:', restaurantError);
-                    
-                    // Fallback: Direct Firestore query
-                    const restaurantQuery = await db.collection('restaurants')
-                        .where('venueId', '==', currentVenue.id)
-                        .get();
-                    
-                    allRestaurants = restaurantQuery.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    console.log('✅ Loaded restaurants via direct query:', allRestaurants.length);
-                }
+                // Load restaurants for this venue
+                allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                console.log('✅ Loaded restaurants:', allRestaurants.length);
 
                 // Load orders for all restaurants
                 allOrders = [];
                 for (const restaurant of allRestaurants) {
                     try {
-                        let restaurantOrders = [];
-                        
-                        // Try VediAPI first
-                        try {
-                            if (VediAPI.getOrders) {
-                                restaurantOrders = await VediAPI.getOrders(restaurant.id, { 
-                                    limit: 500, 
-                                    orderBy: 'createdAt' 
-                                });
-                                console.log(`✅ Loaded orders for ${restaurant.name} via VediAPI:`, restaurantOrders.length);
-                            } else {
-                                throw new Error('VediAPI.getOrders not available');
-                            }
-                        } catch (orderError) {
-                            console.warn(`⚠️ VediAPI order lookup failed for ${restaurant.name}, trying direct query:`, orderError);
-                            
-                            // Fallback: Direct Firestore query
-                            const orderQuery = await db.collection('orders')
-                                .where('restaurantId', '==', restaurant.id)
-                                .orderBy('createdAt', 'desc')
-                                .limit(500)
-                                .get();
-                            
-                            restaurantOrders = orderQuery.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                            console.log(`✅ Loaded orders for ${restaurant.name} via direct query:`, restaurantOrders.length);
-                        }
+                        const restaurantOrders = await VediAPI.getOrders(restaurant.id, { 
+                            limit: 500, 
+                            orderBy: 'createdAt' 
+                        });
                         
                         // Add restaurant info to each order
                         const ordersWithRestaurant = restaurantOrders.map(order => ({
@@ -1245,15 +1078,11 @@ Please contact support for assistance.`);
                     }
                 }
 
-                console.log('✅ Loaded total orders:', allOrders.length);
+                console.log('✅ Loaded orders:', allOrders.length);
 
             } catch (error) {
                 console.error('❌ Error loading venue data:', error);
-                
-                // Don't throw - let the dashboard show what it can
-                alert(`Warning: Some data could not be loaded: ${error.message}
-
-The dashboard will show available data.`);
+                throw error;
             }
         }
 
@@ -1786,7 +1615,7 @@ The dashboard will show available data.`);
 
         function formatPrice(amount, currency = null) {
             if (!currency) {
-                currency = { code: 'USD', symbol: ' };
+                currency = { code: 'USD', symbol: '$' };
             }
             
             const formattedAmount = Number(amount || 0).toFixed(2);
