@@ -722,6 +722,14 @@
     </main>
 
     <script>
+        // Global variables
+        let currentUser = null;
+        let currentVenue = null;
+        let venueRestaurants = [];
+        let venueOrders = [];
+        let lossIncidents = [];
+        let charts = {};
+
         // Helper function for currency formatting
         function formatCurrency(amount, currency = 'USD') {
             try {
@@ -736,7 +744,7 @@
                 }
             } catch (error) {
                 console.error('❌ Currency formatting error:', error);
-                return `${amount.toFixed(2)}`;
+                return `$${amount.toFixed(2)}`;
             }
         }
 
@@ -798,73 +806,6 @@
             return window.firebaseDb || firebase.firestore();
         }
 
-        // Helper function for currency formatting
-        function formatCurrency(amount, currency = 'USD') {
-            try {
-                if (VediAPI && VediAPI.formatCurrency) {
-                    return VediAPI.formatCurrency(amount, currency);
-                } else {
-                    // Fallback formatting
-                    return new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: currency
-                    }).format(amount);
-                }
-            } catch (error) {
-                console.error('❌ Currency formatting error:', error);
-                return `${amount.toFixed(2)}`;
-            }
-        }
-
-        // Helper function for time period start
-        function getTimePeriodStart(timePeriod) {
-            if (VediAPI && VediAPI.getTimePeriodStart) {
-                return VediAPI.getTimePeriodStart(timePeriod);
-            }
-            
-            // Fallback implementation
-            const now = new Date();
-            
-            switch (timePeriod.toLowerCase()) {
-                case 'today':
-                    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                case 'week':
-                    const weekStart = new Date(now);
-                    weekStart.setDate(now.getDate() - 7);
-                    return weekStart;
-                case 'month':
-                    return new Date(now.getFullYear(), now.getMonth(), 1);
-                case 'quarter':
-                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-                    return new Date(now.getFullYear(), quarterMonth, 1);
-                case 'year':
-                    return new Date(now.getFullYear(), 0, 1);
-                default:
-                    return null;
-            }
-        }
-
-        // Helper function for timestamp conversion
-        function timestampToDate(timestamp) {
-            try {
-                if (VediAPI && VediAPI.timestampToDate) {
-                    return VediAPI.timestampToDate(timestamp);
-                }
-                
-                // Fallback implementation
-                if (timestamp && timestamp.toDate) {
-                    return timestamp.toDate();
-                }
-                if (timestamp && timestamp.seconds) {
-                    return new Date(timestamp.seconds * 1000);
-                }
-                return new Date(timestamp);
-            } catch (error) {
-                console.error('❌ Timestamp conversion error:', error);
-                return new Date();
-            }
-        }
-
         // Initialize dashboard
         async function initializeDashboard() {
             try {
@@ -902,8 +843,8 @@
                 const checkFirebase = () => {
                     attempts++;
                     
-                    if (window.firebase && window.firebaseAuth && window.firebaseDb && window.VediAPI) {
-                        console.log('✅ Firebase and VediAPI ready for analytics');
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb) {
+                        console.log('✅ Firebase ready for analytics');
                         resolve();
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Firebase initialization timeout'));
@@ -958,7 +899,7 @@
                 // Direct Firebase query if VediAPI function is not available
                 let venue;
                 
-                if (VediAPI.getVenueByManager) {
+                if (VediAPI && VediAPI.getVenueByManager) {
                     venue = await VediAPI.getVenueByManager(currentUser.uid);
                 } else {
                     // Fallback to direct Firebase query
@@ -997,7 +938,20 @@
         // Load restaurants
         async function loadRestaurants() {
             try {
-                venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                if (VediAPI && VediAPI.getRestaurantsByVenue) {
+                    venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                } else {
+                    // Fallback to direct Firebase query
+                    const db = getFirebaseDb();
+                    const restaurantsQuery = await db.collection('restaurants')
+                        .where('venueId', '==', currentVenue.id)
+                        .get();
+                    
+                    venueRestaurants = restaurantsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                }
                 
                 // Populate restaurant filter
                 const restaurantFilter = document.getElementById('restaurantFilter');
@@ -1060,7 +1014,7 @@
                     try {
                         let orders;
                         
-                        if (VediAPI.getOrders) {
+                        if (VediAPI && VediAPI.getOrders) {
                             orders = await VediAPI.getOrders(restaurantId, {
                                 limit: 1000,
                                 orderBy: 'createdAt',
@@ -1101,7 +1055,7 @@
                 // Initialize lossIncidents array first
                 lossIncidents = [];
                 
-                if (currentVenue.id && VediAPI.getLossIncidentsByVenue) {
+                if (currentVenue.id && VediAPI && VediAPI.getLossIncidentsByVenue) {
                     lossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
                         limit: 1000
                     });
@@ -1242,7 +1196,14 @@
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return '
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         // Create restaurant performance chart
         async function createRestaurantChart() {
@@ -1352,9 +1313,9 @@
         async function updateRestaurantTable() {
             const tableContainer = document.getElementById('restaurantTable');
             const timePeriod = document.getElementById('timePeriod').value;
-            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
             
-            if (venueRestaurants.length === 0) {
+            if (!venueRestaurants || venueRestaurants.length === 0) {
                 tableContainer.innerHTML = `
                     <div style="padding: 48px; text-align: center; color: #86868B;">
                         <p>No restaurants found in this venue</p>
