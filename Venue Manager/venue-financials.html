@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venue Financials - Venue Manager</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    
+    <!-- Chart.js for analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+    
+    <!-- VediAPI Core -->
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    
+    <!-- Authentication -->
+    <script src="../Api/auth/email-auth.js"></script>
+    
+    <!-- Business APIs -->
+    <script src="../Api/business/venues.js"></script>
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/orders/order-management.js"></script>
+    
+    <!-- Financial APIs -->
+    <script src="../Api/payments/fee-configurations.js"></script>
+    <script src="../Api/payments/payment-processing.js"></script>
+    <script src="../Api/payments/revenue-analytics.js"></script>
+    
+    <style>
+        /* iOS Design System */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+            background-color: #F8F9FA;
+            color: #1D1D1F;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .venue-info h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .venue-info p {
+            font-size: 15px;
+            color: #86868B;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .user-role {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .logout-btn {
+            background-color: #FF3B30;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #D70015;
+            transform: translateY(-1px);
+        }
+
+        /* Navigation */
+        .navigation {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 0 24px;
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-item {
+            padding: 16px 0;
+            font-size: 17px;
+            font-weight: 500;
+            color: #86868B;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active {
+            color: #007AFF;
+            border-bottom-color: #007AFF;
+        }
+
+        .nav-item:hover {
+            color: #007AFF;
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 17px;
+            color: #86868B;
+        }
+
+        /* Filter Controls */
+        .filter-controls {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 16px;
+            align-items: end;
+        }
+
+        .filter-group {
+            flex: 1;
+        }
+
+        .filter-label {
+            display: block;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .filter-select, .filter-input {
+            width: 100%;
+            height: 44px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 0 16px;
+            font-size: 17px;
+            background-color: #FFFFFF;
+            transition: border-color 0.2s ease;
+        }
+
+        .filter-select:focus, .filter-input:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        .apply-filters-btn {
+            height: 44px;
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 24px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .apply-filters-btn:hover {
+            background-color: #0056CC;
+            transform: translateY(-1px);
+        }
+
+        /* Financial Summary Grid */
+        .financial-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .financial-card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .financial-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .financial-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .financial-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #86868B;
+        }
+
+        .financial-trend {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .trend-positive {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .trend-negative {
+            background-color: #FFE5E5;
+            color: #D70015;
+        }
+
+        .trend-neutral {
+            background-color: #F1F3F4;
+            color: #86868B;
+        }
+
+        .financial-value {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .financial-change {
+            font-size: 13px;
+            font-weight: 500;
+            color: #86868B;
+        }
+
+        /* Fee Management Section */
+        .fee-management {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        .fee-controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .fee-input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .fee-input {
+            width: 80px;
+            height: 36px;
+            border: 1px solid #E5E5E7;
+            border-radius: 6px;
+            padding: 0 12px;
+            font-size: 15px;
+            text-align: center;
+        }
+
+        .fee-input:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        .fee-label {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .update-fee-btn {
+            height: 36px;
+            background-color: #30D158;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0 16px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .update-fee-btn:hover {
+            background-color: #28CD4F;
+        }
+
+        /* Restaurant Fee Table */
+        .restaurant-fees-table {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 32px;
+        }
+
+        .table-header {
+            background-color: #F8F9FA;
+            padding: 16px 24px;
+            border-bottom: 1px solid #E5E5E7;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #86868B;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table-row {
+            padding: 16px 24px;
+            border-bottom: 1px solid #F1F3F4;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 16px;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .table-row:hover {
+            background-color: #F8F9FA;
+        }
+
+        .table-row:last-child {
+            border-bottom: none;
+        }
+
+        .restaurant-name {
+            font-size: 17px;
+            font-weight: 500;
+            color: #000000;
+        }
+
+        .restaurant-cuisine {
+            font-size: 13px;
+            color: #86868B;
+            margin-top: 2px;
+        }
+
+        .fee-value {
+            font-size: 17px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .fee-edit-btn {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .fee-edit-btn:hover {
+            background-color: #0056CC;
+        }
+
+        /* Charts Section */
+        .charts-section {
+            margin-bottom: 32px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .chart-header {
+            margin-bottom: 24px;
+        }
+
+        .chart-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .chart-subtitle {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Payment Processing Section */
+        .payment-processing {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .payment-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .payment-status-card {
+            background-color: #F8F9FA;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .payment-status-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #86868B;
+            margin-bottom: 8px;
+        }
+
+        .payment-status-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-connected {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .status-pending {
+            background-color: #FFF3CD;
+            color: #B45309;
+        }
+
+        .status-error {
+            background-color: #FFE5E5;
+            color: #D70015;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 48px;
+            color: #86868B;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #E5E5E7;
+            border-top: 2px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error States */
+        .error-message {
+            background-color: #FFE5E5;
+            color: #D70015;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 15px;
+        }
+
+        .success-message {
+            background-color: #D1F2EB;
+            color: #00A86B;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                align-items: start;
+            }
+
+            .nav-content {
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            .filter-row {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .financial-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .table-header, .table-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .table-header {
+                display: none;
+            }
+
+            .table-row {
+                flex-direction: column;
+                align-items: start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="venue-info">
+                <h1 id="venueName">Loading...</h1>
+                <p id="venueLocation">Loading venue information...</p>
+            </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-name" id="userName">Venue Manager</div>
+                    <div class="user-role">Financial Management</div>
+                </div>
+                <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="navigation">
+        <div class="nav-content">
+            <a href="venue-overview.html" class="nav-item">Overview</a>
+            <a href="performance.html" class="nav-item">Performance</a>
+            <a href="loss-tracking.html" class="nav-item">Loss Tracking</a>
+            <a href="#" class="nav-item">Reports</a>
+            <a href="#" class="nav-item">Management</a>
+            <a href="#" class="nav-item active">Financials</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <section class="page-header">
+            <h1 class="page-title">Venue Financials</h1>
+            <p class="page-subtitle">Comprehensive financial management and revenue analytics</p>
+        </section>
+
+        <!-- Filter Controls -->
+        <section class="filter-controls">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label class="filter-label">Time Period</label>
+                    <select class="filter-select" id="timePeriod">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Restaurant</label>
+                    <select class="filter-select" id="restaurantFilter">
+                        <option value="all">All Restaurants</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Currency</label>
+                    <select class="filter-select" id="currencyFilter">
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                    </select>
+                </div>
+                <button class="apply-filters-btn" onclick="applyFilters()">Update</button>
+            </div>
+        </section>
+
+        <!-- Financial Summary -->
+        <section class="financial-summary">
+            <div class="financial-card">
+                <div class="financial-header">
+                    <span class="financial-title">Venue Revenue</span>
+                    <span class="financial-trend trend-neutral" id="venueRevenueTrend">--</span>
+                </div>
+                <div class="financial-value" id="venueRevenue">$0.00</div>
+                <div class="financial-change" id="venueRevenueChange">from venue fees</div>
+            </div>
+
+            <div class="financial-card">
+                <div class="financial-header">
+                    <span class="financial-title">Total Transaction Volume</span>
+                    <span class="financial-trend trend-neutral" id="transactionVolumeTrend">--</span>
+                </div>
+                <div class="financial-value" id="transactionVolume">$0.00</div>
+                <div class="financial-change" id="transactionVolumeChange">across all restaurants</div>
+            </div>
+
+            <div class="financial-card">
+                <div class="financial-header">
+                    <span class="financial-title">Average Venue Fee</span>
+                    <span class="financial-trend trend-neutral" id="avgVenueFeeTrend">--</span>
+                </div>
+                <div class="financial-value" id="avgVenueFee">0.0%</div>
+                <div class="financial-change" id="avgVenueFeeChange">weighted average</div>
+            </div>
+
+            <div class="financial-card">
+                <div class="financial-header">
+                    <span class="financial-title">Payment Processing</span>
+                    <span class="financial-trend trend-neutral" id="paymentStatusTrend">--</span>
+                </div>
+                <div class="financial-value" id="paymentSuccessRate">0%</div>
+                <div class="financial-change" id="paymentStatusChange">success rate</div>
+            </div>
+        </section>
+
+        <!-- Fee Management Section -->
+        <section class="fee-management">
+            <div class="section-header">
+                <h2 class="section-title">Venue Fee Management</h2>
+                <span class="status-badge status-connected" id="feeStatus">Active</span>
+            </div>
+            
+            <div class="fee-controls">
+                <div class="fee-input-group">
+                    <label class="fee-label">Default Venue Fee:</label>
+                    <input type="number" class="fee-input" id="defaultVenueFee" value="1.0" min="0" max="10" step="0.1">
+                    <span class="fee-label">%</span>
+                </div>
+                <button class="update-fee-btn" onclick="updateDefaultVenueFee()">Update Default</button>
+                <div class="fee-input-group" style="margin-left: auto;">
+                    <span class="fee-label">Apply to all restaurants:</span>
+                    <button class="update-fee-btn" onclick="syncVenueFeeAcrossRestaurants()">Sync All</button>
+                </div>
+            </div>
+
+            <div class="restaurant-fees-table">
+                <div class="table-header">
+                    <div>Restaurant</div>
+                    <div>Current Fee</div>
+                    <div>Monthly Revenue</div>
+                    <div>Orders</div>
+                    <div>Actions</div>
+                </div>
+                <div id="restaurantFeesTable">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading restaurant fees...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section">
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Revenue Trends</h3>
+                        <p class="chart-subtitle">Venue fees vs. total transaction volume</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Fee Distribution</h3>
+                        <p class="chart-subtitle">Revenue breakdown by restaurant</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="feeDistributionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Payment Processing Analytics</h3>
+                    <p class="chart-subtitle">Success rates and transaction volumes by day</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="paymentProcessingChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Payment Processing Status -->
+        <section class="payment-processing">
+            <div class="section-header">
+                <h2 class="section-title">Payment Processing Status</h2>
+                <span class="status-badge status-pending" id="stripeStatus">Connecting...</span>
+            </div>
+            
+            <div class="payment-status-grid">
+                <div class="payment-status-card">
+                    <div class="payment-status-title">Total Payments</div>
+                    <div class="payment-status-value" id="totalPayments">0</div>
+                </div>
+                <div class="payment-status-card">
+                    <div class="payment-status-title">Successful</div>
+                    <div class="payment-status-value" id="successfulPayments">0</div>
+                </div>
+                <div class="payment-status-card">
+                    <div class="payment-status-title">Failed</div>
+                    <div class="payment-status-value" id="failedPayments">0</div>
+                </div>
+                <div class="payment-status-card">
+                    <div class="payment-status-title">Pending</div>
+                    <div class="payment-status-value" id="pendingPayments">0</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentVenue = null;
+        let venueRestaurants = [];
+        let financialData = {};
+        let charts = {};
+
+        // Firebase utility functions
+        function getFirebaseAuth() {
+            return window.firebaseAuth || firebase.auth();
+        }
+
+        function getFirebaseDb() {
+            return window.firebaseDb || firebase.firestore();
+        }
+
+        // Initialize dashboard
+        async function initializeDashboard() {
+            try {
+                console.log('🚀 Initializing venue financials dashboard...');
+                
+                // Wait for Firebase to be ready
+                await waitForFirebase();
+                
+                // Check authentication
+                await checkAuthentication();
+                
+                // Load venue data
+                await loadVenueData();
+                
+                // Load restaurants
+                await loadRestaurants();
+                
+                // Load financial data
+                await loadFinancialData();
+                
+                console.log('✅ Venue financials dashboard initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Dashboard initialization error:', error);
+                showError('Failed to load financial dashboard. Please refresh the page.');
+            }
+        }
+
+        // Wait for Firebase to be initialized
+        function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb && window.VediAPI) {
+                        console.log('✅ Firebase and VediAPI ready for financials');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase initialization timeout'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Check user authentication and venue access
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                const auth = getFirebaseAuth();
+                
+                auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        try {
+                            const db = getFirebaseDb();
+                            const userDoc = await db.collection('users').doc(user.uid).get();
+                            
+                            if (!userDoc.exists) {
+                                throw new Error('User profile not found');
+                            }
+                            
+                            const userData = userDoc.data();
+                            
+                            if (userData.accountType !== 'venue') {
+                                throw new Error('Access denied. Venue manager account required.');
+                            }
+                            
+                            currentUser = { ...userData, uid: user.uid };
+                            updateUserDisplay();
+                            resolve();
+                            
+                        } catch (error) {
+                            console.error('❌ User verification error:', error);
+                            reject(error);
+                        }
+                    } else {
+                        window.location.href = '/login.html';
+                    }
+                });
+            });
+        }
+
+        // Load venue data
+        async function loadVenueData() {
+            try {
+                let venue;
+                
+                if (VediAPI.getVenueByManager) {
+                    venue = await VediAPI.getVenueByManager(currentUser.uid);
+                } else {
+                    // Fallback to direct Firebase query
+                    const db = getFirebaseDb();
+                    const venueQuery = await db.collection('venues')
+                        .where('managerUserId', '==', currentUser.uid)
+                        .limit(1)
+                        .get();
+                    
+                    if (venueQuery.empty) {
+                        throw new Error('No venue found for this manager');
+                    }
+                    
+                    const venueDoc = venueQuery.docs[0];
+                    venue = { id: venueDoc.id, ...venueDoc.data() };
+                }
+                
+                if (!venue) {
+                    throw new Error('No venue found for this manager');
+                }
+                
+                currentVenue = venue;
+                
+                document.getElementById('venueName').textContent = venue.name;
+                document.getElementById('venueLocation').textContent = 
+                    `${venue.city}, ${venue.state}`;
+                
+                // Update default venue fee input
+                const defaultFeeInput = document.getElementById('defaultVenueFee');
+                if (venue.defaultFeePercentage !== undefined) {
+                    defaultFeeInput.value = venue.defaultFeePercentage;
+                }
+                
+                console.log('✅ Venue loaded for financials:', venue.name);
+                
+            } catch (error) {
+                console.error('❌ Load venue error:', error);
+                throw error;
+            }
+        }
+
+        // Load restaurants
+        async function loadRestaurants() {
+            try {
+                if (VediAPI.getRestaurantsByVenue) {
+                    venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                } else {
+                    venueRestaurants = [];
+                }
+                
+                // Populate restaurant filter
+                const restaurantFilter = document.getElementById('restaurantFilter');
+                restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
+                
+                venueRestaurants.forEach(restaurant => {
+                    const option = document.createElement('option');
+                    option.value = restaurant.id;
+                    option.textContent = restaurant.name;
+                    restaurantFilter.appendChild(option);
+                });
+                
+                console.log('✅ Restaurants loaded for financials:', venueRestaurants.length);
+                
+            } catch (error) {
+                console.error('❌ Load restaurants error:', error);
+                showError('Failed to load restaurants');
+            }
+        }
+
+        // Load financial data
+        async function loadFinancialData() {
+            try {
+                const timePeriod = document.getElementById('timePeriod').value;
+                
+                // Load fee analytics
+                await loadFeeAnalytics(timePeriod);
+                
+                // Load payment analytics
+                await loadPaymentAnalytics(timePeriod);
+                
+                // Update financial summary
+                await updateFinancialSummary();
+                
+                // Update restaurant fees table
+                await updateRestaurantFeesTable();
+                
+                // Create charts
+                await createFinancialCharts();
+                
+            } catch (error) {
+                console.error('❌ Load financial data error:', error);
+                showError('Failed to load financial data');
+            }
+        }
+
+        // Load fee analytics
+        async function loadFeeAnalytics(timePeriod) {
+            try {
+                if (VediAPI.getFeeAnalytics) {
+                    const analytics = await VediAPI.getFeeAnalytics(timePeriod);
+                    financialData.feeAnalytics = analytics;
+                    console.log('✅ Fee analytics loaded:', analytics);
+                } else {
+                    console.warn('⚠️ VediAPI.getFeeAnalytics not available');
+                    financialData.feeAnalytics = {
+                        totalVenueFees: 0,
+                        totalRevenue: 0,
+                        revenueByVenue: {}
+                    };
+                }
+            } catch (error) {
+                console.error('❌ Load fee analytics error:', error);
+                financialData.feeAnalytics = {
+                    totalVenueFees: 0,
+                    totalRevenue: 0,
+                    revenueByVenue: {}
+                };
+            }
+        }
+
+        // Load payment analytics
+        async function loadPaymentAnalytics(timePeriod) {
+            try {
+                if (VediAPI.getVenuePayments) {
+                    const startDate = VediAPI.getTimePeriodStart ? VediAPI.getTimePeriodStart(timePeriod) : null;
+                    const endDate = new Date();
+                    
+                    const payments = await VediAPI.getVenuePayments({
+                        venueId: currentVenue.id,
+                        startDate: startDate ? startDate.toISOString() : null,
+                        endDate: endDate.toISOString(),
+                        limit: 1000
+                    });
+                    
+                    financialData.payments = payments;
+                    console.log('✅ Payment analytics loaded:', payments);
+                } else {
+                    console.warn('⚠️ VediAPI.getVenuePayments not available');
+                    financialData.payments = { payments: [], count: 0 };
+                }
+            } catch (error) {
+                console.error('❌ Load payment analytics error:', error);
+                financialData.payments = { payments: [], count: 0 };
+            }
+        }
+
+        // Update financial summary
+        async function updateFinancialSummary() {
+            try {
+                const feeAnalytics = financialData.feeAnalytics || {};
+                const venueData = feeAnalytics.revenueByVenue?.[currentVenue.id] || {};
+                
+                // Venue Revenue
+                const venueRevenue = venueData.venueFees || 0;
+                document.getElementById('venueRevenue').textContent = 
+                    VediAPI.formatCurrency ? VediAPI.formatCurrency(venueRevenue, 'USD') : `$${venueRevenue.toFixed(2)}`;
+                
+                // Total Transaction Volume
+                const transactionVolume = venueData.revenue || 0;
+                document.getElementById('transactionVolume').textContent = 
+                    VediAPI.formatCurrency ? VediAPI.formatCurrency(transactionVolume, 'USD') : `$${transactionVolume.toFixed(2)}`;
+                
+                // Average Venue Fee
+                const avgVenueFee = transactionVolume > 0 ? (venueRevenue / transactionVolume) * 100 : 0;
+                document.getElementById('avgVenueFee').textContent = `${avgVenueFee.toFixed(1)}%`;
+                
+                // Payment Success Rate
+                const payments = financialData.payments?.payments || [];
+                const successfulPayments = payments.filter(p => p.status === 'completed').length;
+                const successRate = payments.length > 0 ? (successfulPayments / payments.length) * 100 : 0;
+                document.getElementById('paymentSuccessRate').textContent = `${successRate.toFixed(1)}%`;
+                
+                // Update change indicators
+                document.getElementById('venueRevenueChange').textContent = `${venueData.orders || 0} orders processed`;
+                document.getElementById('transactionVolumeChange').textContent = `${venueData.restaurantCount || 0} restaurants`;
+                document.getElementById('avgVenueFeeChange').textContent = 'weighted average rate';
+                document.getElementById('paymentStatusChange').textContent = `${payments.length} total transactions`;
+                
+                // Update payment status breakdown
+                document.getElementById('totalPayments').textContent = payments.length;
+                document.getElementById('successfulPayments').textContent = successfulPayments;
+                document.getElementById('failedPayments').textContent = 
+                    payments.filter(p => p.status === 'failed').length;
+                document.getElementById('pendingPayments').textContent = 
+                    payments.filter(p => p.status === 'pending').length;
+                
+            } catch (error) {
+                console.error('❌ Update financial summary error:', error);
+            }
+        }
+
+        // Update restaurant fees table
+        async function updateRestaurantFeesTable() {
+            const tableContainer = document.getElementById('restaurantFeesTable');
+            
+            if (!venueRestaurants || venueRestaurants.length === 0) {
+                tableContainer.innerHTML = `
+                    <div style="padding: 48px; text-align: center; color: #86868B;">
+                        <p>No restaurants found in this venue</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Get fee configurations for each restaurant
+                const restaurantFeesData = await Promise.all(
+                    venueRestaurants.map(async (restaurant) => {
+                        try {
+                            let feeConfig = {};
+                            if (VediAPI.getFeeConfig) {
+                                feeConfig = await VediAPI.getFeeConfig(restaurant.id);
+                            }
+                            
+                            // Get revenue data from analytics
+                            const analytics = financialData.feeAnalytics || {};
+                            const restaurantRevenue = analytics.revenueByRestaurant?.[restaurant.id] || {};
+                            
+                            return {
+                                ...restaurant,
+                                venueFeePercentage: feeConfig.venueFeePercentage || 0,
+                                monthlyRevenue: restaurantRevenue.venueFees || 0,
+                                orderCount: restaurantRevenue.orders || 0
+                            };
+                        } catch (error) {
+                            console.warn('Could not load fee config for restaurant:', restaurant.id);
+                            return {
+                                ...restaurant,
+                                venueFeePercentage: 0,
+                                monthlyRevenue: 0,
+                                orderCount: 0
+                            };
+                        }
+                    })
+                );
+                
+                tableContainer.innerHTML = restaurantFeesData.map(restaurant => `
+                    <div class="table-row">
+                        <div>
+                            <div class="restaurant-name">${restaurant.name}</div>
+                            <div class="restaurant-cuisine">${restaurant.cuisineType || 'Restaurant'}</div>
+                        </div>
+                        <div>
+                            <div class="fee-value">${restaurant.venueFeePercentage.toFixed(1)}%</div>
+                        </div>
+                        <div>
+                            <div class="fee-value">${VediAPI.formatCurrency ? VediAPI.formatCurrency(restaurant.monthlyRevenue, 'USD') : `$${restaurant.monthlyRevenue.toFixed(2)}`}</div>
+                        </div>
+                        <div>
+                            <div class="fee-value">${restaurant.orderCount}</div>
+                        </div>
+                        <div>
+                            <button class="fee-edit-btn" onclick="editRestaurantFee('${restaurant.id}', ${restaurant.venueFeePercentage})">
+                                Edit Fee
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('❌ Update restaurant fees table error:', error);
+                tableContainer.innerHTML = `
+                    <div class="error-message">
+                        Failed to load restaurant fees. Please try refreshing the page.
+                    </div>
+                `;
+            }
+        }
+
+        // Create financial charts
+        async function createFinancialCharts() {
+            try {
+                await createRevenueChart();
+                await createFeeDistributionChart();
+                await createPaymentProcessingChart();
+            } catch (error) {
+                console.error('❌ Create financial charts error:', error);
+            }
+        }
+
+        // Create revenue trends chart
+        async function createRevenueChart() {
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+            
+            // Sample data - in real implementation, this would come from analytics
+            const labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+            const venueFeesData = [120, 190, 300, 250];
+            const totalVolumeData = [2400, 3800, 6000, 5000];
+            
+            if (charts.revenue) {
+                charts.revenue.destroy();
+            }
+            
+            charts.revenue = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Venue Fees',
+                        data: venueFeesData,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Total Volume',
+                        data: totalVolumeData,
+                        borderColor: '#30D158',
+                        backgroundColor: 'rgba(48, 209, 88, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Time Period'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Venue Fees ($)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Total Volume ($)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create fee distribution chart
+        async function createFeeDistributionChart() {
+            const ctx = document.getElementById('feeDistributionChart').getContext('2d');
+            
+            // Get restaurant names and venue fees
+            const restaurantLabels = venueRestaurants.map(r => r.name.substring(0, 15));
+            const analytics = financialData.feeAnalytics || {};
+            const venueFeesData = venueRestaurants.map(restaurant => {
+                const restaurantRevenue = analytics.revenueByRestaurant?.[restaurant.id] || {};
+                return restaurantRevenue.venueFees || 0;
+            });
+            
+            const colors = ['#007AFF', '#30D158', '#FF3B30', '#FF9500', '#AF52DE', '#00C7BE'];
+            
+            if (charts.feeDistribution) {
+                charts.feeDistribution.destroy();
+            }
+            
+            charts.feeDistribution = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: restaurantLabels,
+                    datasets: [{
+                        data: venueFeesData,
+                        backgroundColor: colors.slice(0, restaurantLabels.length),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create payment processing chart
+        async function createPaymentProcessingChart() {
+            const ctx = document.getElementById('paymentProcessingChart').getContext('2d');
+            
+            // Sample data for payment processing
+            const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const successfulData = [45, 52, 38, 67, 89, 95, 73];
+            const failedData = [2, 3, 1, 4, 5, 2, 3];
+            
+            if (charts.paymentProcessing) {
+                charts.paymentProcessing.destroy();
+            }
+            
+            charts.paymentProcessing = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Successful',
+                        data: successfulData,
+                        backgroundColor: '#30D158',
+                        borderRadius: 4
+                    }, {
+                        label: 'Failed',
+                        data: failedData,
+                        backgroundColor: '#FF3B30',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Transactions'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update default venue fee
+        async function updateDefaultVenueFee() {
+            try {
+                const newFeePercentage = parseFloat(document.getElementById('defaultVenueFee').value);
+                
+                if (isNaN(newFeePercentage) || newFeePercentage < 0 || newFeePercentage > 10) {
+                    showError('Please enter a valid fee percentage between 0 and 10');
+                    return;
+                }
+                
+                // Update venue default fee
+                if (VediAPI.updateVenue) {
+                    await VediAPI.updateVenue(currentVenue.id, {
+                        defaultFeePercentage: newFeePercentage
+                    });
+                    
+                    showSuccess(`Default venue fee updated to ${newFeePercentage}%`);
+                    
+                    // Reload financial data
+                    await loadFinancialData();
+                } else {
+                    showError('Update function not available');
+                }
+                
+            } catch (error) {
+                console.error('❌ Update default venue fee error:', error);
+                showError('Failed to update default venue fee');
+            }
+        }
+
+        // Sync venue fee across all restaurants
+        async function syncVenueFeeAcrossRestaurants() {
+            try {
+                const defaultFeePercentage = parseFloat(document.getElementById('defaultVenueFee').value);
+                
+                if (isNaN(defaultFeePercentage)) {
+                    showError('Please set a valid default fee percentage first');
+                    return;
+                }
+                
+                if (!confirm(`Are you sure you want to apply ${defaultFeePercentage}% venue fee to all ${venueRestaurants.length} restaurants?`)) {
+                    return;
+                }
+                
+                // Update fee for each restaurant
+                if (VediAPI.syncVenueFeeAcrossRestaurants) {
+                    await VediAPI.syncVenueFeeAcrossRestaurants(
+                        currentVenue.id, 
+                        defaultFeePercentage, 
+                        currentUser.uid
+                    );
+                    
+                    showSuccess(`Venue fee synced across ${venueRestaurants.length} restaurants`);
+                    
+                    // Reload financial data
+                    await loadFinancialData();
+                } else {
+                    showError('Sync function not available');
+                }
+                
+            } catch (error) {
+                console.error('❌ Sync venue fee error:', error);
+                showError('Failed to sync venue fee across restaurants');
+            }
+        }
+
+        // Edit restaurant fee
+        function editRestaurantFee(restaurantId, currentFee) {
+            const newFee = prompt(`Enter new venue fee percentage for this restaurant:`, currentFee.toFixed(1));
+            
+            if (newFee === null) return; // User cancelled
+            
+            const feePercentage = parseFloat(newFee);
+            
+            if (isNaN(feePercentage) || feePercentage < 0 || feePercentage > 10) {
+                showError('Please enter a valid fee percentage between 0 and 10');
+                return;
+            }
+            
+            updateRestaurantVenueFee(restaurantId, feePercentage);
+        }
+
+        // Update specific restaurant venue fee
+        async function updateRestaurantVenueFee(restaurantId, feePercentage) {
+            try {
+                if (VediAPI.updateVenueFeePercentage) {
+                    await VediAPI.updateVenueFeePercentage(restaurantId, feePercentage, currentUser.uid);
+                    
+                    showSuccess(`Restaurant venue fee updated to ${feePercentage}%`);
+                    
+                    // Reload financial data
+                    await loadFinancialData();
+                } else {
+                    showError('Update function not available');
+                }
+                
+            } catch (error) {
+                console.error('❌ Update restaurant venue fee error:', error);
+                showError('Failed to update restaurant venue fee');
+            }
+        }
+
+        // Apply filters
+        async function applyFilters() {
+            try {
+                await loadFinancialData();
+            } catch (error) {
+                console.error('❌ Apply filters error:', error);
+                showError('Failed to apply filters');
+            }
+        }
+
+        // Update user display
+        function updateUserDisplay() {
+            if (currentUser) {
+                document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
+            }
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            try {
+                const auth = getFirebaseAuth();
+                await auth.signOut();
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('❌ Logout error:', error);
+                showError('Failed to sign out');
+            }
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            const mainContent = document.querySelector('.main-content');
+            mainContent.insertBefore(errorDiv, mainContent.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            
+            const mainContent = document.querySelector('.main-content');
+            mainContent.insertBefore(successDiv, mainContent.firstChild);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 5000);
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('💰 Venue Financials Dashboard starting...');
+            initializeDashboard();
+        });
+    </script>
+</body>
+</html>
