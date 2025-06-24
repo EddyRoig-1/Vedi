@@ -407,7 +407,7 @@
             letter-spacing: 1px;
         }
 
-        /* Enhanced Menu Item with Image */
+        /* Enhanced Menu Item with Image - FIXED FOR IMAGE SUPPORT */
         .item-image {
             width: 100%;
             height: 180px;
@@ -442,6 +442,23 @@
             color: var(--text-tertiary);
             font-size: 13px;
             font-weight: 500;
+        }
+
+        /* Loading state for images */
+        .item-image.loading::before {
+            content: '📸 Loading...';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-tertiary);
+            font-size: 13px;
+        }
+
+        /* Enhanced error handling for images */
+        .item-image img[src=""],
+        .item-image img:not([src]) {
+            display: none;
         }
 
         .item-header {
@@ -1495,7 +1512,7 @@
             };
         }
 
-        // Load restaurant and menu data from Firebase
+        // Load restaurant and menu data from Firebase with enhanced image debugging
         async function loadRestaurantAndMenuData() {
             try {
                 currentRestaurant = await VediAPI.getRestaurant(customerData.restaurantId);
@@ -1511,6 +1528,20 @@
 
                 console.log('📊 Loaded categories:', categories.length);
                 console.log('📊 Loaded menu items:', menuItems.length);
+
+                // Enhanced: Debug image data in loaded items
+                console.log('🖼️ Image debug for all items:');
+                menuItems.forEach(item => {
+                    const imageUrl = item.image || item.imageUrl || item.itemImage;
+                    console.log(`🔍 Item "${item.name}":`, {
+                        id: item.id,
+                        image: item.image,
+                        imageUrl: item.imageUrl,
+                        itemImage: item.itemImage,
+                        finalImageUrl: imageUrl,
+                        hasAnyImage: !!imageUrl
+                    });
+                });
 
                 if (categories.length === 0 || menuItems.length === 0) {
                     throw new Error('Menu is not available yet. Please contact restaurant staff.');
@@ -1717,7 +1748,7 @@
             }
         }
 
-        // Menu Rendering Functions
+        // Menu Rendering Functions with FIXED IMAGE HANDLING
         function renderMenu() {
             if (categories.length === 0) {
                 showError('No menu categories available.');
@@ -1764,7 +1795,9 @@
             tabsContainer.style.display = 'flex';
         }
 
+        // ENHANCED renderMenuItems with comprehensive image debugging
         function renderMenuItems() {
+            console.log('🎨 renderMenuItems called with enhanced image debugging');
             const container = document.getElementById('menuItemsContainer');
             
             if (categories.length === 0) {
@@ -1782,6 +1815,18 @@
             container.innerHTML = categories.map(category => {
                 const categoryItems = filteredMenuItems.filter(item => item.categoryId === category.id);
                 
+                // Enhanced: Log detailed image information for each item
+                categoryItems.forEach(item => {
+                    console.log(`🔍 Item "${item.name}" detailed image debug:`, {
+                        id: item.id,
+                        image: item.image,
+                        imageUrl: item.imageUrl,
+                        itemImage: item.itemImage,
+                        allFields: Object.keys(item),
+                        hasAnyImage: !!(item.image || item.imageUrl || item.itemImage)
+                    });
+                });
+                
                 return `
                     <div class="menu-items" id="category-${category.id}">
                         ${categoryItems.length > 0 ? 
@@ -1795,6 +1840,7 @@
             container.style.display = 'block';
         }
 
+        // FIXED renderMenuItem function with comprehensive image support
         function renderMenuItem(item) {
             const currentQty = cart[item.id] || 0;
             itemQuantities[item.id] = currentQty;
@@ -1804,12 +1850,31 @@
             const qtyButtonsDisabled = isOutOfStock ? 'disabled' : '';
             const addButtonText = isOutOfStock ? 'Currently Unavailable' : (currentQty > 0 ? 'In Cart' : 'Add to Cart');
             
+            // ENHANCED: Check multiple possible image field names for maximum compatibility
+            const imageUrl = item.image || item.imageUrl || item.itemImage || item.picture || item.photo || null;
+            
+            console.log(`🖼️ Item ${item.name} final image data:`, {
+                image: item.image,
+                imageUrl: item.imageUrl,
+                itemImage: item.itemImage,
+                picture: item.picture,
+                photo: item.photo,
+                finalImageUrl: imageUrl,
+                hasImage: !!imageUrl
+            });
+            
             return `
                 <div class="${itemClass}" data-item="${item.id}">
                     ${isOutOfStock ? '<div class="out-of-stock-badge">Out of Stock</div>' : ''}
-                    <div class="item-image ${!item.image ? 'no-image' : ''}">
-                        ${item.image ? 
-                            `<img src="${item.image}" alt="${item.name}" loading="lazy">` : 
+                    <div class="item-image ${!imageUrl ? 'no-image' : ''}" id="image-container-${item.id}">
+                        ${imageUrl ? 
+                            `<img src="${imageUrl}" 
+                                 alt="${item.name}" 
+                                 loading="lazy" 
+                                 onload="handleImageLoad('${item.id}')"
+                                 onerror="handleImageError('${item.id}', '${item.name}')"
+                                 onabort="handleImageError('${item.id}', '${item.name}')"
+                             >` : 
                             '🍽️ No Image Available'
                         }
                     </div>
@@ -1831,6 +1896,25 @@
                     ${isOutOfStock ? '<div class="out-of-stock-overlay">Currently Unavailable</div>' : ''}
                 </div>
             `;
+        }
+
+        // NEW: Image loading handlers
+        function handleImageLoad(itemId) {
+            console.log(`✅ Image loaded successfully for item: ${itemId}`);
+            const container = document.getElementById(`image-container-${itemId}`);
+            if (container) {
+                container.classList.remove('loading');
+            }
+        }
+
+        function handleImageError(itemId, itemName) {
+            console.warn(`❌ Image failed to load for item: ${itemName} (${itemId})`);
+            const container = document.getElementById(`image-container-${itemId}`);
+            if (container) {
+                container.classList.remove('loading');
+                container.classList.add('no-image');
+                container.innerHTML = '🍽️ Image not available';
+            }
         }
 
         function switchToCategory(categoryId) {
@@ -2123,7 +2207,7 @@
             monitorAuthenticationState();
         }, 1000);
 
-        console.log('🍽️ iOS Dark Theme customer menu with Firebase authentication loaded successfully');
+        console.log('🍽️ Enhanced iOS Dark Theme customer menu with comprehensive image support loaded successfully');
     </script>
 </body>
 </html>
