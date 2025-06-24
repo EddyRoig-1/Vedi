@@ -1584,8 +1584,13 @@
                     updateButtons();
                     console.log('Moved to step:', currentStep);
                 } else {
-                    // Final step - complete setup
-                    await saveToFirebase();
+                    // On final step, just move to the completion view without saving
+                    // The actual saving will happen when "Go to Dashboard" is clicked
+                    currentStep = totalSteps;
+                    showStep(currentStep);
+                    updateProgress();
+                    updateButtons();
+                    console.log('Reached final step');
                 }
                 
             } catch (error) {
@@ -1713,8 +1718,10 @@
             
             if (nextBtn) {
                 if (currentStep === totalSteps) {
-                    nextBtn.innerHTML = 'Complete Setup';
+                    // Hide the next button on the final step since we only want "Go to Dashboard"
+                    nextBtn.style.display = 'none';
                 } else {
+                    nextBtn.style.display = 'block';
                     nextBtn.innerHTML = 'Next Step';
                 }
             }
@@ -1813,9 +1820,32 @@
         }
 
         async function goToDashboard() {
-            console.log('🚀 Redirecting to dashboard...');
+            console.log('🚀 Saving data and redirecting to dashboard...');
             
             try {
+                // If we're not on the final step yet, complete the setup first
+                if (currentStep < totalSteps) {
+                    showLoading('Completing setup...', 'Saving your restaurant information');
+                    
+                    // Save current step data
+                    saveCurrentStepData();
+                    
+                    // Prepare restaurant data for Firebase
+                    const restaurantData = {
+                        ...formData,
+                        ownerUserId: currentUser.id,
+                        setupCompleted: true
+                    };
+                    
+                    console.log('Restaurant data to save:', restaurantData);
+                    
+                    // Save to Firebase
+                    const savedRestaurant = await VediAPI.createRestaurant(restaurantData);
+                    console.log('✅ Restaurant created:', savedRestaurant);
+                    
+                    showSuccess('Restaurant setup completed successfully!');
+                }
+                
                 showLoading('Preparing dashboard...', 'Getting your restaurant ready');
                 
                 // Small delay for smooth transition
@@ -1826,7 +1856,7 @@
             } catch (error) {
                 console.error('❌ Dashboard redirect error:', error);
                 hideLoading();
-                showError('Error redirecting to dashboard: ' + error.message);
+                showError('Error completing setup: ' + error.message);
             }
         }
 
