@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Analytics - Venue Manager</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    
+    <!-- Chart.js for analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+    
+    <!-- VediAPI Core -->
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    
+    <!-- Business APIs -->
+    <script src="../Api/business/venues.js"></script>
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/orders/order-management.js"></script>
+    <script src="../Api/orders/order-tracking.js"></script>
+    
+    <!-- Analytics APIs -->
+    <script src="../Api/payments/revenue-analytics.js"></script>
+    <script src="../Api/operations/loss-incidents.js"></script>
+    
+    <style>
+        /* iOS Design System */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+            background-color: #F8F9FA;
+            color: #1D1D1F;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .venue-info h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .venue-info p {
+            font-size: 15px;
+            color: #86868B;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .user-role {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .logout-btn {
+            background-color: #FF3B30;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #D70015;
+            transform: translateY(-1px);
+        }
+
+        /* Navigation */
+        .navigation {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 0 24px;
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-item {
+            padding: 16px 0;
+            font-size: 17px;
+            font-weight: 500;
+            color: #86868B;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active {
+            color: #007AFF;
+            border-bottom-color: #007AFF;
+        }
+
+        .nav-item:hover {
+            color: #007AFF;
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 17px;
+            color: #86868B;
+        }
+
+        /* Filter Controls */
+        .filter-controls {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 16px;
+            align-items: end;
+        }
+
+        .filter-group {
+            flex: 1;
+        }
+
+        .filter-label {
+            display: block;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .filter-select, .filter-input {
+            width: 100%;
+            height: 44px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 0 16px;
+            font-size: 17px;
+            background-color: #FFFFFF;
+            transition: border-color 0.2s ease;
+        }
+
+        .filter-select:focus, .filter-input:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        .apply-filters-btn {
+            height: 44px;
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 24px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .apply-filters-btn:hover {
+            background-color: #0056CC;
+            transform: translateY(-1px);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #86868B;
+        }
+
+        .stat-trend {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .trend-positive {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .trend-negative {
+            background-color: #FFE5E5;
+            color: #D70015;
+        }
+
+        .trend-neutral {
+            background-color: #F1F3F4;
+            color: #86868B;
+        }
+
+        .stat-value {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .stat-change {
+            font-size: 13px;
+            font-weight: 500;
+            color: #86868B;
+        }
+
+        /* Charts Section */
+        .charts-section {
+            margin-bottom: 32px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .chart-header {
+            margin-bottom: 24px;
+        }
+
+        .chart-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .chart-subtitle {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Restaurant Performance */
+        .restaurant-performance {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        .view-all-btn {
+            background-color: #F1F3F4;
+            color: #007AFF;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .view-all-btn:hover {
+            background-color: #E5E5E7;
+        }
+
+        .performance-table {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .table-header {
+            background-color: #F8F9FA;
+            padding: 16px 24px;
+            border-bottom: 1px solid #E5E5E7;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #86868B;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table-row {
+            padding: 16px 24px;
+            border-bottom: 1px solid #F1F3F4;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 16px;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .table-row:hover {
+            background-color: #F8F9FA;
+        }
+
+        .table-row:last-child {
+            border-bottom: none;
+        }
+
+        .restaurant-name {
+            font-size: 17px;
+            font-weight: 500;
+            color: #000000;
+        }
+
+        .restaurant-cuisine {
+            font-size: 13px;
+            color: #86868B;
+            margin-top: 2px;
+        }
+
+        .metric-value {
+            font-size: 17px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .metric-change {
+            font-size: 11px;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        .change-positive {
+            color: #30D158;
+        }
+
+        .change-negative {
+            color: #FF3B30;
+        }
+
+        .change-neutral {
+            color: #86868B;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-online {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .status-offline {
+            background-color: #FFE5E5;
+            color: #D70015;
+        }
+
+        .status-warning {
+            background-color: #FFF3CD;
+            color: #B45309;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 48px;
+            color: #86868B;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #E5E5E7;
+            border-top: 2px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error States */
+        .error-message {
+            background-color: #FFE5E5;
+            color: #D70015;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                align-items: start;
+            }
+
+            .nav-content {
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            .filter-row {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .table-header, .table-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .table-header {
+                display: none;
+            }
+
+            .table-row {
+                flex-direction: column;
+                align-items: start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="venue-info">
+                <h1 id="venueName">Loading...</h1>
+                <p id="venueLocation">Loading venue information...</p>
+            </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-name" id="userName">Venue Manager</div>
+                    <div class="user-role">Performance Analytics</div>
+                </div>
+                <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="navigation">
+        <div class="nav-content">
+            <a href="venue-overview.html" class="nav-item">Overview</a>
+            <a href="#" class="nav-item active">Performance</a>
+            <a href="#" class="nav-item">Loss Tracking</a>
+            <a href="#" class="nav-item">Reports</a>
+            <a href="#" class="nav-item">Management</a>
+            <a href="#" class="nav-item">Financials</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <section class="page-header">
+            <h1 class="page-title">Performance Analytics</h1>
+            <p class="page-subtitle">Comprehensive venue and restaurant performance insights</p>
+        </section>
+
+        <!-- Filter Controls -->
+        <section class="filter-controls">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label class="filter-label">Time Period</label>
+                    <select class="filter-select" id="timePeriod">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Restaurant</label>
+                    <select class="filter-select" id="restaurantFilter">
+                        <option value="all">All Restaurants</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">Metric</label>
+                    <select class="filter-select" id="metricFilter">
+                        <option value="revenue">Revenue</option>
+                        <option value="orders">Order Volume</option>
+                        <option value="avg_order">Average Order Value</option>
+                        <option value="losses">Loss Analysis</option>
+                    </select>
+                </div>
+                <button class="apply-filters-btn" onclick="applyFilters()">Update</button>
+            </div>
+        </section>
+
+        <!-- Key Performance Stats -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">Total Revenue</span>
+                    <span class="stat-trend trend-positive" id="revenueTrend">+12%</span>
+                </div>
+                <div class="stat-value" id="totalRevenue">$0.00</div>
+                <div class="stat-change" id="revenueChange">vs previous period</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">Order Volume</span>
+                    <span class="stat-trend trend-positive" id="ordersTrend">+8%</span>
+                </div>
+                <div class="stat-value" id="totalOrders">0</div>
+                <div class="stat-change" id="ordersChange">vs previous period</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">Average Order Value</span>
+                    <span class="stat-trend trend-neutral" id="aovTrend">-2%</span>
+                </div>
+                <div class="stat-value" id="averageOrderValue">$0.00</div>
+                <div class="stat-change" id="aovChange">vs previous period</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">Total Losses</span>
+                    <span class="stat-trend trend-warning" id="lossesTrend">+$45</span>
+                </div>
+                <div class="stat-value" id="totalLosses">$0.00</div>
+                <div class="stat-change" id="lossesChange">vs previous period</div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section">
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Revenue Trend</h3>
+                        <p class="chart-subtitle">Daily performance over selected period</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Revenue by Restaurant</h3>
+                        <p class="chart-subtitle">Performance breakdown</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="restaurantChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Peak Hours Analysis</h3>
+                    <p class="chart-subtitle">Order volume by hour of day</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="peakHoursChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Restaurant Performance Table -->
+        <section class="restaurant-performance">
+            <div class="section-header">
+                <h2 class="section-title">Restaurant Performance</h2>
+                <button class="view-all-btn">View Detailed Reports</button>
+            </div>
+            <div class="performance-table">
+                <div class="table-header">
+                    <div>Restaurant</div>
+                    <div>Revenue</div>
+                    <div>Orders</div>
+                    <div>Avg Order</div>
+                    <div>Status</div>
+                </div>
+                <div id="restaurantTable">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading performance data...
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentVenue = null;
+        let venueRestaurants = [];
+        let venueOrders = [];
+        let lossIncidents = [];
+        let charts = {};
+
+        // Firebase utility functions
+        function getFirebaseAuth() {
+            return window.firebaseAuth || firebase.auth();
+        }
+
+        function getFirebaseDb() {
+            return window.firebaseDb || firebase.firestore();
+        }
+
+        // Initialize dashboard
+        async function initializeDashboard() {
+            try {
+                console.log('🚀 Initializing performance analytics...');
+                
+                // Wait for Firebase to be ready
+                await waitForFirebase();
+                
+                // Check authentication
+                await checkAuthentication();
+                
+                // Load venue data
+                await loadVenueData();
+                
+                // Load restaurants
+                await loadRestaurants();
+                
+                // Load performance data
+                await loadPerformanceData();
+                
+                console.log('✅ Performance analytics initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Analytics initialization error:', error);
+                showError('Failed to load performance analytics. Please refresh the page.');
+            }
+        }
+
+        // Wait for Firebase to be initialized
+        function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb && window.VediAPI) {
+                        console.log('✅ Firebase and VediAPI ready for analytics');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase initialization timeout'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Check user authentication and venue access
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                const auth = getFirebaseAuth();
+                
+                auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        try {
+                            const db = getFirebaseDb();
+                            const userDoc = await db.collection('users').doc(user.uid).get();
+                            
+                            if (!userDoc.exists) {
+                                throw new Error('User profile not found');
+                            }
+                            
+                            const userData = userDoc.data();
+                            
+                            if (userData.accountType !== 'venue') {
+                                throw new Error('Access denied. Venue manager account required.');
+                            }
+                            
+                            currentUser = { ...userData, uid: user.uid };
+                            updateUserDisplay();
+                            resolve();
+                            
+                        } catch (error) {
+                            console.error('❌ User verification error:', error);
+                            reject(error);
+                        }
+                    } else {
+                        window.location.href = '/login.html';
+                    }
+                });
+            });
+        }
+
+        // Load venue data
+        async function loadVenueData() {
+            try {
+                const venue = await VediAPI.getVenueByManager(currentUser.uid);
+                
+                if (!venue) {
+                    throw new Error('No venue found for this manager');
+                }
+                
+                currentVenue = venue;
+                
+                document.getElementById('venueName').textContent = venue.name;
+                document.getElementById('venueLocation').textContent = 
+                    `${venue.city}, ${venue.state}`;
+                
+                console.log('✅ Venue loaded for analytics:', venue.name);
+                
+            } catch (error) {
+                console.error('❌ Load venue error:', error);
+                throw error;
+            }
+        }
+
+        // Load restaurants
+        async function loadRestaurants() {
+            try {
+                venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                
+                // Populate restaurant filter
+                const restaurantFilter = document.getElementById('restaurantFilter');
+                restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
+                
+                venueRestaurants.forEach(restaurant => {
+                    const option = document.createElement('option');
+                    option.value = restaurant.id;
+                    option.textContent = restaurant.name;
+                    restaurantFilter.appendChild(option);
+                });
+                
+                console.log('✅ Restaurants loaded for analytics:', venueRestaurants.length);
+                
+            } catch (error) {
+                console.error('❌ Load restaurants error:', error);
+                showError('Failed to load restaurants');
+            }
+        }
+
+        // Load performance data
+        async function loadPerformanceData() {
+            try {
+                // Load orders for all restaurants
+                await loadOrders();
+                
+                // Load loss incidents
+                await loadLossIncidents();
+                
+                // Update stats
+                await updatePerformanceStats();
+                
+                // Create charts
+                await createCharts();
+                
+                // Update restaurant table
+                await updateRestaurantTable();
+                
+            } catch (error) {
+                console.error('❌ Load performance data error:', error);
+                showError('Failed to load performance data');
+            }
+        }
+
+        // Load orders for analytics
+        async function loadOrders() {
+            try {
+                if (venueRestaurants.length === 0) {
+                    venueOrders = [];
+                    return;
+                }
+                
+                const restaurantIds = venueRestaurants.map(r => r.id);
+                venueOrders = [];
+                
+                // Load orders for each restaurant
+                for (const restaurantId of restaurantIds) {
+                    try {
+                        const orders = await VediAPI.getOrders(restaurantId, {
+                            limit: 1000,
+                            orderBy: 'createdAt',
+                            orderDirection: 'desc'
+                        });
+                        venueOrders.push(...orders);
+                    } catch (error) {
+                        console.warn('Could not load orders for restaurant:', restaurantId);
+                    }
+                }
+                
+                console.log('✅ Orders loaded for analytics:', venueOrders.length);
+                
+            } catch (error) {
+                console.error('❌ Load orders error:', error);
+                venueOrders = [];
+            }
+        }
+
+        // Load loss incidents
+        async function loadLossIncidents() {
+            try {
+                if (currentVenue.id) {
+                    lossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
+                        limit: 1000
+                    });
+                } else {
+                    lossIncidents = [];
+                }
+                
+                console.log('✅ Loss incidents loaded:', lossIncidents.length);
+                
+            } catch (error) {
+                console.error('❌ Load loss incidents error:', error);
+                lossIncidents = [];
+            }
+        }
+
+        // Update performance statistics
+        async function updatePerformanceStats() {
+            try {
+                const timePeriod = document.getElementById('timePeriod').value;
+                const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+                const filteredLosses = filterLossesByTimePeriod(lossIncidents, timePeriod);
+                
+                // Calculate revenue stats
+                const totalRevenue = filteredOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                const totalOrders = filteredOrders.length;
+                const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+                
+                // Calculate loss stats
+                const totalLosses = filteredLosses.reduce((sum, incident) => sum + (parseFloat(incident.amount) || 0), 0);
+                
+                // Update displays
+                document.getElementById('totalRevenue').textContent = VediAPI.formatCurrency(totalRevenue, 'USD');
+                document.getElementById('totalOrders').textContent = totalOrders.toLocaleString();
+                document.getElementById('averageOrderValue').textContent = VediAPI.formatCurrency(averageOrderValue, 'USD');
+                document.getElementById('totalLosses').textContent = VediAPI.formatCurrency(totalLosses, 'USD');
+                
+                // Update change indicators (simplified)
+                document.getElementById('revenueChange').textContent = `${totalOrders} orders this period`;
+                document.getElementById('ordersChange').textContent = `$${totalRevenue.toFixed(2)} total value`;
+                document.getElementById('aovChange').textContent = 'across all restaurants';
+                document.getElementById('lossesChange').textContent = `${filteredLosses.length} incidents`;
+                
+            } catch (error) {
+                console.error('❌ Update performance stats error:', error);
+                showError('Failed to update performance statistics');
+            }
+        }
+
+        // Filter orders by time period
+        function filterOrdersByTimePeriod(orders, timePeriod) {
+            const now = new Date();
+            let startDate;
+            
+            switch(timePeriod) {
+                case 'today':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    break;
+                case 'week':
+                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+                case 'month':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    break;
+                case 'quarter':
+                    const quarter = Math.floor(now.getMonth() / 3);
+                    startDate = new Date(now.getFullYear(), quarter * 3, 1);
+                    break;
+                case 'year':
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    break;
+                default:
+                    return orders;
+            }
+            
+            return orders.filter(order => {
+                const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                return orderDate >= startDate;
+            });
+        }
+
+        // Filter losses by time period
+        function filterLossesByTimePeriod(incidents, timePeriod) {
+            const now = new Date();
+            let startDate;
+            
+            switch(timePeriod) {
+                case 'today':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    break;
+                case 'week':
+                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+                case 'month':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    break;
+                case 'quarter':
+                    const quarter = Math.floor(now.getMonth() / 3);
+                    startDate = new Date(now.getFullYear(), quarter * 3, 1);
+                    break;
+                case 'year':
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    break;
+                default:
+                    return incidents;
+            }
+            
+            return incidents.filter(incident => {
+                const incidentDate = incident.createdAt?.toDate ? incident.createdAt.toDate() : new Date(incident.createdAt);
+                return incidentDate >= startDate;
+            });
+        }
+
+        // Create analytics charts
+        async function createCharts() {
+            try {
+                await createRevenueChart();
+                await createRestaurantChart();
+                await createPeakHoursChart();
+            } catch (error) {
+                console.error('❌ Create charts error:', error);
+            }
+        }
+
+        // Create revenue trend chart
+        async function createRevenueChart() {
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+            const timePeriod = document.getElementById('timePeriod').value;
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            
+            // Group orders by date
+            const revenueByDate = {};
+            filteredOrders.forEach(order => {
+                const date = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                const dateKey = date.toISOString().split('T')[0];
+                revenueByDate[dateKey] = (revenueByDate[dateKey] || 0) + (parseFloat(order.total) || 0);
+            });
+            
+            const dates = Object.keys(revenueByDate).sort();
+            const revenues = dates.map(date => revenueByDate[date]);
+            
+            if (charts.revenue) {
+                charts.revenue.destroy();
+            }
+            
+            charts.revenue = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates.map(date => new Date(date).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Revenue',
+                        data: revenues,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create restaurant performance chart
+        async function createRestaurantChart() {
+            const ctx = document.getElementById('restaurantChart').getContext('2d');
+            const timePeriod = document.getElementById('timePeriod').value;
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            
+            // Group revenue by restaurant
+            const revenueByRestaurant = {};
+            filteredOrders.forEach(order => {
+                const restaurantId = order.restaurantId;
+                revenueByRestaurant[restaurantId] = (revenueByRestaurant[restaurantId] || 0) + (parseFloat(order.total) || 0);
+            });
+            
+            const restaurantLabels = [];
+            const restaurantRevenues = [];
+            const colors = ['#007AFF', '#FF3B30', '#30D158', '#FF9500', '#AF52DE', '#00C7BE'];
+            
+            Object.entries(revenueByRestaurant).forEach(([restaurantId, revenue], index) => {
+                const restaurant = venueRestaurants.find(r => r.id === restaurantId);
+                restaurantLabels.push(restaurant ? restaurant.name : 'Unknown');
+                restaurantRevenues.push(revenue);
+            });
+            
+            if (charts.restaurant) {
+                charts.restaurant.destroy();
+            }
+            
+            charts.restaurant = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: restaurantLabels,
+                    datasets: [{
+                        data: restaurantRevenues,
+                        backgroundColor: colors.slice(0, restaurantLabels.length),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create peak hours chart
+        async function createPeakHoursChart() {
+            const ctx = document.getElementById('peakHoursChart').getContext('2d');
+            const timePeriod = document.getElementById('timePeriod').value;
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            
+            // Group orders by hour
+            const ordersByHour = new Array(24).fill(0);
+            filteredOrders.forEach(order => {
+                const date = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                const hour = date.getHours();
+                ordersByHour[hour]++;
+            });
+            
+            const hours = Array.from({length: 24}, (_, i) => `${i}:00`);
+            
+            if (charts.peakHours) {
+                charts.peakHours.destroy();
+            }
+            
+            charts.peakHours = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: hours,
+                    datasets: [{
+                        label: 'Orders',
+                        data: ordersByHour,
+                        backgroundColor: '#007AFF',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update restaurant performance table
+        async function updateRestaurantTable() {
+            const tableContainer = document.getElementById('restaurantTable');
+            const timePeriod = document.getElementById('timePeriod').value;
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            
+            if (venueRestaurants.length === 0) {
+                tableContainer.innerHTML = `
+                    <div style="padding: 48px; text-align: center; color: #86868B;">
+                        <p>No restaurants found in this venue</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Calculate restaurant performance
+            const restaurantPerformance = venueRestaurants.map(restaurant => {
+                const restaurantOrders = filteredOrders.filter(order => order.restaurantId === restaurant.id);
+                const revenue = restaurantOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                const orderCount = restaurantOrders.length;
+                const avgOrder = orderCount > 0 ? revenue / orderCount : 0;
+                
+                return {
+                    ...restaurant,
+                    revenue,
+                    orderCount,
+                    avgOrder
+                };
+            }).sort((a, b) => b.revenue - a.revenue);
+            
+            tableContainer.innerHTML = restaurantPerformance.map(restaurant => {
+                const status = getRestaurantStatus(restaurant);
+                
+                return `
+                    <div class="table-row">
+                        <div>
+                            <div class="restaurant-name">${restaurant.name}</div>
+                            <div class="restaurant-cuisine">${restaurant.cuisineType || 'Restaurant'}</div>
+                        </div>
+                        <div>
+                            <div class="metric-value">${VediAPI.formatCurrency(restaurant.revenue, restaurant.currency?.code || 'USD')}</div>
+                        </div>
+                        <div>
+                            <div class="metric-value">${restaurant.orderCount}</div>
+                        </div>
+                        <div>
+                            <div class="metric-value">${VediAPI.formatCurrency(restaurant.avgOrder, restaurant.currency?.code || 'USD')}</div>
+                        </div>
+                        <div>
+                            <span class="status-badge ${status.class}">${status.text}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Get restaurant status for display
+        function getRestaurantStatus(restaurant) {
+            if (!restaurant.verified) {
+                return { text: 'Pending', class: 'status-warning' };
+            }
+            if (!restaurant.isOnline) {
+                return { text: 'Offline', class: 'status-offline' };
+            }
+            return { text: 'Online', class: 'status-online' };
+        }
+
+        // Update user display
+        function updateUserDisplay() {
+            if (currentUser) {
+                document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
+            }
+        }
+
+        // Apply filters
+        async function applyFilters() {
+            try {
+                await loadPerformanceData();
+            } catch (error) {
+                console.error('❌ Apply filters error:', error);
+                showError('Failed to apply filters');
+            }
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            try {
+                const auth = getFirebaseAuth();
+                await auth.signOut();
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('❌ Logout error:', error);
+                showError('Failed to sign out');
+            }
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            const mainContent = document.querySelector('.main-content');
+            mainContent.insertBefore(errorDiv, mainContent.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🍽️ Venue Performance Analytics starting...');
+            initializeDashboard();
+        });
+    </script>
+</body>
+</html>
