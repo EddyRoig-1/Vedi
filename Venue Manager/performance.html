@@ -1045,13 +1045,15 @@
         // Load orders for analytics
         async function loadOrders() {
             try {
-                if (venueRestaurants.length === 0) {
-                    venueOrders = [];
+                // Initialize venueOrders array first
+                venueOrders = [];
+                
+                if (!venueRestaurants || venueRestaurants.length === 0) {
+                    console.log('⚠️ No restaurants found, skipping order loading');
                     return;
                 }
                 
                 const restaurantIds = venueRestaurants.map(r => r.id);
-                venueOrders = [];
                 
                 // Load orders for each restaurant
                 for (const restaurantId of restaurantIds) {
@@ -1195,7 +1197,7 @@
         async function createRevenueChart() {
             const ctx = document.getElementById('revenueChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
-            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
             
             // Group orders by date
             const revenueByDate = {};
@@ -1239,20 +1241,13 @@
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return '$' + value.toFixed(0);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
+                                    return '
 
         // Create restaurant performance chart
         async function createRestaurantChart() {
             const ctx = document.getElementById('restaurantChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
-            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
             
             // Group revenue by restaurant
             const revenueByRestaurant = {};
@@ -1266,7 +1261,7 @@
             const colors = ['#007AFF', '#FF3B30', '#30D158', '#FF9500', '#AF52DE', '#00C7BE'];
             
             Object.entries(revenueByRestaurant).forEach(([restaurantId, revenue], index) => {
-                const restaurant = venueRestaurants.find(r => r.id === restaurantId);
+                const restaurant = (venueRestaurants || []).find(r => r.id === restaurantId);
                 restaurantLabels.push(restaurant ? restaurant.name : 'Unknown');
                 restaurantRevenues.push(revenue);
             });
@@ -1305,7 +1300,7 @@
         async function createPeakHoursChart() {
             const ctx = document.getElementById('peakHoursChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
-            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timePeriod);
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
             
             // Group orders by hour
             const ordersByHour = new Array(24).fill(0);
@@ -1469,4 +1464,4 @@
         });
     </script>
 </body>
-</html>
+</html> 
