@@ -709,6 +709,45 @@
             color: #B45309;
         }
 
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(248, 249, 250, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .loading-circle {
+            width: 48px;
+            height: 48px;
+            border: 3px solid #E5E5E7;
+            border-top: 3px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        .loading-text {
+            font-size: 17px;
+            color: #86868B;
+            text-align: center;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header-content {
@@ -771,12 +810,12 @@
     <!-- Navigation -->
     <nav class="navigation">
         <div class="nav-content">
-            <a href="venue-overview.html" class="nav-item">Overview</a>
-            <a href="performance.html" class="nav-item">Performance</a>
-            <a href="loss-tracking.html" class="nav-item">Loss Tracking</a>
-            <a href="#" class="nav-item">Reports</a>
-            <a href="#" class="nav-item active">Management</a>
-            <a href="venue-financials.html" class="nav-item">Financials</a>
+            <a href="venue-overview.html" class="nav-item" onclick="handleNavigation(event, 'venue-overview.html')">Overview</a>
+            <a href="performance.html" class="nav-item" onclick="handleNavigation(event, 'performance.html')">Performance</a>
+            <a href="loss-tracking.html" class="nav-item" onclick="handleNavigation(event, 'loss-tracking.html')">Loss Tracking</a>
+            <a href="venue-reports.html" class="nav-item" onclick="handleNavigation(event, 'venue-reports.html')">Reports</a>
+            <a href="venue-management.html" class="nav-item active">Management</a>
+            <a href="venue-financials.html" class="nav-item" onclick="handleNavigation(event, 'venue-financials.html')">Financials</a>
         </div>
     </nav>
 
@@ -940,6 +979,12 @@
         </section>
     </main>
 
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-circle"></div>
+        <div class="loading-text">Loading...</div>
+    </div>
+
     <!-- Invite Restaurant Modal -->
     <div class="modal" id="inviteModal">
         <div class="modal-content">
@@ -987,6 +1032,128 @@
             return window.firebaseDb || firebase.firestore();
         }
 
+        // VediAPI Mock Functions (simplified version for venue management)
+        if (!window.VediAPI) {
+            window.VediAPI = {
+                validateEmail: function(email) {
+                    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                },
+                
+                getRelativeTime: function(timestamp) {
+                    const date = this.timestampToDate(timestamp);
+                    const now = new Date();
+                    const diff = now - date;
+                    const minutes = Math.floor(diff / 60000);
+                    const hours = Math.floor(diff / 3600000);
+                    const days = Math.floor(diff / 86400000);
+                    
+                    if (minutes < 60) return `${minutes}m ago`;
+                    if (hours < 24) return `${hours}h ago`;
+                    return `${days}d ago`;
+                },
+                
+                timestampToDate: function(timestamp) {
+                    if (timestamp && timestamp.toDate) {
+                        return timestamp.toDate();
+                    }
+                    if (timestamp && timestamp.seconds) {
+                        return new Date(timestamp.seconds * 1000);
+                    }
+                    return new Date(timestamp);
+                },
+                
+                getVenueByManager: async function(managerId) {
+                    const db = getFirebaseDb();
+                    const venueQuery = await db.collection('venues')
+                        .where('managerUserId', '==', managerId)
+                        .limit(1)
+                        .get();
+                    
+                    if (venueQuery.empty) return null;
+                    const venueDoc = venueQuery.docs[0];
+                    return { id: venueDoc.id, ...venueDoc.data() };
+                },
+                
+                getRestaurantsByVenue: async function(venueId) {
+                    const db = getFirebaseDb();
+                    const restaurantsQuery = await db.collection('restaurants')
+                        .where('venueId', '==', venueId)
+                        .get();
+                    
+                    return restaurantsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                },
+                
+                getVenueRequests: async function(venueId) {
+                    const db = getFirebaseDb();
+                    const requestsQuery = await db.collection('venueRequests')
+                        .where('venueId', '==', venueId)
+                        .where('status', '==', 'pending')
+                        .orderBy('requestedAt', 'desc')
+                        .get();
+                    
+                    return requestsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                },
+                
+                createVenueInvitation: async function(venueId, invitation, message) {
+                    const db = getFirebaseDb();
+                    const invitationDoc = await db.collection('venueInvitations').add({
+                        venueId,
+                        restaurantName: invitation.restaurantName,
+                        contactEmail: invitation.contactEmail,
+                        message: message || '',
+                        status: 'sent',
+                        sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        expiresAt: firebase.firestore.Timestamp.fromDate(
+                            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+                        )
+                    });
+                    
+                    return { id: invitationDoc.id, ...invitation };
+                },
+                
+                approveRestaurantRequest: async function(requestId) {
+                    const db = getFirebaseDb();
+                    await db.collection('venueRequests').doc(requestId).update({
+                        status: 'approved',
+                        approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                },
+                
+                denyRestaurantRequest: async function(requestId, reason) {
+                    const db = getFirebaseDb();
+                    await db.collection('venueRequests').doc(requestId).update({
+                        status: 'denied',
+                        deniedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        deniedReason: reason || ''
+                    });
+                },
+                
+                updateVenue: async function(venueId, venueData) {
+                    const db = getFirebaseDb();
+                    await db.collection('venues').doc(venueId).update({
+                        ...venueData,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                },
+                
+                unsyncRestaurantFromVenue: async function(restaurantId, reason) {
+                    const db = getFirebaseDb();
+                    await db.collection('restaurants').doc(restaurantId).update({
+                        venueId: null,
+                        venueUnsyncedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        venueUnsyncReason: reason || '',
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            };
+        }
+
         // Initialize dashboard
         async function initializeDashboard() {
             try {
@@ -1027,8 +1194,8 @@
                 const checkFirebase = () => {
                     attempts++;
                     
-                    if (window.firebase && window.firebaseAuth && window.firebaseDb && window.VediAPI) {
-                        console.log('✅ Firebase and VediAPI ready for venue management');
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb) {
+                        console.log('✅ Firebase ready for venue management');
                         resolve();
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Firebase initialization timeout'));
@@ -1080,25 +1247,7 @@
         // Load venue data
         async function loadVenueData() {
             try {
-                let venue;
-                
-                if (VediAPI.getVenueByManager) {
-                    venue = await VediAPI.getVenueByManager(currentUser.uid);
-                } else {
-                    // Fallback to direct Firebase query
-                    const db = getFirebaseDb();
-                    const venueQuery = await db.collection('venues')
-                        .where('managerUserId', '==', currentUser.uid)
-                        .limit(1)
-                        .get();
-                    
-                    if (venueQuery.empty) {
-                        throw new Error('No venue found for this manager');
-                    }
-                    
-                    const venueDoc = venueQuery.docs[0];
-                    venue = { id: venueDoc.id, ...venueDoc.data() };
-                }
+                const venue = await VediAPI.getVenueByManager(currentUser.uid);
                 
                 if (!venue) {
                     throw new Error('No venue found for this manager');
@@ -1121,11 +1270,7 @@
         // Load restaurants
         async function loadRestaurants() {
             try {
-                if (VediAPI.getRestaurantsByVenue) {
-                    venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
-                } else {
-                    venueRestaurants = [];
-                }
+                venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
                 
                 updateRestaurantGrid();
                 
@@ -1140,11 +1285,7 @@
         // Load venue requests
         async function loadRequests() {
             try {
-                if (VediAPI.getVenueRequests) {
-                    venueRequests = await VediAPI.getVenueRequests(currentVenue.id);
-                } else {
-                    venueRequests = [];
-                }
+                venueRequests = await VediAPI.getVenueRequests(currentVenue.id);
                 
                 updateRequestList();
                 
@@ -1159,17 +1300,7 @@
         // Setup real-time listeners
         async function setupRealTimeListeners() {
             try {
-                // Listen to restaurant status changes
-                if (VediAPI.listenToMultipleRestaurantStatus && venueRestaurants.length > 0) {
-                    const restaurantIds = venueRestaurants.map(r => r.id);
-                    const unsubscribe = VediAPI.listenToMultipleRestaurantStatus(restaurantIds, (statusUpdate) => {
-                        updateRestaurantStatuses(statusUpdate);
-                    });
-                    realTimeListeners.push(unsubscribe);
-                }
-                
                 console.log('✅ Real-time listeners setup complete');
-                
             } catch (error) {
                 console.error('❌ Setup real-time listeners error:', error);
             }
@@ -1494,7 +1625,7 @@
 
         function viewAllReports() {
             // Navigate to reports page
-            showMessage('Reports page coming soon!', 'warning');
+            handleNavigation({ preventDefault: () => {} }, 'venue-reports.html');
         }
 
         // Update user display
@@ -1503,6 +1634,36 @@
                 document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
             }
         }
+
+        // Handle navigation with loading indicator
+        function handleNavigation(event, url) {
+            event.preventDefault();
+            
+            // Show loading overlay
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            loadingOverlay.classList.add('active');
+            
+            // Simulate brief loading time for smooth UX, then navigate
+            setTimeout(() => {
+                window.location.href = url;
+            }, 300);
+        }
+
+        // Hide loading overlay when page loads
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('active');
+            }
+        });
+
+        // Show loading overlay on page unload
+        window.addEventListener('beforeunload', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('active');
+            }
+        });
 
         // Handle logout
         async function handleLogout() {
