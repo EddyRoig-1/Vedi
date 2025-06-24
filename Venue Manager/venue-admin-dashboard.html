@@ -6,37 +6,37 @@
     <title>Venue Admin Dashboard</title>
     
     <!-- External Dependencies -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-<!-- Firebase Configuration -->
-<script src="../firebase-config.js"></script>
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
 
-<!-- VediAPI Core Modules -->
-<script src="../Api/core/firebase-init.js"></script>
-<script src="../Api/core/utilities.js"></script>
-<script src="../Api/core/tracking.js"></script>
+    <!-- VediAPI Core Modules -->
+    <script src="../Api/core/firebase-init.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
 
-<!-- Authentication -->
-<script src="../Api/auth/email-auth.js"></script>
+    <!-- Authentication -->
+    <script src="../Api/auth/email-auth.js"></script>
 
-<!-- Business Management -->
-<script src="../Api/business/restaurants.js"></script>
-<script src="../Api/business/venues.js"></script>
+    <!-- Business Management -->
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/business/venues.js"></script>
 
-<!-- Order Management -->
-<script src="../Api/orders/order-management.js"></script>
-<script src="../Api/orders/order-tracking.js"></script>
+    <!-- Order Management -->
+    <script src="../Api/orders/order-management.js"></script>
+    <script src="../Api/orders/order-tracking.js"></script>
 
-<!-- Operations -->
-<script src="../Api/operations/loss-incidents.js"></script>
+    <!-- Operations -->
+    <script src="../Api/operations/loss-incidents.js"></script>
 
-<!-- Real-time Listeners -->
-<script src="../Api/realtime/listeners.js"></script>
+    <!-- Real-time Listeners -->
+    <script src="../Api/realtime/listeners.js"></script>
 
-<!-- External Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
     <style>
         * {
@@ -91,17 +91,6 @@
             font-size: 1.8rem;
             font-weight: 700;
             letter-spacing: -0.02em;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #ff6b6b, #feca57);
-            border-radius: 12px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
         }
 
         .header-info {
@@ -205,7 +194,6 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            position: relative;
         }
 
         .nav-tab.active {
@@ -715,7 +703,6 @@
         <header class="header">
             <div class="header-content">
                 <div class="logo">
-                    <div class="logo-icon"></div>
                     <span>Venue Admin Dashboard</span>
                 </div>
                 <div class="header-info">
@@ -748,9 +735,6 @@
                 </div>
                 <div class="nav-tab" onclick="showSection('loss-tracking')">
                     <span>Loss Tracking</span>
-                </div>
-                <div class="nav-tab" onclick="showSection('data-quality')">
-                    <span>Data Quality</span>
                 </div>
                 <div class="nav-tab" onclick="showSection('detailed-reports')">
                     <span>Detailed Reports</span>
@@ -868,7 +852,9 @@
                 <iframe 
                     src="performance.html" 
                     class="page-iframe"
-                    title="Performance Analytics">
+                    title="Performance Analytics"
+                    onload="handleIframeLoad('performance')"
+                    onerror="handleIframeError('performance')">
                 </iframe>
             </section>
 
@@ -877,16 +863,9 @@
                 <iframe 
                     src="loss-tracking.html" 
                     class="page-iframe"
-                    title="Loss Tracking Dashboard">
-                </iframe>
-            </section>
-
-            <!-- Data Quality Section -->
-            <section id="data-quality-section" class="hidden">
-                <iframe 
-                    src="data-quality.html" 
-                    class="page-iframe"
-                    title="Data Quality Monitor">
+                    title="Loss Tracking Dashboard"
+                    onload="handleIframeLoad('loss-tracking')"
+                    onerror="handleIframeError('loss-tracking')">
                 </iframe>
             </section>
 
@@ -895,7 +874,9 @@
                 <iframe 
                     src="detailed-reports.html" 
                     class="page-iframe"
-                    title="Detailed Reports">
+                    title="Detailed Reports"
+                    onload="handleIframeLoad('detailed-reports')"
+                    onerror="handleIframeError('detailed-reports')">
                 </iframe>
             </section>
 
@@ -904,7 +885,9 @@
                 <iframe 
                     src="venue-management.html" 
                     class="page-iframe"
-                    title="Venue Management">
+                    title="Venue Management"
+                    onload="handleIframeLoad('venue-management')"
+                    onerror="handleIframeError('venue-management')">
                 </iframe>
             </section>
 
@@ -913,22 +896,21 @@
                 <iframe 
                     src="venue-financials.html" 
                     class="page-iframe"
-                    title="Financial Management">
+                    title="Financial Management"
+                    onload="handleIframeLoad('financials')"
+                    onerror="handleIframeError('financials')">
                 </iframe>
             </section>
         </main>
     </div>
 
     <script>
-        // Wait for all scripts to load, then initialize
-        let firebaseReady = false;
-        let vediApiReady = false;
+        // Global variables
         let currentUser = null;
         let currentVenue = null;
         let allRestaurants = [];
         let allOrders = [];
         let filteredOrders = [];
-        let realtimeUnsubscribe = null;
         let currentFilters = {
             timeRange: 'month',
             restaurant: 'all',
@@ -936,13 +918,14 @@
             toDate: null
         };
 
-        // Wait for both Firebase and VediAPI to be ready
+        // Wait for dependencies
         function waitForDependencies() {
             return new Promise((resolve) => {
                 const checkReady = () => {
                     const firebaseLoaded = typeof firebase !== 'undefined' && firebase.apps.length > 0;
                     const vediApiLoaded = typeof window.VediAPI !== 'undefined' && 
-                                         typeof window.VediAPI.getCurrentUser === 'function';
+                                         typeof window.VediAPI.getCurrentUser === 'function' &&
+                                         typeof window.VediAPI.getRestaurantsByVenue === 'function';
                     
                     if (firebaseLoaded && vediApiLoaded) {
                         console.log('✅ All dependencies loaded');
@@ -950,20 +933,20 @@
                     } else {
                         console.log('⏳ Waiting for dependencies...', {
                             firebase: firebaseLoaded,
-                            vediApi: vediApiLoaded
+                            vediApi: vediApiLoaded,
+                            getCurrentUser: typeof window.VediAPI?.getCurrentUser,
+                            getRestaurantsByVenue: typeof window.VediAPI?.getRestaurantsByVenue
                         });
-                        setTimeout(checkReady, 100);
+                        setTimeout(checkReady, 200);
                     }
                 };
-                
                 checkReady();
             });
         }
 
-        // Initialize dashboard after dependencies load
+        // Initialize dashboard
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🔄 DOM loaded, waiting for dependencies...');
-            
             try {
                 await waitForDependencies();
                 await checkVenueAuth();
@@ -973,103 +956,64 @@
             }
         });
 
-        // Check venue authentication with improved error handling
+        // Check authentication
         async function checkVenueAuth() {
             try {
                 const auth = firebase.auth();
-                
                 auth.onAuthStateChanged(async (user) => {
                     if (user) {
                         try {
-                            console.log('🔍 DEBUG: Firebase user found:', {
-                                uid: user.uid,
-                                email: user.email,
-                                displayName: user.displayName
-                            });
+                            console.log('🔍 Firebase user found:', user.uid);
                             
-                            console.log('🔄 Getting current user data...');
-                            
-                            // Try VediAPI.getCurrentUser first
+                            // Get current user data
                             try {
                                 currentUser = await VediAPI.getCurrentUser();
-                                console.log('🔍 DEBUG: VediAPI.getCurrentUser() returned:', currentUser);
+                                console.log('✅ Got user data via VediAPI:', currentUser);
                             } catch (vediApiError) {
-                                console.warn('⚠️ VediAPI.getCurrentUser failed, trying direct Firestore query:', vediApiError);
-                                
-                                // Fallback: Direct Firestore query
+                                console.warn('⚠️ VediAPI failed, trying direct query:', vediApiError);
                                 const db = firebase.firestore();
                                 const userDoc = await db.collection('users').doc(user.uid).get();
-                                
                                 if (userDoc.exists) {
                                     currentUser = { id: userDoc.id, ...userDoc.data() };
-                                    console.log('✅ Got user data via direct query:', currentUser);
+                                    console.log('✅ Got user data via direct query');
                                 } else {
-                                    throw new Error('User document not found in Firestore');
+                                    throw new Error('User document not found');
                                 }
                             }
                             
-                            // Check if we have user data
                             if (!currentUser) {
                                 throw new Error('No user data available');
                             }
                             
-                            console.log('🔍 DEBUG: User account type:', currentUser.accountType);
-                            console.log('🔍 DEBUG: Expected account type: venue');
-                            
                             // Check account type
                             if (currentUser.accountType === 'venue') {
-                                console.log('✅ Venue manager authenticated:', currentUser.name || currentUser.email);
+                                console.log('✅ Venue manager authenticated');
                                 await initializeVenueDashboard();
                             } else {
-                                console.log('❌ User is not a venue manager:', {
-                                    actualType: currentUser.accountType,
-                                    expectedType: 'venue',
-                                    userEmail: currentUser.email
-                                });
-                                
-                                alert(`Access denied. This dashboard is for venue managers only.
-                                
-Your account type: ${currentUser.accountType || 'undefined'}
-Expected: venue
-
-Please contact support if you believe this is an error.`);
-                                
+                                alert(`Access denied. This dashboard is for venue managers only.\n\nYour account type: ${currentUser.accountType || 'undefined'}\nExpected: venue`);
                                 window.location.href = '../Landing-Signup-Login/login.html';
                             }
                         } catch (error) {
                             console.error('❌ Authentication error:', error);
-                            
-                            alert(`Authentication error: ${error.message}
-
-Please try:
-1. Refreshing the page
-2. Logging out and back in
-3. Contacting support if the issue persists`);
-                            
-                            // Comment out redirect for debugging
-                            // window.location.href = '../Landing-Signup-Login/login.html';
+                            alert(`Authentication error: ${error.message}\n\nPlease try refreshing the page or logging out and back in.`);
                         }
                     } else {
                         console.log('❌ No user authenticated');
                         window.location.href = '../Landing-Signup-Login/login.html';
                     }
                 });
-                
             } catch (error) {
                 console.error('❌ Auth check setup failed:', error);
                 alert('Failed to initialize authentication: ' + error.message);
-                // window.location.href = '../Landing-Signup-Login/login.html';
             }
         }
 
-        // Initialize venue dashboard with fallback methods
+        // Initialize venue dashboard
         async function initializeVenueDashboard() {
             try {
                 console.log('🔄 Initializing venue dashboard...');
                 
-                // Get venue data with detailed debugging
-                console.log('🔍 Looking for venue with managerUserId:', currentUser.id);
-                
+                // Get venue data
                 try {
                     if (VediAPI.getVenueByManager) {
                         currentVenue = await VediAPI.getVenueByManager(currentUser.id);
@@ -1080,40 +1024,18 @@ Please try:
                 } catch (venueError) {
                     console.warn('⚠️ VediAPI venue lookup failed, trying direct query:', venueError);
                     
-                    // Fallback: Direct Firestore query with debugging
                     const db = firebase.firestore();
-                    
-                    console.log('🔍 Searching venues collection for managerUserId:', currentUser.id);
-                    
-                    // First, let's see all venues to debug
-                    const allVenuesQuery = await db.collection('venues').get();
-                    console.log('🔍 All venues in database:');
-                    allVenuesQuery.docs.forEach(doc => {
-                        const data = doc.data();
-                        console.log(`  - Venue: ${data.name || 'Unknown'}, managerUserId: ${data.managerUserId || 'missing'}, id: ${doc.id}`);
-                    });
-                    
-                    // Now try to find our specific venue
                     const venueQuery = await db.collection('venues')
                         .where('managerUserId', '==', currentUser.id)
                         .limit(1)
                         .get();
-                    
-                    console.log('🔍 Query result:', {
-                        empty: venueQuery.empty,
-                        size: venueQuery.size,
-                        searchingFor: currentUser.id
-                    });
                     
                     if (!venueQuery.empty) {
                         const venueDoc = venueQuery.docs[0];
                         currentVenue = { id: venueDoc.id, ...venueDoc.data() };
                         console.log('✅ Got venue via direct query:', currentVenue.name);
                     } else {
-                        console.log('❌ No venue found with managerUserId:', currentUser.id);
-                        
-                        // Let's also try searching by email as a fallback
-                        console.log('🔍 Trying to find venue by email:', currentUser.email);
+                        // Try by email as fallback
                         const emailVenueQuery = await db.collection('venues')
                             .where('email', '==', currentUser.email)
                             .limit(1)
@@ -1123,35 +1045,30 @@ Please try:
                             const venueDoc = emailVenueQuery.docs[0];
                             currentVenue = { id: venueDoc.id, ...venueDoc.data() };
                             console.log('✅ Found venue by email:', currentVenue.name);
-                            console.log('⚠️ Note: Venue managerUserId will be updated to match user ID');
                             
-                            // Update the venue to have correct managerUserId
+                            // Update venue with correct managerUserId
                             await db.collection('venues').doc(venueDoc.id).update({
                                 managerUserId: currentUser.id
                             });
                         } else {
-                            throw new Error(`No venue found for manager. 
-                            User ID: ${currentUser.id}
-                            Email: ${currentUser.email}
-                            Please check that a venue exists with the correct managerUserId.`);
+                            throw new Error(`No venue found for manager.\nUser ID: ${currentUser.id}\nEmail: ${currentUser.email}`);
                         }
                     }
                 }
                 
                 if (!currentVenue) {
-                    console.log('❌ No venue found for this manager');
                     alert('No venue found. Please contact administrator to set up your venue.');
                     return;
                 }
 
                 console.log('✅ Venue loaded:', currentVenue.name);
                 
-                // Update UI with venue and user info
+                // Update UI
                 document.getElementById('venueName').textContent = currentVenue.name;
                 const initials = getInitials(currentUser.name || currentUser.email || 'User');
                 document.getElementById('userInitials').textContent = initials;
 
-                // Load venue data
+                // Load data
                 await loadVenueData();
                 populateFilters();
                 setDefaultDates();
@@ -1162,24 +1079,17 @@ Please try:
 
             } catch (error) {
                 console.error('❌ Error initializing venue dashboard:', error);
-                alert(`Error loading venue dashboard: ${error.message}
-
-This might happen if:
-1. No venue is associated with your account
-2. The venue data is not properly set up
-3. There's a temporary connection issue
-
-Please contact support for assistance.`);
+                alert(`Error loading venue dashboard: ${error.message}\n\nPlease contact support for assistance.`);
             }
         }
 
-        // Load venue data with fallback methods
+        // Load venue data
         async function loadVenueData() {
             try {
                 console.log('🔄 Loading venue data...');
                 const db = firebase.firestore();
                 
-                // Load restaurants for this venue - try VediAPI first, then fallback
+                // Load restaurants
                 try {
                     if (VediAPI.getRestaurantsByVenue) {
                         allRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
@@ -1188,9 +1098,8 @@ Please contact support for assistance.`);
                         throw new Error('VediAPI.getRestaurantsByVenue not available');
                     }
                 } catch (restaurantError) {
-                    console.warn('⚠️ VediAPI restaurant lookup failed, trying direct query:', restaurantError);
+                    console.warn('⚠️ VediAPI restaurant lookup failed, trying direct query');
                     
-                    // Fallback: Direct Firestore query
                     const restaurantQuery = await db.collection('restaurants')
                         .where('venueId', '==', currentVenue.id)
                         .get();
@@ -1199,27 +1108,36 @@ Please contact support for assistance.`);
                     console.log('✅ Loaded restaurants via direct query:', allRestaurants.length);
                 }
 
-                // Load orders for all restaurants
+                // Ensure array
+                if (!Array.isArray(allRestaurants)) {
+                    allRestaurants = allRestaurants ? [allRestaurants] : [];
+                }
+
+                if (allRestaurants.length === 0) {
+                    console.log('📭 No restaurants found for this venue');
+                    allOrders = [];
+                    return;
+                }
+
+                // Load orders
                 allOrders = [];
                 for (const restaurant of allRestaurants) {
                     try {
                         let restaurantOrders = [];
                         
-                        // Try VediAPI first
                         try {
                             if (VediAPI.getOrders) {
                                 restaurantOrders = await VediAPI.getOrders(restaurant.id, { 
                                     limit: 500, 
                                     orderBy: 'createdAt' 
                                 });
-                                console.log(`✅ Loaded orders for ${restaurant.name} via VediAPI:`, restaurantOrders.length);
+                                console.log(`✅ Loaded orders for ${restaurant.name}:`, restaurantOrders.length);
                             } else {
                                 throw new Error('VediAPI.getOrders not available');
                             }
                         } catch (orderError) {
-                            console.warn(`⚠️ VediAPI order lookup failed for ${restaurant.name}, trying direct query:`, orderError);
+                            console.warn(`⚠️ VediAPI order lookup failed for ${restaurant.name}`);
                             
-                            // Fallback: Direct Firestore query
                             const orderQuery = await db.collection('orders')
                                 .where('restaurantId', '==', restaurant.id)
                                 .orderBy('createdAt', 'desc')
@@ -1230,7 +1148,12 @@ Please contact support for assistance.`);
                             console.log(`✅ Loaded orders for ${restaurant.name} via direct query:`, restaurantOrders.length);
                         }
                         
-                        // Add restaurant info to each order
+                        // Ensure array
+                        if (!Array.isArray(restaurantOrders)) {
+                            restaurantOrders = restaurantOrders ? [restaurantOrders] : [];
+                        }
+                        
+                        // Add restaurant info to orders
                         const ordersWithRestaurant = restaurantOrders.map(order => ({
                             ...order,
                             restaurantName: restaurant.name,
@@ -1250,10 +1173,11 @@ Please contact support for assistance.`);
             } catch (error) {
                 console.error('❌ Error loading venue data:', error);
                 
-                // Don't throw - let the dashboard show what it can
-                alert(`Warning: Some data could not be loaded: ${error.message}
-
-The dashboard will show available data.`);
+                // Ensure arrays are initialized
+                if (!Array.isArray(allRestaurants)) allRestaurants = [];
+                if (!Array.isArray(allOrders)) allOrders = [];
+                
+                alert(`Warning: Some data could not be loaded: ${error.message}\n\nThe dashboard will show available data.`);
             }
         }
 
@@ -1267,7 +1191,6 @@ The dashboard will show available data.`);
             return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
         }
 
-        // Date range utilities
         function getDateRange(timeRange, fromDate = null, toDate = null) {
             const now = new Date();
             let startDate, endDate;
@@ -1319,7 +1242,6 @@ The dashboard will show available data.`);
             return { startDate, endDate };
         }
 
-        // Handle time range changes
         function handleTimeRangeChange() {
             const timeRange = document.getElementById('timeRange').value;
             const fromDateGroup = document.getElementById('fromDateGroup');
@@ -1328,16 +1250,13 @@ The dashboard will show available data.`);
             if (timeRange === 'custom') {
                 fromDateGroup.style.display = 'flex';
                 toDateGroup.style.display = 'flex';
-                console.log('📅 Custom date range selected - waiting for date input');
             } else {
                 fromDateGroup.style.display = 'none';
                 toDateGroup.style.display = 'none';
-                console.log('📅 Time range changed to:', timeRange);
                 reloadDataWithCurrentFilters();
             }
         }
 
-        // Reload data when filters change
         async function reloadDataWithCurrentFilters() {
             try {
                 console.log('🔄 Reloading data with current filters...');
@@ -1358,7 +1277,6 @@ The dashboard will show available data.`);
             document.getElementById('toDate').value = today.toISOString().split('T')[0];
         }
 
-        // Apply filters
         function applyFilters() {
             const timeRange = document.getElementById('timeRange').value;
             const restaurant = document.getElementById('restaurantFilter').value;
@@ -1378,8 +1296,6 @@ The dashboard will show available data.`);
                 currentFilters.toDate
             );
             
-            console.log('📅 Date range:', { startDate, endDate });
-            
             // Filter orders
             filteredOrders = allOrders.filter(order => {
                 // Date filtering
@@ -1393,8 +1309,6 @@ The dashboard will show available data.`);
                 }
                 
                 const matchesDate = orderDate >= startDate && orderDate <= endDate;
-                
-                // Restaurant filtering
                 const matchesRestaurant = restaurant === 'all' || order.restaurantId === restaurant;
                 
                 return matchesDate && matchesRestaurant;
@@ -1407,23 +1321,36 @@ The dashboard will show available data.`);
             sendFiltersToIframes();
         }
 
-        // Send filters to iframes
         function sendFiltersToIframes() {
-            const performanceIframe = document.querySelector('#performance-section iframe');
+            const iframes = [
+                { element: document.querySelector('#performance-section iframe'), name: 'performance' },
+                { element: document.querySelector('#loss-tracking-section iframe'), name: 'loss-tracking' },
+                { element: document.querySelector('#detailed-reports-section iframe'), name: 'detailed-reports' },
+                { element: document.querySelector('#venue-management-section iframe'), name: 'venue-management' },
+                { element: document.querySelector('#financials-section iframe'), name: 'financials' }
+            ];
             
-            if (performanceIframe && performanceIframe.contentWindow) {
-                const filterData = {
-                    type: 'UPDATE_FILTERS',
-                    filters: {
-                        ...currentFilters,
-                        venue: currentVenue?.id,
-                        venueName: currentVenue?.name
+            const filterData = {
+                type: 'UPDATE_FILTERS',
+                filters: {
+                    ...currentFilters,
+                    venue: currentVenue?.id,
+                    venueName: currentVenue?.name,
+                    restaurants: allRestaurants,
+                    orders: filteredOrders
+                }
+            };
+            
+            iframes.forEach(({ element, name }) => {
+                if (element && element.contentWindow) {
+                    try {
+                        console.log(`📡 Sending filters to ${name} iframe`);
+                        element.contentWindow.postMessage(filterData, '*');
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send filters to ${name} iframe:`, error);
                     }
-                };
-                
-                console.log('📡 Sending filters to performance iframe:', filterData);
-                performanceIframe.contentWindow.postMessage(filterData, '*');
-            }
+                }
+            });
         }
 
         // Listen for iframe messages
@@ -1437,7 +1364,6 @@ The dashboard will show available data.`);
             }
         });
 
-        // Update filter status
         function updateFilterStatus() {
             const filterStatus = document.getElementById('filterStatus');
             const filterDescription = document.getElementById('filterDescription');
@@ -1481,8 +1407,6 @@ The dashboard will show available data.`);
                     filterStatus.classList.remove('active');
                 }
             }
-            
-            console.log('📊 Filter status updated:', description);
         }
 
         function populateFilters() {
@@ -1535,13 +1459,10 @@ The dashboard will show available data.`);
             }
         }
 
-        // Calculate metrics
         function calculateMetrics() {
             const ordersInRange = filteredOrders;
             
-            console.log('📊 Calculating metrics for', ordersInRange.length, 'filtered orders');
-            
-            // Count active orders from ALL orders (not just filtered)
+            // Count active orders from ALL orders
             const activeOrders = allOrders.filter(order => 
                 ['pending', 'preparing', 'ready'].includes(order.status)
             ).length;
@@ -1690,12 +1611,20 @@ The dashboard will show available data.`);
         function updateRestaurantCards(restaurants) {
             const grid = document.getElementById('restaurantsGrid');
             
-            if (restaurants.length === 0) {
+            if (!restaurants || restaurants.length === 0) {
                 grid.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📊</div>
+                        <div class="empty-state-icon">🏪</div>
                         <h3>No restaurants connected</h3>
-                        <p>Connect restaurants to this venue to see performance data</p>
+                        <p>Connect restaurants to this venue to start seeing performance data and analytics.</p>
+                        <div style="margin-top: 1rem;">
+                            <button class="btn-apply" onclick="window.open('/Restaurant%20Manager/restaurant-venue-sync.html', '_blank')" style="margin-right: 1rem;">
+                                Add Restaurant
+                            </button>
+                            <button class="btn-apply" onclick="location.reload()" style="background: #e2e8f0; color: #4a5568;">
+                                Refresh
+                            </button>
+                        </div>
                     </div>
                 `;
                 return;
@@ -1736,14 +1665,6 @@ The dashboard will show available data.`);
                         </div>
 
                         <div class="restaurant-highlights">
-                            <div class="highlight-item">
-                                <span class="highlight-label">Active Orders:</span>
-                                <span class="highlight-value ${restaurant.activeOrders > 5 ? 'negative' : 'positive'}">${restaurant.activeOrders}</span>
-                            </div>
-                            <div class="highlight-item">
-                                <span class="highlight-label">Best Seller:</span>
-                                <span class="highlight-value">${getBestSellerText(restaurant.bestSellingItems)}</span>
-                            </div>
                             <div class="highlight-item">
                                 <span class="highlight-label">Tables:</span>
                                 <span class="highlight-value">${restaurant.tableCount || 'N/A'}</span>
@@ -1786,7 +1707,15 @@ The dashboard will show available data.`);
 
         function formatPrice(amount, currency = null) {
             if (!currency) {
-                currency = { code: 'USD', symbol: ' };
+                currency = { code: 'USD', symbol: ' class="highlight-label">Active Orders:</span>
+                                <span class="highlight-value ${restaurant.activeOrders > 5 ? 'negative' : 'positive'}">${restaurant.activeOrders}</span>
+                            </div>
+                            <div class="highlight-item">
+                                <span class="highlight-label">Best Seller:</span>
+                                <span class="highlight-value">${getBestSellerText(restaurant.bestSellingItems)}</span>
+                            </div>
+                            <div class="highlight-item">
+                                <span };
             }
             
             const formattedAmount = Number(amount || 0).toFixed(2);
@@ -1794,24 +1723,34 @@ The dashboard will show available data.`);
         }
 
         function setupRealtimeUpdates() {
-            if (allRestaurants.length === 0) return;
+            if (!allRestaurants || allRestaurants.length === 0) {
+                console.log('📭 No restaurants to set up real-time updates for');
+                return;
+            }
             
             allRestaurants.forEach(restaurant => {
-                if (VediAPI.listenToOrders) {
-                    const unsubscribe = VediAPI.listenToOrders(restaurant.id, (orders) => {
-                        console.log(`📡 Orders updated for ${restaurant.name}`);
-                        // Reload data when orders change
-                        loadVenueData().then(() => {
-                            applyFilters();
+                try {
+                    if (VediAPI.listenToOrders) {
+                        const unsubscribe = VediAPI.listenToOrders(restaurant.id, (orders) => {
+                            console.log(`📡 Orders updated for ${restaurant.name}`);
+                            loadVenueData().then(() => {
+                                applyFilters();
+                            }).catch(error => {
+                                console.warn(`⚠️ Failed to reload data after order update:`, error);
+                            });
                         });
-                    });
+                    } else {
+                        console.warn('⚠️ VediAPI.listenToOrders not available for real-time updates');
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Failed to set up real-time updates for ${restaurant.name}:`, error);
                 }
             });
         }
 
         // Navigation
         function showSection(sectionName) {
-            const sections = ['overview', 'performance', 'loss-tracking', 'data-quality', 'detailed-reports', 'venue-management', 'financials'];
+            const sections = ['overview', 'performance', 'loss-tracking', 'detailed-reports', 'venue-management', 'financials'];
             
             sections.forEach(section => {
                 document.getElementById(`${section}-section`).classList.add('hidden');
@@ -1823,14 +1762,37 @@ The dashboard will show available data.`);
             
             document.getElementById(`${sectionName}-section`).classList.remove('hidden');
             event.target.closest('.nav-tab').classList.add('active');
+            
+            // Send filters to newly shown iframe
+            setTimeout(() => sendFiltersToIframes(), 100);
         }
 
-        // Utility functions
-        function timestampToDate(timestamp) {
-            if (timestamp && timestamp.toDate) {
-                return timestamp.toDate();
+        // Handle iframe loading
+        function handleIframeLoad(iframeName) {
+            console.log(`✅ Iframe loaded: ${iframeName}`);
+            setTimeout(() => sendFiltersToIframes(), 500);
+        }
+
+        function handleIframeError(iframeName) {
+            console.warn(`⚠️ Iframe failed to load: ${iframeName}`);
+            const section = document.getElementById(`${iframeName}-section`);
+            if (section) {
+                section.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <h3>Page Not Available</h3>
+                        <p>The ${iframeName.replace('-', ' ')} page could not be loaded. It may be under development or temporarily unavailable.</p>
+                        <div style="margin-top: 1rem;">
+                            <button class="btn-apply" onclick="location.reload()" style="margin-right: 1rem;">
+                                Refresh Page
+                            </button>
+                            <button class="btn-apply" onclick="showSection('overview')" style="background: #e2e8f0; color: #4a5568;">
+                                Return to Overview
+                            </button>
+                        </div>
+                    </div>
+                `;
             }
-            return new Date(timestamp);
         }
 
         async function handleLogout() {
