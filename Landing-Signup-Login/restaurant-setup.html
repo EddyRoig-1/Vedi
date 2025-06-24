@@ -186,6 +186,8 @@
         .loading-overlay.show {
             opacity: 1;
             visibility: visible;
+        }
+
         .loading-content {
             background: #FFFFFF;
             padding: 48px;
@@ -222,6 +224,47 @@
             color: #86868B;
             font-size: 15px;
         }
+
+        /* Messages */
+        .message {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            font-weight: 500;
+            font-size: 15px;
+            display: none;
+            border: 1px solid;
+        }
+
+        .error-message {
+            background: #FFEBEE;
+            color: #C62828;
+            border-color: #FFCDD2;
+        }
+
+        .success-message {
+            background: #E8F5E8;
+            color: #2E7D32;
+            border-color: #C8E6C9;
+        }
+
+        .message.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(-8px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        /* Currency Section */
         .currency-section {
             background: #F8F9FA;
             border: 1px solid #E5E5E7;
@@ -862,6 +905,10 @@
         </div>
 
         <div class="content">
+            <!-- Error/Success Messages -->
+            <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" class="success-message"></div>
+
             <div class="step-dots">
                 <div class="dot active" data-step="1"></div>
                 <div class="dot" data-step="2"></div>
@@ -1372,19 +1419,35 @@
         }
 
         function showError(message) {
+            hideSuccess();
+            const errorEl = document.getElementById('errorMessage');
+            if (errorEl) {
+                errorEl.textContent = message;
+                errorEl.classList.add('show');
+                setTimeout(() => errorEl.classList.remove('show'), 5000);
+            }
             console.error('❌', message);
         }
 
         function showSuccess(message) {
+            hideError();
+            const successEl = document.getElementById('successMessage');
+            if (successEl) {
+                successEl.textContent = message;
+                successEl.classList.add('show');
+                setTimeout(() => successEl.classList.remove('show'), 3000);
+            }
             console.log('✅', message);
         }
 
         function hideError() {
-            // No-op - toast notifications removed
+            const errorEl = document.getElementById('errorMessage');
+            if (errorEl) errorEl.classList.remove('show');
         }
 
         function hideSuccess() {
-            // No-op - toast notifications removed
+            const successEl = document.getElementById('successMessage');
+            if (successEl) successEl.classList.remove('show');
         }
 
         // Currency selection functions
