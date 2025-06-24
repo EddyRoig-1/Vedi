@@ -697,6 +697,45 @@
             margin-bottom: 24px;
         }
 
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(248, 249, 250, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .loading-circle {
+            width: 48px;
+            height: 48px;
+            border: 3px solid #E5E5E7;
+            border-top: 3px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        .loading-text {
+            font-size: 17px;
+            color: #86868B;
+            text-align: center;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header-content {
@@ -764,12 +803,12 @@
     <!-- Navigation -->
     <nav class="navigation">
         <div class="nav-content">
-            <a href="venue-overview.html" class="nav-item">Overview</a>
-            <a href="performance.html" class="nav-item">Performance</a>
-            <a href="#" class="nav-item active">Loss Tracking</a>
-            <a href="#" class="nav-item">Reports</a>
-            <a href="#" class="nav-item">Management</a>
-            <a href="#" class="nav-item">Financials</a>
+            <a href="venue-overview.html" class="nav-item" onclick="handleNavigation(event, 'venue-overview.html')">Overview</a>
+            <a href="performance.html" class="nav-item" onclick="handleNavigation(event, 'performance.html')">Performance</a>
+            <a href="loss-tracking.html" class="nav-item active">Loss Tracking</a>
+            <a href="venue-reports.html" class="nav-item" onclick="handleNavigation(event, 'venue-reports.html')">Reports</a>
+            <a href="venue-management.html" class="nav-item" onclick="handleNavigation(event, 'venue-management.html')">Management</a>
+            <a href="venue-financials.html" class="nav-item" onclick="handleNavigation(event, 'venue-financials.html')">Financials</a>
         </div>
     </nav>
 
@@ -908,6 +947,12 @@
         </section>
     </main>
 
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-circle"></div>
+        <div class="loading-text">Loading...</div>
+    </div>
+
     <!-- New Incident Modal -->
     <div class="modal" id="newIncidentModal">
         <div class="modal-content">
@@ -1021,6 +1066,83 @@
             return window.firebaseDb || firebase.firestore();
         }
 
+        // VediAPI Mock Functions (simplified version for loss tracking)
+        if (!window.VediAPI) {
+            window.VediAPI = {
+                formatCurrency: function(amount, currency = 'USD') {
+                    const symbols = { USD: '$', EUR: '€', GBP: '£', CAD: 'C$' };
+                    const symbol = symbols[currency] || '$';
+                    return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                },
+                
+                getTimePeriodStart: function(timePeriod) {
+                    const now = new Date();
+                    switch (timePeriod.toLowerCase()) {
+                        case 'week':
+                            const weekStart = new Date(now);
+                            weekStart.setDate(now.getDate() - 7);
+                            return weekStart;
+                        case 'month':
+                            return new Date(now.getFullYear(), now.getMonth(), 1);
+                        case 'quarter':
+                            const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+                            return new Date(now.getFullYear(), quarterMonth, 1);
+                        case 'year':
+                            return new Date(now.getFullYear(), 0, 1);
+                        default:
+                            return null;
+                    }
+                },
+                
+                timestampToDate: function(timestamp) {
+                    if (timestamp && timestamp.toDate) {
+                        return timestamp.toDate();
+                    }
+                    if (timestamp && timestamp.seconds) {
+                        return new Date(timestamp.seconds * 1000);
+                    }
+                    return new Date(timestamp);
+                },
+                
+                getRelativeTime: function(timestamp) {
+                    const date = this.timestampToDate(timestamp);
+                    const now = new Date();
+                    const diff = now - date;
+                    const minutes = Math.floor(diff / 60000);
+                    const hours = Math.floor(diff / 3600000);
+                    const days = Math.floor(diff / 86400000);
+                    
+                    if (minutes < 60) return `${minutes}m ago`;
+                    if (hours < 24) return `${hours}h ago`;
+                    return `${days}d ago`;
+                },
+                
+                getVenueByManager: async function(managerId) {
+                    const db = getFirebaseDb();
+                    const venueQuery = await db.collection('venues')
+                        .where('managerUserId', '==', managerId)
+                        .limit(1)
+                        .get();
+                    
+                    if (venueQuery.empty) return null;
+                    const venueDoc = venueQuery.docs[0];
+                    return { id: venueDoc.id, ...venueDoc.data() };
+                },
+                
+                getRestaurantsByVenue: async function(venueId) {
+                    const db = getFirebaseDb();
+                    const restaurantsQuery = await db.collection('restaurants')
+                        .where('venueId', '==', venueId)
+                        .get();
+                    
+                    return restaurantsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                }
+            };
+        }
+
         // Initialize dashboard
         async function initializeDashboard() {
             try {
@@ -1064,8 +1186,8 @@
                 const checkFirebase = () => {
                     attempts++;
                     
-                    if (window.firebase && window.firebaseAuth && window.firebaseDb && window.VediAPI) {
-                        console.log('✅ Firebase and VediAPI ready for loss tracking');
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb) {
+                        console.log('✅ Firebase ready for loss tracking');
                         resolve();
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Firebase initialization timeout'));
@@ -1211,27 +1333,19 @@
         // Setup real-time updates
         function setupRealTimeUpdates() {
             try {
-                if (currentVenue.id && VediAPI.listenToVenueLossIncidents) {
-                    realTimeUnsubscribe = VediAPI.listenToVenueLossIncidents(currentVenue.id, (incidents) => {
-                        lossIncidents = incidents;
+                // Fallback: Setup manual real-time listener
+                const db = getFirebaseDb();
+                realTimeUnsubscribe = db.collection('lossIncidents')
+                    .where('venueId', '==', currentVenue.id)
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(querySnapshot => {
+                        lossIncidents = querySnapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
                         applyFilters();
-                        console.log('📡 Real-time loss incidents update:', incidents.length);
+                        console.log('📡 Real-time loss incidents update:', lossIncidents.length);
                     });
-                } else {
-                    // Fallback: Setup manual real-time listener
-                    const db = getFirebaseDb();
-                    realTimeUnsubscribe = db.collection('lossIncidents')
-                        .where('venueId', '==', currentVenue.id)
-                        .orderBy('createdAt', 'desc')
-                        .onSnapshot(querySnapshot => {
-                            lossIncidents = querySnapshot.docs.map(doc => ({
-                                id: doc.id,
-                                ...doc.data()
-                            }));
-                            applyFilters();
-                            console.log('📡 Real-time loss incidents update:', lossIncidents.length);
-                        });
-                }
             } catch (error) {
                 console.error('❌ Setup real-time updates error:', error);
             }
@@ -1724,6 +1838,36 @@
                 document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
             }
         }
+
+        // Handle navigation with loading indicator
+        function handleNavigation(event, url) {
+            event.preventDefault();
+            
+            // Show loading overlay
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            loadingOverlay.classList.add('active');
+            
+            // Simulate brief loading time for smooth UX, then navigate
+            setTimeout(() => {
+                window.location.href = url;
+            }, 300);
+        }
+
+        // Hide loading overlay when page loads
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('active');
+            }
+        });
+
+        // Show loading overlay on page unload
+        window.addEventListener('beforeunload', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('active');
+            }
+        });
 
         // Handle logout
         async function handleLogout() {
