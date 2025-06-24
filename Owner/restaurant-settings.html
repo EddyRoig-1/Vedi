@@ -351,6 +351,18 @@
             font-size: 17px;
             background: #FFFFFF;
             margin-bottom: 16px;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23007AFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+            cursor: pointer;
+        }
+
+        .venue-selector:focus {
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
         }
 
         .join-message-textarea {
@@ -363,6 +375,25 @@
             margin-bottom: 16px;
             resize: vertical;
             font-family: inherit;
+        }
+
+        .join-message-textarea:focus {
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .venue-preview {
+            background: #F8F9FA;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .venue-preview.show {
+            display: block;
+            animation: slideDown 0.3s ease;
         }
 
         /* Checkboxes */
@@ -752,6 +783,35 @@
         .btn-success:focus {
             outline: 2px solid #30D158;
         }
+
+        /* Enhanced venue association styles */
+        .venue-preview-content {
+            transition: all 0.2s ease;
+        }
+
+        .venue-request-item {
+            background: #FFFBEB;
+            border: 1px solid #FDE68A;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .venue-request-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .venue-request-denied {
+            background: #FEF2F2;
+            border-color: #FECACA;
+        }
+
+        .venue-request-expired {
+            background: #F3F4F6;
+            border-color: #E5E7EB;
+        }
     </style>
 </head>
 <body>
@@ -786,9 +846,13 @@
             <div class="form-group">
                 <label class="form-label" for="venueAssociation">Venue Association</label>
                 <div id="venueAssociationContainer">
-                    <select class="form-select" id="venueSelector" onchange="handleVenueSelection()">
-                        <option value="">Loading venues...</option>
-                    </select>
+                    <div class="form-input" style="background: #F8F9FA; border-color: #E5E5E7; cursor: default; color: #86868B; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 16px;">🏢</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Loading Venue Information</div>
+                            <div style="font-size: 14px;">Please wait while we load your venue association status...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1127,6 +1191,15 @@
     </div>
 
     <script>
+        // Firebase getter functions for restaurant settings
+        function getFirebaseAuth() {
+            return window.firebaseAuth || firebase.auth();
+        }
+
+        function getFirebaseDb() {
+            return window.firebaseDb || firebase.firestore();
+        }
+
         // Global variables
         let currentStep = 1;
         const totalSteps = 3;
@@ -1260,6 +1333,21 @@
             };
         }
 
+        if (!VediAPI.getRelativeTime) {
+            VediAPI.getRelativeTime = function(timestamp) {
+                const date = timestamp && timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                const now = new Date();
+                const diff = now - date;
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(diff / 3600000);
+                const days = Math.floor(diff / 86400000);
+                
+                if (minutes < 60) return `${minutes}m ago`;
+                if (hours < 24) return `${hours}h ago`;
+                return `${days}d ago`;
+            };
+        }
+
         // INITIALIZATION
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🔐 Restaurant Settings initializing...');
@@ -1372,9 +1460,7 @@
             
             const requiredFunctions = [
                 'getRestaurantByOwner',
-                'updateRestaurant',
-                'getAllVenues',
-                'getRestaurantSyncStatus'
+                'updateRestaurant'
             ];
             
             while (attempts < maxAttempts) {
@@ -1463,6 +1549,568 @@
                 setTimeout(() => {
                     infoEl.classList.remove('show');
                 }, 4000);
+            }
+        }
+
+        // Enhanced venue association setup
+        async function setupVenueAssociationUI() {
+            console.log('🏢 Setting up enhanced venue association UI...');
+            
+            try {
+                // Load current restaurant sync status
+                if (typeof VediAPI.getRestaurantSyncStatus === 'function') {
+                    restaurantSyncStatus = await VediAPI.getRestaurantSyncStatus(restaurantId);
+                    console.log('📊 Restaurant sync status:', restaurantSyncStatus);
+                } else {
+                    // Fallback: check restaurant data directly
+                    restaurantSyncStatus = {
+                        isAssociated: !!currentRestaurant.venueId,
+                        venueId: currentRestaurant.venueId,
+                        venueName: currentRestaurant.venueName,
+                        joinedAt: currentRestaurant.joinedVenueAt,
+                        status: currentRestaurant.venueStatus
+                    };
+                }
+                
+                // Load available venues
+                await loadAvailableVenues();
+                
+                // Load pending requests
+                await loadPendingRequests();
+                
+                // Render the UI
+                renderVenueAssociationUI();
+                
+            } catch (error) {
+                console.error('❌ Error setting up venue association:', error);
+                setupFallbackVenueUI();
+            }
+        }
+
+        // Load available venues for the restaurant to join
+        async function loadAvailableVenues() {
+            try {
+                // Try enhanced function first
+                if (typeof VediAPI.getAvailableVenuesForRestaurant === 'function') {
+                    availableVenues = await VediAPI.getAvailableVenuesForRestaurant(restaurantId, {
+                        limit: 50,
+                        includeNearby: true
+                    });
+                } 
+                // Fallback to general venue list
+                else if (typeof VediAPI.getAllVenues === 'function') {
+                    availableVenues = await VediAPI.getAllVenues({
+                        status: 'active',
+                        verified: true,
+                        limit: 50
+                    });
+                }
+                // Manual venue loading if VediAPI not available
+                else {
+                    availableVenues = await manualLoadVenues();
+                }
+                
+                console.log('🏢 Available venues loaded:', availableVenues.length);
+                
+            } catch (error) {
+                console.error('❌ Error loading available venues:', error);
+                availableVenues = [];
+            }
+        }
+
+        // Manual venue loading as fallback
+        async function manualLoadVenues() {
+            try {
+                const db = getFirebaseDb();
+                const venuesSnapshot = await db.collection('venues')
+                    .where('status', '==', 'active')
+                    .where('verified', '==', true)
+                    .limit(50)
+                    .get();
+                
+                return venuesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+            } catch (error) {
+                console.error('❌ Manual venue loading failed:', error);
+                return [];
+            }
+        }
+
+        // Load pending venue requests for this restaurant
+        async function loadPendingRequests() {
+            try {
+                if (typeof VediAPI.getRestaurantRequests === 'function') {
+                    pendingRequests = await VediAPI.getRestaurantRequests(restaurantId);
+                } else {
+                    pendingRequests = await manualLoadPendingRequests();
+                }
+                
+                console.log('📋 Pending requests loaded:', pendingRequests.length);
+                
+            } catch (error) {
+                console.error('❌ Error loading pending requests:', error);
+                pendingRequests = [];
+            }
+        }
+
+        // Manual request loading as fallback
+        async function manualLoadPendingRequests() {
+            try {
+                const db = getFirebaseDb();
+                const requestsSnapshot = await db.collection('venueRequests')
+                    .where('restaurantId', '==', restaurantId)
+                    .where('status', 'in', ['pending', 'denied'])
+                    .orderBy('requestedAt', 'desc')
+                    .get();
+                
+                return requestsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+            } catch (error) {
+                console.error('❌ Manual request loading failed:', error);
+                return [];
+            }
+        }
+
+        // Enhanced venue association UI rendering
+        function renderVenueAssociationUI() {
+            const venueContainer = document.getElementById('venueAssociationContainer');
+            if (!venueContainer) return;
+            
+            if (restaurantSyncStatus && restaurantSyncStatus.isAssociated) {
+                // Restaurant is associated with a venue
+                venueContainer.innerHTML = `
+                    <div class="current-venue-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                                    🏢 ${restaurantSyncStatus.venueName || 'Unknown Venue'}
+                                    <span class="venue-status-badge active">Active</span>
+                                </div>
+                                <div style="color: #86868B; font-size: 14px;">
+                                    Joined: ${restaurantSyncStatus.joinedAt ? 
+                                        new Date(restaurantSyncStatus.joinedAt.toDate ? restaurantSyncStatus.joinedAt.toDate() : restaurantSyncStatus.joinedAt).toLocaleDateString() 
+                                        : 'Unknown'}
+                                </div>
+                                ${restaurantSyncStatus.syncMethod ? `
+                                    <div style="color: #86868B; font-size: 12px; margin-top: 2px;">
+                                        Sync method: ${restaurantSyncStatus.syncMethod.replace('_', ' ')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <button class="btn btn-danger btn-small" onclick="leaveVenue()">
+                                Leave Venue
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Restaurant is not associated - show venue selector and pending requests
+                let venueOptions = '<option value="">Select a venue to join</option>';
+                
+                if (availableVenues.length > 0) {
+                    // Group venues by distance/relevance if location data is available
+                    const sortedVenues = sortVenuesByRelevance(availableVenues);
+                    
+                    sortedVenues.forEach(venue => {
+                        const distance = venue.distance ? ` (${venue.distance})` : '';
+                        venueOptions += `<option value="${venue.id}">${venue.name} - ${venue.city}, ${venue.state}${distance}</option>`;
+                    });
+                } else {
+                    venueOptions = '<option value="">No venues available at the moment</option>';
+                }
+                
+                venueContainer.innerHTML = `
+                    <div class="venue-selector-section">
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="margin-bottom: 8px;">Available Venues</label>
+                            <select class="venue-selector" id="venueSelector" onchange="handleVenueSelection()">
+                                ${venueOptions}
+                            </select>
+                        </div>
+                        
+                        <div id="venuePreview" style="display: none; background: #F8F9FA; border: 1px solid #E5E5E7; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                            <div id="venuePreviewContent"></div>
+                        </div>
+                        
+                        <div id="joinRequestSection" style="display: none;">
+                            <label class="form-label">Message to Venue Manager (Optional)</label>
+                            <textarea class="join-message-textarea" id="joinRequestMessage" 
+                                      placeholder="Introduce your restaurant and explain why you'd like to join this venue..."></textarea>
+                            <div style="display: flex; gap: 12px; margin-top: 12px;">
+                                <button class="btn btn-secondary btn-small" onclick="cancelVenueSelection()">
+                                    Cancel
+                                </button>
+                                <button class="btn btn-success btn-small" onclick="requestToJoinVenue()">
+                                    Send Join Request
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${renderPendingRequestsSection()}
+                `;
+            }
+        }
+
+        // Sort venues by relevance to restaurant
+        function sortVenuesByRelevance(venues) {
+            if (!currentRestaurant.city || !currentRestaurant.state) {
+                return venues; // No location data to sort by
+            }
+            
+            return venues.sort((a, b) => {
+                // Prioritize same city
+                const aSameCity = a.city && a.city.toLowerCase() === currentRestaurant.city.toLowerCase();
+                const bSameCity = b.city && b.city.toLowerCase() === currentRestaurant.city.toLowerCase();
+                
+                if (aSameCity && !bSameCity) return -1;
+                if (!aSameCity && bSameCity) return 1;
+                
+                // Then same state
+                const aSameState = a.state === currentRestaurant.state;
+                const bSameState = b.state === currentRestaurant.state;
+                
+                if (aSameState && !bSameState) return -1;
+                if (!aSameState && bSameState) return 1;
+                
+                // Finally alphabetical
+                return (a.name || '').localeCompare(b.name || '');
+            });
+        }
+
+        // Render pending requests section
+        function renderPendingRequestsSection() {
+            if (pendingRequests.length === 0) {
+                return '';
+            }
+            
+            const pendingHTML = pendingRequests
+                .filter(request => request.status === 'pending' || request.status === 'denied')
+                .map(request => {
+                    const isExpired = request.expiresAt && new Date() > new Date(request.expiresAt.toDate ? request.expiresAt.toDate() : request.expiresAt);
+                    
+                    return `
+                        <div class="venue-request-item ${request.status === 'denied' ? 'venue-request-denied' : isExpired ? 'venue-request-expired' : ''}">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div style="font-weight: 600; color: #1D1D1F;">
+                                        ${request.venueName}
+                                    </div>
+                                    <div style="font-size: 13px; color: #86868B; margin-top: 2px;">
+                                        Status: <span style="text-transform: uppercase; font-weight: 600; color: ${
+                                            request.status === 'pending' ? '#B45309' : 
+                                            request.status === 'denied' ? '#DC2626' : '#6B7280'
+                                        };">
+                                            ${isExpired ? 'EXPIRED' : request.status}
+                                        </span>
+                                        <br>
+                                        Requested: ${new Date(request.requestedAt.toDate ? request.requestedAt.toDate() : request.requestedAt).toLocaleDateString()}
+                                    </div>
+                                    ${request.status === 'denied' && request.denialReason ? `
+                                        <div style="color: #DC2626; font-size: 12px; margin-top: 4px; font-style: italic;">
+                                            Reason: ${request.denialReason}
+                                        </div>
+                                    ` : ''}
+                                    ${request.message ? `
+                                        <div style="color: #6B7280; font-size: 12px; margin-top: 4px;">
+                                            Your message: "${request.message}"
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                ${request.status === 'pending' && !isExpired ? `
+                                    <button class="btn btn-danger btn-small" onclick="cancelVenueRequest('${request.id}')">
+                                        Cancel Request
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            
+            return `
+                <div style="margin-top: 24px;">
+                    <label class="form-label">Your Venue Requests</label>
+                    ${pendingHTML}
+                </div>
+            `;
+        }
+
+        // Enhanced venue selection handler
+        function handleVenueSelection() {
+            const venueSelector = document.getElementById('venueSelector');
+            const joinRequestSection = document.getElementById('joinRequestSection');
+            const venuePreview = document.getElementById('venuePreview');
+            const venuePreviewContent = document.getElementById('venuePreviewContent');
+            
+            if (!venueSelector || !joinRequestSection) return;
+            
+            const selectedVenueId = venueSelector.value;
+            
+            if (selectedVenueId && availableVenues.length > 0) {
+                const selectedVenue = availableVenues.find(v => v.id === selectedVenueId);
+                
+                if (selectedVenue) {
+                    // Show venue preview
+                    if (venuePreview && venuePreviewContent) {
+                        venuePreviewContent.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">
+                                        ${selectedVenue.name}
+                                    </div>
+                                    <div style="color: #86868B; font-size: 14px; margin-bottom: 8px;">
+                                        📍 ${selectedVenue.address || selectedVenue.city + ', ' + selectedVenue.state}
+                                    </div>
+                                    ${selectedVenue.description ? `
+                                        <div style="color: #6B7280; font-size: 13px; line-height: 1.4;">
+                                            ${selectedVenue.description}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div style="text-align: right; margin-left: 16px;">
+                                    ${selectedVenue.restaurantCount ? `
+                                        <div style="color: #86868B; font-size: 12px;">
+                                            ${selectedVenue.restaurantCount} restaurants
+                                        </div>
+                                    ` : ''}
+                                    ${selectedVenue.requireApproval ? `
+                                        <div style="color: #B45309; font-size: 11px; font-weight: 600; text-transform: uppercase;">
+                                            Approval Required
+                                        </div>
+                                    ` : `
+                                        <div style="color: #059669; font-size: 11px; font-weight: 600; text-transform: uppercase;">
+                                            Open Join
+                                        </div>
+                                    `}
+                                </div>
+                            </div>
+                        `;
+                        venuePreview.style.display = 'block';
+                    }
+                    
+                    // Show join request section
+                    joinRequestSection.style.display = 'block';
+                    
+                    // Scroll to show the form
+                    setTimeout(() => {
+                        joinRequestSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
+                }
+            } else {
+                if (venuePreview) venuePreview.style.display = 'none';
+                joinRequestSection.style.display = 'none';
+            }
+        }
+
+        // Cancel venue selection
+        function cancelVenueSelection() {
+            const venueSelector = document.getElementById('venueSelector');
+            const joinRequestSection = document.getElementById('joinRequestSection');
+            const venuePreview = document.getElementById('venuePreview');
+            const joinRequestMessage = document.getElementById('joinRequestMessage');
+            
+            if (venueSelector) venueSelector.value = '';
+            if (joinRequestSection) joinRequestSection.style.display = 'none';
+            if (venuePreview) venuePreview.style.display = 'none';
+            if (joinRequestMessage) joinRequestMessage.value = '';
+        }
+
+        // Enhanced request to join venue function
+        async function requestToJoinVenue() {
+            const venueSelector = document.getElementById('venueSelector');
+            const joinRequestMessage = document.getElementById('joinRequestMessage');
+            
+            if (!venueSelector || !joinRequestMessage) {
+                showError('Form elements not found');
+                return;
+            }
+            
+            const selectedVenueId = venueSelector.value;
+            const message = joinRequestMessage.value.trim();
+            
+            if (!selectedVenueId) {
+                showError('Please select a venue to request to join');
+                return;
+            }
+            
+            const selectedVenue = availableVenues.find(v => v.id === selectedVenueId);
+            if (!selectedVenue) {
+                showError('Selected venue not found');
+                return;
+            }
+            
+            // Check eligibility if function is available
+            if (typeof VediAPI.checkVenueEligibility === 'function') {
+                try {
+                    const eligibility = await VediAPI.checkVenueEligibility(restaurantId, selectedVenueId);
+                    if (!eligibility.eligible) {
+                        showError('Cannot join venue: ' + eligibility.reasons.join(', '));
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Could not check eligibility:', error);
+                }
+            }
+            
+            try {
+                showLoading('Sending join request...', 'Contacting venue manager');
+                
+                let request;
+                if (typeof VediAPI.requestToJoinVenue === 'function') {
+                    request = await VediAPI.requestToJoinVenue(restaurantId, selectedVenueId, message);
+                } else {
+                    // Fallback manual request creation
+                    request = await manualCreateVenueRequest(selectedVenueId, message);
+                }
+                
+                console.log('✅ Venue join request sent:', request);
+                
+                // Refresh the UI
+                await setupVenueAssociationUI();
+                
+                // Reset form
+                venueSelector.value = '';
+                joinRequestMessage.value = '';
+                
+                hideLoading();
+                showSuccess(`Join request sent to ${selectedVenue.name} successfully!`);
+                
+            } catch (error) {
+                console.error('❌ Error sending join request:', error);
+                hideLoading();
+                showError('Failed to send join request: ' + error.message);
+            }
+        }
+
+        // Manual venue request creation as fallback
+        async function manualCreateVenueRequest(venueId, message) {
+            const db = getFirebaseDb();
+            const auth = getFirebaseAuth();
+            
+            const selectedVenue = availableVenues.find(v => v.id === venueId);
+            if (!selectedVenue) {
+                throw new Error('Venue not found');
+            }
+            
+            const requestData = {
+                restaurantId: restaurantId,
+                restaurantName: currentRestaurant.name,
+                restaurantEmail: currentRestaurant.email || 'Not provided',
+                restaurantCuisine: currentRestaurant.cuisineType || 'Not specified',
+                restaurantAddress: currentRestaurant.address || 'Not provided',
+                venueId: venueId,
+                venueName: selectedVenue.name,
+                venueAddress: selectedVenue.address || 'Not provided',
+                status: 'pending',
+                message: message,
+                requestedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                requestedByUserId: auth.currentUser?.uid || null,
+                type: 'restaurant_request'
+            };
+            
+            const docRef = await db.collection('venueRequests').add(requestData);
+            return { id: docRef.id, ...requestData };
+        }
+
+        // Cancel a pending venue request
+        async function cancelVenueRequest(requestId) {
+            if (!confirm('Are you sure you want to cancel this venue request?')) {
+                return;
+            }
+            
+            try {
+                showLoading('Cancelling request...', 'Please wait');
+                
+                if (typeof VediAPI.cancelVenueRequest === 'function') {
+                    await VediAPI.cancelVenueRequest(requestId);
+                } else {
+                    // Manual cancellation
+                    const db = getFirebaseDb();
+                    await db.collection('venueRequests').doc(requestId).update({
+                        status: 'cancelled',
+                        cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                
+                await setupVenueAssociationUI();
+                
+                hideLoading();
+                showSuccess('Request cancelled successfully');
+                
+            } catch (error) {
+                console.error('❌ Error cancelling request:', error);
+                hideLoading();
+                showError('Failed to cancel request: ' + error.message);
+            }
+        }
+
+        // Leave current venue
+        async function leaveVenue() {
+            if (!confirm('Are you sure you want to leave this venue? This action cannot be undone and you will need to request to rejoin.')) {
+                return;
+            }
+            
+            const reason = prompt('Please provide a reason for leaving the venue (optional):') || 'Restaurant decided to leave venue';
+            
+            try {
+                showLoading('Leaving venue...', 'Updating restaurant settings');
+                
+                if (typeof VediAPI.unsyncRestaurantFromVenue === 'function') {
+                    await VediAPI.unsyncRestaurantFromVenue(restaurantId, reason);
+                } else {
+                    // Manual venue leaving
+                    await VediAPI.updateRestaurant(restaurantId, {
+                        venueId: null,
+                        venueName: null,
+                        venueAddress: null,
+                        leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        venueStatus: null,
+                        unsyncReason: reason
+                    });
+                }
+                
+                // Update current restaurant data
+                currentRestaurant.venueId = null;
+                currentRestaurant.venueName = null;
+                
+                await setupVenueAssociationUI();
+                
+                hideLoading();
+                showSuccess('Successfully left venue');
+                
+            } catch (error) {
+                console.error('❌ Error leaving venue:', error);
+                hideLoading();
+                showError('Failed to leave venue: ' + error.message);
+            }
+        }
+
+        // Setup fallback venue UI when venue sync fails
+        function setupFallbackVenueUI() {
+            const venueContainer = document.getElementById('venueAssociationContainer');
+            if (venueContainer) {
+                const hasVenueFunctions = typeof VediAPI.getAllVenues === 'function';
+                
+                venueContainer.innerHTML = `
+                    <div class="form-input" style="background: #F8F9FA; border-color: #E5E5E7; cursor: default; color: #86868B; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 16px;">🏢</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Venue Association</div>
+                            <div style="font-size: 14px;">
+                                ${availableVenues.length === 0 && !hasVenueFunctions 
+                                    ? 'Venue features are loading... Please refresh if this persists.' 
+                                    : 'Currently not associated with any venue. Venue managers can send you invitations directly.'
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
         }
 
@@ -2005,268 +2653,7 @@
             }
         }
 
-        // Setup venue association UI
-        async function setupVenueAssociationUI() {
-            console.log('🏢 Setting up venue association UI...');
-            
-            try {
-                // Check if restaurant has venue sync status
-                if (typeof VediAPI.getRestaurantSyncStatus === 'function') {
-                    restaurantSyncStatus = await VediAPI.getRestaurantSyncStatus(restaurantId);
-                    console.log('📊 Restaurant sync status:', restaurantSyncStatus);
-                } else {
-                    console.warn('⚠️ getRestaurantSyncStatus not available');
-                    restaurantSyncStatus = null;
-                }
-                
-                // Load available venues for selection
-                if (typeof VediAPI.getAllVenues === 'function') {
-                    availableVenues = await VediAPI.getAllVenues({
-                        status: 'active',
-                        verified: true,
-                        limit: 100
-                    });
-                    console.log('🏢 Available venues:', availableVenues.length);
-                } else {
-                    console.warn('⚠️ getAllVenues not available - venue features will be limited');
-                    availableVenues = [];
-                }
-                
-                // Load pending requests
-                if (typeof VediAPI.getRestaurantRequests === 'function') {
-                    pendingRequests = await VediAPI.getRestaurantRequests(restaurantId);
-                    console.log('📋 Pending requests:', pendingRequests.length);
-                } else {
-                    console.warn('⚠️ getRestaurantRequests not available');
-                    pendingRequests = [];
-                }
-                
-                renderVenueAssociationUI();
-                
-            } catch (error) {
-                console.error('❌ Error setting up venue association:', error);
-                setupFallbackVenueUI();
-            }
-        }
-
-        // Render the venue association UI based on current status
-        function renderVenueAssociationUI() {
-            const venueContainer = document.getElementById('venueAssociationContainer');
-            if (!venueContainer) return;
-            
-            if (restaurantSyncStatus && restaurantSyncStatus.isAssociated) {
-                // Restaurant is associated with a venue
-                venueContainer.innerHTML = `
-                    <div class="current-venue-card">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">
-                                    🏢 ${restaurantSyncStatus.venueName || 'Unknown Venue'}
-                                </div>
-                                <div style="color: #86868B; font-size: 14px;">
-                                    Joined: ${restaurantSyncStatus.joinedAt ? new Date(restaurantSyncStatus.joinedAt.toDate()).toLocaleDateString() : 'Unknown'}
-                                </div>
-                                <span class="venue-status-badge active">Active</span>
-                            </div>
-                            <button class="btn btn-danger btn-small" onclick="leaveVenue()">
-                                Leave Venue
-                            </button>
-                        </div>
-                    </div>
-                `;
-            } else {
-                // Restaurant is not associated - show venue selector
-                let venueOptions = '<option value="">Select a venue to join</option>';
-                if (availableVenues.length > 0) {
-                    availableVenues.forEach(venue => {
-                        venueOptions += `<option value="${venue.id}">${venue.name} - ${venue.city}, ${venue.state}</option>`;
-                    });
-                } else {
-                    venueOptions = '<option value="">No venues available at the moment</option>';
-                }
-                
-                venueContainer.innerHTML = `
-                    <div class="venue-selector-section">
-                        <select class="venue-selector" id="venueSelector" onchange="handleVenueSelection()">
-                            ${venueOptions}
-                        </select>
-                        <div id="joinRequestSection" style="display: none;">
-                            <textarea class="join-message-textarea" id="joinRequestMessage" placeholder="Add a message to the venue manager (optional)"></textarea>
-                            <button class="btn btn-success btn-small" onclick="requestToJoinVenue()">
-                                Send Join Request
-                            </button>
-                        </div>
-                    </div>
-                `;
-                
-                // Show pending requests if any
-                if (pendingRequests.length > 0) {
-                    const pendingHTML = pendingRequests
-                        .filter(request => request.status === 'pending' || request.status === 'denied')
-                        .map(request => `
-                            <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 12px; margin-top: 8px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <strong>${request.venueName}</strong> - ${request.status.toUpperCase()}
-                                        ${request.status === 'denied' && request.denialReason ? `<br><small style="color: #92400E;">Reason: ${request.denialReason}</small>` : ''}
-                                    </div>
-                                    ${request.status === 'pending' ? `
-                                        <button class="btn btn-danger btn-small" onclick="cancelVenueRequest('${request.id}')">
-                                            Cancel Request
-                                        </button>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        `).join('');
-                    
-                    venueContainer.innerHTML += pendingHTML;
-                }
-            }
-        }
-
-        // Setup fallback venue UI when venue sync fails
-        function setupFallbackVenueUI() {
-            const venueContainer = document.getElementById('venueAssociationContainer');
-            if (venueContainer) {
-                const hasVenueFunctions = typeof VediAPI.getAllVenues === 'function';
-                
-                venueContainer.innerHTML = `
-                    <div class="form-input" style="background: #F8F9FA; border-color: #E5E5E7; cursor: default; color: #86868B; display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 16px;">🏢</span>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px;">Venue Association</div>
-                            <div style="font-size: 14px;">
-                                ${availableVenues.length === 0 && !hasVenueFunctions 
-                                    ? 'Venue features are loading... Please refresh if this persists.' 
-                                    : 'Currently not associated with any venue. Venue managers can send you invitations directly.'
-                                }
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        // Handle venue selection from dropdown
-        function handleVenueSelection() {
-            const venueSelector = document.getElementById('venueSelector');
-            const joinRequestSection = document.getElementById('joinRequestSection');
-            
-            if (venueSelector && joinRequestSection && venueSelector.value && availableVenues.length > 0) {
-                joinRequestSection.style.display = 'block';
-            } else if (joinRequestSection) {
-                joinRequestSection.style.display = 'none';
-            }
-        }
-
-        // Request to join selected venue
-        async function requestToJoinVenue() {
-            const venueSelector = document.getElementById('venueSelector');
-            const joinRequestMessage = document.getElementById('joinRequestMessage');
-            
-            if (!venueSelector || !joinRequestMessage) {
-                console.error('❌ Venue selector elements not found');
-                return;
-            }
-            
-            const selectedVenueId = venueSelector.value;
-            const message = joinRequestMessage.value.trim();
-            
-            if (!selectedVenueId) {
-                showError('Please select a venue to request to join');
-                return;
-            }
-            
-            if (availableVenues.length === 0) {
-                showError('No venues available to join at the moment');
-                return;
-            }
-            
-            if (typeof VediAPI === 'undefined' || !VediAPI.requestToJoinVenue) {
-                showError('Venue association feature is not available right now');
-                return;
-            }
-            
-            try {
-                showLoading('Sending join request...', 'Contacting venue manager');
-                
-                const request = await VediAPI.requestToJoinVenue(restaurantId, selectedVenueId, message);
-                
-                console.log('✅ Venue join request sent:', request);
-                
-                // Refresh venue association UI
-                await setupVenueAssociationUI();
-                
-                venueSelector.value = '';
-                joinRequestMessage.value = '';
-                
-                hideLoading();
-                showSuccess('Join request sent successfully!');
-                
-            } catch (error) {
-                console.error('❌ Error sending join request:', error);
-                hideLoading();
-                showError('Failed to send join request: ' + error.message);
-            }
-        }
-
-        // Cancel a pending venue request
-        async function cancelVenueRequest(requestId) {
-            if (!confirm('Are you sure you want to cancel this venue request?')) {
-                return;
-            }
-            
-            if (typeof VediAPI === 'undefined' || !VediAPI.cancelVenueRequest) {
-                showError('Venue association feature is not available right now');
-                return;
-            }
-            
-            try {
-                showLoading('Cancelling request...', 'Please wait');
-                
-                await VediAPI.cancelVenueRequest(requestId);
-                await setupVenueAssociationUI();
-                
-                hideLoading();
-                showSuccess('Request cancelled successfully');
-                
-            } catch (error) {
-                console.error('❌ Error cancelling request:', error);
-                hideLoading();
-                showError('Failed to cancel request: ' + error.message);
-            }
-        }
-
-        // Leave current venue
-        async function leaveVenue() {
-            if (!confirm('Are you sure you want to leave this venue? This action cannot be undone and you will need to request to rejoin.')) {
-                return;
-            }
-            
-            if (typeof VediAPI === 'undefined' || !VediAPI.unsyncRestaurantFromVenue) {
-                showError('Venue association feature is not available right now');
-                return;
-            }
-            
-            const reason = prompt('Please provide a reason for leaving the venue (optional):') || 'Restaurant decided to leave venue';
-            
-            try {
-                showLoading('Leaving venue...', 'Updating restaurant settings');
-                
-                await VediAPI.unsyncRestaurantFromVenue(restaurantId, reason);
-                await setupVenueAssociationUI();
-                
-                hideLoading();
-                showSuccess('Successfully left venue');
-                
-            } catch (error) {
-                console.error('❌ Error leaving venue:', error);
-                hideLoading();
-                showError('Failed to leave venue: ' + error.message);
-            }
-        }
-
-        console.log('🔐 Restaurant Settings with Complete Functionality loaded successfully');
+        console.log('🔐 Restaurant Settings with Complete Venue Association loaded successfully');
     </script>
 </body>
 </html>
