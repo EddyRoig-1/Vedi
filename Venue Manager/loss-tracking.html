@@ -28,7 +28,7 @@
     
     <!-- Real-time and Operations -->
     <script src="../Api/realtime/listeners.js"></script>
-    <script src="../Api/operations/loss-incidents.js"></script>
+    <!-- Note: loss-incidents.js has VediAPI conflict - using direct Firebase queries -->
     
     <style>
         /* iOS Design System */
@@ -1181,9 +1181,18 @@
         async function loadLossIncidents() {
             try {
                 if (currentVenue.id) {
-                    lossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
-                        limit: 1000
-                    });
+                    // Direct Firebase query due to VediAPI conflict
+                    const db = getFirebaseDb();
+                    const incidentsQuery = await db.collection('lossIncidents')
+                        .where('venueId', '==', currentVenue.id)
+                        .orderBy('createdAt', 'desc')
+                        .limit(1000)
+                        .get();
+                    
+                    lossIncidents = incidentsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
                 } else {
                     lossIncidents = [];
                 }
@@ -1208,6 +1217,20 @@
                         applyFilters();
                         console.log('📡 Real-time loss incidents update:', incidents.length);
                     });
+                } else {
+                    // Fallback: Setup manual real-time listener
+                    const db = getFirebaseDb();
+                    realTimeUnsubscribe = db.collection('lossIncidents')
+                        .where('venueId', '==', currentVenue.id)
+                        .orderBy('createdAt', 'desc')
+                        .onSnapshot(querySnapshot => {
+                            lossIncidents = querySnapshot.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+                            applyFilters();
+                            console.log('📡 Real-time loss incidents update:', lossIncidents.length);
+                        });
                 }
             } catch (error) {
                 console.error('❌ Setup real-time updates error:', error);
@@ -1555,7 +1578,6 @@
         async function submitNewIncident() {
             try {
                 const form = document.getElementById('newIncidentForm');
-                const formData = new FormData(form);
                 
                 const incidentData = {
                     title: document.getElementById('incidentTitle').value.trim(),
@@ -1567,7 +1589,9 @@
                     description: document.getElementById('incidentDescription').value.trim(),
                     status: 'reported',
                     reportedBy: currentUser.uid,
-                    venueId: currentVenue.id
+                    venueId: currentVenue.id,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 
                 // Validate required fields
@@ -1577,8 +1601,9 @@
                     return;
                 }
                 
-                // Submit to API
-                await VediAPI.createLossIncident(incidentData);
+                // Submit directly to Firebase
+                const db = getFirebaseDb();
+                await db.collection('lossIncidents').add(incidentData);
                 
                 // Close modal and refresh data
                 closeNewIncidentModal();
@@ -1675,10 +1700,13 @@
                         newStatus = 'investigating';
                 }
                 
-                await VediAPI.updateLossIncident(selectedIncident.id, {
+                // Direct Firebase update
+                const db = getFirebaseDb();
+                await db.collection('lossIncidents').doc(selectedIncident.id).update({
                     status: newStatus,
                     statusUpdatedBy: currentUser.uid,
-                    statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 
                 closeIncidentDetailModal();
