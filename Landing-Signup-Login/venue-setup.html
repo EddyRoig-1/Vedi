@@ -745,26 +745,33 @@
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="zipCode">ZIP/Postal Code</label>
-                        <input type="text" class="form-input" id="zipCode" placeholder="12345">
+                        <label class="form-label" for="country">Country *</label>
+                        <input type="text" class="form-input" id="country" placeholder="United States" required>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
+                        <label class="form-label" for="zipCode">ZIP/Postal Code</label>
+                        <input type="text" class="form-input" id="zipCode" placeholder="12345">
+                    </div>
+                    
+                    <div class="form-group">
                         <label class="form-label" for="phone">Phone Number *</label>
                         <input type="tel" class="form-input" id="phone" placeholder="(555) 123-4567" required>
                     </div>
-                    
+                </div>
+
+                <div class="form-grid">
                     <div class="form-group">
                         <label class="form-label" for="email">Contact Email</label>
                         <input type="email" class="form-input" id="email" placeholder="info@yourvenue.com">
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="website">Website (Optional)</label>
-                    <input type="url" class="form-input" id="website" placeholder="https://www.yourvenue.com">
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="website">Website (Optional)</label>
+                        <input type="url" class="form-input" id="website" placeholder="https://www.yourvenue.com">
+                    </div>
                 </div>
             </div>
 
@@ -1060,6 +1067,7 @@
                 if (venue.address) document.getElementById('address').value = venue.address;
                 if (venue.city) document.getElementById('city').value = venue.city;
                 if (venue.state) document.getElementById('state').value = venue.state;
+                if (venue.country) document.getElementById('country').value = venue.country;
                 if (venue.zipCode) document.getElementById('zipCode').value = venue.zipCode;
                 if (venue.phone) document.getElementById('phone').value = venue.phone;
                 if (venue.email) document.getElementById('email').value = venue.email;
@@ -1152,6 +1160,7 @@
                 const address = document.getElementById('address').value.trim();
                 const city = document.getElementById('city').value.trim();
                 const state = document.getElementById('state').value.trim();
+                const country = document.getElementById('country').value.trim();
                 const phone = document.getElementById('phone').value.trim();
                 
                 if (!address) {
@@ -1167,6 +1176,11 @@
                 if (!state) {
                     showError('Please enter your state/province.');
                     document.getElementById('state').focus();
+                    return false;
+                }
+                if (!country) {
+                    showError('Please enter your country.');
+                    document.getElementById('country').focus();
                     return false;
                 }
                 if (!phone) {
@@ -1254,6 +1268,7 @@
                 formData.address = document.getElementById('address').value.trim();
                 formData.city = document.getElementById('city').value.trim();
                 formData.state = document.getElementById('state').value.trim();
+                formData.country = document.getElementById('country').value.trim();
                 formData.zipCode = document.getElementById('zipCode').value.trim();
                 formData.phone = document.getElementById('phone').value.trim();
                 formData.email = document.getElementById('email').value.trim();
@@ -1283,19 +1298,37 @@
                 // Save final step data
                 saveCurrentStepData();
                 
+                // Verify required fields
+                if (!formData.country) {
+                    throw new Error('Country is required');
+                }
+                
                 // Prepare venue data for Firebase
                 const venueData = {
                     ...formData,
                     managerUserId: currentUser.id, // Always required
-                    setupCompleted: true
+                    setupCompleted: true,
+                    createdAt: new Date().toISOString()
                 };
                 
                 console.log('Venue data to save:', venueData);
                 
+                // Create venue with retry logic
                 let savedVenue;
+                let retries = 3;
                 
-                // Always create new venue since this is setup flow
-                savedVenue = await VediAPI.createVenue(venueData);
+                while (retries > 0) {
+                    try {
+                        savedVenue = await VediAPI.createVenue(venueData);
+                        break; // Success, exit retry loop
+                    } catch (error) {
+                        retries--;
+                        if (retries === 0) throw error;
+                        console.log(`Retrying venue creation... ${retries} attempts left`);
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                    }
+                }
+                
                 console.log('✅ Venue created:', savedVenue);
                 showSuccess('Venue created successfully!');
                 
@@ -1319,7 +1352,7 @@
             }
         }
 
-        // FIXED: Dashboard redirect function
+        // Dashboard redirect function
         function goToDashboard() {
             console.log('🚀 Redirecting to venue dashboard...');
             
@@ -1479,9 +1512,6 @@
                 }
             });
         }
-
-        // REMOVED: Problematic beforeunload listener that was blocking navigation
-        // This was the main cause of the redirect issue
 
         console.log('🏢 Vedi Venue Setup with Firebase integration loaded successfully');
     </script>
