@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loss Tracking - Venue Manager</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    
+    <!-- Chart.js for analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+    
+    <!-- VediAPI Core -->
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    
+    <!-- Business APIs -->
+    <script src="../Api/business/venues.js"></script>
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/orders/order-management.js"></script>
+    
+    <!-- Real-time and Operations -->
+    <script src="../Api/realtime/listeners.js"></script>
+    <script src="../Api/operations/loss-incidents.js"></script>
+    
+    <style>
+        /* iOS Design System */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+            background-color: #F8F9FA;
+            color: #1D1D1F;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .venue-info h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .venue-info p {
+            font-size: 15px;
+            color: #86868B;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .user-role {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .logout-btn {
+            background-color: #FF3B30;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #D70015;
+            transform: translateY(-1px);
+        }
+
+        /* Navigation */
+        .navigation {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 0 24px;
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-item {
+            padding: 16px 0;
+            font-size: 17px;
+            font-weight: 500;
+            color: #86868B;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active {
+            color: #007AFF;
+            border-bottom-color: #007AFF;
+        }
+
+        .nav-item:hover {
+            color: #007AFF;
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 17px;
+            color: #86868B;
+        }
+
+        .new-incident-btn {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .new-incident-btn:hover {
+            background-color: #0056CC;
+            transform: translateY(-1px);
+        }
+
+        /* Loss Analytics Overview */
+        .loss-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .loss-card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .loss-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .loss-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .loss-card-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #86868B;
+        }
+
+        .loss-card-icon {
+            width: 32px;
+            height: 32px;
+            background-color: #F1F3F4;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .loss-card-value {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .loss-card-change {
+            font-size: 13px;
+            font-weight: 500;
+            color: #86868B;
+        }
+
+        /* Filter and Search */
+        .controls-section {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 16px;
+            align-items: end;
+            margin-bottom: 16px;
+        }
+
+        .control-group {
+            flex: 1;
+        }
+
+        .control-label {
+            display: block;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .control-select, .control-input {
+            width: 100%;
+            height: 44px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 0 16px;
+            font-size: 17px;
+            background-color: #FFFFFF;
+            transition: border-color 0.2s ease;
+        }
+
+        .control-select:focus, .control-input:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 44px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 0 16px;
+            font-size: 17px;
+            background-color: #FFFFFF;
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        /* Incidents List */
+        .incidents-section {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 32px;
+        }
+
+        .incidents-header {
+            background-color: #F8F9FA;
+            padding: 16px 24px;
+            border-bottom: 1px solid #E5E5E7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .incidents-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        .incidents-count {
+            font-size: 15px;
+            color: #86868B;
+        }
+
+        .incidents-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .incident-item {
+            padding: 20px 24px;
+            border-bottom: 1px solid #F1F3F4;
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .incident-item:hover {
+            background-color: #F8F9FA;
+        }
+
+        .incident-item:last-child {
+            border-bottom: none;
+        }
+
+        .incident-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .incident-info {
+            flex: 1;
+        }
+
+        .incident-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .incident-meta {
+            font-size: 13px;
+            color: #86868B;
+            margin-bottom: 8px;
+        }
+
+        .incident-description {
+            font-size: 15px;
+            color: #1D1D1F;
+            line-height: 1.4;
+        }
+
+        .incident-status-amount {
+            display: flex;
+            flex-direction: column;
+            align-items: end;
+            gap: 8px;
+        }
+
+        .incident-amount {
+            font-size: 20px;
+            font-weight: 700;
+            color: #FF3B30;
+        }
+
+        .incident-details {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-reported {
+            background-color: #FFF3CD;
+            color: #B45309;
+        }
+
+        .status-investigating {
+            background-color: #CCE5FF;
+            color: #0056CC;
+        }
+
+        .status-resolved {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .status-closed {
+            background-color: #F1F3F4;
+            color: #86868B;
+        }
+
+        /* Severity Badges */
+        .severity-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-low {
+            background-color: #D1F2EB;
+            color: #00A86B;
+        }
+
+        .severity-medium {
+            background-color: #FFF3CD;
+            color: #B45309;
+        }
+
+        .severity-high {
+            background-color: #FFE5E5;
+            color: #D70015;
+        }
+
+        /* Type Badges */
+        .type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #F1F3F4;
+            color: #1D1D1F;
+        }
+
+        /* Charts Section */
+        .charts-section {
+            margin-bottom: 32px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .chart-card {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .chart-header {
+            margin-bottom: 24px;
+        }
+
+        .chart-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .chart-subtitle {
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid #E5E5E7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #86868B;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 17px;
+            background-color: #FFFFFF;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #007AFF;
+        }
+
+        .form-textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid #E5E5E7;
+            display: flex;
+            gap: 12px;
+            justify-content: end;
+        }
+
+        .btn-secondary {
+            background-color: #F1F3F4;
+            color: #1D1D1F;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background-color: #E5E5E7;
+        }
+
+        .btn-primary {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056CC;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 48px;
+            color: #86868B;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #E5E5E7;
+            border-top: 2px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error States */
+        .error-message {
+            background-color: #FFE5E5;
+            color: #D70015;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 15px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: #86868B;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .empty-state-description {
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                align-items: start;
+            }
+
+            .nav-content {
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            .page-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: start;
+            }
+
+            .controls-row {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .loss-overview {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .incident-main {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .incident-status-amount {
+                align-items: start;
+                flex-direction: row;
+                justify-content: space-between;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="venue-info">
+                <h1 id="venueName">Loading...</h1>
+                <p id="venueLocation">Loading venue information...</p>
+            </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-name" id="userName">Venue Manager</div>
+                    <div class="user-role">Loss Tracking</div>
+                </div>
+                <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="navigation">
+        <div class="nav-content">
+            <a href="venue-overview.html" class="nav-item">Overview</a>
+            <a href="performance.html" class="nav-item">Performance</a>
+            <a href="#" class="nav-item active">Loss Tracking</a>
+            <a href="#" class="nav-item">Reports</a>
+            <a href="#" class="nav-item">Management</a>
+            <a href="#" class="nav-item">Financials</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <section class="page-header">
+            <div>
+                <h1 class="page-title">Loss Tracking</h1>
+                <p class="page-subtitle">Monitor and manage loss incidents across your venue</p>
+            </div>
+            <button class="new-incident-btn" onclick="openNewIncidentModal()">Report New Loss</button>
+        </section>
+
+        <!-- Loss Analytics Overview -->
+        <section class="loss-overview">
+            <div class="loss-card">
+                <div class="loss-card-header">
+                    <span class="loss-card-title">Total Losses</span>
+                    <div class="loss-card-icon">💰</div>
+                </div>
+                <div class="loss-card-value" id="totalLossAmount">$0.00</div>
+                <div class="loss-card-change" id="totalLossChange">this period</div>
+            </div>
+
+            <div class="loss-card">
+                <div class="loss-card-header">
+                    <span class="loss-card-title">Active Incidents</span>
+                    <div class="loss-card-icon">⚠️</div>
+                </div>
+                <div class="loss-card-value" id="activeIncidents">0</div>
+                <div class="loss-card-change" id="activeIncidentsChange">need attention</div>
+            </div>
+
+            <div class="loss-card">
+                <div class="loss-card-header">
+                    <span class="loss-card-title">Resolved This Month</span>
+                    <div class="loss-card-icon">✅</div>
+                </div>
+                <div class="loss-card-value" id="resolvedIncidents">0</div>
+                <div class="loss-card-change" id="resolvedIncidentsChange">incidents closed</div>
+            </div>
+
+            <div class="loss-card">
+                <div class="loss-card-header">
+                    <span class="loss-card-title">Average Loss</span>
+                    <div class="loss-card-icon">📊</div>
+                </div>
+                <div class="loss-card-value" id="averageLoss">$0.00</div>
+                <div class="loss-card-change" id="averageLossChange">per incident</div>
+            </div>
+        </section>
+
+        <!-- Filter and Search Controls -->
+        <section class="controls-section">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label class="control-label">Time Period</label>
+                    <select class="control-select" id="timePeriod">
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Restaurant</label>
+                    <select class="control-select" id="restaurantFilter">
+                        <option value="all">All Restaurants</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Status</label>
+                    <select class="control-select" id="statusFilter">
+                        <option value="all">All Status</option>
+                        <option value="reported">Reported</option>
+                        <option value="investigating">Investigating</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Severity</label>
+                    <select class="control-select" id="severityFilter">
+                        <option value="all">All Severity</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Search Incidents</label>
+                <input type="text" class="search-input" id="searchInput" placeholder="Search by title, description, or reporter...">
+            </div>
+        </section>
+
+        <!-- Loss Analytics Charts -->
+        <section class="charts-section">
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Losses by Category</h3>
+                        <p class="chart-subtitle">Breakdown by incident type</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Loss Trend</h3>
+                        <p class="chart-subtitle">Monthly loss amounts</p>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Incidents List -->
+        <section class="incidents-section">
+            <div class="incidents-header">
+                <h2 class="incidents-title">Loss Incidents</h2>
+                <span class="incidents-count" id="incidentsCount">0 incidents</span>
+            </div>
+            <div class="incidents-list" id="incidentsList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading loss incidents...
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- New Incident Modal -->
+    <div class="modal" id="newIncidentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Report New Loss Incident</h2>
+                <button class="close-btn" onclick="closeNewIncidentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="newIncidentForm">
+                    <div class="form-group">
+                        <label class="form-label">Title *</label>
+                        <input type="text" class="form-input" id="incidentTitle" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Restaurant *</label>
+                        <select class="form-select" id="incidentRestaurant" required>
+                            <option value="">Select Restaurant</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Category *</label>
+                        <select class="form-select" id="incidentCategory" required>
+                            <option value="">Select Category</option>
+                            <option value="food">Food Spoilage</option>
+                            <option value="equipment">Equipment Damage</option>
+                            <option value="theft">Theft</option>
+                            <option value="accident">Accident</option>
+                            <option value="staff">Staff Error</option>
+                            <option value="supplier">Supplier Issue</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Type *</label>
+                        <select class="form-select" id="incidentType" required>
+                            <option value="">Select Type</option>
+                            <option value="accident">Accident</option>
+                            <option value="negligence">Negligence</option>
+                            <option value="theft">Theft</option>
+                            <option value="damage">Damage</option>
+                            <option value="spoilage">Spoilage</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Severity *</label>
+                        <select class="form-select" id="incidentSeverity" required>
+                            <option value="">Select Severity</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Loss Amount ($) *</label>
+                        <input type="number" class="form-input" id="incidentAmount" step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Description *</label>
+                        <textarea class="form-textarea" id="incidentDescription" required placeholder="Describe what happened, when, and any relevant details..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeNewIncidentModal()">Cancel</button>
+                <button type="button" class="btn-primary" onclick="submitNewIncident()">Report Incident</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incident Detail Modal -->
+    <div class="modal" id="incidentDetailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="incidentDetailTitle">Incident Details</h2>
+                <button class="close-btn" onclick="closeIncidentDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="incidentDetailBody">
+                <!-- Content will be populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeIncidentDetailModal()">Close</button>
+                <button type="button" class="btn-primary" id="updateStatusBtn" onclick="updateIncidentStatus()">Update Status</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentVenue = null;
+        let venueRestaurants = [];
+        let lossIncidents = [];
+        let filteredIncidents = [];
+        let charts = {};
+        let realTimeUnsubscribe = null;
+        let selectedIncident = null;
+
+        // Firebase utility functions
+        function getFirebaseAuth() {
+            return window.firebaseAuth || firebase.auth();
+        }
+
+        function getFirebaseDb() {
+            return window.firebaseDb || firebase.firestore();
+        }
+
+        // Initialize dashboard
+        async function initializeDashboard() {
+            try {
+                console.log('🚀 Initializing loss tracking dashboard...');
+                
+                // Wait for Firebase to be ready
+                await waitForFirebase();
+                
+                // Check authentication
+                await checkAuthentication();
+                
+                // Load venue data
+                await loadVenueData();
+                
+                // Load restaurants
+                await loadRestaurants();
+                
+                // Load loss incidents
+                await loadLossIncidents();
+                
+                // Setup real-time updates
+                setupRealTimeUpdates();
+                
+                // Setup event listeners
+                setupEventListeners();
+                
+                console.log('✅ Loss tracking dashboard initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Dashboard initialization error:', error);
+                showError('Failed to load loss tracking dashboard. Please refresh the page.');
+            }
+        }
+
+        // Wait for Firebase to be initialized
+        function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb && window.VediAPI) {
+                        console.log('✅ Firebase and VediAPI ready for loss tracking');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase initialization timeout'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Check user authentication and venue access
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                const auth = getFirebaseAuth();
+                
+                auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        try {
+                            const db = getFirebaseDb();
+                            const userDoc = await db.collection('users').doc(user.uid).get();
+                            
+                            if (!userDoc.exists) {
+                                throw new Error('User profile not found');
+                            }
+                            
+                            const userData = userDoc.data();
+                            
+                            if (userData.accountType !== 'venue') {
+                                throw new Error('Access denied. Venue manager account required.');
+                            }
+                            
+                            currentUser = { ...userData, uid: user.uid };
+                            updateUserDisplay();
+                            resolve();
+                            
+                        } catch (error) {
+                            console.error('❌ User verification error:', error);
+                            reject(error);
+                        }
+                    } else {
+                        window.location.href = '/login.html';
+                    }
+                });
+            });
+        }
+
+        // Load venue data
+        async function loadVenueData() {
+            try {
+                const venue = await VediAPI.getVenueByManager(currentUser.uid);
+                
+                if (!venue) {
+                    throw new Error('No venue found for this manager');
+                }
+                
+                currentVenue = venue;
+                
+                document.getElementById('venueName').textContent = venue.name;
+                document.getElementById('venueLocation').textContent = 
+                    `${venue.city}, ${venue.state}`;
+                
+                console.log('✅ Venue loaded for loss tracking:', venue.name);
+                
+            } catch (error) {
+                console.error('❌ Load venue error:', error);
+                throw error;
+            }
+        }
+
+        // Load restaurants
+        async function loadRestaurants() {
+            try {
+                venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                
+                // Populate restaurant filters
+                populateRestaurantFilters();
+                
+                console.log('✅ Restaurants loaded for loss tracking:', venueRestaurants.length);
+                
+            } catch (error) {
+                console.error('❌ Load restaurants error:', error);
+                showError('Failed to load restaurants');
+            }
+        }
+
+        // Populate restaurant filter options
+        function populateRestaurantFilters() {
+            const restaurantFilter = document.getElementById('restaurantFilter');
+            const incidentRestaurant = document.getElementById('incidentRestaurant');
+            
+            // Clear existing options
+            restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
+            incidentRestaurant.innerHTML = '<option value="">Select Restaurant</option>';
+            
+            venueRestaurants.forEach(restaurant => {
+                // Filter dropdown
+                const filterOption = document.createElement('option');
+                filterOption.value = restaurant.id;
+                filterOption.textContent = restaurant.name;
+                restaurantFilter.appendChild(filterOption);
+                
+                // New incident form dropdown
+                const formOption = document.createElement('option');
+                formOption.value = restaurant.id;
+                formOption.textContent = restaurant.name;
+                incidentRestaurant.appendChild(formOption);
+            });
+        }
+
+        // Load loss incidents
+        async function loadLossIncidents() {
+            try {
+                if (currentVenue.id) {
+                    lossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
+                        limit: 1000
+                    });
+                } else {
+                    lossIncidents = [];
+                }
+                
+                // Apply filters and update display
+                applyFilters();
+                
+                console.log('✅ Loss incidents loaded:', lossIncidents.length);
+                
+            } catch (error) {
+                console.error('❌ Load loss incidents error:', error);
+                showError('Failed to load loss incidents');
+            }
+        }
+
+        // Setup real-time updates
+        function setupRealTimeUpdates() {
+            try {
+                if (currentVenue.id && VediAPI.listenToVenueLossIncidents) {
+                    realTimeUnsubscribe = VediAPI.listenToVenueLossIncidents(currentVenue.id, (incidents) => {
+                        lossIncidents = incidents;
+                        applyFilters();
+                        console.log('📡 Real-time loss incidents update:', incidents.length);
+                    });
+                }
+            } catch (error) {
+                console.error('❌ Setup real-time updates error:', error);
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Filter change listeners
+            document.getElementById('timePeriod').addEventListener('change', applyFilters);
+            document.getElementById('restaurantFilter').addEventListener('change', applyFilters);
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+            document.getElementById('severityFilter').addEventListener('change', applyFilters);
+            
+            // Search listener
+            document.getElementById('searchInput').addEventListener('input', debounce(applyFilters, 300));
+            
+            // Modal close on backdrop click
+            document.getElementById('newIncidentModal').addEventListener('click', (e) => {
+                if (e.target.id === 'newIncidentModal') {
+                    closeNewIncidentModal();
+                }
+            });
+            
+            document.getElementById('incidentDetailModal').addEventListener('click', (e) => {
+                if (e.target.id === 'incidentDetailModal') {
+                    closeIncidentDetailModal();
+                }
+            });
+        }
+
+        // Debounce function for search
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Apply filters and update display
+        function applyFilters() {
+            try {
+                const timePeriod = document.getElementById('timePeriod').value;
+                const restaurantId = document.getElementById('restaurantFilter').value;
+                const status = document.getElementById('statusFilter').value;
+                const severity = document.getElementById('severityFilter').value;
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                
+                // Start with all incidents
+                filteredIncidents = [...lossIncidents];
+                
+                // Apply time filter
+                if (timePeriod !== 'all') {
+                    const startDate = VediAPI.getTimePeriodStart(timePeriod);
+                    if (startDate) {
+                        filteredIncidents = filteredIncidents.filter(incident => {
+                            const incidentDate = VediAPI.timestampToDate(incident.createdAt);
+                            return incidentDate >= startDate;
+                        });
+                    }
+                }
+                
+                // Apply restaurant filter
+                if (restaurantId !== 'all') {
+                    filteredIncidents = filteredIncidents.filter(incident => 
+                        incident.restaurantId === restaurantId
+                    );
+                }
+                
+                // Apply status filter
+                if (status !== 'all') {
+                    filteredIncidents = filteredIncidents.filter(incident => 
+                        incident.status === status
+                    );
+                }
+                
+                // Apply severity filter
+                if (severity !== 'all') {
+                    filteredIncidents = filteredIncidents.filter(incident => 
+                        incident.severity === severity
+                    );
+                }
+                
+                // Apply search filter
+                if (searchTerm) {
+                    filteredIncidents = filteredIncidents.filter(incident => 
+                        incident.title?.toLowerCase().includes(searchTerm) ||
+                        incident.description?.toLowerCase().includes(searchTerm) ||
+                        incident.reportedBy?.toLowerCase().includes(searchTerm)
+                    );
+                }
+                
+                // Update displays
+                updateLossOverview();
+                updateIncidentsList();
+                updateCharts();
+                
+            } catch (error) {
+                console.error('❌ Apply filters error:', error);
+                showError('Failed to apply filters');
+            }
+        }
+
+        // Update loss overview cards
+        function updateLossOverview() {
+            try {
+                const totalAmount = filteredIncidents.reduce((sum, incident) => 
+                    sum + (parseFloat(incident.amount) || 0), 0
+                );
+                
+                const activeCount = filteredIncidents.filter(incident => 
+                    incident.status === 'reported' || incident.status === 'investigating'
+                ).length;
+                
+                const resolvedCount = filteredIncidents.filter(incident => 
+                    incident.status === 'resolved'
+                ).length;
+                
+                const averageAmount = filteredIncidents.length > 0 ? 
+                    totalAmount / filteredIncidents.length : 0;
+                
+                document.getElementById('totalLossAmount').textContent = 
+                    VediAPI.formatCurrency(totalAmount, 'USD');
+                document.getElementById('activeIncidents').textContent = activeCount;
+                document.getElementById('resolvedIncidents').textContent = resolvedCount;
+                document.getElementById('averageLoss').textContent = 
+                    VediAPI.formatCurrency(averageAmount, 'USD');
+                
+                document.getElementById('totalLossChange').textContent = 
+                    `${filteredIncidents.length} total incidents`;
+                document.getElementById('activeIncidentsChange').textContent = 
+                    activeCount > 0 ? 'need attention' : 'all resolved';
+                document.getElementById('resolvedIncidentsChange').textContent = 
+                    'incidents closed';
+                document.getElementById('averageLossChange').textContent = 'per incident';
+                
+            } catch (error) {
+                console.error('❌ Update loss overview error:', error);
+            }
+        }
+
+        // Update incidents list
+        function updateIncidentsList() {
+            try {
+                const container = document.getElementById('incidentsList');
+                const countElement = document.getElementById('incidentsCount');
+                
+                countElement.textContent = `${filteredIncidents.length} incident${filteredIncidents.length !== 1 ? 's' : ''}`;
+                
+                if (filteredIncidents.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-title">No incidents found</div>
+                            <div class="empty-state-description">
+                                No loss incidents match your current filters.
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = filteredIncidents.map(incident => {
+                    const restaurant = venueRestaurants.find(r => r.id === incident.restaurantId);
+                    const createdDate = VediAPI.timestampToDate(incident.createdAt);
+                    const relativeTime = VediAPI.getRelativeTime(incident.createdAt);
+                    
+                    return `
+                        <div class="incident-item" onclick="openIncidentDetail('${incident.id}')">
+                            <div class="incident-main">
+                                <div class="incident-info">
+                                    <div class="incident-title">${incident.title || 'Untitled Incident'}</div>
+                                    <div class="incident-meta">
+                                        ${restaurant ? restaurant.name : 'Unknown Restaurant'} • 
+                                        ${relativeTime} • 
+                                        Reported by ${incident.reportedBy || 'Unknown'}
+                                    </div>
+                                    <div class="incident-description">
+                                        ${incident.description ? 
+                                            (incident.description.length > 100 ? 
+                                                incident.description.substring(0, 100) + '...' : 
+                                                incident.description) : 
+                                            'No description provided'}
+                                    </div>
+                                </div>
+                                <div class="incident-status-amount">
+                                    <div class="incident-amount">
+                                        ${VediAPI.formatCurrency(incident.amount || 0, 'USD')}
+                                    </div>
+                                    <span class="status-badge status-${incident.status || 'reported'}">
+                                        ${incident.status || 'reported'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="incident-details">
+                                <span class="severity-badge severity-${incident.severity || 'medium'}">
+                                    ${incident.severity || 'medium'} severity
+                                </span>
+                                <span class="type-badge">
+                                    ${incident.type || incident.category || 'other'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('❌ Update incidents list error:', error);
+                showError('Failed to update incidents list');
+            }
+        }
+
+        // Update charts
+        function updateCharts() {
+            try {
+                updateCategoryChart();
+                updateTrendChart();
+            } catch (error) {
+                console.error('❌ Update charts error:', error);
+            }
+        }
+
+        // Update category chart
+        function updateCategoryChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            // Group by category
+            const categoryTotals = {};
+            filteredIncidents.forEach(incident => {
+                const category = incident.category || incident.type || 'other';
+                categoryTotals[category] = (categoryTotals[category] || 0) + (parseFloat(incident.amount) || 0);
+            });
+            
+            const labels = Object.keys(categoryTotals);
+            const data = Object.values(categoryTotals);
+            const colors = ['#007AFF', '#FF3B30', '#30D158', '#FF9500', '#AF52DE', '#00C7BE'];
+            
+            if (charts.category) {
+                charts.category.destroy();
+            }
+            
+            charts.category = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels.map(label => label.charAt(0).toUpperCase() + label.slice(1)),
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update trend chart
+        function updateTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Group by month
+            const monthlyTotals = {};
+            filteredIncidents.forEach(incident => {
+                const date = VediAPI.timestampToDate(incident.createdAt);
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                monthlyTotals[monthKey] = (monthlyTotals[monthKey] || 0) + (parseFloat(incident.amount) || 0);
+            });
+            
+            const months = Object.keys(monthlyTotals).sort();
+            const amounts = months.map(month => monthlyTotals[month]);
+            
+            if (charts.trend) {
+                charts.trend.destroy();
+            }
+            
+            charts.trend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months.map(month => {
+                        const [year, monthNum] = month.split('-');
+                        const date = new Date(year, monthNum - 1);
+                        return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    }),
+                    datasets: [{
+                        label: 'Loss Amount',
+                        data: amounts,
+                        borderColor: '#FF3B30',
+                        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Open new incident modal
+        function openNewIncidentModal() {
+            document.getElementById('newIncidentModal').classList.add('show');
+            document.getElementById('incidentTitle').focus();
+        }
+
+        // Close new incident modal
+        function closeNewIncidentModal() {
+            document.getElementById('newIncidentModal').classList.remove('show');
+            document.getElementById('newIncidentForm').reset();
+        }
+
+        // Submit new incident
+        async function submitNewIncident() {
+            try {
+                const form = document.getElementById('newIncidentForm');
+                const formData = new FormData(form);
+                
+                const incidentData = {
+                    title: document.getElementById('incidentTitle').value.trim(),
+                    restaurantId: document.getElementById('incidentRestaurant').value,
+                    category: document.getElementById('incidentCategory').value,
+                    type: document.getElementById('incidentType').value,
+                    severity: document.getElementById('incidentSeverity').value,
+                    amount: parseFloat(document.getElementById('incidentAmount').value) || 0,
+                    description: document.getElementById('incidentDescription').value.trim(),
+                    status: 'reported',
+                    reportedBy: currentUser.uid,
+                    venueId: currentVenue.id
+                };
+                
+                // Validate required fields
+                if (!incidentData.title || !incidentData.restaurantId || !incidentData.category || 
+                    !incidentData.type || !incidentData.severity || !incidentData.description) {
+                    showError('Please fill in all required fields');
+                    return;
+                }
+                
+                // Submit to API
+                await VediAPI.createLossIncident(incidentData);
+                
+                // Close modal and refresh data
+                closeNewIncidentModal();
+                showSuccess('Loss incident reported successfully');
+                
+                // Data will be updated via real-time listener
+                
+            } catch (error) {
+                console.error('❌ Submit new incident error:', error);
+                showError('Failed to report incident: ' + error.message);
+            }
+        }
+
+        // Open incident detail modal
+        function openIncidentDetail(incidentId) {
+            const incident = filteredIncidents.find(i => i.id === incidentId);
+            if (!incident) return;
+            
+            selectedIncident = incident;
+            const restaurant = venueRestaurants.find(r => r.id === incident.restaurantId);
+            const createdDate = VediAPI.timestampToDate(incident.createdAt);
+            
+            document.getElementById('incidentDetailTitle').textContent = incident.title || 'Incident Details';
+            
+            document.getElementById('incidentDetailBody').innerHTML = `
+                <div style="display: grid; gap: 16px;">
+                    <div>
+                        <strong>Restaurant:</strong> ${restaurant ? restaurant.name : 'Unknown Restaurant'}
+                    </div>
+                    <div>
+                        <strong>Amount:</strong> ${VediAPI.formatCurrency(incident.amount || 0, 'USD')}
+                    </div>
+                    <div>
+                        <strong>Category:</strong> ${incident.category || 'Unknown'}
+                    </div>
+                    <div>
+                        <strong>Type:</strong> ${incident.type || 'Unknown'}
+                    </div>
+                    <div>
+                        <strong>Severity:</strong> 
+                        <span class="severity-badge severity-${incident.severity || 'medium'}">
+                            ${incident.severity || 'medium'}
+                        </span>
+                    </div>
+                    <div>
+                        <strong>Status:</strong> 
+                        <span class="status-badge status-${incident.status || 'reported'}">
+                            ${incident.status || 'reported'}
+                        </span>
+                    </div>
+                    <div>
+                        <strong>Reported:</strong> ${createdDate.toLocaleString()}
+                    </div>
+                    <div>
+                        <strong>Description:</strong><br>
+                        ${incident.description || 'No description provided'}
+                    </div>
+                    ${incident.resolutionNotes ? `
+                        <div>
+                            <strong>Resolution Notes:</strong><br>
+                            ${incident.resolutionNotes}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            document.getElementById('incidentDetailModal').classList.add('show');
+        }
+
+        // Close incident detail modal
+        function closeIncidentDetailModal() {
+            document.getElementById('incidentDetailModal').classList.remove('show');
+            selectedIncident = null;
+        }
+
+        // Update incident status
+        async function updateIncidentStatus() {
+            if (!selectedIncident) return;
+            
+            try {
+                // Simple status progression for now
+                let newStatus = '';
+                switch (selectedIncident.status) {
+                    case 'reported':
+                        newStatus = 'investigating';
+                        break;
+                    case 'investigating':
+                        newStatus = 'resolved';
+                        break;
+                    case 'resolved':
+                        newStatus = 'closed';
+                        break;
+                    default:
+                        newStatus = 'investigating';
+                }
+                
+                await VediAPI.updateLossIncident(selectedIncident.id, {
+                    status: newStatus,
+                    statusUpdatedBy: currentUser.uid,
+                    statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                closeIncidentDetailModal();
+                showSuccess('Incident status updated successfully');
+                
+            } catch (error) {
+                console.error('❌ Update incident status error:', error);
+                showError('Failed to update incident status');
+            }
+        }
+
+        // Update user display
+        function updateUserDisplay() {
+            if (currentUser) {
+                document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
+            }
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            try {
+                // Clean up real-time listeners
+                if (realTimeUnsubscribe) {
+                    realTimeUnsubscribe();
+                }
+                
+                const auth = getFirebaseAuth();
+                await auth.signOut();
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('❌ Logout error:', error);
+                showError('Failed to sign out');
+            }
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            const mainContent = document.querySelector('.main-content');
+            mainContent.insertBefore(errorDiv, mainContent.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'error-message';
+            successDiv.style.backgroundColor = '#D1F2EB';
+            successDiv.style.color = '#00A86B';
+            successDiv.textContent = message;
+            
+            const mainContent = document.querySelector('.main-content');
+            mainContent.insertBefore(successDiv, mainContent.firstChild);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 3000);
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (realTimeUnsubscribe) {
+                realTimeUnsubscribe();
+            }
+        });
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🍽️ Venue Loss Tracking starting...');
+            initializeDashboard();
+        });
+    </script>
+</body>
+</html>
