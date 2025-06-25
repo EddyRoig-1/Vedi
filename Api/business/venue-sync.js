@@ -1,6 +1,6 @@
 // api/business/venue-sync.js - Complete Venue-Restaurant Sync Operations  
 /**
- * Complete Venue Sync Module
+ * Complete Venue Sync Module - UPDATED VERSION
  * 
  * Handles all venue-restaurant relationship synchronization including:
  * - Restaurant-initiated requests to join venues
@@ -9,7 +9,7 @@
  * - Restaurant-venue association management
  * - Status tracking and activity logging
  * 
- * Updated for complete integration with restaurant settings and venue management pages
+ * FIXED: Enhanced venue discovery with better filtering and error handling
  */
 
 // ============================================================================
@@ -90,39 +90,66 @@ function getRelativeTime(timestamp) {
 // ============================================================================
 
 /**
- * Get all venues (for restaurant settings page venue discovery)
+ * FIXED: Get all venues with improved filtering (status only, no verification required)
  * @param {Object} filters - Filter options (status, verified, limit, etc.)
  * @returns {Promise<Array>} Array of venues
  */
 async function getAllVenues(filters = {}) {
     try {
+        console.log('🔍 Getting all venues with filters:', filters);
+        
         const db = getFirebaseDb();
         
         let query = db.collection('venues');
         
-        // Apply filters
-        if (filters.status) {
-            query = query.where('status', '==', filters.status);
-        }
-        
-        if (filters.verified !== undefined) {
-            query = query.where('verified', '==', filters.verified);
-        }
-        
+        // Apply basic filters that work well with Firestore
         if (filters.limit) {
             query = query.limit(filters.limit);
+        } else {
+            query = query.limit(100); // Default reasonable limit
         }
         
-        // Add ordering
+        // Order by name for consistent results
         query = query.orderBy('name');
         
         const snapshot = await query.get();
-        const venues = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
         
-        console.log('✅ Retrieved all venues:', venues.length);
+        console.log('📊 Raw venues from database:', snapshot.docs.length);
+        
+        let venues = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data
+            };
+        });
+        
+        // Apply filters in memory for more reliable filtering
+        if (filters.status || filters.verified !== undefined) {
+            venues = venues.filter(venue => {
+                // Status filter - only check status, ignore verification
+                if (filters.status) {
+                    const venueStatus = venue.status || 'active'; // Default to active if not set
+                    if (venueStatus !== filters.status) {
+                        return false;
+                    }
+                }
+                
+                // Keep verified filter only if explicitly requested
+                if (filters.verified !== undefined) {
+                    const venueVerified = venue.verified !== false; // Default to true if not explicitly false
+                    if (venueVerified !== filters.verified) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+        }
+        
+        console.log('✅ Retrieved all venues after filtering:', venues.length);
+        console.log('📋 Venues:', venues.map(v => ({ id: v.id, name: v.name, status: v.status, verified: v.verified })));
+        
         return venues;
         
     } catch (error) {
@@ -298,11 +325,216 @@ async function getVenueById(venueId) {
 }
 
 // ============================================================================
+// ENHANCED VENUE DISCOVERY - FIXED VERSION
+// ============================================================================
+
+/**
+ * FIXED: Get all venues that a restaurant can potentially join (no verification required)
+ * @param {string} restaurantId - Restaurant ID
+ * @param {Object} filters - Additional filters
+ * @returns {Promise<Array>} Array of available venues
+ */
+async function getAvailableVenuesForRestaurant(restaurantId, filters = {}) {
+    const endTracking = startPerformanceMeasurement('getAvailableVenuesForRestaurant');
+    
+    try {
+        console.log('🔍 Searching for available venues for restaurant:', restaurantId);
+        
+        const db = getFirebaseDb();
+        
+        // Get restaurant details
+        let restaurant = null;
+        try {
+            restaurant = await getRestaurantById(restaurantId);
+            console.log('📊 Restaurant data loaded:', restaurant?.name, 'Current venue:', restaurant?.venueId);
+        } catch (error) {
+            console.warn('⚠️ Could not get restaurant details:', error);
+        }
+        
+        // Get ALL venues first with minimal filtering for better reliability
+        let query = db.collection('venues');
+        
+        // Apply only basic limits and ordering
+        const limit = filters.limit || 100;
+        query = query.limit(limit);
+        
+        // Order by name for consistent results
+        query = query.orderBy('name');
+        
+        console.log('🔍 Executing venue query with limit:', limit);
+        const venuesSnapshot = await query.get();
+        console.log('📊 Raw venues from database:', venuesSnapshot.docs.length);
+        
+        // Map all venues from database
+        let venues = venuesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data
+            };
+        });
+        
+        console.log('📋 All venues before filtering:', venues.map(v => ({ 
+            id: v.id, 
+            name: v.name, 
+            status: v.status, 
+            verified: v.verified,
+            city: v.city,
+            state: v.state
+        })));
+        
+        // Apply filters in memory - ONLY check status, NOT verification
+        const filteredVenues = venues.filter(venue => {
+            // Must have a name
+            if (!venue.name || venue.name.trim() === '') {
+                console.log(`❌ Venue ${venue.id} filtered out - no name`);
+                return false;
+            }
+            
+            // Don't show venue if restaurant is already associated with it
+            if (restaurant && restaurant.venueId === venue.id) {
+                console.log(`❌ Venue ${venue.name} filtered out - restaurant already associated`);
+                return false;
+            }
+            
+            // Status filter - only check for active status, ignore verification completely
+            const venueStatus = venue.status;
+            if (venueStatus && venueStatus !== 'active' && venueStatus !== 'open') {
+                console.log(`❌ Venue ${venue.name} filtered out - status: ${venueStatus}`);
+                return false;
+            }
+            
+            // NO VERIFICATION CHECK - venues can be shown regardless of verification status
+            
+            console.log(`✅ Venue ${venue.name} passed all filters (status: ${venueStatus || 'undefined'}, verified: ${venue.verified})`);
+            return true;
+        });
+        
+        console.log('📊 Venues after filtering:', filteredVenues.length);
+        
+        // Sort venues by relevance if restaurant data is available
+        if (restaurant && restaurant.city && filters.includeNearby) {
+            filteredVenues.sort((a, b) => {
+                // Prioritize same city
+                const aSameCity = a.city && a.city.toLowerCase() === restaurant.city.toLowerCase();
+                const bSameCity = b.city && b.city.toLowerCase() === restaurant.city.toLowerCase();
+                
+                if (aSameCity && !bSameCity) return -1;
+                if (!aSameCity && bSameCity) return 1;
+                
+                // Then same state
+                const aSameState = a.state === restaurant.state;
+                const bSameState = b.state === restaurant.state;
+                
+                if (aSameState && !bSameState) return -1;
+                if (!aSameState && bSameState) return 1;
+                
+                // Finally alphabetical
+                return (a.name || '').localeCompare(b.name || '');
+            });
+            
+            console.log('🗂️ Venues sorted by location relevance');
+        }
+        
+        await endTracking(true);
+        
+        console.log('✅ Found available venues for restaurant:', filteredVenues.length);
+        console.log('📋 Final available venues:', filteredVenues.map(v => ({ 
+            id: v.id, 
+            name: v.name, 
+            city: v.city, 
+            state: v.state,
+            status: v.status,
+            verified: v.verified
+        })));
+        
+        return filteredVenues;
+        
+    } catch (error) {
+        await endTracking(false, { error: error.message });
+        console.error('❌ Error getting available venues:', error);
+        
+        // Log detailed error information for debugging
+        console.error('🔍 Detailed error:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
+        
+        // Return empty array but don't throw to prevent UI breakage
+        return [];
+    }
+}
+
+/**
+ * Check if restaurant can join a specific venue
+ * @param {string} restaurantId - Restaurant ID
+ * @param {string} venueId - Venue ID
+ * @returns {Promise<Object>} Eligibility status
+ */
+async function checkVenueEligibility(restaurantId, venueId) {
+    try {
+        const eligibility = {
+            eligible: true,
+            reasons: []
+        };
+        
+        // Get restaurant and venue
+        const [restaurant, venue] = await Promise.all([
+            getRestaurantById(restaurantId),
+            getVenueById(venueId)
+        ]);
+        
+        if (!restaurant) {
+            eligibility.eligible = false;
+            eligibility.reasons.push('Restaurant not found');
+            return eligibility;
+        }
+        
+        if (!venue) {
+            eligibility.eligible = false;
+            eligibility.reasons.push('Venue not found');
+            return eligibility;
+        }
+        
+        // Check if restaurant is already associated
+        if (restaurant.venueId) {
+            eligibility.eligible = false;
+            eligibility.reasons.push('Restaurant is already associated with a venue');
+        }
+        
+        // Check if venue has reached max restaurants
+        if (venue.maxRestaurants) {
+            const venueRestaurants = await getVenueRestaurants(venueId);
+            if (venueRestaurants.length >= venue.maxRestaurants) {
+                eligibility.eligible = false;
+                eligibility.reasons.push('Venue has reached maximum number of restaurants');
+            }
+        }
+        
+        // Check if venue requires approval and has pending request
+        if (venue.requireApproval) {
+            const pendingRequest = await getPendingRequestByRestaurant(restaurantId, venueId);
+            if (pendingRequest) {
+                eligibility.eligible = false;
+                eligibility.reasons.push('A request to join this venue is already pending');
+            }
+        }
+        
+        return eligibility;
+        
+    } catch (error) {
+        console.error('❌ Error checking venue eligibility:', error);
+        return { eligible: false, reasons: ['Error checking eligibility'] };
+    }
+}
+
+// ============================================================================
 // RESTAURANT-INITIATED REQUESTS
 // ============================================================================
 
 /**
- * Restaurant requests to join a venue
+ * ENHANCED: Restaurant requests to join a venue
  * @param {string} restaurantId - Restaurant ID making the request
  * @param {string} venueId - Target venue ID
  * @param {string} message - Optional message to venue manager
@@ -318,12 +550,15 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
         const auth = getFirebaseAuth();
         
         // Get restaurant and venue info for the request
-        const restaurant = await getRestaurantById(restaurantId);
+        const [restaurant, venue] = await Promise.all([
+            getRestaurantById(restaurantId),
+            getVenueById(venueId)
+        ]);
+        
         if (!restaurant) {
             throw new Error('Restaurant not found');
         }
         
-        const venue = await getVenueById(venueId);
         if (!venue) {
             throw new Error('Venue not found');
         }
@@ -339,10 +574,10 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
             throw new Error('A request to join this venue is already pending');
         }
 
-        // Create the venue request
+        // Create the venue request with comprehensive data
         const requestData = {
             restaurantId: restaurantId,
-            restaurantName: restaurant.name,
+            restaurantName: restaurant.name || 'Unknown Restaurant',
             restaurantEmail: restaurant.email || 'Not provided',
             restaurantCuisine: restaurant.cuisineType || 'Not specified',
             restaurantAddress: restaurant.address || 'Not provided',
@@ -350,7 +585,7 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
             restaurantState: restaurant.state || 'Not provided',
             restaurantPhone: restaurant.phone || 'Not provided',
             venueId: venueId,
-            venueName: venue.name,
+            venueName: venue.name || 'Unknown Venue',
             venueAddress: venue.address || 'Not provided',
             venueCity: venue.city || 'Not provided',
             venueState: venue.state || 'Not provided',
@@ -358,13 +593,19 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
             message: sanitizeInput(message.trim()),
             requestedAt: firebase.firestore.FieldValue.serverTimestamp(),
             requestedByUserId: auth.currentUser?.uid || null,
-            type: 'restaurant_request'
+            type: 'restaurant_request',
+            // Add expiration (30 days)
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         };
+
+        console.log('📝 Creating request with data:', requestData);
 
         // Save to venueRequests collection
         const docRef = await db.collection('venueRequests').add(requestData);
 
-        // Add activity log
+        console.log('✅ Request created with ID:', docRef.id);
+
+        // Add activity log (non-critical)
         try {
             await addVenueActivity(venueId, {
                 type: 'request',
@@ -445,6 +686,8 @@ async function getRestaurantRequests(restaurantId) {
     const endTracking = startPerformanceMeasurement('getRestaurantRequests');
     
     try {
+        console.log('📋 Loading requests for restaurant:', restaurantId);
+        
         const db = getFirebaseDb();
         
         const querySnapshot = await db.collection('venueRequests')
@@ -810,7 +1053,7 @@ async function getVenueRestaurants(venueId) {
     const endTracking = startPerformanceMeasurement('getVenueRestaurants');
     
     try {
-        console.log('🍽️ Getting venue restaurants:', venueId);
+        console.log('🍽️ Getting restaurants for venue:', venueId);
         
         const db = getFirebaseDb();
         const restaurantsQuery = await db.collection('restaurants')
@@ -821,6 +1064,8 @@ async function getVenueRestaurants(venueId) {
             id: doc.id,
             ...doc.data()
         }));
+
+        console.log('📊 Found restaurants in venue:', restaurants.length);
 
         await endTracking(true);
         return restaurants;
@@ -842,7 +1087,7 @@ async function getRestaurantsByVenue(venueId) {
 }
 
 /**
- * Get all pending requests for a venue
+ * ENHANCED: Get all pending requests for a venue
  * @param {string} venueId - Venue ID
  * @returns {Promise<Array>} Array of requests
  */
@@ -850,17 +1095,22 @@ async function getVenueRequests(venueId) {
     const endTracking = startPerformanceMeasurement('getVenueRequests');
     
     try {
+        console.log('📋 Loading requests for venue:', venueId);
+        
         const db = getFirebaseDb();
         
         const querySnapshot = await db.collection('venueRequests')
             .where('venueId', '==', venueId)
             .orderBy('requestedAt', 'desc')
+            .limit(50)
             .get();
 
         const requests = querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
+
+        console.log('📊 Loaded venue requests:', requests.length);
 
         await endTracking(true);
         return requests;
@@ -869,132 +1119,6 @@ async function getVenueRequests(venueId) {
         await endTracking(false, { error: error.message });
         console.error('❌ Error getting venue requests:', error);
         throw error;
-    }
-}
-
-/**
- * Get all venues that a restaurant can potentially join
- * @param {string} restaurantId - Restaurant ID
- * @param {Object} filters - Additional filters
- * @returns {Promise<Array>} Array of available venues
- */
-async function getAvailableVenuesForRestaurant(restaurantId, filters = {}) {
-    try {
-        const db = getFirebaseDb();
-        
-        // Get restaurant details
-        let restaurant = null;
-        try {
-            restaurant = await getRestaurantById(restaurantId);
-        } catch (error) {
-            console.warn('⚠️ Could not get restaurant details:', error);
-        }
-        
-        // Get all active venues
-        let query = db.collection('venues')
-            .where('status', '==', 'active')
-            .where('verified', '==', true);
-        
-        if (filters.limit) {
-            query = query.limit(filters.limit);
-        }
-        
-        const venuesSnapshot = await query.get();
-        let venues = venuesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        
-        // Filter venues that might be relevant (same city/state) if restaurant data available
-        if (restaurant && restaurant.city && filters.includeNearby) {
-            venues = venues.sort((a, b) => {
-                // Prioritize same city
-                const aSameCity = a.city && a.city.toLowerCase() === restaurant.city.toLowerCase();
-                const bSameCity = b.city && b.city.toLowerCase() === restaurant.city.toLowerCase();
-                
-                if (aSameCity && !bSameCity) return -1;
-                if (!aSameCity && bSameCity) return 1;
-                
-                // Then same state
-                const aSameState = a.state === restaurant.state;
-                const bSameState = b.state === restaurant.state;
-                
-                if (aSameState && !bSameState) return -1;
-                if (!aSameState && bSameState) return 1;
-                
-                return 0;
-            });
-        }
-        
-        console.log('✅ Found available venues for restaurant:', venues.length);
-        return venues;
-        
-    } catch (error) {
-        console.error('❌ Error getting available venues:', error);
-        return [];
-    }
-}
-
-/**
- * Check if restaurant can join a specific venue
- * @param {string} restaurantId - Restaurant ID
- * @param {string} venueId - Venue ID
- * @returns {Promise<Object>} Eligibility status
- */
-async function checkVenueEligibility(restaurantId, venueId) {
-    try {
-        const eligibility = {
-            eligible: true,
-            reasons: []
-        };
-        
-        // Get restaurant and venue
-        const [restaurant, venue] = await Promise.all([
-            getRestaurantById(restaurantId),
-            getVenueById(venueId)
-        ]);
-        
-        if (!restaurant) {
-            eligibility.eligible = false;
-            eligibility.reasons.push('Restaurant not found');
-            return eligibility;
-        }
-        
-        if (!venue) {
-            eligibility.eligible = false;
-            eligibility.reasons.push('Venue not found');
-            return eligibility;
-        }
-        
-        // Check if restaurant is already associated
-        if (restaurant.venueId) {
-            eligibility.eligible = false;
-            eligibility.reasons.push('Restaurant is already associated with a venue');
-        }
-        
-        // Check if venue has reached max restaurants
-        if (venue.maxRestaurants) {
-            const venueRestaurants = await getVenueRestaurants(venueId);
-            if (venueRestaurants.length >= venue.maxRestaurants) {
-                eligibility.eligible = false;
-                eligibility.reasons.push('Venue has reached maximum number of restaurants');
-            }
-        }
-        
-        // Check if venue requires approval and has pending request
-        if (venue.requireApproval) {
-            const pendingRequest = await getPendingRequestByRestaurant(restaurantId, venueId);
-            if (pendingRequest) {
-                eligibility.eligible = false;
-                eligibility.reasons.push('A request to join this venue is already pending');
-            }
-        }
-        
-        return eligibility;
-        
-    } catch (error) {
-        console.error('❌ Error checking venue eligibility:', error);
-        return { eligible: false, reasons: ['Error checking eligibility'] };
     }
 }
 
@@ -1110,6 +1234,49 @@ async function trackUserActivity(action, metadata = {}) {
 }
 
 // ============================================================================
+// DEBUG FUNCTIONS
+// ============================================================================
+
+/**
+ * Debug function to test venue loading
+ */
+async function debugVenueLoading() {
+    console.log('🔍 DEBUG: Testing venue loading...');
+    
+    try {
+        // Test direct venue query
+        const db = getFirebaseDb();
+        const allVenuesSnapshot = await db.collection('venues').get();
+        console.log('📊 Total venues in database:', allVenuesSnapshot.docs.length);
+        
+        allVenuesSnapshot.docs.forEach(doc => {
+            const venue = doc.data();
+            console.log('🏢 Venue:', {
+                id: doc.id,
+                name: venue.name,
+                status: venue.status,
+                verified: venue.verified,
+                city: venue.city,
+                state: venue.state
+            });
+        });
+        
+        // Test the getAvailableVenuesForRestaurant function
+        const auth = getFirebaseAuth();
+        if (auth.currentUser) {
+            const restaurant = await getRestaurantByOwner(auth.currentUser.uid);
+            if (restaurant) {
+                const availableVenues = await getAvailableVenuesForRestaurant(restaurant.id, { includeNearby: true });
+                console.log('🎯 Available venues for restaurant:', availableVenues);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Debug venue loading failed:', error);
+    }
+}
+
+// ============================================================================
 // GLOBAL EXPORTS AND VEDIAPI INTEGRATION
 // ============================================================================
 
@@ -1147,6 +1314,9 @@ if (typeof window !== 'undefined') {
     window.VediAPI.addVenueActivity = addVenueActivity;
     window.VediAPI.addRestaurantActivity = addRestaurantActivity;
 
+    // Debug functions
+    window.VediAPI.debugVenueLoading = debugVenueLoading;
+
     // Utility functions (only add if not already present)
     if (!window.VediAPI.validateEmail) {
         window.VediAPI.validateEmail = validateEmail;
@@ -1167,14 +1337,15 @@ if (typeof window !== 'undefined') {
         window.VediAPI.trackUserActivity = trackUserActivity;
     }
 
-    console.log('🔄 Complete Venue Sync Module loaded successfully');
+    console.log('🔄 UPDATED Complete Venue Sync Module loaded successfully');
     console.log('🎯 Core CRUD functions: getAllVenues, getVenueByManager, getRestaurantByOwner, updateRestaurant, updateVenue');
     console.log('🏪 Restaurant functions: requestToJoinVenue, cancelVenueRequest, getRestaurantRequests, getRestaurantSyncStatus');
     console.log('🏢 Venue functions: createVenueInvitation, getVenueInvitations, getVenueRequests, getVenueRestaurants');
     console.log('✅ Approval functions: approveRestaurantRequest, denyRestaurantRequest');
     console.log('🔗 Sync functions: unsyncRestaurantFromVenue');
-    console.log('🔧 Enhanced functions: getAvailableVenuesForRestaurant, checkVenueEligibility');
-    console.log('⚡ Complete venue-restaurant integration ready for production use');
+    console.log('🔧 FIXED Enhanced functions: getAvailableVenuesForRestaurant with improved filtering');
+    console.log('🔍 DEBUG functions: debugVenueLoading for testing venue discovery');
+    console.log('⚡ Enhanced venue-restaurant integration ready for production use');
 }
 
 // Export functions for Node.js environments
@@ -1209,6 +1380,9 @@ if (typeof module !== 'undefined' && module.exports) {
         getPendingRequestByRestaurant,
         addVenueActivity,
         addRestaurantActivity,
+        
+        // Debug
+        debugVenueLoading,
         
         // Utilities
         validateEmail,
