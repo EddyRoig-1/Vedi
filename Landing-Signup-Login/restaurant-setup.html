@@ -18,6 +18,7 @@
     <script src="../Api/core/tracking.js"></script>
     <script src="../Api/auth/email-auth.js"></script>
     <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/business/venue-sync.js"></script>
     
     <style>
         * {
@@ -150,6 +151,47 @@
             line-height: 1.6;
             font-size: 17px;
             font-weight: 400;
+        }
+
+        /* Invitation Banner Styles */
+        .invitation-banner {
+            background: linear-gradient(135deg, #007AFF 0%, #0056CC 100%);
+            color: #FFFFFF;
+            padding: 24px;
+            border-radius: 16px;
+            margin-bottom: 32px;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 122, 255, 0.2);
+        }
+
+        .invitation-banner h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .invitation-banner p {
+            font-size: 15px;
+            opacity: 0.9;
+            margin-bottom: 16px;
+        }
+
+        .venue-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 16px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .venue-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .venue-address {
+            font-size: 14px;
+            opacity: 0.8;
         }
 
         /* Loading States */
@@ -898,6 +940,16 @@
         </div>
 
         <div class="content">
+            <!-- Invitation Banner (will be shown if user came from invitation) -->
+            <div id="invitationBanner" class="invitation-banner" style="display: none;">
+                <h3>🎉 You've been invited!</h3>
+                <p>You're setting up your restaurant to automatically join:</p>
+                <div class="venue-info">
+                    <div class="venue-name" id="inviteVenueName">Loading venue...</div>
+                    <div class="venue-address" id="inviteVenueAddress">Loading address...</div>
+                </div>
+            </div>
+
             <!-- Error/Success Messages -->
             <div id="errorMessage" class="error-message"></div>
             <div id="successMessage" class="success-message"></div>
@@ -1308,6 +1360,7 @@
         let selectedCurrency = 'USD';
         let currentUser = null;
         let existingRestaurant = null;
+        let invitationData = null; // NEW: Store invitation data
 
         // Currency data
         const currencyData = {
@@ -1329,11 +1382,94 @@
             DKK: { symbol: 'kr', name: 'Danish Krone', code: 'DKK' }
         };
 
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Enhanced Restaurant Setup with Country Support initializing...');
+        // NEW: Check for invitation data in URL or sessionStorage
+        function checkForInvitation() {
+            console.log('🔍 Checking for invitation data...');
             
             try {
+                // First check sessionStorage (from signup process)
+                const storedInvitation = sessionStorage.getItem('pendingInvitation');
+                if (storedInvitation) {
+                    console.log('📧 Found invitation in sessionStorage:', storedInvitation);
+                    invitationData = JSON.parse(storedInvitation);
+                    sessionStorage.removeItem('pendingInvitation'); // Clean up
+                    return invitationData;
+                }
+                
+                // Then check URL parameters (direct link)
+                const urlParams = new URLSearchParams(window.location.search);
+                const invitationId = urlParams.get('invitation');
+                const code = urlParams.get('code');
+                
+                if (invitationId && code) {
+                    console.log('📧 Found invitation in URL params');
+                    invitationData = { invitationId, code };
+                    return invitationData;
+                }
+                
+                console.log('📧 No invitation data found');
+                return null;
+                
+            } catch (error) {
+                console.error('❌ Error checking for invitation:', error);
+                return null;
+            }
+        }
+
+        // NEW: Load and display invitation information
+        async function loadInvitationData() {
+            if (!invitationData) return;
+            
+            try {
+                console.log('📧 Loading invitation data:', invitationData);
+                showLoading('Loading invitation details...', 'Getting venue information');
+                
+                // Validate invitation and get details
+                const invitationDetails = await VediAPI.validateInvitationCode(invitationData);
+                
+                if (invitationDetails && invitationDetails.venueData) {
+                    console.log('✅ Invitation validated:', invitationDetails);
+                    
+                    // Store the complete invitation data
+                    invitationData = {
+                        ...invitationData,
+                        venueId: invitationDetails.venueData.id,
+                        venueName: invitationDetails.venueData.name,
+                        venueAddress: invitationDetails.venueData.address,
+                        venueFeePercentage: invitationDetails.venueData.feePercentage || 10,
+                        venueLocation: invitationDetails.venueData.location || ''
+                    };
+                    
+                    // Show invitation banner
+                    document.getElementById('inviteVenueName').textContent = invitationDetails.venueData.name;
+                    document.getElementById('inviteVenueAddress').textContent = invitationDetails.venueData.address;
+                    document.getElementById('invitationBanner').style.display = 'block';
+                    
+                    console.log('🎉 Invitation banner displayed');
+                } else {
+                    console.warn('⚠️ Invalid invitation data');
+                    showError('Invalid invitation. Please contact the venue for a new invitation.');
+                    invitationData = null;
+                }
+                
+                hideLoading();
+                
+            } catch (error) {
+                console.error('❌ Error loading invitation:', error);
+                hideLoading();
+                showError('Error validating invitation: ' + error.message);
+                invitationData = null;
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Enhanced Restaurant Setup with Venue Invitation Support initializing...');
+            
+            try {
+                // NEW: Check for invitation data first
+                checkForInvitation();
+                
                 showLoading('Checking authentication...', 'Verifying your account');
                 
                 // Check if user is authenticated
@@ -1347,6 +1483,11 @@
                 }
                 
                 console.log('✅ User authenticated:', currentUser.email);
+                
+                // NEW: Load invitation data if present
+                if (invitationData) {
+                    await loadInvitationData();
+                }
                 
                 // Check if restaurant already exists
                 showLoading('Loading restaurant data...', 'Checking for existing setup');
@@ -1753,6 +1894,20 @@
                     setupCompleted: true
                 };
                 
+                // NEW: Add venue data if this is from an invitation
+                if (invitationData && invitationData.venueId) {
+                    console.log('🏢 Adding venue data from invitation:', invitationData);
+                    
+                    restaurantData.venueId = invitationData.venueId;
+                    restaurantData.venueName = invitationData.venueName;
+                    restaurantData.venueAddress = invitationData.venueAddress;
+                    restaurantData.venueFeePercentage = invitationData.venueFeePercentage;
+                    restaurantData.venueLocation = invitationData.venueLocation;
+                    restaurantData.venueStatus = 'active';
+                    restaurantData.invitedByVenue = true;
+                    restaurantData.invitationAcceptedAt = new Date();
+                }
+                
                 console.log('Restaurant data to save:', restaurantData);
                 
                 let savedRestaurant;
@@ -1760,8 +1915,27 @@
                 // Always create new restaurant since this is setup flow
                 savedRestaurant = await VediAPI.createRestaurant(restaurantData);
                 console.log('✅ Restaurant created:', savedRestaurant);
-                showSuccess('Restaurant created successfully!');
                 
+                // NEW: If this was from an invitation, accept it and create sync relationship
+                if (invitationData && invitationData.venueId) {
+                    try {
+                        console.log('🔗 Accepting venue invitation and creating sync relationship...');
+                        
+                        // Accept the invitation
+                        await VediAPI.acceptVenueInvitation(invitationData.invitationId || invitationData.code);
+                        console.log('✅ Venue invitation accepted');
+                        
+                        // Create restaurant-venue sync relationship
+                        await VediAPI.createRestaurantVenueSync(savedRestaurant.id, invitationData.venueId);
+                        console.log('✅ Restaurant-venue sync relationship created');
+                        
+                    } catch (syncError) {
+                        console.warn('⚠️ Error with venue sync (restaurant still created):', syncError);
+                        // Don't fail the whole process if sync fails
+                    }
+                }
+                
+                showSuccess('Restaurant created successfully!');
                 hideLoading();
                 
                 // Move to final step
@@ -1798,11 +1972,44 @@
                     setupCompleted: true
                 };
                 
+                // NEW: Add venue data if this is from an invitation
+                if (invitationData && invitationData.venueId) {
+                    console.log('🏢 Adding venue data from invitation:', invitationData);
+                    
+                    restaurantData.venueId = invitationData.venueId;
+                    restaurantData.venueName = invitationData.venueName;
+                    restaurantData.venueAddress = invitationData.venueAddress;
+                    restaurantData.venueFeePercentage = invitationData.venueFeePercentage;
+                    restaurantData.venueLocation = invitationData.venueLocation;
+                    restaurantData.venueStatus = 'active';
+                    restaurantData.invitedByVenue = true;
+                    restaurantData.invitationAcceptedAt = new Date();
+                }
+                
                 console.log('Restaurant data to save:', restaurantData);
                 
                 // Save to Firebase
                 const savedRestaurant = await VediAPI.createRestaurant(restaurantData);
                 console.log('✅ Restaurant created:', savedRestaurant);
+                
+                // NEW: If this was from an invitation, handle venue linking
+                if (invitationData && invitationData.venueId) {
+                    showLoading('Linking to venue...', 'Completing invitation process');
+                    
+                    try {
+                        // Accept the invitation
+                        await VediAPI.acceptVenueInvitation(invitationData.invitationId || invitationData.code);
+                        console.log('✅ Venue invitation accepted');
+                        
+                        // Create restaurant-venue sync relationship
+                        await VediAPI.createRestaurantVenueSync(savedRestaurant.id, invitationData.venueId);
+                        console.log('✅ Restaurant-venue sync relationship created');
+                        
+                    } catch (syncError) {
+                        console.warn('⚠️ Error with venue sync (restaurant still created):', syncError);
+                        // Continue to dashboard even if sync fails
+                    }
+                }
                 
                 showLoading('Preparing dashboard...', 'Getting your restaurant ready');
                 
@@ -2127,7 +2334,7 @@
             }
         });
 
-        console.log('🍽️ Enhanced Restaurant Setup with Country Support and Firebase integration loaded successfully');
+        console.log('🍽️ Enhanced Restaurant Setup with Venue Invitation Support loaded successfully');
     </script>
 </body>
 </html>
