@@ -1486,23 +1486,59 @@
                 
                 showLoading('Checking authentication...', 'Verifying your account');
                 
-                // Check if user is authenticated
-                const auth = getFirebaseAuth();
-                if (!auth.currentUser) {
-                    showError('You must be logged in to set up your restaurant. Redirecting to login...');
+                // FIXED: Wait for authentication state to be ready
+                try {
+                    const auth = getFirebaseAuth();
+                    
+                    // Wait for auth state to be established
+                    const user = await new Promise((resolve, reject) => {
+                        // If user is already available, resolve immediately
+                        if (auth.currentUser) {
+                            console.log('✅ User already authenticated:', auth.currentUser.email);
+                            resolve(auth.currentUser);
+                            return;
+                        }
+                        
+                        console.log('⏳ Waiting for auth state...');
+                        
+                        // Otherwise wait for auth state change
+                        const unsubscribe = auth.onAuthStateChanged((user) => {
+                            unsubscribe();
+                            if (user) {
+                                console.log('✅ User authenticated:', user.email);
+                                resolve(user);
+                            } else {
+                                reject(new Error('No authenticated user found'));
+                            }
+                        }, (error) => {
+                            unsubscribe();
+                            reject(error);
+                        });
+                        
+                        // Timeout after 10 seconds
+                        setTimeout(() => {
+                            unsubscribe();
+                            reject(new Error('Authentication timeout - please try logging in again'));
+                        }, 10000);
+                    });
+                    
+                    // Set current user
+                    currentUser = {
+                        uid: user.uid,
+                        email: user.email,
+                        name: user.displayName || user.email
+                    };
+                    
+                    console.log('✅ User authenticated:', currentUser.email);
+                    
+                } catch (error) {
+                    console.error('❌ Authentication error:', error);
+                    showError('Authentication required. Redirecting to login...');
                     setTimeout(() => {
                         window.location.href = '../Landing-Signup-Login/login.html';
                     }, 2000);
                     return;
                 }
-                
-                currentUser = {
-                    uid: auth.currentUser.uid,
-                    email: auth.currentUser.email,
-                    name: auth.currentUser.displayName || auth.currentUser.email
-                };
-                
-                console.log('✅ User authenticated:', currentUser.email);
                 
                 // FIXED: Load invitation data if present
                 if (invitationData) {
