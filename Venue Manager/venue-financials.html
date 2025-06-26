@@ -1543,18 +1543,46 @@
             }
         }
 
-        // Create revenue trends chart with IMPROVED FUNCTIONALITY
+        // Create revenue trends chart - NO SAMPLE DATA
         async function createRevenueChart() {
             const ctx = document.getElementById('revenueChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
             
             const labels = generateTimeLabels(timePeriod);
-            const { venueFeesData, restaurantSalesData } = generateRevenueDataFromOrders(labels, timePeriod);
+            const { venueFeesData, restaurantSalesData, hasData } = generateRevenueDataFromOrders(labels, timePeriod);
             
             if (charts.revenue) {
                 charts.revenue.destroy();
             }
             
+            // Check if there's any real data
+            if (!hasData) {
+                // Show "No Data" message instead of chart
+                const chartContainer = ctx.canvas.parentElement;
+                chartContainer.innerHTML = `
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">📊</div>
+                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 8px;">No Data Available</div>
+                        <div style="font-size: 14px;">No transactions found for ${getTimePeriodDisplayName(timePeriod).toLowerCase()}</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Restore canvas if it was replaced
+            const chartContainer = ctx.canvas.parentElement;
+            if (!chartContainer.querySelector('canvas')) {
+                chartContainer.innerHTML = '<canvas id="revenueChart"></canvas>';
+                const newCtx = document.getElementById('revenueChart').getContext('2d');
+                createRevenueChartWithData(newCtx, labels, venueFeesData, restaurantSalesData, timePeriod);
+                return;
+            }
+            
+            createRevenueChartWithData(ctx, labels, venueFeesData, restaurantSalesData, timePeriod);
+        }
+
+        // Create the actual chart with data
+        function createRevenueChartWithData(ctx, labels, venueFeesData, restaurantSalesData, timePeriod) {
             charts.revenue = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -1733,7 +1761,7 @@
             });
         }
 
-        // Create fee distribution chart - MADE DYNAMIC
+        // Create fee distribution chart - NO SAMPLE DATA
         async function createFeeDistributionChart() {
             const ctx = document.getElementById('feeDistributionChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
@@ -1742,7 +1770,7 @@
             const venueFeesData = [];
             const restaurantColors = [];
             
-            // Filter data based on current time period
+            // Filter data based on current time period - ONLY REAL DATA
             const filteredOrders = filterOrdersByTimePeriod(financialData.orders || [], timePeriod);
             const periodRevenueByRestaurant = {};
             
@@ -1766,40 +1794,49 @@
                 periodRevenueByRestaurant[order.restaurantId].venueFeesEarned += orderVenueFee;
             });
             
-            // If no real data, use sample data
+            // Only use real data - no sample generation
             if (Object.keys(periodRevenueByRestaurant).length === 0) {
-                venueRestaurants.forEach((restaurant, index) => {
-                    const sampleFees = generateSampleFeeData(timePeriod, restaurant.venueFeePercentage || currentVenue.defaultFeePercentage || 25);
-                    if (sampleFees > 0) {
+                // Show "No Data" message instead of chart
+                const chartContainer = ctx.canvas.parentElement;
+                chartContainer.innerHTML = `
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">🍽️</div>
+                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 8px;">No Data Available</div>
+                        <div style="font-size: 14px;">No venue fees collected for ${getTimePeriodDisplayName(timePeriod).toLowerCase()}</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Use real data
+            Object.values(periodRevenueByRestaurant)
+                .sort((a, b) => b.venueFeesEarned - a.venueFeesEarned)
+                .forEach((restaurant, index) => {
+                    if (restaurant.venueFeesEarned > 0) {
                         restaurantLabels.push(restaurant.name.length > 12 ? restaurant.name.substring(0, 12) + '...' : restaurant.name);
-                        venueFeesData.push(sampleFees);
+                        venueFeesData.push(restaurant.venueFeesEarned);
                         restaurantColors.push(getRestaurantColor(index));
                     }
                 });
-            } else {
-                // Use real data
-                Object.values(periodRevenueByRestaurant)
-                    .sort((a, b) => b.venueFeesEarned - a.venueFeesEarned)
-                    .forEach((restaurant, index) => {
-                        if (restaurant.venueFeesEarned > 0) {
-                            restaurantLabels.push(restaurant.name.length > 12 ? restaurant.name.substring(0, 12) + '...' : restaurant.name);
-                            venueFeesData.push(restaurant.venueFeesEarned);
-                            restaurantColors.push(getRestaurantColor(index));
-                        }
-                    });
-            }
             
-            // Fallback if no data
-            if (venueFeesData.length === 0) {
-                restaurantLabels.push('No Data Available');
-                venueFeesData.push(1);
-                restaurantColors.push('#E5E5E7');
+            // Restore canvas if it was replaced
+            const chartContainer = ctx.canvas.parentElement;
+            if (!chartContainer.querySelector('canvas')) {
+                chartContainer.innerHTML = '<canvas id="feeDistributionChart"></canvas>';
+                const newCtx = document.getElementById('feeDistributionChart').getContext('2d');
+                createFeeDistributionChartWithData(newCtx, restaurantLabels, venueFeesData, restaurantColors, timePeriod);
+                return;
             }
             
             if (charts.feeDistribution) {
                 charts.feeDistribution.destroy();
             }
             
+            createFeeDistributionChartWithData(ctx, restaurantLabels, venueFeesData, restaurantColors, timePeriod);
+        }
+
+        // Create the actual fee distribution chart with data
+        function createFeeDistributionChartWithData(ctx, restaurantLabels, venueFeesData, restaurantColors, timePeriod) {
             charts.feeDistribution = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -1900,7 +1937,7 @@
             return names[timePeriod] || 'Current Period';
         }
 
-        // Create payment processing chart - MADE DYNAMIC
+        // Create payment processing chart - NO SAMPLE DATA
         async function createPaymentProcessingChart() {
             const ctx = document.getElementById('paymentProcessingChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
@@ -1909,39 +1946,57 @@
             const successfulData = new Array(labels.length).fill(0);
             const failedData = new Array(labels.length).fill(0);
             
-            // Process real order data for the selected time period
+            // Process real order data for the selected time period - NO SAMPLE DATA
             const filteredOrders = filterOrdersByTimePeriod(financialData.orders || [], timePeriod);
             
-            if (filteredOrders.length > 0) {
-                // Use real data
-                filteredOrders.forEach(order => {
-                    if (order.createdAt) {
-                        const orderDate = timestampToDate(order.createdAt);
-                        const timeIndex = getTimeIndex(orderDate, timePeriod, labels.length);
-                        
-                        if (timeIndex >= 0 && timeIndex < labels.length) {
-                            // Assume 97% success rate with some orders failing
-                            if (order.status === 'failed' || Math.random() < 0.03) {
-                                failedData[timeIndex]++;
-                            } else {
-                                successfulData[timeIndex]++;
-                            }
+            if (filteredOrders.length === 0) {
+                // Show "No Data" message instead of chart
+                const chartContainer = ctx.canvas.parentElement;
+                chartContainer.innerHTML = `
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">💳</div>
+                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 8px;">No Data Available</div>
+                        <div style="font-size: 14px;">No payment transactions found for ${getTimePeriodDisplayName(timePeriod).toLowerCase()}</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Use only real data
+            filteredOrders.forEach(order => {
+                if (order.createdAt) {
+                    const orderDate = timestampToDate(order.createdAt);
+                    const timeIndex = getTimeIndex(orderDate, timePeriod, labels.length);
+                    
+                    if (timeIndex >= 0 && timeIndex < labels.length) {
+                        // Check order status for real failure data
+                        if (order.status === 'failed' || order.status === 'cancelled' || order.paymentStatus === 'failed') {
+                            failedData[timeIndex]++;
+                        } else {
+                            successfulData[timeIndex]++;
                         }
                     }
-                });
-            } else {
-                // Generate realistic sample data
-                labels.forEach((label, index) => {
-                    const sampleData = generateSampleTransactionData(timePeriod, index);
-                    successfulData[index] = sampleData.successful;
-                    failedData[index] = sampleData.failed;
-                });
+                }
+            });
+            
+            // Restore canvas if it was replaced
+            const chartContainer = ctx.canvas.parentElement;
+            if (!chartContainer.querySelector('canvas')) {
+                chartContainer.innerHTML = '<canvas id="paymentProcessingChart"></canvas>';
+                const newCtx = document.getElementById('paymentProcessingChart').getContext('2d');
+                createPaymentProcessingChartWithData(newCtx, labels, successfulData, failedData, timePeriod);
+                return;
             }
             
             if (charts.paymentProcessing) {
                 charts.paymentProcessing.destroy();
             }
             
+            createPaymentProcessingChartWithData(ctx, labels, successfulData, failedData, timePeriod);
+        }
+
+        // Create the actual payment processing chart with data
+        function createPaymentProcessingChartWithData(ctx, labels, successfulData, failedData, timePeriod) {
             charts.paymentProcessing = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -2092,15 +2147,17 @@
             return { successful: Math.max(0, successful), failed: Math.max(0, failed) };
         }
 
-        // Generate revenue data from actual orders with BETTER DATA DISTRIBUTION
+        // Generate revenue data from actual orders - NO SAMPLE DATA
         function generateRevenueDataFromOrders(labels, timePeriod) {
             const venueFeesData = new Array(labels.length).fill(0);
             const restaurantSalesData = new Array(labels.length).fill(0);
             
             if (!financialData.orders || financialData.orders.length === 0) {
-                // Generate realistic sample data if no orders exist
-                return generateSampleRevenueData(labels, timePeriod);
+                // Return empty data - no sample generation
+                return { venueFeesData, restaurantSalesData, hasData: false };
             }
+            
+            let hasAnyData = false;
             
             (financialData.orders || []).forEach(order => {
                 const orderDate = timestampToDate(order.createdAt);
@@ -2117,10 +2174,11 @@
                 if (timeIndex >= 0 && timeIndex < labels.length) {
                     venueFeesData[timeIndex] += orderVenueFee;
                     restaurantSalesData[timeIndex] += orderTotal;
+                    hasAnyData = true;
                 }
             });
             
-            return { venueFeesData, restaurantSalesData };
+            return { venueFeesData, restaurantSalesData, hasData: hasAnyData };
         }
 
         // Generate sample data for demonstration
