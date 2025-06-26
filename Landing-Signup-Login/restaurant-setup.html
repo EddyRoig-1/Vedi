@@ -1416,66 +1416,75 @@
             }
         }
 
-        // FIXED: Load and validate invitation information
-        async function loadInvitationData() {
-            if (!invitationData) return;
-            
-            try {
-                console.log('📧 Loading invitation data:', invitationData);
-                showLoading('Loading invitation details...', 'Getting venue information');
-                
-                // FIXED: Validate invitation and get details
-                const db = getFirebaseDb();
-                const invitationDoc = await db.collection('venueInvitations').doc(invitationData.invitationId).get();
-                
-                if (!invitationDoc.exists) {
-                    throw new Error('Invitation not found');
-                }
-                
-                const invitation = invitationDoc.data();
-                
-                // Validate invitation code
-                if (invitation.invitationCode !== invitationData.code) {
-                    throw new Error('Invalid invitation code');
-                }
-                
-                // Check if invitation is still valid
-                if (invitation.status !== 'pending') {
-                    throw new Error('This invitation is no longer valid');
-                }
-                
-                // Check if invitation has expired
-                if (invitation.expiresAt && invitation.expiresAt.toDate() < new Date()) {
-                    throw new Error('This invitation has expired');
-                }
-                
-                // FIXED: Store complete invitation data with venue details
-                invitationData = {
-                    ...invitationData,
-                    ...invitation,
-                    venueId: invitation.venueId,
-                    venueName: invitation.venueName,
-                    venueCity: invitation.venueCity,
-                    venueState: invitation.venueState
-                };
-                
-                // Show invitation banner
-                document.getElementById('inviteVenueName').textContent = invitation.venueName;
-                document.getElementById('inviteVenueAddress').textContent = `${invitation.venueCity}, ${invitation.venueState}`;
-                document.getElementById('invitationBanner').style.display = 'block';
-                
-                console.log('🎉 Invitation validated and banner displayed:', invitationData);
-                
-                hideLoading();
-                
-            } catch (error) {
-                console.error('❌ Error loading invitation:', error);
-                hideLoading();
-                showError('Error validating invitation: ' + error.message);
-                invitationData = null;
-            }
+       // FIXED: Load and validate invitation information
+async function loadInvitationData() {
+    if (!invitationData) return;
+    
+    try {
+        console.log('📧 Loading invitation data:', invitationData);
+        showLoading('Loading invitation details...', 'Getting venue information');
+        
+        // FIXED: Use correct field name - check both 'id' and 'invitationId'
+        const invitationId = invitationData.id || invitationData.invitationId;
+        
+        if (!invitationId) {
+            throw new Error('No invitation ID found in invitation data');
         }
-
+        
+        console.log('🔍 Looking for invitation with ID:', invitationId);
+        
+        const db = getFirebaseDb();
+        const invitationDoc = await db.collection('venueInvitations').doc(invitationId).get();
+        
+        if (!invitationDoc.exists) {
+            throw new Error('Invitation not found in database');
+        }
+        
+        const invitation = invitationDoc.data();
+        console.log('📧 Found invitation in database:', invitation);
+        
+        // Validate invitation code if provided
+        if (invitationData.code && invitation.invitationCode !== invitationData.code) {
+            throw new Error('Invalid invitation code');
+        }
+        
+        // Check if invitation is still valid
+        if (invitation.status !== 'pending') {
+            throw new Error('This invitation is no longer valid');
+        }
+        
+        // Check if invitation has expired
+        if (invitation.expiresAt && invitation.expiresAt.toDate() < new Date()) {
+            throw new Error('This invitation has expired');
+        }
+        
+        // FIXED: Store complete invitation data with venue details
+        invitationData = {
+            ...invitationData,
+            ...invitation,
+            invitationId: invitationId, // Ensure we have the ID
+            venueId: invitation.venueId,
+            venueName: invitation.venueName,
+            venueCity: invitation.venueCity,
+            venueState: invitation.venueState
+        };
+        
+        // Show invitation banner
+        document.getElementById('inviteVenueName').textContent = invitation.venueName;
+        document.getElementById('inviteVenueAddress').textContent = `${invitation.venueCity}, ${invitation.venueState}`;
+        document.getElementById('invitationBanner').style.display = 'block';
+        
+        console.log('🎉 Invitation validated and banner displayed:', invitationData);
+        
+        hideLoading();
+        
+    } catch (error) {
+        console.error('❌ Error loading invitation:', error);
+        hideLoading();
+        showError('Error validating invitation: ' + error.message);
+        invitationData = null;
+    }
+}
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Enhanced Restaurant Setup with Venue Invitation Support initializing...');
