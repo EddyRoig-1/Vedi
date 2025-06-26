@@ -8,6 +8,32 @@
  */
 
 // ============================================================================
+// FIREBASE REFERENCE INITIALIZATION
+// ============================================================================
+
+function getFirebaseDb() {
+  if (window.firebaseDb) {
+    return window.firebaseDb;
+  } else if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+    window.firebaseDb = firebase.firestore();
+    return window.firebaseDb;
+  } else {
+    throw new Error('Firebase database not initialized. Please ensure Firebase is loaded.');
+  }
+}
+
+function getFirebaseAuth() {
+  if (window.firebaseAuth) {
+    return window.firebaseAuth;
+  } else if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+    window.firebaseAuth = firebase.auth();
+    return window.firebaseAuth;
+  } else {
+    throw new Error('Firebase auth not initialized. Please ensure Firebase is loaded.');
+  }
+}
+
+// ============================================================================
 // VENUE CRUD OPERATIONS
 // ============================================================================
 
@@ -80,6 +106,9 @@ async function createVenue(venueData) {
       managerUserId: auth.currentUser?.uid || venueData.managerUserId,
       managerName: venueData.managerName ? VediAPI.sanitizeInput(venueData.managerName) : '',
       managerEmail: venueData.managerEmail ? VediAPI.sanitizeInput(venueData.managerEmail) : '',
+      
+      // Currency settings (default to USD)
+      currency: venueData.currency || { code: 'USD', symbol: '$', name: 'US Dollar' },
       
       // Stripe Connect Information (will be set when connecting)
       stripeAccountId: null,
@@ -181,6 +210,9 @@ async function updateVenue(venueId, venueData) {
       amenities: venueData.amenities !== undefined ? venueData.amenities : undefined,
       parkingAvailable: venueData.parkingAvailable !== undefined ? venueData.parkingAvailable : undefined,
       wifiAvailable: venueData.wifiAvailable !== undefined ? venueData.wifiAvailable : undefined,
+      
+      // Currency settings
+      currency: venueData.currency !== undefined ? venueData.currency : undefined,
       
       // Stripe Information
       stripeAccountId: venueData.stripeAccountId !== undefined ? venueData.stripeAccountId : undefined,
@@ -742,6 +774,201 @@ async function updateVenueVerification(venueId, verified, verificationNotes = ''
 }
 
 // ============================================================================
+// LOSS TRACKING SPECIFIC FUNCTIONS
+// ============================================================================
+
+/**
+ * Get venue loss analytics - aggregated across all restaurants
+ * @param {string} venueId - Venue ID
+ * @param {string} timePeriod - Time period for analytics
+ * @returns {Promise<Object>} Venue loss analytics
+ */
+async function getVenueLossAnalytics(venueId, timePeriod = 'month') {
+  const endTracking = VediAPI.startPerformanceMeasurement('getVenueLossAnalytics');
+  
+  try {
+    // Use the loss incidents API if available
+    if (typeof VediAPI.getVenueLossAnalytics === 'function') {
+      const analytics = await VediAPI.getVenueLossAnalytics(venueId, timePeriod);
+      await endTracking(true);
+      return analytics;
+    }
+    
+    // Fallback - return basic structure
+    const basicAnalytics = {
+      totalIncidents: 0,
+      totalLoss: 0,
+      byType: {},
+      bySeverity: { low: 0, medium: 0, high: 0 },
+      byStatus: { reported: 0, investigating: 0, resolved: 0, closed: 0 },
+      averageLoss: 0,
+      venueId: venueId,
+      timePeriod: timePeriod,
+      generatedAt: new Date().toISOString()
+    };
+    
+    await endTracking(true);
+    return basicAnalytics;
+    
+  } catch (error) {
+    await endTracking(false, { error: error.message });
+    await VediAPI.trackError(error, 'getVenueLossAnalytics', { venueId, timePeriod });
+    
+    console.error('❌ Get venue loss analytics error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get venue performance summary including loss data
+ * @param {string} venueId - Venue ID
+ * @returns {Promise<Object>} Venue performance summary
+ */
+async function getVenuePerformanceSummary(venueId) {
+  const endTracking = VediAPI.startPerformanceMeasurement('getVenuePerformanceSummary');
+  
+  try {
+    // Get basic venue dashboard
+    const dashboard = await getVenueDashboard(venueId);
+    
+    // Get loss analytics if available
+    let lossAnalytics = {};
+    try {
+      if (typeof VediAPI.getVenueLossAnalytics === 'function') {
+        lossAnalytics = await VediAPI.getVenueLossAnalytics(venueId, 'month');
+      }
+    } catch (lossError) {
+      console.warn('⚠️ Could not load loss analytics:', lossError);
+    }
+    
+    // Combine data
+    const performance = {
+      ...dashboard,
+      lossAnalytics: lossAnalytics,
+      summary: {
+        totalRestaurants: dashboard.statistics.totalRestaurants,
+        activeRestaurants: dashboard.statistics.activeRestaurants,
+        verifiedRestaurants: dashboard.statistics.verifiedRestaurants,
+        totalLossIncidents: lossAnalytics.totalIncidents || 0,
+        totalLossAmount: lossAnalytics.totalLoss || 0,
+        averageLossPerIncident: lossAnalytics.averageLoss || 0
+      }
+    };
+    
+    await endTracking(true);
+    
+    console.log('✅ Venue performance summary generated:', venueId);
+    return performance;
+    
+  } catch (error) {
+    await endTracking(false, { error: error.message });
+    await VediAPI.trackError(error, 'getVenuePerformanceSummary', { venueId });
+    
+    console.error('❌ Get venue performance summary error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS FOR VENUE MANAGEMENT
+// ============================================================================
+
+/**
+ * Format venue address for display
+ * @param {Object} venue - Venue object
+ * @returns {string} Formatted address
+ */
+function formatVenueAddress(venue) {
+  if (!venue) return 'Unknown venue';
+  
+  const parts = [
+    venue.address,
+    venue.city,
+    venue.state,
+    venue.zipCode
+  ].filter(part => part && part.trim());
+  
+  return parts.join(', ');
+}
+
+/**
+ * Get venue status display information
+ * @param {Object} venue - Venue object
+ * @returns {Object} Status display information
+ */
+function getVenueStatusDisplay(venue) {
+  const status = {
+    text: 'Unknown',
+    color: '#86868B',
+    icon: '❓'
+  };
+  
+  if (!venue.verified) {
+    status.text = 'Pending Verification';
+    status.color = '#FF9500';
+    status.icon = '⏳';
+  } else if (venue.status === 'inactive') {
+    status.text = 'Inactive';
+    status.color = '#FF3B30';
+    status.icon = '🔴';
+  } else if (venue.status === 'active') {
+    status.text = 'Active';
+    status.color = '#30D158';
+    status.icon = '🟢';
+  }
+  
+  return status;
+}
+
+/**
+ * Calculate venue health score based on various metrics
+ * @param {Object} venue - Venue object
+ * @param {Array} restaurants - Restaurants in venue
+ * @returns {Object} Health score information
+ */
+function calculateVenueHealthScore(venue, restaurants = []) {
+  let score = 0;
+  const factors = [];
+  
+  // Basic information completeness (20 points)
+  if (venue.name && venue.address && venue.city && venue.state) {
+    score += 20;
+    factors.push('Basic info complete');
+  }
+  
+  // Contact information (15 points)
+  if (venue.email && venue.phone) {
+    score += 15;
+    factors.push('Contact info complete');
+  }
+  
+  // Verification status (25 points)
+  if (venue.verified) {
+    score += 25;
+    factors.push('Verified venue');
+  }
+  
+  // Restaurant count (20 points)
+  if (restaurants.length > 0) {
+    score += Math.min(20, restaurants.length * 5);
+    factors.push(`${restaurants.length} restaurants`);
+  }
+  
+  // Active restaurants (20 points)
+  const activeRestaurants = restaurants.filter(r => r.status === 'active').length;
+  if (activeRestaurants > 0) {
+    score += Math.min(20, (activeRestaurants / Math.max(1, restaurants.length)) * 20);
+    factors.push(`${activeRestaurants} active restaurants`);
+  }
+  
+  return {
+    score: Math.min(100, Math.round(score)),
+    factors: factors,
+    grade: score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F'
+  };
+}
+
+// ============================================================================
 // GLOBAL EXPORTS AND VEDIAPI INTEGRATION
 // ============================================================================
 
@@ -770,7 +997,16 @@ Object.assign(window.VediAPI, {
   getVenuesByLocation,
   
   // Verification and status
-  updateVenueVerification
+  updateVenueVerification,
+  
+  // Loss tracking specific
+  getVenueLossAnalytics,
+  getVenuePerformanceSummary,
+  
+  // Utility functions
+  formatVenueAddress,
+  getVenueStatusDisplay,
+  calculateVenueHealthScore
 });
 
 console.log('🏢 Venue Management Module loaded');
@@ -779,4 +1015,8 @@ console.log('📊 Dashboard: getVenueDashboard, updateVenueStatistics, getVenueR
 console.log('📝 Activity: logVenueActivity for comprehensive venue activity tracking');
 console.log('🔍 Search: searchVenues, getVenuesByLocation with advanced filtering');
 console.log('✅ Verification: updateVenueVerification for admin venue approval');
-console.log('🎯 Ready for venue-restaurant relationship management and analytics');
+console.log('📉 Loss Tracking: getVenueLossAnalytics, getVenuePerformanceSummary');
+console.log('🛠️ Utilities: formatVenueAddress, getVenueStatusDisplay, calculateVenueHealthScore');
+console.log('🎯 Ready for venue-restaurant relationship management and comprehensive analytics');
+console.log('💰 Currency support: Default USD currency settings with full object structure');
+console.log('🚀 Enhanced with loss tracking integration for venue managers');
