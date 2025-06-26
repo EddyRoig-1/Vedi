@@ -437,36 +437,56 @@
             color: #1D1D1F;
         }
 
+        .fee-display {
+            font-size: 17px;
+            font-weight: 500;
+            color: #1D1D1F;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .fee-editable {
             font-size: 17px;
             font-weight: 500;
             color: #1D1D1F;
-            background: transparent;
-            border: 1px solid transparent;
+            background: #FFFFFF;
+            border: 1px solid #007AFF;
             border-radius: 4px;
             padding: 4px 8px;
             width: 80px;
             text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .fee-editable:hover {
-            background-color: #F8F9FA;
-            border-color: #E5E5E7;
+            display: none;
         }
 
         .fee-editable:focus {
             outline: none;
-            background-color: #FFFFFF;
             border-color: #007AFF;
-            cursor: text;
         }
 
-        .fee-editable.editing {
-            background-color: #FFFFFF;
-            border-color: #007AFF;
-            cursor: text;
+        .fee-edit-btn, .fee-save-btn {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .fee-edit-btn:hover, .fee-save-btn:hover {
+            background-color: #0056CC;
+        }
+
+        .fee-save-btn {
+            background-color: #30D158;
+            display: none;
+        }
+
+        .fee-save-btn:hover {
+            background-color: #28CD4F;
         }
 
         .fee-custom-indicator {
@@ -1391,15 +1411,21 @@
                             <div class="restaurant-cuisine">${restaurant.cuisineType || 'Restaurant'}</div>
                         </div>
                         <div>
-                            <input type="number" 
-                                   class="fee-editable" 
-                                   value="${restaurant.venueFeePercentage.toFixed(1)}" 
-                                   step="0.1" 
-                                   min="0"
-                                   data-restaurant-id="${restaurant.id}"
-                                   onchange="updateRestaurantFeeInline(this)"
-                                   onblur="updateRestaurantFeeInline(this)"
-                                   title="Click to edit fee percentage">%${customIndicator}
+                            <div class="fee-display" id="feeDisplay_${restaurant.id}">
+                                <span>${restaurant.venueFeePercentage.toFixed(1)}%${customIndicator}</span>
+                                <button class="fee-edit-btn" onclick="editFee('${restaurant.id}')">Edit</button>
+                            </div>
+                            <div class="fee-editable-container" id="feeEdit_${restaurant.id}" style="display: none;">
+                                <input type="number" 
+                                       class="fee-editable" 
+                                       id="feeInput_${restaurant.id}"
+                                       value="${restaurant.venueFeePercentage.toFixed(1)}" 
+                                       step="0.1" 
+                                       min="0"
+                                       style="display: inline-block;">
+                                <span>%</span>
+                                <button class="fee-save-btn" onclick="saveFee('${restaurant.id}')" style="display: inline-block;">Save</button>
+                            </div>
                         </div>
                         <div>
                             <div class="fee-value">${formatCurrency(restaurant.monthlyRevenue)}</div>
@@ -1770,21 +1796,33 @@
             }
         }
 
-        // Update restaurant fee inline
-        async function updateRestaurantFeeInline(input) {
+        // Edit fee function
+        function editFee(restaurantId) {
+            const displayElement = document.getElementById(`feeDisplay_${restaurantId}`);
+            const editElement = document.getElementById(`feeEdit_${restaurantId}`);
+            
+            displayElement.style.display = 'none';
+            editElement.style.display = 'flex';
+            editElement.style.alignItems = 'center';
+            editElement.style.gap = '8px';
+            
+            // Focus on the input
+            const input = document.getElementById(`feeInput_${restaurantId}`);
+            input.focus();
+            input.select();
+        }
+
+        // Save fee function
+        async function saveFee(restaurantId) {
+            const input = document.getElementById(`feeInput_${restaurantId}`);
+            const feePercentage = parseFloat(input.value);
+            
+            if (isNaN(feePercentage) || feePercentage < 0) {
+                showError('Please enter a valid fee percentage (0% or higher)');
+                return;
+            }
+            
             try {
-                const restaurantId = input.dataset.restaurantId;
-                const feePercentage = parseFloat(input.value);
-                
-                if (isNaN(feePercentage) || feePercentage < 0) {
-                    showError('Please enter a valid fee percentage (0% or higher)');
-                    const restaurant = venueRestaurants.find(r => r.id === restaurantId);
-                    if (restaurant) {
-                        input.value = restaurant.venueFeePercentage.toFixed(1);
-                    }
-                    return;
-                }
-                
                 const db = getFirebaseDb();
                 await db.collection('restaurants').doc(restaurantId).update({
                     venueFeePercentage: feePercentage,
@@ -1806,16 +1844,19 @@
                 
                 showSuccess(`Restaurant fee updated to ${feePercentage}%`);
                 
+                // Switch back to display mode
+                const displayElement = document.getElementById(`feeDisplay_${restaurantId}`);
+                const editElement = document.getElementById(`feeEdit_${restaurantId}`);
+                
+                displayElement.style.display = 'flex';
+                editElement.style.display = 'none';
+                
+                // Reload financial data to update calculations
                 await loadFinancialData();
                 
             } catch (error) {
-                console.error('❌ Update restaurant fee inline error:', error);
+                console.error('❌ Save fee error:', error);
                 showError('Failed to update restaurant fee');
-                
-                const restaurant = venueRestaurants.find(r => r.id === input.dataset.restaurantId);
-                if (restaurant) {
-                    input.value = restaurant.venueFeePercentage.toFixed(1);
-                }
             }
         }
 
