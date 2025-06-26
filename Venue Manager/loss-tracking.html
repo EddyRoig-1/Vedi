@@ -5,30 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loss Tracking - Venue Manager</title>
     
-    <!-- Firebase SDK -->
+    <!-- Firebase Scripts -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+
+    <!-- VediAPI Core - Similar to incident reports but for venue context -->
+    <script src="../firebase-config.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    <script src="../Api/business/venues.js"></script>
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/incidents/loss-incidents.js"></script>
+    <script src="../Api/realtime/listeners.js"></script>
     
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    
-    <!-- Firebase Configuration -->
-    <script src="../firebase-config.js"></script>
-    
-    <!-- VediAPI Core -->
-    <script src="../Api/core/utilities.js"></script>
-    <script src="../Api/core/tracking.js"></script>
-    
-    <!-- Business APIs -->
-    <script src="../Api/business/venues.js"></script>
-    <script src="../Api/business/restaurants.js"></script>
-    <script src="../Api/orders/order-management.js"></script>
-    
-    <!-- Real-time and Operations -->
-    <script src="../Api/realtime/listeners.js"></script>
-    <!-- Note: loss-incidents.js has VediAPI conflict - using direct Firebase queries -->
     
     <style>
         /* iOS Design System */
@@ -153,6 +146,45 @@
             padding: 32px 24px;
         }
 
+        /* Loading State */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 80px 32px;
+            color: #8E8E93;
+        }
+
+        .loading-spinner.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 2px solid #E5E5E7;
+            border-top: 2px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error Message */
+        .error-message {
+            background: #FFEBEE;
+            color: #C62828;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            border: 1px solid #FFCDD2;
+            display: none;
+            font-weight: 500;
+        }
+
         /* Page Header */
         .page-header {
             display: flex;
@@ -245,6 +277,18 @@
             font-size: 13px;
             font-weight: 500;
             color: #86868B;
+        }
+
+        .loss-card.danger .loss-card-value {
+            color: #FF3B30;
+        }
+
+        .loss-card.warning .loss-card-value {
+            color: #FF9500;
+        }
+
+        .loss-card.success .loss-card-value {
+            color: #34C759;
         }
 
         /* Filter and Search */
@@ -639,40 +683,6 @@
             background-color: #0056CC;
         }
 
-        /* Loading States */
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 48px;
-            color: #86868B;
-        }
-
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 2px solid #E5E5E7;
-            border-top: 2px solid #007AFF;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 12px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Error States */
-        .error-message {
-            background-color: #FFE5E5;
-            color: #D70015;
-            padding: 16px;
-            border-radius: 8px;
-            margin: 16px 0;
-            font-size: 15px;
-        }
-
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -695,45 +705,6 @@
         .empty-state-description {
             font-size: 15px;
             margin-bottom: 24px;
-        }
-
-        /* Loading Overlay */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(248, 249, 250, 0.95);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .loading-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .loading-circle {
-            width: 48px;
-            height: 48px;
-            border: 3px solid #E5E5E7;
-            border-top: 3px solid #007AFF;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 16px;
-        }
-
-        .loading-text {
-            font-size: 17px;
-            color: #86868B;
-            text-align: center;
         }
 
         /* Responsive */
@@ -783,174 +754,179 @@
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <div class="venue-info">
-                <h1 id="venueName">Loading...</h1>
-                <p id="venueLocation">Loading venue information...</p>
-            </div>
-            <div class="user-section">
-                <div class="user-info">
-                    <div class="user-name" id="userName">Venue Manager</div>
-                    <div class="user-role">Loss Tracking</div>
-                </div>
-                <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
-            </div>
-        </div>
-    </header>
+    <!-- Loading State -->
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Loading venue loss tracking...</p>
+    </div>
 
-    <!-- Navigation -->
-    <nav class="navigation">
-        <div class="nav-content">
-            <a href="venue-overview.html" class="nav-item" onclick="handleNavigation(event, 'venue-overview.html')">Overview</a>
-            <a href="performance.html" class="nav-item" onclick="handleNavigation(event, 'performance.html')">Performance</a>
-            <a href="loss-tracking.html" class="nav-item active">Loss Tracking</a>
-            <a href="venue-reports.html" class="nav-item" onclick="handleNavigation(event, 'venue-reports.html')">Reports</a>
-            <a href="venue-management.html" class="nav-item" onclick="handleNavigation(event, 'venue-management.html')">Management</a>
-            <a href="venue-financials.html" class="nav-item" onclick="handleNavigation(event, 'venue-financials.html')">Financials</a>
-        </div>
-    </nav>
+    <!-- Error State -->
+    <div id="errorMessage" class="error-message">
+        <strong>Error:</strong> <span id="errorText"></span>
+    </div>
 
     <!-- Main Content -->
-    <main class="main-content">
-        <!-- Page Header -->
-        <section class="page-header">
-            <div>
-                <h1 class="page-title">Loss Tracking</h1>
-                <p class="page-subtitle">Monitor and manage loss incidents across your venue</p>
-            </div>
-            <button class="new-incident-btn" onclick="openNewIncidentModal()">Report New Loss</button>
-        </section>
-
-        <!-- Loss Analytics Overview -->
-        <section class="loss-overview">
-            <div class="loss-card">
-                <div class="loss-card-header">
-                    <span class="loss-card-title">Total Losses</span>
-                    <div class="loss-card-icon">💰</div>
+    <div id="mainContent" style="display: none;">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="venue-info">
+                    <h1 id="venueName">Loading...</h1>
+                    <p id="venueLocation">Loading venue information...</p>
                 </div>
-                <div class="loss-card-value" id="totalLossAmount">$0.00</div>
-                <div class="loss-card-change" id="totalLossChange">this period</div>
-            </div>
-
-            <div class="loss-card">
-                <div class="loss-card-header">
-                    <span class="loss-card-title">Active Incidents</span>
-                    <div class="loss-card-icon">⚠️</div>
-                </div>
-                <div class="loss-card-value" id="activeIncidents">0</div>
-                <div class="loss-card-change" id="activeIncidentsChange">need attention</div>
-            </div>
-
-            <div class="loss-card">
-                <div class="loss-card-header">
-                    <span class="loss-card-title">Resolved This Month</span>
-                    <div class="loss-card-icon">✅</div>
-                </div>
-                <div class="loss-card-value" id="resolvedIncidents">0</div>
-                <div class="loss-card-change" id="resolvedIncidentsChange">incidents closed</div>
-            </div>
-
-            <div class="loss-card">
-                <div class="loss-card-header">
-                    <span class="loss-card-title">Average Loss</span>
-                    <div class="loss-card-icon">📊</div>
-                </div>
-                <div class="loss-card-value" id="averageLoss">$0.00</div>
-                <div class="loss-card-change" id="averageLossChange">per incident</div>
-            </div>
-        </section>
-
-        <!-- Filter and Search Controls -->
-        <section class="controls-section">
-            <div class="controls-row">
-                <div class="control-group">
-                    <label class="control-label">Time Period</label>
-                    <select class="control-select" id="timePeriod">
-                        <option value="week">This Week</option>
-                        <option value="month" selected>This Month</option>
-                        <option value="quarter">This Quarter</option>
-                        <option value="year">This Year</option>
-                        <option value="all">All Time</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label class="control-label">Restaurant</label>
-                    <select class="control-select" id="restaurantFilter">
-                        <option value="all">All Restaurants</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label class="control-label">Status</label>
-                    <select class="control-select" id="statusFilter">
-                        <option value="all">All Status</option>
-                        <option value="reported">Reported</option>
-                        <option value="investigating">Investigating</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="closed">Closed</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label class="control-label">Severity</label>
-                    <select class="control-select" id="severityFilter">
-                        <option value="all">All Severity</option>
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                    </select>
-                </div>
-            </div>
-            <div class="control-group">
-                <label class="control-label">Search Incidents</label>
-                <input type="text" class="search-input" id="searchInput" placeholder="Search by title, description, or reporter...">
-            </div>
-        </section>
-
-        <!-- Loss Analytics Charts -->
-        <section class="charts-section">
-            <div class="charts-grid">
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h3 class="chart-title">Losses by Category</h3>
-                        <p class="chart-subtitle">Breakdown by incident type</p>
+                <div class="user-section">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Venue Manager</div>
+                        <div class="user-role">Loss Tracking</div>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h3 class="chart-title">Loss Trend</h3>
-                        <p class="chart-subtitle">Monthly loss amounts</p>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="trendChart"></canvas>
-                    </div>
+                    <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
                 </div>
             </div>
-        </section>
+        </header>
 
-        <!-- Incidents List -->
-        <section class="incidents-section">
-            <div class="incidents-header">
-                <h2 class="incidents-title">Loss Incidents</h2>
-                <span class="incidents-count" id="incidentsCount">0 incidents</span>
+        <!-- Navigation -->
+        <nav class="navigation">
+            <div class="nav-content">
+                <a href="venue-overview.html" class="nav-item" onclick="handleNavigation(event, 'venue-overview.html')">Overview</a>
+                <a href="performance.html" class="nav-item" onclick="handleNavigation(event, 'performance.html')">Performance</a>
+                <a href="loss-tracking.html" class="nav-item active">Loss Tracking</a>
+                <a href="venue-reports.html" class="nav-item" onclick="handleNavigation(event, 'venue-reports.html')">Reports</a>
+                <a href="venue-management.html" class="nav-item" onclick="handleNavigation(event, 'venue-management.html')">Management</a>
+                <a href="venue-financials.html" class="nav-item" onclick="handleNavigation(event, 'venue-financials.html')">Financials</a>
             </div>
-            <div class="incidents-list" id="incidentsList">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    Loading loss incidents...
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Page Header -->
+            <section class="page-header">
+                <div>
+                    <h1 class="page-title">Loss Tracking</h1>
+                    <p class="page-subtitle">Monitor and manage loss incidents across your venue</p>
                 </div>
-            </div>
-        </section>
-    </main>
+                <button class="new-incident-btn" onclick="openNewIncidentModal()">Report New Loss</button>
+            </section>
 
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-circle"></div>
-        <div class="loading-text">Loading...</div>
+            <!-- Loss Analytics Overview -->
+            <section class="loss-overview">
+                <div class="loss-card danger">
+                    <div class="loss-card-header">
+                        <span class="loss-card-title">Total Losses</span>
+                        <div class="loss-card-icon">💰</div>
+                    </div>
+                    <div class="loss-card-value" id="totalLossAmount">$0.00</div>
+                    <div class="loss-card-change" id="totalLossChange">this period</div>
+                </div>
+
+                <div class="loss-card warning">
+                    <div class="loss-card-header">
+                        <span class="loss-card-title">Active Incidents</span>
+                        <div class="loss-card-icon">⚠️</div>
+                    </div>
+                    <div class="loss-card-value" id="activeIncidents">0</div>
+                    <div class="loss-card-change" id="activeIncidentsChange">need attention</div>
+                </div>
+
+                <div class="loss-card success">
+                    <div class="loss-card-header">
+                        <span class="loss-card-title">Resolved This Month</span>
+                        <div class="loss-card-icon">✅</div>
+                    </div>
+                    <div class="loss-card-value" id="resolvedIncidents">0</div>
+                    <div class="loss-card-change" id="resolvedIncidentsChange">incidents closed</div>
+                </div>
+
+                <div class="loss-card">
+                    <div class="loss-card-header">
+                        <span class="loss-card-title">Average Loss</span>
+                        <div class="loss-card-icon">📊</div>
+                    </div>
+                    <div class="loss-card-value" id="averageLoss">$0.00</div>
+                    <div class="loss-card-change" id="averageLossChange">per incident</div>
+                </div>
+            </section>
+
+            <!-- Filter and Search Controls -->
+            <section class="controls-section">
+                <div class="controls-row">
+                    <div class="control-group">
+                        <label class="control-label">Time Period</label>
+                        <select class="control-select" id="timePeriod">
+                            <option value="week">This Week</option>
+                            <option value="month" selected>This Month</option>
+                            <option value="quarter">This Quarter</option>
+                            <option value="year">This Year</option>
+                            <option value="all">All Time</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Restaurant</label>
+                        <select class="control-select" id="restaurantFilter">
+                            <option value="all">All Restaurants</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Status</label>
+                        <select class="control-select" id="statusFilter">
+                            <option value="all">All Status</option>
+                            <option value="reported">Reported</option>
+                            <option value="investigating">Investigating</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Severity</label>
+                        <select class="control-select" id="severityFilter">
+                            <option value="all">All Severity</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Search Incidents</label>
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search by title, description, or reporter...">
+                </div>
+            </section>
+
+            <!-- Loss Analytics Charts -->
+            <section class="charts-section">
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Losses by Category</h3>
+                            <p class="chart-subtitle">Breakdown by incident type</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Loss Trend</h3>
+                            <p class="chart-subtitle">Monthly loss amounts</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Incidents List -->
+            <section class="incidents-section">
+                <div class="incidents-header">
+                    <h2 class="incidents-title">Loss Incidents</h2>
+                    <span class="incidents-count" id="incidentsCount">0 incidents</span>
+                </div>
+                <div class="incidents-list" id="incidentsList">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </section>
+        </main>
     </div>
 
     <!-- New Incident Modal -->
@@ -975,28 +951,14 @@
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label">Category *</label>
-                        <select class="form-select" id="incidentCategory" required>
-                            <option value="">Select Category</option>
-                            <option value="food">Food Spoilage</option>
-                            <option value="equipment">Equipment Damage</option>
-                            <option value="theft">Theft</option>
-                            <option value="accident">Accident</option>
-                            <option value="staff">Staff Error</option>
-                            <option value="supplier">Supplier Issue</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
                         <label class="form-label">Type *</label>
                         <select class="form-select" id="incidentType" required>
                             <option value="">Select Type</option>
-                            <option value="accident">Accident</option>
-                            <option value="negligence">Negligence</option>
-                            <option value="theft">Theft</option>
-                            <option value="damage">Damage</option>
-                            <option value="spoilage">Spoilage</option>
+                            <option value="theft">Theft/Missing Items</option>
+                            <option value="accident">Kitchen Accident</option>
+                            <option value="walkout">Customer Walkout</option>
+                            <option value="recall">Menu Item Recall</option>
+                            <option value="waste">Food Waste</option>
                             <option value="other">Other</option>
                         </select>
                     </div>
@@ -1005,9 +967,9 @@
                         <label class="form-label">Severity *</label>
                         <select class="form-select" id="incidentSeverity" required>
                             <option value="">Select Severity</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
+                            <option value="low">Low - Minor impact on operations</option>
+                            <option value="medium">Medium - Moderate impact on operations</option>
+                            <option value="high">High - Significant impact on operations</option>
                         </select>
                     </div>
                     
@@ -1051,131 +1013,71 @@
         let currentUser = null;
         let currentVenue = null;
         let venueRestaurants = [];
-        let lossIncidents = [];
+        let allLossIncidents = [];
         let filteredIncidents = [];
         let charts = {};
         let realTimeUnsubscribe = null;
         let selectedIncident = null;
+        let currentFilters = {
+            timePeriod: 'month',
+            restaurant: 'all',
+            status: 'all',
+            severity: 'all'
+        };
 
-        // Firebase utility functions
-        function getFirebaseAuth() {
-            return window.firebaseAuth || firebase.auth();
-        }
+        // Currency cache for formatting
+        const appCache = {
+            currency: { code: 'USD', symbol: '$' },
+            lastRefresh: 0
+        };
 
-        function getFirebaseDb() {
-            return window.firebaseDb || firebase.firestore();
-        }
+        // ============================================================================
+        // INITIALIZATION
+        // ============================================================================
 
-        // VediAPI Mock Functions (simplified version for loss tracking)
-        if (!window.VediAPI) {
-            window.VediAPI = {
-                formatCurrency: function(amount, currency = 'USD') {
-                    const symbols = { USD: '$', EUR: '€', GBP: '£', CAD: 'C$' };
-                    const symbol = symbols[currency] || '$';
-                    return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                },
-                
-                getTimePeriodStart: function(timePeriod) {
-                    const now = new Date();
-                    switch (timePeriod.toLowerCase()) {
-                        case 'week':
-                            const weekStart = new Date(now);
-                            weekStart.setDate(now.getDate() - 7);
-                            return weekStart;
-                        case 'month':
-                            return new Date(now.getFullYear(), now.getMonth(), 1);
-                        case 'quarter':
-                            const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-                            return new Date(now.getFullYear(), quarterMonth, 1);
-                        case 'year':
-                            return new Date(now.getFullYear(), 0, 1);
-                        default:
-                            return null;
-                    }
-                },
-                
-                timestampToDate: function(timestamp) {
-                    if (timestamp && timestamp.toDate) {
-                        return timestamp.toDate();
-                    }
-                    if (timestamp && timestamp.seconds) {
-                        return new Date(timestamp.seconds * 1000);
-                    }
-                    return new Date(timestamp);
-                },
-                
-                getRelativeTime: function(timestamp) {
-                    const date = this.timestampToDate(timestamp);
-                    const now = new Date();
-                    const diff = now - date;
-                    const minutes = Math.floor(diff / 60000);
-                    const hours = Math.floor(diff / 3600000);
-                    const days = Math.floor(diff / 86400000);
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🍽️ Venue Loss Tracking starting...');
+            
+            setTimeout(async () => {
+                try {
+                    showLoading(true);
                     
-                    if (minutes < 60) return `${minutes}m ago`;
-                    if (hours < 24) return `${hours}h ago`;
-                    return `${days}d ago`;
-                },
-                
-                getVenueByManager: async function(managerId) {
-                    const db = getFirebaseDb();
-                    const venueQuery = await db.collection('venues')
-                        .where('managerUserId', '==', managerId)
-                        .limit(1)
-                        .get();
+                    // Step 1: Wait for Firebase to be ready
+                    await waitForFirebase();
                     
-                    if (venueQuery.empty) return null;
-                    const venueDoc = venueQuery.docs[0];
-                    return { id: venueDoc.id, ...venueDoc.data() };
-                },
-                
-                getRestaurantsByVenue: async function(venueId) {
-                    const db = getFirebaseDb();
-                    const restaurantsQuery = await db.collection('restaurants')
-                        .where('venueId', '==', venueId)
-                        .get();
+                    // Step 2: Check authentication
+                    await checkAuthentication();
                     
-                    return restaurantsQuery.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data()
-                    }));
+                    // Step 3: Load venue data
+                    await loadVenueData();
+                    
+                    // Step 4: Load restaurants
+                    await loadRestaurants();
+                    
+                    // Step 5: Load loss incidents
+                    await loadLossIncidents();
+                    
+                    // Step 6: Setup real-time updates
+                    setupRealTimeUpdates();
+                    
+                    // Step 7: Setup event listeners
+                    setupEventListeners();
+                    
+                    // Step 8: Initialize charts
+                    initializeCharts();
+                    
+                    showLoading(false);
+                    showMainContent(true);
+                    
+                    console.log('✅ Venue Loss Tracking initialized successfully');
+                    
+                } catch (error) {
+                    console.error('❌ Initialization error:', error);
+                    showError(error.message || 'Failed to initialize loss tracking');
+                    showLoading(false);
                 }
-            };
-        }
-
-        // Initialize dashboard
-        async function initializeDashboard() {
-            try {
-                console.log('🚀 Initializing loss tracking dashboard...');
-                
-                // Wait for Firebase to be ready
-                await waitForFirebase();
-                
-                // Check authentication
-                await checkAuthentication();
-                
-                // Load venue data
-                await loadVenueData();
-                
-                // Load restaurants
-                await loadRestaurants();
-                
-                // Load loss incidents
-                await loadLossIncidents();
-                
-                // Setup real-time updates
-                setupRealTimeUpdates();
-                
-                // Setup event listeners
-                setupEventListeners();
-                
-                console.log('✅ Loss tracking dashboard initialized successfully');
-                
-            } catch (error) {
-                console.error('❌ Dashboard initialization error:', error);
-                showError('Failed to load loss tracking dashboard. Please refresh the page.');
-            }
-        }
+            }, 1000);
+        });
 
         // Wait for Firebase to be initialized
         function waitForFirebase() {
@@ -1187,7 +1089,7 @@
                     attempts++;
                     
                     if (window.firebase && window.firebaseAuth && window.firebaseDb) {
-                        console.log('✅ Firebase ready for loss tracking');
+                        console.log('✅ Firebase ready for venue loss tracking');
                         resolve();
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Firebase initialization timeout'));
@@ -1203,12 +1105,12 @@
         // Check user authentication and venue access
         async function checkAuthentication() {
             return new Promise((resolve, reject) => {
-                const auth = getFirebaseAuth();
+                const auth = firebase.auth();
                 
                 auth.onAuthStateChanged(async (user) => {
                     if (user) {
                         try {
-                            const db = getFirebaseDb();
+                            const db = firebase.firestore();
                             const userDoc = await db.collection('users').doc(user.uid).get();
                             
                             if (!userDoc.exists) {
@@ -1239,6 +1141,7 @@
         // Load venue data
         async function loadVenueData() {
             try {
+                // Using VediAPI venue functions
                 const venue = await VediAPI.getVenueByManager(currentUser.uid);
                 
                 if (!venue) {
@@ -1251,6 +1154,11 @@
                 document.getElementById('venueLocation').textContent = 
                     `${venue.city}, ${venue.state}`;
                 
+                // Set currency from venue data if available
+                if (venue.currency) {
+                    appCache.currency = venue.currency;
+                }
+                
                 console.log('✅ Venue loaded for loss tracking:', venue.name);
                 
             } catch (error) {
@@ -1259,7 +1167,7 @@
             }
         }
 
-        // Load restaurants
+        // Load restaurants under this venue
         async function loadRestaurants() {
             try {
                 venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
@@ -1275,54 +1183,18 @@
             }
         }
 
-        // Populate restaurant filter options
-        function populateRestaurantFilters() {
-            const restaurantFilter = document.getElementById('restaurantFilter');
-            const incidentRestaurant = document.getElementById('incidentRestaurant');
-            
-            // Clear existing options
-            restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
-            incidentRestaurant.innerHTML = '<option value="">Select Restaurant</option>';
-            
-            venueRestaurants.forEach(restaurant => {
-                // Filter dropdown
-                const filterOption = document.createElement('option');
-                filterOption.value = restaurant.id;
-                filterOption.textContent = restaurant.name;
-                restaurantFilter.appendChild(filterOption);
-                
-                // New incident form dropdown
-                const formOption = document.createElement('option');
-                formOption.value = restaurant.id;
-                formOption.textContent = restaurant.name;
-                incidentRestaurant.appendChild(formOption);
-            });
-        }
-
-        // Load loss incidents
+        // Load loss incidents for the venue
         async function loadLossIncidents() {
             try {
-                if (currentVenue.id) {
-                    // Direct Firebase query due to VediAPI conflict
-                    const db = getFirebaseDb();
-                    const incidentsQuery = await db.collection('lossIncidents')
-                        .where('venueId', '==', currentVenue.id)
-                        .orderBy('createdAt', 'desc')
-                        .limit(1000)
-                        .get();
-                    
-                    lossIncidents = incidentsQuery.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data()
-                    }));
-                } else {
-                    lossIncidents = [];
-                }
+                // Get all incidents for this venue
+                allLossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
+                    limit: 1000
+                });
                 
                 // Apply filters and update display
                 applyFilters();
                 
-                console.log('✅ Loss incidents loaded:', lossIncidents.length);
+                console.log('✅ Loss incidents loaded:', allLossIncidents.length);
                 
             } catch (error) {
                 console.error('❌ Load loss incidents error:', error);
@@ -1330,28 +1202,28 @@
             }
         }
 
-        // Setup real-time updates
+        // ============================================================================
+        // REAL-TIME UPDATES
+        // ============================================================================
+
         function setupRealTimeUpdates() {
             try {
-                // Fallback: Setup manual real-time listener
-                const db = getFirebaseDb();
-                realTimeUnsubscribe = db.collection('lossIncidents')
-                    .where('venueId', '==', currentVenue.id)
-                    .orderBy('createdAt', 'desc')
-                    .onSnapshot(querySnapshot => {
-                        lossIncidents = querySnapshot.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data()
-                        }));
-                        applyFilters();
-                        console.log('📡 Real-time loss incidents update:', lossIncidents.length);
-                    });
+                // Use VediAPI real-time listener for venue incidents
+                realTimeUnsubscribe = VediAPI.listenToVenueLossIncidents(currentVenue.id, (incidents) => {
+                    console.log('📡 Real-time venue loss incidents update:', incidents.length);
+                    allLossIncidents = incidents;
+                    applyFilters();
+                });
+                
             } catch (error) {
                 console.error('❌ Setup real-time updates error:', error);
             }
         }
 
-        // Setup event listeners
+        // ============================================================================
+        // EVENT LISTENERS AND FILTERS
+        // ============================================================================
+
         function setupEventListeners() {
             // Filter change listeners
             document.getElementById('timePeriod').addEventListener('change', applyFilters);
@@ -1359,7 +1231,7 @@
             document.getElementById('statusFilter').addEventListener('change', applyFilters);
             document.getElementById('severityFilter').addEventListener('change', applyFilters);
             
-            // Search listener
+            // Search listener with debounce
             document.getElementById('searchInput').addEventListener('input', debounce(applyFilters, 300));
             
             // Modal close on backdrop click
@@ -1376,7 +1248,6 @@
             });
         }
 
-        // Debounce function for search
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
@@ -1389,7 +1260,6 @@
             };
         }
 
-        // Apply filters and update display
         function applyFilters() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
@@ -1398,12 +1268,15 @@
                 const severity = document.getElementById('severityFilter').value;
                 const searchTerm = document.getElementById('searchInput').value.toLowerCase();
                 
+                // Update current filters
+                currentFilters = { timePeriod, restaurant: restaurantId, status, severity };
+                
                 // Start with all incidents
-                filteredIncidents = [...lossIncidents];
+                filteredIncidents = [...allLossIncidents];
                 
                 // Apply time filter
                 if (timePeriod !== 'all') {
-                    const startDate = VediAPI.getTimePeriodStart(timePeriod);
+                    const startDate = getTimePeriodStart(timePeriod);
                     if (startDate) {
                         filteredIncidents = filteredIncidents.filter(incident => {
                             const incidentDate = VediAPI.timestampToDate(incident.createdAt);
@@ -1453,7 +1326,10 @@
             }
         }
 
-        // Update loss overview cards
+        // ============================================================================
+        // UI UPDATES
+        // ============================================================================
+
         function updateLossOverview() {
             try {
                 const totalAmount = filteredIncidents.reduce((sum, incident) => 
@@ -1471,12 +1347,10 @@
                 const averageAmount = filteredIncidents.length > 0 ? 
                     totalAmount / filteredIncidents.length : 0;
                 
-                document.getElementById('totalLossAmount').textContent = 
-                    VediAPI.formatCurrency(totalAmount, 'USD');
+                document.getElementById('totalLossAmount').textContent = formatCurrency(totalAmount);
                 document.getElementById('activeIncidents').textContent = activeCount;
                 document.getElementById('resolvedIncidents').textContent = resolvedCount;
-                document.getElementById('averageLoss').textContent = 
-                    VediAPI.formatCurrency(averageAmount, 'USD');
+                document.getElementById('averageLoss').textContent = formatCurrency(averageAmount);
                 
                 document.getElementById('totalLossChange').textContent = 
                     `${filteredIncidents.length} total incidents`;
@@ -1491,7 +1365,6 @@
             }
         }
 
-        // Update incidents list
         function updateIncidentsList() {
             try {
                 const container = document.getElementById('incidentsList');
@@ -1512,49 +1385,51 @@
                     return;
                 }
                 
-                container.innerHTML = filteredIncidents.map(incident => {
-                    const restaurant = venueRestaurants.find(r => r.id === incident.restaurantId);
-                    const createdDate = VediAPI.timestampToDate(incident.createdAt);
-                    const relativeTime = VediAPI.getRelativeTime(incident.createdAt);
-                    
-                    return `
-                        <div class="incident-item" onclick="openIncidentDetail('${incident.id}')">
-                            <div class="incident-main">
-                                <div class="incident-info">
-                                    <div class="incident-title">${incident.title || 'Untitled Incident'}</div>
-                                    <div class="incident-meta">
-                                        ${restaurant ? restaurant.name : 'Unknown Restaurant'} • 
-                                        ${relativeTime} • 
-                                        Reported by ${incident.reportedBy || 'Unknown'}
+                container.innerHTML = filteredIncidents
+                    .sort((a, b) => VediAPI.timestampToDate(b.createdAt) - VediAPI.timestampToDate(a.createdAt))
+                    .map(incident => {
+                        const restaurant = venueRestaurants.find(r => r.id === incident.restaurantId);
+                        const createdDate = VediAPI.timestampToDate(incident.createdAt);
+                        const relativeTime = VediAPI.getRelativeTime(incident.createdAt);
+                        
+                        return `
+                            <div class="incident-item" onclick="openIncidentDetail('${incident.id}')">
+                                <div class="incident-main">
+                                    <div class="incident-info">
+                                        <div class="incident-title">${incident.title || 'Untitled Incident'}</div>
+                                        <div class="incident-meta">
+                                            ${restaurant ? restaurant.name : 'Unknown Restaurant'} • 
+                                            ${relativeTime} • 
+                                            ${incident.reportedBy || 'Unknown'}
+                                        </div>
+                                        <div class="incident-description">
+                                            ${incident.description ? 
+                                                (incident.description.length > 100 ? 
+                                                    incident.description.substring(0, 100) + '...' : 
+                                                    incident.description) : 
+                                                'No description provided'}
+                                        </div>
                                     </div>
-                                    <div class="incident-description">
-                                        ${incident.description ? 
-                                            (incident.description.length > 100 ? 
-                                                incident.description.substring(0, 100) + '...' : 
-                                                incident.description) : 
-                                            'No description provided'}
+                                    <div class="incident-status-amount">
+                                        <div class="incident-amount">
+                                            ${formatCurrency(incident.amount || 0)}
+                                        </div>
+                                        <span class="status-badge status-${incident.status || 'reported'}">
+                                            ${incident.status || 'reported'}
+                                        </span>
                                     </div>
                                 </div>
-                                <div class="incident-status-amount">
-                                    <div class="incident-amount">
-                                        ${VediAPI.formatCurrency(incident.amount || 0, 'USD')}
-                                    </div>
-                                    <span class="status-badge status-${incident.status || 'reported'}">
-                                        ${incident.status || 'reported'}
+                                <div class="incident-details">
+                                    <span class="severity-badge severity-${incident.severity || 'medium'}">
+                                        ${incident.severity || 'medium'} severity
+                                    </span>
+                                    <span class="type-badge">
+                                        ${formatIncidentType(incident.type || incident.category || 'other')}
                                     </span>
                                 </div>
                             </div>
-                            <div class="incident-details">
-                                <span class="severity-badge severity-${incident.severity || 'medium'}">
-                                    ${incident.severity || 'medium'} severity
-                                </span>
-                                <span class="type-badge">
-                                    ${incident.type || incident.category || 'other'}
-                                </span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+                        `;
+                    }).join('');
                 
             } catch (error) {
                 console.error('❌ Update incidents list error:', error);
@@ -1562,7 +1437,14 @@
             }
         }
 
-        // Update charts
+        // ============================================================================
+        // CHARTS
+        // ============================================================================
+
+        function initializeCharts() {
+            updateCharts();
+        }
+
         function updateCharts() {
             try {
                 updateCategoryChart();
@@ -1572,14 +1454,13 @@
             }
         }
 
-        // Update category chart
         function updateCategoryChart() {
             const ctx = document.getElementById('categoryChart').getContext('2d');
             
-            // Group by category
+            // Group by category/type
             const categoryTotals = {};
             filteredIncidents.forEach(incident => {
-                const category = incident.category || incident.type || 'other';
+                const category = incident.type || incident.category || 'other';
                 categoryTotals[category] = (categoryTotals[category] || 0) + (parseFloat(incident.amount) || 0);
             });
             
@@ -1594,7 +1475,7 @@
             charts.category = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: labels.map(label => label.charAt(0).toUpperCase() + label.slice(1)),
+                    labels: labels.map(label => formatIncidentType(label)),
                     datasets: [{
                         data: data,
                         backgroundColor: colors.slice(0, labels.length),
@@ -1611,13 +1492,19 @@
                                 usePointStyle: true,
                                 padding: 15
                             }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${formatCurrency(context.parsed)}`;
+                                }
+                            }
                         }
                     }
                 }
             });
         }
 
-        // Update trend chart
         function updateTrendChart() {
             const ctx = document.getElementById('trendChart').getContext('2d');
             
@@ -1660,6 +1547,13 @@
                     plugins: {
                         legend: {
                             display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Loss: ${formatCurrency(context.parsed.y)}`;
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -1667,7 +1561,7 @@
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return '$' + value.toFixed(0);
+                                    return formatCurrency(value);
                                 }
                             }
                         }
@@ -1676,27 +1570,27 @@
             });
         }
 
-        // Open new incident modal
+        // ============================================================================
+        // MODAL FUNCTIONS
+        // ============================================================================
+
         function openNewIncidentModal() {
             document.getElementById('newIncidentModal').classList.add('show');
             document.getElementById('incidentTitle').focus();
+            document.body.style.overflow = 'hidden';
         }
 
-        // Close new incident modal
         function closeNewIncidentModal() {
             document.getElementById('newIncidentModal').classList.remove('show');
             document.getElementById('newIncidentForm').reset();
+            document.body.style.overflow = '';
         }
 
-        // Submit new incident
         async function submitNewIncident() {
             try {
-                const form = document.getElementById('newIncidentForm');
-                
                 const incidentData = {
                     title: document.getElementById('incidentTitle').value.trim(),
                     restaurantId: document.getElementById('incidentRestaurant').value,
-                    category: document.getElementById('incidentCategory').value,
                     type: document.getElementById('incidentType').value,
                     severity: document.getElementById('incidentSeverity').value,
                     amount: parseFloat(document.getElementById('incidentAmount').value) || 0,
@@ -1704,26 +1598,21 @@
                     status: 'reported',
                     reportedBy: currentUser.uid,
                     venueId: currentVenue.id,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    category: getIncidentCategory(document.getElementById('incidentType').value)
                 };
                 
                 // Validate required fields
-                if (!incidentData.title || !incidentData.restaurantId || !incidentData.category || 
-                    !incidentData.type || !incidentData.severity || !incidentData.description) {
+                if (!incidentData.title || !incidentData.restaurantId || !incidentData.type || 
+                    !incidentData.severity || !incidentData.description) {
                     showError('Please fill in all required fields');
                     return;
                 }
                 
-                // Submit directly to Firebase
-                const db = getFirebaseDb();
-                await db.collection('lossIncidents').add(incidentData);
+                // Create incident using VediAPI
+                await VediAPI.createLossIncident(incidentData);
                 
-                // Close modal and refresh data
                 closeNewIncidentModal();
                 showSuccess('Loss incident reported successfully');
-                
-                // Data will be updated via real-time listener
                 
             } catch (error) {
                 console.error('❌ Submit new incident error:', error);
@@ -1731,7 +1620,6 @@
             }
         }
 
-        // Open incident detail modal
         function openIncidentDetail(incidentId) {
             const incident = filteredIncidents.find(i => i.id === incidentId);
             if (!incident) return;
@@ -1748,13 +1636,10 @@
                         <strong>Restaurant:</strong> ${restaurant ? restaurant.name : 'Unknown Restaurant'}
                     </div>
                     <div>
-                        <strong>Amount:</strong> ${VediAPI.formatCurrency(incident.amount || 0, 'USD')}
+                        <strong>Amount:</strong> ${formatCurrency(incident.amount || 0)}
                     </div>
                     <div>
-                        <strong>Category:</strong> ${incident.category || 'Unknown'}
-                    </div>
-                    <div>
-                        <strong>Type:</strong> ${incident.type || 'Unknown'}
+                        <strong>Type:</strong> ${formatIncidentType(incident.type || 'other')}
                     </div>
                     <div>
                         <strong>Severity:</strong> 
@@ -1785,20 +1670,20 @@
             `;
             
             document.getElementById('incidentDetailModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
         }
 
-        // Close incident detail modal
         function closeIncidentDetailModal() {
             document.getElementById('incidentDetailModal').classList.remove('show');
             selectedIncident = null;
+            document.body.style.overflow = '';
         }
 
-        // Update incident status
         async function updateIncidentStatus() {
             if (!selectedIncident) return;
             
             try {
-                // Simple status progression for now
+                // Simple status progression
                 let newStatus = '';
                 switch (selectedIncident.status) {
                     case 'reported':
@@ -1814,12 +1699,10 @@
                         newStatus = 'investigating';
                 }
                 
-                // Direct Firebase update
-                const db = getFirebaseDb();
-                await db.collection('lossIncidents').doc(selectedIncident.id).update({
+                // Update using VediAPI
+                await VediAPI.updateLossIncident(selectedIncident.id, {
                     status: newStatus,
                     statusUpdatedBy: currentUser.uid,
-                    statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 
@@ -1832,81 +1715,110 @@
             }
         }
 
-        // Update user display
+        // ============================================================================
+        // UTILITY FUNCTIONS
+        // ============================================================================
+
+        function populateRestaurantFilters() {
+            const restaurantFilter = document.getElementById('restaurantFilter');
+            const incidentRestaurant = document.getElementById('incidentRestaurant');
+            
+            // Clear existing options
+            restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
+            incidentRestaurant.innerHTML = '<option value="">Select Restaurant</option>';
+            
+            venueRestaurants.forEach(restaurant => {
+                // Filter dropdown
+                const filterOption = document.createElement('option');
+                filterOption.value = restaurant.id;
+                filterOption.textContent = restaurant.name;
+                restaurantFilter.appendChild(filterOption);
+                
+                // New incident form dropdown
+                const formOption = document.createElement('option');
+                formOption.value = restaurant.id;
+                formOption.textContent = restaurant.name;
+                incidentRestaurant.appendChild(formOption);
+            });
+        }
+
+        function getTimePeriodStart(timePeriod) {
+            const now = new Date();
+            switch (timePeriod.toLowerCase()) {
+                case 'week':
+                    const weekStart = new Date(now);
+                    weekStart.setDate(now.getDate() - 7);
+                    return weekStart;
+                case 'month':
+                    return new Date(now.getFullYear(), now.getMonth(), 1);
+                case 'quarter':
+                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+                    return new Date(now.getFullYear(), quarterMonth, 1);
+                case 'year':
+                    return new Date(now.getFullYear(), 0, 1);
+                default:
+                    return null;
+            }
+        }
+
+        function getIncidentCategory(type) {
+            const categoryMap = {
+                'theft': 'external',
+                'accident': 'staff',
+                'walkout': 'customer',
+                'recall': 'food',
+                'waste': 'food',
+                'other': 'other'
+            };
+            return categoryMap[type] || 'other';
+        }
+
+        function formatIncidentType(type) {
+            const typeMap = {
+                'theft': 'Theft',
+                'accident': 'Accident',
+                'walkout': 'Walkout',
+                'recall': 'Recall',
+                'waste': 'Food Waste',
+                'other': 'Other'
+            };
+            return typeMap[type] || (type || 'Unknown');
+        }
+
+        function formatCurrency(amount) {
+            if (!amount && amount !== 0) return `${appCache.currency.symbol}0.00`;
+            return `${appCache.currency.symbol}${Number(amount).toFixed(2)}`;
+        }
+
         function updateUserDisplay() {
             if (currentUser) {
                 document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
             }
         }
 
-        // Handle navigation with loading indicator
-        function handleNavigation(event, url) {
-            event.preventDefault();
-            
-            // Show loading overlay
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            loadingOverlay.classList.add('active');
-            
-            // Simulate brief loading time for smooth UX, then navigate
-            setTimeout(() => {
-                window.location.href = url;
-            }, 300);
+        function showLoading(show) {
+            document.getElementById('loadingSpinner').classList.toggle('show', show);
         }
 
-        // Hide loading overlay when page loads
-        window.addEventListener('load', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.remove('active');
-            }
-        });
-
-        // Show loading overlay on page unload
-        window.addEventListener('beforeunload', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.add('active');
-            }
-        });
-
-        // Handle logout
-        async function handleLogout() {
-            try {
-                // Clean up real-time listeners
-                if (realTimeUnsubscribe) {
-                    realTimeUnsubscribe();
-                }
-                
-                const auth = getFirebaseAuth();
-                await auth.signOut();
-                window.location.href = '/login.html';
-            } catch (error) {
-                console.error('❌ Logout error:', error);
-                showError('Failed to sign out');
-            }
+        function showMainContent(show) {
+            document.getElementById('mainContent').style.display = show ? 'block' : 'none';
         }
 
-        // Show error message
         function showError(message) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.textContent = message;
-            
-            const mainContent = document.querySelector('.main-content');
-            mainContent.insertBefore(errorDiv, mainContent.firstChild);
-            
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').style.display = 'block';
             setTimeout(() => {
-                errorDiv.remove();
+                document.getElementById('errorMessage').style.display = 'none';
             }, 5000);
         }
 
-        // Show success message
         function showSuccess(message) {
             const successDiv = document.createElement('div');
             successDiv.className = 'error-message';
             successDiv.style.backgroundColor = '#D1F2EB';
             successDiv.style.color = '#00A86B';
-            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            successDiv.innerHTML = `<strong>Success:</strong> ${message}`;
             
             const mainContent = document.querySelector('.main-content');
             mainContent.insertBefore(successDiv, mainContent.firstChild);
@@ -1916,6 +1828,35 @@
             }, 3000);
         }
 
+        // Handle navigation with loading indicator
+        function handleNavigation(event, url) {
+            event.preventDefault();
+            
+            // Clean up real-time listeners
+            if (realTimeUnsubscribe) {
+                realTimeUnsubscribe();
+            }
+            
+            window.location.href = url;
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            try {
+                // Clean up real-time listeners
+                if (realTimeUnsubscribe) {
+                    realTimeUnsubscribe();
+                }
+                
+                const auth = firebase.auth();
+                await auth.signOut();
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('❌ Logout error:', error);
+                showError('Failed to sign out');
+            }
+        }
+
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
             if (realTimeUnsubscribe) {
@@ -1923,11 +1864,7 @@
             }
         });
 
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🍽️ Venue Loss Tracking starting...');
-            initializeDashboard();
-        });
+        console.log('🍽️ Venue Loss Tracking script loaded successfully');
     </script>
 </body>
 </html>
