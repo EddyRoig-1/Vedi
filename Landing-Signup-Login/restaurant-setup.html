@@ -1383,39 +1383,43 @@
         };
 
         // NEW: Check for invitation data in URL or sessionStorage
-        function checkForInvitation() {
-            console.log('🔍 Checking for invitation data...');
+       function checkForInvitation() {
+    console.log('🔍 Checking for invitation data...');
+    
+    try {
+        // First check sessionStorage (from signup process)
+        const storedInvitation = sessionStorage.getItem('pendingInvitation');
+        if (storedInvitation) {
+            console.log('📧 Found invitation in sessionStorage:', storedInvitation);
+            const invitationData = JSON.parse(storedInvitation);
             
-            try {
-                // First check sessionStorage (from signup process)
-                const storedInvitation = sessionStorage.getItem('pendingInvitation');
-                if (storedInvitation) {
-                    console.log('📧 Found invitation in sessionStorage:', storedInvitation);
-                    invitationData = JSON.parse(storedInvitation);
-                    sessionStorage.removeItem('pendingInvitation'); // Clean up
-                    return invitationData;
-                }
-                
-                // Then check URL parameters (direct link)
-                const urlParams = new URLSearchParams(window.location.search);
-                const invitationId = urlParams.get('invitation');
-                const code = urlParams.get('code');
-                
-                if (invitationId && code) {
-                    console.log('📧 Found invitation in URL params');
-                    invitationData = { invitationId, code };
-                    return invitationData;
-                }
-                
-                console.log('📧 No invitation data found');
-                return null;
-                
-            } catch (error) {
-                console.error('❌ Error checking for invitation:', error);
-                return null;
+            // FIX: Map the 'id' field to 'invitationId' for compatibility
+            if (invitationData.id && !invitationData.invitationId) {
+                invitationData.invitationId = invitationData.id;
             }
+            
+            sessionStorage.removeItem('pendingInvitation'); // Clean up
+            return invitationData;
         }
-
+        
+        // Then check URL parameters (direct link)
+        const urlParams = new URLSearchParams(window.location.search);
+        const invitationId = urlParams.get('invitation');
+        const code = urlParams.get('code');
+        
+        if (invitationId && code) {
+            console.log('📧 Found invitation in URL params');
+            return { invitationId, code };
+        }
+        
+        console.log('📧 No invitation data found');
+        return null;
+        
+    } catch (error) {
+        console.error('❌ Error checking for invitation:', error);
+        return null;
+    }
+}
         // NEW: Load and display invitation information
         async function loadInvitationData() {
             if (!invitationData) return;
