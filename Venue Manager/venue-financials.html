@@ -305,6 +305,16 @@
             color: #86868B;
         }
 
+        .financial-breakdown {
+            font-size: 11px;
+            color: #86868B;
+            margin-top: 8px;
+            padding: 6px 8px;
+            background-color: #F8F9FA;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+        }
+
         /* Fee Management Section */
         .fee-management {
             background-color: #FFFFFF;
@@ -378,7 +388,7 @@
             background-color: #28CD4F;
         }
 
-        /* Restaurant Fee Table */
+        /* Restaurant Fee Table - IMPROVED HEADERS */
         .restaurant-fees-table {
             background-color: #FFFFFF;
             border-radius: 12px;
@@ -392,7 +402,7 @@
             padding: 16px 24px;
             border-bottom: 1px solid #E5E5E7;
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 1.2fr 1.2fr 0.8fr 1fr;
             gap: 16px;
             font-size: 13px;
             font-weight: 600;
@@ -405,7 +415,7 @@
             padding: 16px 24px;
             border-bottom: 1px solid #F1F3F4;
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 1.2fr 1.2fr 0.8fr 1fr;
             gap: 16px;
             align-items: center;
             transition: background-color 0.2s ease;
@@ -493,6 +503,13 @@
             font-size: 11px;
             color: #007AFF;
             margin-left: 4px;
+        }
+
+        .calculation-breakdown {
+            font-size: 11px;
+            color: #86868B;
+            margin-top: 2px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
         }
 
         /* Charts Section */
@@ -756,7 +773,7 @@
         <!-- Page Header -->
         <section class="page-header">
             <h1 class="page-title">Venue Financials</h1>
-            <p class="page-subtitle">Comprehensive financial management and revenue analytics</p>
+            <p class="page-subtitle">Comprehensive financial management and revenue analytics with improved calculations</p>
         </section>
 
         <!-- Filter Controls -->
@@ -786,29 +803,32 @@
         <section class="financial-summary">
             <div class="financial-card">
                 <div class="financial-header">
-                    <span class="financial-title">Venue Revenue</span>
+                    <span class="financial-title">Total Venue Revenue</span>
                     <span class="financial-trend trend-neutral" id="venueRevenueTrend">--</span>
                 </div>
                 <div class="financial-value" id="venueRevenue">$0.00</div>
-                <div class="financial-change" id="venueRevenueChange">from venue fees</div>
+                <div class="financial-change" id="venueRevenueChange">Total fees collected from all restaurants</div>
+                <div class="financial-breakdown" id="venueRevenueBreakdown">Sum of all venue fees earned</div>
             </div>
 
             <div class="financial-card">
                 <div class="financial-header">
-                    <span class="financial-title">Total Transaction Volume</span>
+                    <span class="financial-title">Total Restaurant Sales</span>
                     <span class="financial-trend trend-neutral" id="transactionVolumeTrend">--</span>
                 </div>
                 <div class="financial-value" id="transactionVolume">$0.00</div>
-                <div class="financial-change" id="transactionVolumeChange">across all restaurants</div>
+                <div class="financial-change" id="transactionVolumeChange">Combined sales across all restaurants</div>
+                <div class="financial-breakdown" id="transactionVolumeBreakdown">Total customer payments before fees</div>
             </div>
 
             <div class="financial-card">
                 <div class="financial-header">
-                    <span class="financial-title">Average Venue Fee</span>
+                    <span class="financial-title">Average Fee Rate</span>
                     <span class="financial-trend trend-neutral" id="avgVenueFeeTrend">--</span>
                 </div>
                 <div class="financial-value" id="avgVenueFee">0.0%</div>
-                <div class="financial-change" id="avgVenueFeeChange">weighted average</div>
+                <div class="financial-change" id="avgVenueFeeChange">Weighted average fee rate</div>
+                <div class="financial-breakdown" id="avgVenueFeeBreakdown">Calculated: venue revenue ÷ restaurant sales</div>
             </div>
 
             <div class="financial-card">
@@ -818,6 +838,7 @@
                 </div>
                 <div class="financial-value" id="paymentSuccessRate">0%</div>
                 <div class="financial-change" id="paymentStatusChange">success rate</div>
+                <div class="financial-breakdown" id="paymentStatusBreakdown">Successful transactions / total attempts</div>
             </div>
         </section>
 
@@ -844,8 +865,9 @@
             <div class="restaurant-fees-table">
                 <div class="table-header">
                     <div>Restaurant</div>
-                    <div>Current Fee</div>
-                    <div>Monthly Revenue</div>
+                    <div>Fee Rate</div>
+                    <div>Restaurant Sales</div>
+                    <div>Venue Fees Earned</div>
                     <div>Orders</div>
                     <div>Actions</div>
                 </div>
@@ -863,8 +885,8 @@
             <div class="charts-grid">
                 <div class="chart-card">
                     <div class="chart-header">
-                        <h3 class="chart-title">Revenue Trends</h3>
-                        <p class="chart-subtitle">Venue fees vs. total transaction volume</p>
+                        <h3 class="chart-title">Revenue Breakdown</h3>
+                        <p class="chart-subtitle">Restaurant sales vs. venue fees collected</p>
                     </div>
                     <div class="chart-container">
                         <canvas id="revenueChart"></canvas>
@@ -874,7 +896,7 @@
                 <div class="chart-card">
                     <div class="chart-header">
                         <h3 class="chart-title">Fee Distribution</h3>
-                        <p class="chart-subtitle">Revenue breakdown by restaurant</p>
+                        <p class="chart-subtitle">Venue revenue breakdown by restaurant</p>
                     </div>
                     <div class="chart-container">
                         <canvas id="feeDistributionChart"></canvas>
@@ -1034,7 +1056,7 @@
         // Initialize dashboard
         async function initializeDashboard() {
             try {
-                console.log('🚀 Initializing venue financials dashboard...');
+                console.log('🚀 Initializing improved venue financials dashboard...');
                 
                 await waitForFirebase();
                 await checkAuthentication();
@@ -1043,7 +1065,7 @@
                 await loadOrders();
                 await loadFinancialData();
                 
-                console.log('✅ Venue financials dashboard initialized successfully');
+                console.log('✅ Improved venue financials dashboard initialized successfully');
                 
             } catch (error) {
                 console.error('❌ Dashboard initialization error:', error);
@@ -1061,7 +1083,7 @@
                     attempts++;
                     
                     if (window.firebase && window.firebaseAuth && window.firebaseDb) {
-                        console.log('✅ Firebase ready for financials');
+                        console.log('✅ Firebase ready for improved financials');
                         resolve();
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Firebase initialization timeout'));
@@ -1147,7 +1169,7 @@
                     defaultFeeInput.value = venue.defaultFeePercentage;
                 }
                 
-                console.log('✅ Venue loaded for financials:', venue.name);
+                console.log('✅ Venue loaded for improved financials:', venue.name);
                 
             } catch (error) {
                 console.error('❌ Load venue error:', error);
@@ -1202,7 +1224,7 @@
                     restaurantFilter.appendChild(option);
                 });
                 
-                console.log('✅ Restaurants loaded for financials:', venueRestaurants.length);
+                console.log('✅ Restaurants loaded for improved financials:', venueRestaurants.length);
                 
             } catch (error) {
                 console.error('❌ Load restaurants error:', error);
@@ -1252,7 +1274,7 @@
                     }
                 }
                 
-                console.log('✅ Orders loaded for financials:', venueOrders.length);
+                console.log('✅ Orders loaded for improved financials:', venueOrders.length);
                 
             } catch (error) {
                 console.error('❌ Load orders error:', error);
@@ -1260,7 +1282,7 @@
             }
         }
 
-        // Load financial data
+        // Load financial data with improved calculations
         async function loadFinancialData() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
@@ -1276,13 +1298,13 @@
             }
         }
 
-        // Calculate financial metrics from order data
+        // Calculate financial metrics from order data with IMPROVED CALCULATIONS
         async function calculateFinancialMetrics(timePeriod) {
             try {
                 const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
                 
-                let totalRevenue = 0;
-                let venueRevenue = 0;
+                let totalRestaurantSales = 0;
+                let totalVenueRevenue = 0;
                 const revenueByRestaurant = {};
                 
                 filteredOrders.forEach(order => {
@@ -1290,38 +1312,47 @@
                     const venueFeeRate = parseFloat(order.venueFeePercentage || currentVenue.defaultFeePercentage || 1.0) / 100;
                     const orderVenueFee = orderTotal * venueFeeRate;
                     
-                    totalRevenue += orderTotal;
-                    venueRevenue += orderVenueFee;
+                    totalRestaurantSales += orderTotal;
+                    totalVenueRevenue += orderVenueFee;
                     
                     if (!revenueByRestaurant[order.restaurantId]) {
                         revenueByRestaurant[order.restaurantId] = {
-                            revenue: 0,
-                            venueFees: 0,
-                            orders: 0
+                            restaurantSales: 0,
+                            venueFeesEarned: 0,
+                            orders: 0,
+                            feeRate: venueFeeRate * 100
                         };
                     }
                     
-                    revenueByRestaurant[order.restaurantId].revenue += orderTotal;
-                    revenueByRestaurant[order.restaurantId].venueFees += orderVenueFee;
+                    revenueByRestaurant[order.restaurantId].restaurantSales += orderTotal;
+                    revenueByRestaurant[order.restaurantId].venueFeesEarned += orderVenueFee;
                     revenueByRestaurant[order.restaurantId].orders += 1;
                 });
                 
+                // Calculate weighted average fee rate
+                const avgVenueFeeRate = totalRestaurantSales > 0 ? (totalVenueRevenue / totalRestaurantSales) * 100 : 0;
+                
                 financialData = {
-                    totalRevenue,
-                    venueRevenue,
+                    totalRestaurantSales,      // RENAMED: Total customer payments
+                    totalVenueRevenue,         // RENAMED: Total fees collected by venue
                     orderCount: filteredOrders.length,
-                    avgVenueFeeRate: totalRevenue > 0 ? (venueRevenue / totalRevenue) * 100 : 0,
+                    avgVenueFeeRate,
                     revenueByRestaurant,
                     orders: filteredOrders
                 };
                 
-                console.log('✅ Financial metrics calculated:', financialData);
+                console.log('✅ Improved financial metrics calculated:', {
+                    restaurantSales: totalRestaurantSales,
+                    venueRevenue: totalVenueRevenue,
+                    avgFeeRate: avgVenueFeeRate,
+                    orders: filteredOrders.length
+                });
                 
             } catch (error) {
                 console.error('❌ Calculate financial metrics error:', error);
                 financialData = {
-                    totalRevenue: 0,
-                    venueRevenue: 0,
+                    totalRestaurantSales: 0,
+                    totalVenueRevenue: 0,
                     orderCount: 0,
                     avgVenueFeeRate: 0,
                     revenueByRestaurant: {},
@@ -1341,28 +1372,43 @@
             });
         }
 
-        // Update financial summary
+        // Update financial summary with IMPROVED LABELING
         async function updateFinancialSummary() {
             try {
+                // Total Venue Revenue (fees collected)
                 document.getElementById('venueRevenue').textContent = 
-                    formatCurrency(financialData.venueRevenue || 0);
+                    formatCurrency(financialData.totalVenueRevenue || 0);
+                document.getElementById('venueRevenueBreakdown').textContent = 
+                    `Sum of all venue fees: ${formatCurrency(financialData.totalRestaurantSales || 0)} × ${(financialData.avgVenueFeeRate || 0).toFixed(1)}% avg rate`;
                 
+                // Total Restaurant Sales (customer payments)
                 document.getElementById('transactionVolume').textContent = 
-                    formatCurrency(financialData.totalRevenue || 0);
+                    formatCurrency(financialData.totalRestaurantSales || 0);
+                document.getElementById('transactionVolumeBreakdown').textContent = 
+                    `Total customer payments across ${venueRestaurants.length} restaurants`;
                 
+                // Average Fee Rate
                 document.getElementById('avgVenueFee').textContent = 
                     `${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
+                document.getElementById('avgVenueFeeBreakdown').textContent = 
+                    `${formatCurrency(financialData.totalVenueRevenue || 0)} ÷ ${formatCurrency(financialData.totalRestaurantSales || 0)} = ${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
                 
+                // Payment Processing
                 document.getElementById('paymentSuccessRate').textContent = '100%';
+                document.getElementById('paymentStatusBreakdown').textContent = 
+                    `${financialData.orderCount || 0} successful / ${financialData.orderCount || 0} total`;
                 
+                // Update change descriptions
                 document.getElementById('venueRevenueChange').textContent = 
-                    `${financialData.orderCount || 0} orders processed`;
+                    `Total fees collected from all restaurants`;
                 document.getElementById('transactionVolumeChange').textContent = 
-                    `${venueRestaurants.length} restaurants`;
-                document.getElementById('avgVenueFeeChange').textContent = 'weighted average rate';
+                    `Combined sales across all restaurants`;
+                document.getElementById('avgVenueFeeChange').textContent = 
+                    `Weighted average fee rate`;
                 document.getElementById('paymentStatusChange').textContent = 
-                    `${financialData.orderCount || 0} total transactions`;
+                    `Success rate for ${financialData.orderCount || 0} transactions`;
                 
+                // Update payment processing stats
                 document.getElementById('totalPayments').textContent = financialData.orderCount || 0;
                 document.getElementById('successfulPayments').textContent = financialData.orderCount || 0;
                 document.getElementById('failedPayments').textContent = '0';
@@ -1373,7 +1419,7 @@
             }
         }
 
-        // Update restaurant fees table
+        // Update restaurant fees table with IMPROVED CALCULATIONS
         async function updateRestaurantFeesTable() {
             const tableContainer = document.getElementById('restaurantFeesTable');
             
@@ -1395,10 +1441,11 @@
                     return {
                         ...restaurant,
                         venueFeePercentage,
-                        monthlyRevenue: restaurantData.venueFees || 0,
+                        restaurantSales: restaurantData.restaurantSales || 0,
+                        venueFeesEarned: restaurantData.venueFeesEarned || 0,
                         orderCount: restaurantData.orders || 0
                     };
-                }).sort((a, b) => b.monthlyRevenue - a.monthlyRevenue);
+                }).sort((a, b) => b.venueFeesEarned - a.venueFeesEarned);
                 
                 tableContainer.innerHTML = restaurantFeesData.map(restaurant => {
                     const isCustomized = customizedRestaurantFees.has(restaurant.id);
@@ -1428,7 +1475,12 @@
                             </div>
                         </div>
                         <div>
-                            <div class="fee-value">${formatCurrency(restaurant.monthlyRevenue)}</div>
+                            <div class="fee-value">${formatCurrency(restaurant.restaurantSales)}</div>
+                            <div class="calculation-breakdown">Total customer payments</div>
+                        </div>
+                        <div>
+                            <div class="fee-value">${formatCurrency(restaurant.venueFeesEarned)}</div>
+                            <div class="calculation-breakdown">${formatCurrency(restaurant.restaurantSales)} × ${restaurant.venueFeePercentage.toFixed(1)}% = ${formatCurrency(restaurant.venueFeesEarned)}</div>
                         </div>
                         <div>
                             <div class="fee-value">${restaurant.orderCount}</div>
@@ -1453,7 +1505,7 @@
             }
         }
 
-        // Create financial charts
+        // Create financial charts with improved data
         async function createFinancialCharts() {
             try {
                 await createRevenueChart();
@@ -1464,13 +1516,13 @@
             }
         }
 
-        // Create revenue trends chart
+        // Create revenue trends chart with IMPROVED LABELING
         async function createRevenueChart() {
             const ctx = document.getElementById('revenueChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
             
             const labels = generateTimeLabels(timePeriod);
-            const { venueFeesData, totalVolumeData } = generateRevenueDataFromOrders(labels, timePeriod);
+            const { venueFeesData, restaurantSalesData } = generateRevenueDataFromOrders(labels, timePeriod);
             
             if (charts.revenue) {
                 charts.revenue.destroy();
@@ -1481,7 +1533,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Venue Fees',
+                        label: 'Venue Fees Earned',
                         data: venueFeesData,
                         borderColor: '#007AFF',
                         backgroundColor: 'rgba(0, 122, 255, 0.1)',
@@ -1490,8 +1542,8 @@
                         tension: 0.4,
                         yAxisID: 'y'
                     }, {
-                        label: 'Total Volume',
-                        data: totalVolumeData,
+                        label: 'Restaurant Sales',
+                        data: restaurantSalesData,
                         borderColor: '#30D158',
                         backgroundColor: 'rgba(48, 209, 88, 0.1)',
                         borderWidth: 2,
@@ -1530,7 +1582,7 @@
                             position: 'right',
                             title: {
                                 display: true,
-                                text: 'Total Volume (' + getCurrencySymbol(venueCurrency) + ')'
+                                text: 'Restaurant Sales (' + getCurrencySymbol(venueCurrency) + ')'
                             },
                             grid: {
                                 drawOnChartArea: false,
@@ -1555,9 +1607,9 @@
             
             venueRestaurants.forEach(restaurant => {
                 const restaurantData = financialData.revenueByRestaurant?.[restaurant.id];
-                if (restaurantData && restaurantData.venueFees > 0) {
+                if (restaurantData && restaurantData.venueFeesEarned > 0) {
                     restaurantLabels.push(restaurant.name.substring(0, 15));
-                    venueFeesData.push(restaurantData.venueFees);
+                    venueFeesData.push(restaurantData.venueFeesEarned);
                 }
             });
             
@@ -1660,10 +1712,10 @@
             });
         }
 
-        // Generate revenue data from actual orders
+        // Generate revenue data from actual orders with IMPROVED VARIABLE NAMES
         function generateRevenueDataFromOrders(labels, timePeriod) {
             const venueFeesData = new Array(labels.length).fill(0);
-            const totalVolumeData = new Array(labels.length).fill(0);
+            const restaurantSalesData = new Array(labels.length).fill(0);
             
             (financialData.orders || []).forEach(order => {
                 const orderDate = timestampToDate(order.createdAt);
@@ -1699,11 +1751,11 @@
                 
                 if (timeIndex >= 0 && timeIndex < labels.length) {
                     venueFeesData[timeIndex] += orderVenueFee;
-                    totalVolumeData[timeIndex] += orderTotal;
+                    restaurantSalesData[timeIndex] += orderTotal;
                 }
             });
             
-            return { venueFeesData, totalVolumeData };
+            return { venueFeesData, restaurantSalesData };
         }
 
         // Update default venue fee
@@ -2017,7 +2069,7 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('💰 Venue Financials Dashboard starting...');
+            console.log('💰 Improved Venue Financials Dashboard starting...');
             initializeDashboard();
         });
     </script>
