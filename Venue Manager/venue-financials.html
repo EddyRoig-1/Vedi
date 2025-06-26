@@ -1543,22 +1543,26 @@
             }
         }
 
-        // Create revenue trends chart - NO SAMPLE DATA
+        // Create revenue trends chart - FIXED CHART UPDATING
         async function createRevenueChart() {
-            const ctx = document.getElementById('revenueChart').getContext('2d');
+            const ctx = document.getElementById('revenueChart');
+            if (!ctx) return;
+            
             const timePeriod = document.getElementById('timePeriod').value;
             
             const labels = generateTimeLabels(timePeriod);
             const { venueFeesData, restaurantSalesData, hasData } = generateRevenueDataFromOrders(labels, timePeriod);
             
+            // Always destroy existing chart first
             if (charts.revenue) {
                 charts.revenue.destroy();
+                charts.revenue = null;
             }
             
             // Check if there's any real data
             if (!hasData) {
                 // Show "No Data" message instead of chart
-                const chartContainer = ctx.canvas.parentElement;
+                const chartContainer = ctx.parentElement;
                 chartContainer.innerHTML = `
                     <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
                         <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">📊</div>
@@ -1569,16 +1573,16 @@
                 return;
             }
             
-            // Restore canvas if it was replaced
-            const chartContainer = ctx.canvas.parentElement;
+            // Restore canvas if it was replaced with no-data message
+            const chartContainer = ctx.parentElement;
             if (!chartContainer.querySelector('canvas')) {
                 chartContainer.innerHTML = '<canvas id="revenueChart"></canvas>';
-                const newCtx = document.getElementById('revenueChart').getContext('2d');
-                createRevenueChartWithData(newCtx, labels, venueFeesData, restaurantSalesData, timePeriod);
-                return;
             }
             
-            createRevenueChartWithData(ctx, labels, venueFeesData, restaurantSalesData, timePeriod);
+            // Get the context again in case canvas was recreated
+            const chartCtx = document.getElementById('revenueChart').getContext('2d');
+            
+            createRevenueChartWithData(chartCtx, labels, venueFeesData, restaurantSalesData, timePeriod);
         }
 
         // Create the actual chart with data
