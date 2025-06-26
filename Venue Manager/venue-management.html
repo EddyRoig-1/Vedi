@@ -9,6 +9,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     
     <!-- Firebase Configuration -->
@@ -1264,6 +1265,10 @@
             return window.firebaseDb || firebase.firestore();
         }
 
+        function getFirebaseFunctions() {
+            return firebase.functions();
+        }
+
         // VediAPI Mock Functions (simplified version for venue management)
         if (!window.VediAPI) {
             window.VediAPI = {
@@ -1703,6 +1708,245 @@
             `;
         }
 
+        // Generate unique invitation code
+        function generateInvitationCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 8; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        // Fixed modal management with null checks
+        function openInviteModal() {
+            const modal = document.getElementById('inviteModal');
+            if (!modal) {
+                console.error('❌ Invite modal element not found');
+                showMessage('Unable to open invitation form. Please refresh the page.', 'error');
+                return;
+            }
+            
+            // Clear any previous form data
+            const restaurantNameInput = document.getElementById('inviteRestaurantName');
+            const contactEmailInput = document.getElementById('inviteContactEmail');
+            const personalMessageInput = document.getElementById('invitePersonalMessage');
+            
+            if (restaurantNameInput) restaurantNameInput.value = '';
+            if (contactEmailInput) contactEmailInput.value = '';
+            if (personalMessageInput) personalMessageInput.value = '';
+            
+            modal.classList.add('active');
+        }
+
+        function closeInviteModal() {
+            const modal = document.getElementById('inviteModal');
+            if (!modal) {
+                console.error('❌ Invite modal element not found');
+                return;
+            }
+            
+            modal.classList.remove('active');
+            
+            // Clear form data
+            const restaurantNameInput = document.getElementById('inviteRestaurantName');
+            const contactEmailInput = document.getElementById('inviteContactEmail');
+            const personalMessageInput = document.getElementById('invitePersonalMessage');
+            
+            if (restaurantNameInput) restaurantNameInput.value = '';
+            if (contactEmailInput) contactEmailInput.value = '';
+            if (personalMessageInput) personalMessageInput.value = '';
+        }
+
+        // Enhanced invitation sending with Firebase Functions
+        async function sendInvitation() {
+            try {
+                const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
+                const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+                const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
+                
+                // Enhanced validation
+                if (!restaurantName || restaurantName.length < 2) {
+                    showMessage('Please enter a valid restaurant name (at least 2 characters)', 'error');
+                    return;
+                }
+                
+                if (!contactEmail || !VediAPI.validateEmail(contactEmail)) {
+                    showMessage('Please enter a valid email address', 'error');
+                    return;
+                }
+                
+                // Check if we already have a restaurant with this email
+                if (venueRestaurants.some(r => r.email === contactEmail)) {
+                    showMessage('A restaurant with this email is already in your venue', 'error');
+                    return;
+                }
+                
+                // Check for existing invitations
+                try {
+                    const db = getFirebaseDb();
+                    const existingQuery = await db.collection('venueInvitations')
+                        .where('venueId', '==', currentVenue.id)
+                        .where('contactEmail', '==', contactEmail)
+                        .where('status', '==', 'pending')
+                        .get();
+                    
+                    if (!existingQuery.empty) {
+                        showMessage('An invitation to this email is already pending', 'error');
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Could not check existing invitations:', error);
+                }
+                
+                // Show loading state
+                const sendButton = document.querySelector('#inviteModal .modal-btn.primary');
+                const originalText = sendButton.textContent;
+                sendButton.disabled = true;
+                sendButton.textContent = 'Sending...';
+                
+                // Generate unique invitation code
+                const invitationCode = generateInvitationCode();
+                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+                
+                // Create invitation record
+                const invitationData = {
+                    venueId: currentVenue.id,
+                    venueName: currentVenue.name,
+                    venueCity: currentVenue.city,
+                    venueState: currentVenue.state,
+                    restaurantName: restaurantName,
+                    contactEmail: contactEmail,
+                    personalMessage: personalMessage,
+                    invitationCode: invitationCode,
+                    status: 'pending',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    expiresAt: expiresAt,
+                    invitedBy: {
+                        uid: currentUser.uid,
+                        name: currentUser.name,
+                        email: currentUser.email
+                    }
+                };
+                
+                // Save invitation to database
+                const db = getFirebaseDb();
+                const docRef = await db.collection('venueInvitations').add(invitationData);
+                
+                // Send invitation email via Firebase Functions
+                await sendInvitationEmail(docRef.id, invitationData);
+                
+                showMessage(`Invitation sent to ${restaurantName} successfully! They will receive an email with a link to join your venue.`, 'success');
+                closeInviteModal();
+                
+                console.log('✅ Invitation sent:', { id: docRef.id, ...invitationData });
+                
+            } catch (error) {
+                console.error('❌ Send invitation error:', error);
+                showMessage('Failed to send invitation: ' + error.message, 'error');
+            } finally {
+                // Reset button state
+                const sendButton = document.querySelector('#inviteModal .modal-btn.primary');
+                if (sendButton) {
+                    sendButton.disabled = false;
+                    sendButton.textContent = 'Send Invitation';
+                }
+            }
+        }
+
+        // Send invitation email via Firebase Functions
+        async function sendInvitationEmail(invitationId, invitationData) {
+            try {
+                // Create signup URL with invitation parameters
+                const signupUrl = `${window.location.origin}/restaurant-signup.html?invitation=${invitationId}&code=${invitationData.invitationCode}`;
+                
+                // Email content
+                const emailData = {
+                    to: invitationData.contactEmail,
+                    subject: `Invitation to join ${invitationData.venueName}`,
+                    html: generateInvitationEmailHTML(invitationData, signupUrl),
+                    from: {
+                        name: invitationData.venueName,
+                        email: 'invitations@vedi.com' // Your platform email
+                    }
+                };
+                
+                // Use Firebase Functions to send email
+                const functions = getFirebaseFunctions();
+                const sendEmail = functions.httpsCallable('sendInvitationEmail');
+                await sendEmail(emailData);
+                
+                console.log('✅ Invitation email sent successfully via Firebase Functions');
+                
+            } catch (error) {
+                console.error('❌ Send email error:', error);
+                // Don't throw error here - invitation was saved, email delivery is secondary
+                console.warn('⚠️ Invitation saved but email delivery failed. Restaurant can still use invitation code.');
+                showMessage('Invitation created! Email delivery may have failed, but the restaurant can still join using the invitation code.', 'warning');
+            }
+        }
+
+        // Generate HTML email template
+        function generateInvitationEmailHTML(invitationData, signupUrl) {
+            return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Join ${invitationData.venueName}</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: #007AFF; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+                    .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }
+                    .button { display: inline-block; background: #007AFF; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+                    .code { background: #e9ecef; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 16px; letter-spacing: 2px; }
+                    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 14px; color: #6c757d; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🍽️ You're Invited to Join ${invitationData.venueName}!</h1>
+                    </div>
+                    <div class="content">
+                        <h2>Hello ${invitationData.restaurantName}!</h2>
+                        
+                        <p>You've been invited to join <strong>${invitationData.venueName}</strong> in ${invitationData.venueCity}, ${invitationData.venueState}.</p>
+                        
+                        ${invitationData.personalMessage ? `
+                        <div style="background: white; padding: 20px; border-left: 4px solid #007AFF; margin: 20px 0;">
+                            <h4>Personal Message:</h4>
+                            <p><em>"${invitationData.personalMessage}"</em></p>
+                        </div>
+                        ` : ''}
+                        
+                        <p>To accept this invitation and set up your restaurant:</p>
+                        
+                        <a href="${signupUrl}" class="button">Accept Invitation & Sign Up</a>
+                        
+                        <p>Or use this invitation code when signing up:</p>
+                        <div class="code">${invitationData.invitationCode}</div>
+                        
+                        <div class="footer">
+                            <p><strong>What's Next?</strong></p>
+                            <ul>
+                                <li>Click the button above to create your restaurant account</li>
+                                <li>Complete your restaurant setup</li>
+                                <li>Start accepting orders through the venue</li>
+                                <li>Access venue analytics and reporting</li>
+                            </ul>
+                            
+                            <p><small>This invitation expires in 7 days. If you have any questions, please contact the venue directly.</small></p>
+                            <p><small>© 2025 Vedi Platform - Restaurant & Venue Management</small></p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            `;
+        }
+
         // Show approval confirmation modal
         function showApprovalModal(requestId, restaurantName) {
             const modal = document.createElement('div');
@@ -1889,34 +2133,7 @@
         // View restaurant details
         function viewRestaurantDetails(restaurantId, restaurantName) {
             // This could open a detailed modal or navigate to a detailed view
-            showMessage(`Detailed view for ${restaurantName} coming soon!`, 'info');
-            
-            // You could implement a detailed view here:
-            /*
-            const modal = document.createElement('div');
-            modal.className = 'modal active';
-            modal.innerHTML = `
-                <div class="modal-content" style="max-width: 600px;">
-                    <div class="modal-header">
-                        <h2 class="modal-title">${restaurantName} - Details</h2>
-                        <p class="modal-subtitle">Complete restaurant information</p>
-                    </div>
-                    
-                    <div id="restaurantDetailsContent" style="max-height: 400px; overflow-y: auto;">
-                        Loading restaurant details...
-                    </div>
-                    
-                    <div class="modal-actions">
-                        <button class="modal-btn primary" onclick="closeModal(this)">Close</button>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // Load restaurant details
-            loadRestaurantDetails(restaurantId);
-            */
+            showMessage(`Detailed view for ${restaurantName} coming soon!`, 'warning');
         }
 
         // Close modal helper
@@ -1936,98 +2153,6 @@
                 return { text: 'Offline', class: 'status-offline' };
             }
             return { text: 'Online', class: 'status-online' };
-        }
-
-        // Update restaurant statuses from real-time listener
-        function updateRestaurantStatuses(statusUpdate) {
-            // Update restaurant cards with new status information
-            console.log('📡 Restaurant status update received:', statusUpdate);
-            // This would update the visual status indicators in real-time
-        }
-
-        // Modal management
-        function openInviteModal() {
-            document.getElementById('inviteModal').classList.add('active');
-        }
-
-        function closeInviteModal() {
-            document.getElementById('inviteModal').classList.remove('active');
-            // Clear form
-            document.getElementById('inviteRestaurantName').value = '';
-            document.getElementById('inviteContactEmail').value = '';
-            document.getElementById('invitePersonalMessage').value = '';
-        }
-
-        // Enhanced invitation sending with better validation
-        async function sendInvitation() {
-            try {
-                const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
-                const contactEmail = document.getElementById('inviteContactEmail').value.trim();
-                const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
-                
-                // Enhanced validation
-                if (!restaurantName || restaurantName.length < 2) {
-                    showMessage('Please enter a valid restaurant name (at least 2 characters)', 'error');
-                    return;
-                }
-                
-                if (!contactEmail || !VediAPI.validateEmail(contactEmail)) {
-                    showMessage('Please enter a valid email address', 'error');
-                    return;
-                }
-                
-                // Check if we already have a restaurant with this email
-                if (venueRestaurants.some(r => r.email === contactEmail)) {
-                    showMessage('A restaurant with this email is already in your venue', 'error');
-                    return;
-                }
-                
-                // Check for existing invitations
-                try {
-                    if (typeof VediAPI.getVenueInvitations === 'function') {
-                        const existingInvitations = await VediAPI.getVenueInvitations(currentVenue.id, 'pending');
-                        if (existingInvitations.some(inv => inv.contactEmail === contactEmail)) {
-                            showMessage('An invitation to this email is already pending', 'error');
-                            return;
-                        }
-                    }
-                } catch (error) {
-                    console.warn('⚠️ Could not check existing invitations:', error);
-                }
-                
-                let invitation;
-                if (typeof VediAPI.createVenueInvitation === 'function') {
-                    invitation = await VediAPI.createVenueInvitation(currentVenue.id, {
-                        restaurantName,
-                        contactEmail
-                    }, personalMessage);
-                } else {
-                    // Fallback: manual invitation creation
-                    const db = getFirebaseDb();
-                    const invitationData = {
-                        venueId: currentVenue.id,
-                        venueName: currentVenue.name,
-                        restaurantName: restaurantName,
-                        contactEmail: contactEmail,
-                        personalMessage: personalMessage,
-                        status: 'pending',
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-                    };
-                    
-                    const docRef = await db.collection('venueInvitations').add(invitationData);
-                    invitation = { id: docRef.id, ...invitationData };
-                }
-                
-                showMessage(`Invitation sent to ${restaurantName} successfully! They will receive an email with a link to join your venue.`, 'success');
-                closeInviteModal();
-                
-                console.log('✅ Invitation sent:', invitation);
-                
-            } catch (error) {
-                console.error('❌ Send invitation error:', error);
-                showMessage('Failed to send invitation: ' + error.message, 'error');
-            }
         }
 
         // Restaurant management actions
@@ -2085,7 +2210,7 @@
 
         // Venue settings management
         function showVenueSettings() {
-            // Populate current venue data using the correct ID
+            // Populate current venue data
             if (currentVenue) {
                 document.getElementById('venueNameInput').value = currentVenue.name || '';
                 document.getElementById('venueDescription').value = currentVenue.description || '';
