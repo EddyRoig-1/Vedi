@@ -758,14 +758,6 @@
                         <option value="all">All Restaurants</option>
                     </select>
                 </div>
-                <div class="filter-group">
-                    <label class="filter-label">Currency</label>
-                    <select class="filter-select" id="currencyFilter">
-                        <option value="USD">USD ($)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="GBP">GBP (£)</option>
-                    </select>
-                </div>
                 <button class="apply-filters-btn" onclick="applyFilters()">Update</button>
             </div>
         </section>
@@ -923,33 +915,52 @@
         let venueOrders = [];
         let financialData = {};
         let charts = {};
-        let customizedRestaurantFees = new Set(); // Track which restaurants have custom fees
+        let customizedRestaurantFees = new Set();
+        let venueCurrency = 'USD';
 
-        // Helper function for currency formatting (copied from performance page)
-        function formatCurrency(amount, currency = 'USD') {
+        // Helper function for currency formatting
+        function formatCurrency(amount, currency = null) {
             try {
+                const currencyCode = currency || venueCurrency;
+                
                 if (VediAPI && VediAPI.formatCurrency) {
-                    return VediAPI.formatCurrency(amount, currency);
+                    return VediAPI.formatCurrency(amount, currencyCode);
                 } else {
-                    // Fallback formatting
                     return new Intl.NumberFormat('en-US', {
                         style: 'currency',
-                        currency: currency
+                        currency: currencyCode
                     }).format(amount);
                 }
             } catch (error) {
                 console.error('❌ Currency formatting error:', error);
-                return `$${amount.toFixed(2)}`;
+                const symbol = getCurrencySymbol(currency || venueCurrency);
+                return `${symbol}${amount.toFixed(2)}`;
             }
         }
 
-        // Helper function for time period start (copied from performance page)
+        // Get currency symbol for fallback formatting
+        function getCurrencySymbol(currencyCode) {
+            const symbols = {
+                'USD': '$',
+                'EUR': '€',
+                'GBP': '£',
+                'CAD': 'C$',
+                'AUD': 'A$',
+                'JPY': '¥',
+                'CHF': 'CHF',
+                'SEK': 'kr',
+                'NOK': 'kr',
+                'DKK': 'kr'
+            };
+            return symbols[currencyCode] || currencyCode + ' ';
+        }
+
+        // Helper function for time period start
         function getTimePeriodStart(timePeriod) {
             if (VediAPI && VediAPI.getTimePeriodStart) {
                 return VediAPI.getTimePeriodStart(timePeriod);
             }
             
-            // Fallback implementation
             const now = new Date();
             
             switch (timePeriod.toLowerCase()) {
@@ -971,14 +982,13 @@
             }
         }
 
-        // Helper function for timestamp conversion (copied from performance page)
+        // Helper function for timestamp conversion
         function timestampToDate(timestamp) {
             try {
                 if (VediAPI && VediAPI.timestampToDate) {
                     return VediAPI.timestampToDate(timestamp);
                 }
                 
-                // Fallback implementation
                 if (timestamp && timestamp.toDate) {
                     return timestamp.toDate();
                 }
@@ -1006,22 +1016,11 @@
             try {
                 console.log('🚀 Initializing venue financials dashboard...');
                 
-                // Wait for Firebase to be ready (FIXED: removed VediAPI dependency)
                 await waitForFirebase();
-                
-                // Check authentication
                 await checkAuthentication();
-                
-                // Load venue data
                 await loadVenueData();
-                
-                // Load restaurants (FIXED: using same pattern as performance page)
                 await loadRestaurants();
-                
-                // Load orders (ADDED: like performance page)
                 await loadOrders();
-                
-                // Load financial data
                 await loadFinancialData();
                 
                 console.log('✅ Venue financials dashboard initialized successfully');
@@ -1032,7 +1031,7 @@
             }
         }
 
-        // Wait for Firebase to be initialized (FIXED: removed VediAPI dependency)
+        // Wait for Firebase to be initialized
         function waitForFirebase() {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
@@ -1055,7 +1054,7 @@
             });
         }
 
-        // Check user authentication and venue access (same as performance page)
+        // Check user authentication and venue access
         async function checkAuthentication() {
             return new Promise((resolve, reject) => {
                 const auth = getFirebaseAuth();
@@ -1091,7 +1090,7 @@
             });
         }
 
-        // Load venue data (FIXED: same fallback pattern as performance page)
+        // Load venue data
         async function loadVenueData() {
             try {
                 let venue;
@@ -1099,7 +1098,6 @@
                 if (VediAPI && VediAPI.getVenueByManager) {
                     venue = await VediAPI.getVenueByManager(currentUser.uid);
                 } else {
-                    // Fallback to direct Firebase query
                     const db = getFirebaseDb();
                     const venueQuery = await db.collection('venues')
                         .where('managerUserId', '==', currentUser.uid)
@@ -1124,7 +1122,6 @@
                 document.getElementById('venueLocation').textContent = 
                     `${venue.city}, ${venue.state}`;
                 
-                // Update default venue fee input
                 const defaultFeeInput = document.getElementById('defaultVenueFee');
                 if (venue.defaultFeePercentage !== undefined) {
                     defaultFeeInput.value = venue.defaultFeePercentage;
@@ -1138,13 +1135,12 @@
             }
         }
 
-        // Load restaurants (FIXED: same pattern as performance page)
+        // Load restaurants
         async function loadRestaurants() {
             try {
                 if (VediAPI && VediAPI.getRestaurantsByVenue) {
                     venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
                 } else {
-                    // Fallback to direct Firebase query
                     const db = getFirebaseDb();
                     const restaurantsQuery = await db.collection('restaurants')
                         .where('venueId', '==', currentVenue.id)
@@ -1154,6 +1150,17 @@
                         id: doc.id,
                         ...doc.data()
                     }));
+                }
+                
+                // Detect venue currency from first restaurant
+                if (venueRestaurants.length > 0) {
+                    const firstRestaurant = venueRestaurants[0];
+                    if (firstRestaurant.currency && firstRestaurant.currency.code) {
+                        venueCurrency = firstRestaurant.currency.code;
+                    } else if (firstRestaurant.currencyCode) {
+                        venueCurrency = firstRestaurant.currencyCode;
+                    }
+                    console.log('✅ Venue currency detected:', venueCurrency);
                 }
                 
                 // Track which restaurants have custom fees
@@ -1183,7 +1190,7 @@
             }
         }
 
-        // Load orders for analytics (ADDED: copied from performance page)
+        // Load orders for analytics
         async function loadOrders() {
             try {
                 venueOrders = [];
@@ -1195,7 +1202,6 @@
                 
                 const restaurantIds = venueRestaurants.map(r => r.id);
                 
-                // Load orders for each restaurant
                 for (const restaurantId of restaurantIds) {
                     try {
                         let orders;
@@ -1207,7 +1213,6 @@
                                 orderDirection: 'desc'
                             });
                         } else {
-                            // Fallback to direct Firebase query
                             const db = getFirebaseDb();
                             const ordersQuery = await db.collection('orders')
                                 .where('restaurantId', '==', restaurantId)
@@ -1240,16 +1245,9 @@
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
                 
-                // Calculate financial data from orders (FIXED: using actual order data)
                 await calculateFinancialMetrics(timePeriod);
-                
-                // Update financial summary
                 await updateFinancialSummary();
-                
-                // Update restaurant fees table
                 await updateRestaurantFeesTable();
-                
-                // Create charts
                 await createFinancialCharts();
                 
             } catch (error) {
@@ -1258,12 +1256,11 @@
             }
         }
 
-        // Calculate financial metrics from order data (NEW)
+        // Calculate financial metrics from order data
         async function calculateFinancialMetrics(timePeriod) {
             try {
                 const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
                 
-                // Calculate venue revenue from orders
                 let totalRevenue = 0;
                 let venueRevenue = 0;
                 const revenueByRestaurant = {};
@@ -1313,7 +1310,7 @@
             }
         }
 
-        // Filter orders by time period (copied from performance page)
+        // Filter orders by time period
         function filterOrdersByTimePeriod(orders, timePeriod) {
             const startDate = getTimePeriodStart(timePeriod);
             if (!startDate) return orders;
@@ -1324,25 +1321,20 @@
             });
         }
 
-        // Update financial summary (FIXED: using calculated data)
+        // Update financial summary
         async function updateFinancialSummary() {
             try {
-                // Venue Revenue
                 document.getElementById('venueRevenue').textContent = 
-                    formatCurrency(financialData.venueRevenue || 0, 'USD');
+                    formatCurrency(financialData.venueRevenue || 0);
                 
-                // Total Transaction Volume
                 document.getElementById('transactionVolume').textContent = 
-                    formatCurrency(financialData.totalRevenue || 0, 'USD');
+                    formatCurrency(financialData.totalRevenue || 0);
                 
-                // Average Venue Fee
                 document.getElementById('avgVenueFee').textContent = 
                     `${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
                 
-                // Payment Success Rate (simplified)
                 document.getElementById('paymentSuccessRate').textContent = '100%';
                 
-                // Update change indicators
                 document.getElementById('venueRevenueChange').textContent = 
                     `${financialData.orderCount || 0} orders processed`;
                 document.getElementById('transactionVolumeChange').textContent = 
@@ -1351,7 +1343,6 @@
                 document.getElementById('paymentStatusChange').textContent = 
                     `${financialData.orderCount || 0} total transactions`;
                 
-                // Update payment status breakdown (simplified)
                 document.getElementById('totalPayments').textContent = financialData.orderCount || 0;
                 document.getElementById('successfulPayments').textContent = financialData.orderCount || 0;
                 document.getElementById('failedPayments').textContent = '0';
@@ -1362,7 +1353,7 @@
             }
         }
 
-        // Update restaurant fees table (FIXED: using real restaurant data)
+        // Update restaurant fees table
         async function updateRestaurantFeesTable() {
             const tableContainer = document.getElementById('restaurantFeesTable');
             
@@ -1376,7 +1367,6 @@
             }
             
             try {
-                // Calculate restaurant performance from actual data
                 const restaurantFeesData = venueRestaurants.map(restaurant => {
                     const restaurantData = financialData.revenueByRestaurant?.[restaurant.id] || {};
                     const venueFeePercentage = parseFloat(restaurant.venueFeePercentage) || 
@@ -1412,7 +1402,7 @@
                                    title="Click to edit fee percentage">%${customIndicator}
                         </div>
                         <div>
-                            <div class="fee-value">${formatCurrency(restaurant.monthlyRevenue, 'USD')}</div>
+                            <div class="fee-value">${formatCurrency(restaurant.monthlyRevenue)}</div>
                         </div>
                         <div>
                             <div class="fee-value">${restaurant.orderCount}</div>
@@ -1448,12 +1438,11 @@
             }
         }
 
-        // Create revenue trends chart (FIXED: using real data)
+        // Create revenue trends chart
         async function createRevenueChart() {
             const ctx = document.getElementById('revenueChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
             
-            // Generate labels and data from actual orders
             const labels = generateTimeLabels(timePeriod);
             const { venueFeesData, totalVolumeData } = generateRevenueDataFromOrders(labels, timePeriod);
             
@@ -1506,7 +1495,7 @@
                             position: 'left',
                             title: {
                                 display: true,
-                                text: 'Venue Fees ($)'
+                                text: 'Venue Fees (' + getCurrencySymbol(venueCurrency) + ')'
                             }
                         },
                         y1: {
@@ -1515,7 +1504,7 @@
                             position: 'right',
                             title: {
                                 display: true,
-                                text: 'Total Volume ($)'
+                                text: 'Total Volume (' + getCurrencySymbol(venueCurrency) + ')'
                             },
                             grid: {
                                 drawOnChartArea: false,
@@ -1531,11 +1520,10 @@
             });
         }
 
-        // Create fee distribution chart (FIXED: using real restaurant data)
+        // Create fee distribution chart
         async function createFeeDistributionChart() {
             const ctx = document.getElementById('feeDistributionChart').getContext('2d');
             
-            // Get restaurant names and venue fees from actual data
             const restaurantLabels = [];
             const venueFeesData = [];
             
@@ -1547,7 +1535,6 @@
                 }
             });
             
-            // If no data, show placeholder
             if (venueFeesData.length === 0) {
                 restaurantLabels.push('No Data');
                 venueFeesData.push(1);
@@ -1585,22 +1572,19 @@
             });
         }
 
-        // Create payment processing chart (simplified)
+        // Create payment processing chart
         async function createPaymentProcessingChart() {
             const ctx = document.getElementById('paymentProcessingChart').getContext('2d');
             
-            // Generate data from actual orders by day of week
             const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
             const successfulData = new Array(7).fill(0);
             const failedData = new Array(7).fill(0);
             
-            // Process actual order data
             (financialData.orders || []).forEach(order => {
                 if (order.createdAt) {
                     const date = timestampToDate(order.createdAt);
-                    const dayIndex = (date.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
+                    const dayIndex = (date.getDay() + 6) % 7;
                     
-                    // Assume all orders are successful for now
                     successfulData[dayIndex]++;
                 }
             });
@@ -1650,7 +1634,7 @@
             });
         }
 
-        // Generate revenue data from actual orders (NEW)
+        // Generate revenue data from actual orders
         function generateRevenueDataFromOrders(labels, timePeriod) {
             const venueFeesData = new Array(labels.length).fill(0);
             const totalVolumeData = new Array(labels.length).fill(0);
@@ -1663,7 +1647,6 @@
                 
                 let timeIndex = 0;
                 
-                // Determine which time bucket this order falls into
                 switch (timePeriod) {
                     case 'today':
                         timeIndex = orderDate.getHours();
@@ -1697,7 +1680,7 @@
             return { venueFeesData, totalVolumeData };
         }
 
-        // Update default venue fee (UPDATED: only affects non-customized restaurants)
+        // Update default venue fee
         async function updateDefaultVenueFee() {
             try {
                 const newFeePercentage = parseFloat(document.getElementById('defaultVenueFee').value);
@@ -1707,7 +1690,6 @@
                     return;
                 }
                 
-                // Update venue default fee in Firebase
                 const db = getFirebaseDb();
                 await db.collection('venues').doc(currentVenue.id).update({
                     defaultFeePercentage: newFeePercentage
@@ -1715,7 +1697,6 @@
                 
                 currentVenue.defaultFeePercentage = newFeePercentage;
                 
-                // Update non-customized restaurants to use the new default
                 const batch = db.batch();
                 let updatedCount = 0;
                 
@@ -1728,7 +1709,6 @@
                             updatedBy: currentUser.uid
                         });
                         
-                        // Update local data
                         restaurant.venueFeePercentage = newFeePercentage;
                         updatedCount++;
                     }
@@ -1740,7 +1720,6 @@
                 
                 showSuccess(`Default venue fee updated to ${newFeePercentage}% (applied to ${updatedCount} restaurants using default)`);
                 
-                // Reload financial data
                 await loadFinancialData();
                 
             } catch (error) {
@@ -1749,7 +1728,7 @@
             }
         }
 
-        // Sync venue fee across all restaurants (UPDATED: affects all restaurants)
+        // Sync venue fee across all restaurants
         async function syncVenueFeeAcrossRestaurants() {
             try {
                 const defaultFeePercentage = parseFloat(document.getElementById('defaultVenueFee').value);
@@ -1763,7 +1742,6 @@
                     return;
                 }
                 
-                // Update fee for each restaurant and clear customization tracking
                 const db = getFirebaseDb();
                 const batch = db.batch();
                 
@@ -1775,18 +1753,15 @@
                         updatedBy: currentUser.uid
                     });
                     
-                    // Update local data
                     restaurant.venueFeePercentage = defaultFeePercentage;
                 });
                 
                 await batch.commit();
                 
-                // Clear customization tracking since all restaurants now use the same fee
                 customizedRestaurantFees.clear();
                 
                 showSuccess(`Venue fee synced across ${venueRestaurants.length} restaurants`);
                 
-                // Reload financial data
                 await loadFinancialData();
                 
             } catch (error) {
@@ -1795,7 +1770,7 @@
             }
         }
 
-        // Update restaurant fee inline (NEW)
+        // Update restaurant fee inline
         async function updateRestaurantFeeInline(input) {
             try {
                 const restaurantId = input.dataset.restaurantId;
@@ -1803,7 +1778,6 @@
                 
                 if (isNaN(feePercentage) || feePercentage < 0) {
                     showError('Please enter a valid fee percentage (0% or higher)');
-                    // Reset to previous value
                     const restaurant = venueRestaurants.find(r => r.id === restaurantId);
                     if (restaurant) {
                         input.value = restaurant.venueFeePercentage.toFixed(1);
@@ -1811,7 +1785,6 @@
                     return;
                 }
                 
-                // Update in Firebase
                 const db = getFirebaseDb();
                 await db.collection('restaurants').doc(restaurantId).update({
                     venueFeePercentage: feePercentage,
@@ -1819,7 +1792,6 @@
                     updatedBy: currentUser.uid
                 });
                 
-                // Update local data
                 const restaurant = venueRestaurants.find(r => r.id === restaurantId);
                 if (restaurant) {
                     restaurant.venueFeePercentage = feePercentage;
@@ -1834,14 +1806,12 @@
                 
                 showSuccess(`Restaurant fee updated to ${feePercentage}%`);
                 
-                // Reload financial data to update calculations
                 await loadFinancialData();
                 
             } catch (error) {
                 console.error('❌ Update restaurant fee inline error:', error);
                 showError('Failed to update restaurant fee');
                 
-                // Reset to previous value
                 const restaurant = venueRestaurants.find(r => r.id === input.dataset.restaurantId);
                 if (restaurant) {
                     input.value = restaurant.venueFeePercentage.toFixed(1);
@@ -1849,12 +1819,11 @@
             }
         }
 
-        // Reset restaurant to default fee (NEW)
+        // Reset restaurant to default fee
         async function resetToDefault(restaurantId) {
             try {
                 const defaultFee = currentVenue.defaultFeePercentage || 1.0;
                 
-                // Update in Firebase
                 const db = getFirebaseDb();
                 await db.collection('restaurants').doc(restaurantId).update({
                     venueFeePercentage: defaultFee,
@@ -1862,18 +1831,15 @@
                     updatedBy: currentUser.uid
                 });
                 
-                // Update local data
                 const restaurant = venueRestaurants.find(r => r.id === restaurantId);
                 if (restaurant) {
                     restaurant.venueFeePercentage = defaultFee;
                 }
                 
-                // Remove from customized tracking
                 customizedRestaurantFees.delete(restaurantId);
                 
                 showSuccess(`Restaurant fee reset to default (${defaultFee}%)`);
                 
-                // Reload financial data
                 await loadFinancialData();
                 
             } catch (error) {
@@ -1892,41 +1858,36 @@
             }
         }
 
-        // Generate time labels based on period (copied from performance page)
+        // Generate time labels based on period
         function generateTimeLabels(timePeriod) {
             const now = new Date();
             const labels = [];
             
             switch (timePeriod) {
                 case 'today':
-                    // Last 24 hours by hour
                     for (let i = 23; i >= 0; i--) {
                         const hour = new Date(now.getTime() - (i * 60 * 60 * 1000));
                         labels.push(hour.getHours() + ':00');
                     }
                     break;
                 case 'week':
-                    // Last 7 days
                     for (let i = 6; i >= 0; i--) {
                         const day = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
                         labels.push(day.toLocaleDateString('en-US', { weekday: 'short' }));
                     }
                     break;
                 case 'month':
-                    // Last 4 weeks
                     for (let i = 3; i >= 0; i--) {
                         labels.push(`Week ${4-i}`);
                     }
                     break;
                 case 'quarter':
-                    // Last 3 months
                     for (let i = 2; i >= 0; i--) {
                         const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
                         labels.push(month.toLocaleDateString('en-US', { month: 'short' }));
                     }
                     break;
                 case 'year':
-                    // Last 12 months
                     for (let i = 11; i >= 0; i--) {
                         const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
                         labels.push(month.toLocaleDateString('en-US', { month: 'short' }));
@@ -1949,11 +1910,9 @@
         function handleNavigation(event, url) {
             event.preventDefault();
             
-            // Show loading overlay
             const loadingOverlay = document.getElementById('loadingOverlay');
             loadingOverlay.classList.add('active');
             
-            // Simulate brief loading time for smooth UX, then navigate
             setTimeout(() => {
                 window.location.href = url;
             }, 300);
