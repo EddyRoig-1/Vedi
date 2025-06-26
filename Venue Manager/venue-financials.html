@@ -313,6 +313,11 @@
             background-color: #F8F9FA;
             border-radius: 4px;
             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            display: none; /* Hidden by default */
+        }
+
+        .financial-card:hover .financial-breakdown {
+            display: block; /* Show on hover */
         }
 
         /* Fee Management Section */
@@ -510,6 +515,11 @@
             color: #86868B;
             margin-top: 2px;
             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            display: none; /* Hidden by default */
+        }
+
+        .table-row:hover .calculation-breakdown {
+            display: block; /* Show on hover */
         }
 
         /* Charts Section */
@@ -1298,7 +1308,7 @@
             }
         }
 
-        // Calculate financial metrics from order data with IMPROVED CALCULATIONS
+        // Calculate financial metrics from order data with CORRECTED CALCULATIONS
         async function calculateFinancialMetrics(timePeriod) {
             try {
                 const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
@@ -1309,8 +1319,13 @@
                 
                 filteredOrders.forEach(order => {
                     const orderTotal = parseFloat(order.total) || 0;
-                    const venueFeeRate = parseFloat(order.venueFeePercentage || currentVenue.defaultFeePercentage || 1.0) / 100;
-                    const orderVenueFee = orderTotal * venueFeeRate;
+                    // Get the actual fee rate for this specific order/restaurant
+                    const restaurant = venueRestaurants.find(r => r.id === order.restaurantId);
+                    const actualFeeRate = restaurant ? 
+                        (parseFloat(restaurant.venueFeePercentage) || parseFloat(currentVenue.defaultFeePercentage) || 1.0) / 100 :
+                        (parseFloat(order.venueFeePercentage) || parseFloat(currentVenue.defaultFeePercentage) || 1.0) / 100;
+                    
+                    const orderVenueFee = orderTotal * actualFeeRate;
                     
                     totalRestaurantSales += orderTotal;
                     totalVenueRevenue += orderVenueFee;
@@ -1320,7 +1335,7 @@
                             restaurantSales: 0,
                             venueFeesEarned: 0,
                             orders: 0,
-                            feeRate: venueFeeRate * 100
+                            feeRate: actualFeeRate * 100
                         };
                     }
                     
@@ -1329,22 +1344,22 @@
                     revenueByRestaurant[order.restaurantId].orders += 1;
                 });
                 
-                // Calculate weighted average fee rate
-                const avgVenueFeeRate = totalRestaurantSales > 0 ? (totalVenueRevenue / totalRestaurantSales) * 100 : 0;
+                // Calculate ACTUAL weighted average fee rate based on real data
+                const actualAvgFeeRate = totalRestaurantSales > 0 ? (totalVenueRevenue / totalRestaurantSales) * 100 : 0;
                 
                 financialData = {
-                    totalRestaurantSales,      // RENAMED: Total customer payments
-                    totalVenueRevenue,         // RENAMED: Total fees collected by venue
+                    totalRestaurantSales,
+                    totalVenueRevenue,
                     orderCount: filteredOrders.length,
-                    avgVenueFeeRate,
+                    avgVenueFeeRate: actualAvgFeeRate, // This is now the REAL weighted average
                     revenueByRestaurant,
                     orders: filteredOrders
                 };
                 
-                console.log('✅ Improved financial metrics calculated:', {
+                console.log('✅ CORRECTED financial metrics calculated:', {
                     restaurantSales: totalRestaurantSales,
                     venueRevenue: totalVenueRevenue,
-                    avgFeeRate: avgVenueFeeRate,
+                    actualAvgFeeRate: actualAvgFeeRate,
                     orders: filteredOrders.length
                 });
                 
@@ -1372,14 +1387,14 @@
             });
         }
 
-        // Update financial summary with IMPROVED LABELING
+        // Update financial summary with CORRECTED CALCULATIONS
         async function updateFinancialSummary() {
             try {
-                // Total Venue Revenue (fees collected)
+                // Total Venue Revenue (fees collected) - CORRECTED
                 document.getElementById('venueRevenue').textContent = 
                     formatCurrency(financialData.totalVenueRevenue || 0);
                 document.getElementById('venueRevenueBreakdown').textContent = 
-                    `Sum of all venue fees: ${formatCurrency(financialData.totalRestaurantSales || 0)} × ${(financialData.avgVenueFeeRate || 0).toFixed(1)}% avg rate`;
+                    `Actual calculation: ${formatCurrency(financialData.totalRestaurantSales || 0)} × ${(financialData.avgVenueFeeRate || 0).toFixed(1)}% weighted avg = ${formatCurrency(financialData.totalVenueRevenue || 0)}`;
                 
                 // Total Restaurant Sales (customer payments)
                 document.getElementById('transactionVolume').textContent = 
@@ -1387,16 +1402,16 @@
                 document.getElementById('transactionVolumeBreakdown').textContent = 
                     `Total customer payments across ${venueRestaurants.length} restaurants`;
                 
-                // Average Fee Rate
+                // Average Fee Rate - CORRECTED to show actual weighted average
                 document.getElementById('avgVenueFee').textContent = 
                     `${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
                 document.getElementById('avgVenueFeeBreakdown').textContent = 
-                    `${formatCurrency(financialData.totalVenueRevenue || 0)} ÷ ${formatCurrency(financialData.totalRestaurantSales || 0)} = ${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
+                    `Weighted average: ${formatCurrency(financialData.totalVenueRevenue || 0)} ÷ ${formatCurrency(financialData.totalRestaurantSales || 0)} = ${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
                 
                 // Payment Processing
                 document.getElementById('paymentSuccessRate').textContent = '100%';
                 document.getElementById('paymentStatusBreakdown').textContent = 
-                    `${financialData.orderCount || 0} successful / ${financialData.orderCount || 0} total`;
+                    `${financialData.orderCount || 0} successful / ${financialData.orderCount || 0} total transactions`;
                 
                 // Update change descriptions
                 document.getElementById('venueRevenueChange').textContent = 
@@ -1480,7 +1495,7 @@
                         </div>
                         <div>
                             <div class="fee-value">${formatCurrency(restaurant.venueFeesEarned)}</div>
-                            <div class="calculation-breakdown">${formatCurrency(restaurant.restaurantSales)} × ${restaurant.venueFeePercentage.toFixed(1)}% = ${formatCurrency(restaurant.venueFeesEarned)}</div>
+                            <div class="calculation-breakdown">${formatCurrency(restaurant.restaurantSales)} × ${restaurant.venueFeePercentage.toFixed(1)}% = ${formatCurrency(restaurant.restaurantSales * (restaurant.venueFeePercentage / 100))}</div>
                         </div>
                         <div>
                             <div class="fee-value">${restaurant.orderCount}</div>
