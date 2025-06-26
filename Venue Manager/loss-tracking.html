@@ -1054,7 +1054,7 @@
                     // Step 4: Load restaurants
                     await loadRestaurants();
                     
-                    // Step 5: Load loss incidents (FIXED - aggregated from restaurants)
+                    // Step 5: Load loss incidents
                     await loadLossIncidents();
                     
                     // Step 6: Setup real-time updates
@@ -1187,10 +1187,11 @@
             try {
                 console.log('🔄 Loading incident data from all restaurants...');
                 
-                // Get incidents from ALL restaurants in this venue
+                // Clear existing incidents
                 allLossIncidents = [];
                 
-                for (const restaurant of venueRestaurants) {
+                // Use Promise.all for parallel loading instead of sequential
+                const incidentPromises = venueRestaurants.map(async (restaurant) => {
                     console.log('📋 Loading incidents from:', restaurant.name);
                     
                     const restaurantIncidents = await VediAPI.getLossIncidents(restaurant.id, {
@@ -1200,15 +1201,22 @@
                     // Add restaurant info to each incident for display
                     const incidentsWithRestaurant = restaurantIncidents.map(incident => ({
                         ...incident,
-                        restaurantName: restaurant.name
+                        restaurantName: restaurant.name,
+                        restaurantId: restaurant.id
                     }));
                     
-                    allLossIncidents.push(...incidentsWithRestaurant);
-                    
                     console.log('✅ Loaded', restaurantIncidents.length, 'incidents from', restaurant.name);
-                }
+                    
+                    return incidentsWithRestaurant;
+                });
+                
+                // Wait for all restaurants to load their incidents
+                const allRestaurantIncidents = await Promise.all(incidentPromises);
+                
+                // Flatten the array of arrays into a single array
+                allLossIncidents = allRestaurantIncidents.flat();
 
-                console.log('✅ Aggregated incidents from', venueRestaurants.length, 'restaurants:', allLossIncidents.length, 'total incidents');
+                console.log('✅ Total aggregated incidents:', allLossIncidents.length);
                 
                 // Apply filters and update display
                 applyFilters();
@@ -1220,11 +1228,14 @@
         }
 
         // ============================================================================
-        // REAL-TIME UPDATES (FIXED)
+        // FIXED: REAL-TIME UPDATES - No more duplicates or multiple reloads
         // ============================================================================
 
         function setupRealTimeUpdates() {
             try {
+                // Use a Map to store incidents by restaurant to avoid duplicates
+                const restaurantIncidents = new Map();
+                
                 // Listen to incidents from each restaurant
                 const unsubscribeFunctions = [];
                 
@@ -1234,8 +1245,25 @@
                     const unsubscribe = VediAPI.listenToLossIncidents(restaurant.id, (incidents) => {
                         console.log('📡 Real-time update from restaurant:', restaurant.name, incidents.length, 'incidents');
                         
-                        // Re-aggregate all incidents when any restaurant updates
-                        loadLossIncidents();
+                        // Update the specific restaurant's incidents in our map
+                        const incidentsWithRestaurant = incidents.map(incident => ({
+                            ...incident,
+                            restaurantName: restaurant.name,
+                            restaurantId: restaurant.id
+                        }));
+                        
+                        restaurantIncidents.set(restaurant.id, incidentsWithRestaurant);
+                        
+                        // Aggregate all incidents from the map
+                        allLossIncidents = [];
+                        restaurantIncidents.forEach((incidents) => {
+                            allLossIncidents.push(...incidents);
+                        });
+                        
+                        console.log('✅ Aggregated total incidents:', allLossIncidents.length);
+                        
+                        // Apply filters and update display
+                        applyFilters();
                     });
                     
                     unsubscribeFunctions.push(unsubscribe);
@@ -1245,6 +1273,7 @@
                 realTimeUnsubscribe = () => {
                     console.log('🔄 Cleaning up', unsubscribeFunctions.length, 'real-time listeners');
                     unsubscribeFunctions.forEach(fn => fn());
+                    restaurantIncidents.clear();
                 };
                 
                 console.log('✅ Real-time listeners setup for', venueRestaurants.length, 'restaurants');
@@ -1294,6 +1323,7 @@
             };
         }
 
+        // FIXED: Apply filters - Ensure no duplicates in filtering
         function applyFilters() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
@@ -1305,8 +1335,10 @@
                 // Update current filters
                 currentFilters = { timePeriod, restaurant: restaurantId, status, severity };
                 
-                // Start with all incidents
+                // Start with a clean copy of all incidents (prevent reference issues)
                 filteredIncidents = [...allLossIncidents];
+                
+                console.log('🔍 Applying filters to', filteredIncidents.length, 'total incidents');
                 
                 // Apply time filter
                 if (timePeriod !== 'all') {
@@ -1350,6 +1382,8 @@
                     );
                 }
                 
+                console.log('✅ Filtered to', filteredIncidents.length, 'incidents');
+                
                 // Update displays
                 updateLossOverview();
                 updateIncidentsList();
@@ -1365,22 +1399,28 @@
         // UI UPDATES
         // ============================================================================
 
+        // FIXED: Update loss overview - Use unique incidents for calculations
         function updateLossOverview() {
             try {
-                const totalAmount = filteredIncidents.reduce((sum, incident) => 
+                // Remove duplicates for calculations
+                const uniqueIncidents = filteredIncidents.filter((incident, index, self) => 
+                    index === self.findIndex(i => i.id === incident.id)
+                );
+                
+                const totalAmount = uniqueIncidents.reduce((sum, incident) => 
                     sum + (parseFloat(incident.amount) || 0), 0
                 );
                 
-                const activeCount = filteredIncidents.filter(incident => 
+                const activeCount = uniqueIncidents.filter(incident => 
                     incident.status === 'reported' || incident.status === 'investigating'
                 ).length;
                 
-                const resolvedCount = filteredIncidents.filter(incident => 
+                const resolvedCount = uniqueIncidents.filter(incident => 
                     incident.status === 'resolved'
                 ).length;
                 
-                const averageAmount = filteredIncidents.length > 0 ? 
-                    totalAmount / filteredIncidents.length : 0;
+                const averageAmount = uniqueIncidents.length > 0 ? 
+                    totalAmount / uniqueIncidents.length : 0;
                 
                 document.getElementById('totalLossAmount').textContent = formatCurrency(totalAmount);
                 document.getElementById('activeIncidents').textContent = activeCount;
@@ -1388,7 +1428,7 @@
                 document.getElementById('averageLoss').textContent = formatCurrency(averageAmount);
                 
                 document.getElementById('totalLossChange').textContent = 
-                    `${filteredIncidents.length} total incidents`;
+                    `${uniqueIncidents.length} total incidents`;
                 document.getElementById('activeIncidentsChange').textContent = 
                     activeCount > 0 ? 'need attention' : 'all resolved';
                 document.getElementById('resolvedIncidentsChange').textContent = 
@@ -1400,14 +1440,20 @@
             }
         }
 
+        // FIXED: Update incidents list - Remove duplicates by ID
         function updateIncidentsList() {
             try {
                 const container = document.getElementById('incidentsList');
                 const countElement = document.getElementById('incidentsCount');
                 
-                countElement.textContent = `${filteredIncidents.length} incident${filteredIncidents.length !== 1 ? 's' : ''}`;
+                // Remove any potential duplicates by incident ID
+                const uniqueIncidents = filteredIncidents.filter((incident, index, self) => 
+                    index === self.findIndex(i => i.id === incident.id)
+                );
                 
-                if (filteredIncidents.length === 0) {
+                countElement.textContent = `${uniqueIncidents.length} incident${uniqueIncidents.length !== 1 ? 's' : ''}`;
+                
+                if (uniqueIncidents.length === 0) {
                     container.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-state-icon">📋</div>
@@ -1420,7 +1466,7 @@
                     return;
                 }
                 
-                container.innerHTML = filteredIncidents
+                container.innerHTML = uniqueIncidents
                     .sort((a, b) => VediAPI.timestampToDate(b.createdAt) - VediAPI.timestampToDate(a.createdAt))
                     .map(incident => {
                         const createdDate = VediAPI.timestampToDate(incident.createdAt);
@@ -1465,6 +1511,8 @@
                         `;
                     }).join('');
                 
+                console.log('✅ Displayed', uniqueIncidents.length, 'unique incidents');
+                
             } catch (error) {
                 console.error('❌ Update incidents list error:', error);
                 showError('Failed to update incidents list');
@@ -1488,12 +1536,18 @@
             }
         }
 
+        // FIXED: Update category chart - Ensure no duplicate data
         function updateCategoryChart() {
             const ctx = document.getElementById('categoryChart').getContext('2d');
             
+            // Remove duplicates for chart data
+            const uniqueIncidents = filteredIncidents.filter((incident, index, self) => 
+                index === self.findIndex(i => i.id === incident.id)
+            );
+            
             // Group by category/type
             const categoryTotals = {};
-            filteredIncidents.forEach(incident => {
+            uniqueIncidents.forEach(incident => {
                 const category = incident.type || incident.category || 'other';
                 categoryTotals[category] = (categoryTotals[category] || 0) + (parseFloat(incident.amount) || 0);
             });
@@ -1542,9 +1596,14 @@
         function updateTrendChart() {
             const ctx = document.getElementById('trendChart').getContext('2d');
             
+            // Remove duplicates for chart data
+            const uniqueIncidents = filteredIncidents.filter((incident, index, self) => 
+                index === self.findIndex(i => i.id === incident.id)
+            );
+            
             // Group by month
             const monthlyTotals = {};
-            filteredIncidents.forEach(incident => {
+            uniqueIncidents.forEach(incident => {
                 const date = VediAPI.timestampToDate(incident.createdAt);
                 const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
                 monthlyTotals[monthKey] = (monthlyTotals[monthKey] || 0) + (parseFloat(incident.amount) || 0);
