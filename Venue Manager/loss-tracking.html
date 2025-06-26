@@ -11,7 +11,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
 
-    <!-- VediAPI Core - Similar to incident reports but for venue context -->
+    <!-- VediAPI Core -->
     <script src="../firebase-config.js"></script>
     <script src="../Api/core/utilities.js"></script>
     <script src="../Api/core/tracking.js"></script>
@@ -1054,7 +1054,7 @@
                     // Step 4: Load restaurants
                     await loadRestaurants();
                     
-                    // Step 5: Load loss incidents
+                    // Step 5: Load loss incidents (FIXED - aggregated from restaurants)
                     await loadLossIncidents();
                     
                     // Step 6: Setup real-time updates
@@ -1141,7 +1141,6 @@
         // Load venue data
         async function loadVenueData() {
             try {
-                // Using VediAPI venue functions
                 const venue = await VediAPI.getVenueByManager(currentUser.uid);
                 
                 if (!venue) {
@@ -1183,18 +1182,36 @@
             }
         }
 
-        // Load loss incidents for the venue
+        // FIXED: Load loss incidents from ALL restaurants in the venue
         async function loadLossIncidents() {
             try {
-                // Get all incidents for this venue
-                allLossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
-                    limit: 1000
-                });
+                console.log('🔄 Loading incident data from all restaurants...');
+                
+                // Get incidents from ALL restaurants in this venue
+                allLossIncidents = [];
+                
+                for (const restaurant of venueRestaurants) {
+                    console.log('📋 Loading incidents from:', restaurant.name);
+                    
+                    const restaurantIncidents = await VediAPI.getLossIncidents(restaurant.id, {
+                        limit: 1000
+                    });
+                    
+                    // Add restaurant info to each incident for display
+                    const incidentsWithRestaurant = restaurantIncidents.map(incident => ({
+                        ...incident,
+                        restaurantName: restaurant.name
+                    }));
+                    
+                    allLossIncidents.push(...incidentsWithRestaurant);
+                    
+                    console.log('✅ Loaded', restaurantIncidents.length, 'incidents from', restaurant.name);
+                }
+
+                console.log('✅ Aggregated incidents from', venueRestaurants.length, 'restaurants:', allLossIncidents.length, 'total incidents');
                 
                 // Apply filters and update display
                 applyFilters();
-                
-                console.log('✅ Loss incidents loaded:', allLossIncidents.length);
                 
             } catch (error) {
                 console.error('❌ Load loss incidents error:', error);
@@ -1203,17 +1220,34 @@
         }
 
         // ============================================================================
-        // REAL-TIME UPDATES
+        // REAL-TIME UPDATES (FIXED)
         // ============================================================================
 
         function setupRealTimeUpdates() {
             try {
-                // Use VediAPI real-time listener for venue incidents
-                realTimeUnsubscribe = VediAPI.listenToVenueLossIncidents(currentVenue.id, (incidents) => {
-                    console.log('📡 Real-time venue loss incidents update:', incidents.length);
-                    allLossIncidents = incidents;
-                    applyFilters();
+                // Listen to incidents from each restaurant
+                const unsubscribeFunctions = [];
+                
+                venueRestaurants.forEach(restaurant => {
+                    console.log('📡 Setting up real-time listener for:', restaurant.name);
+                    
+                    const unsubscribe = VediAPI.listenToLossIncidents(restaurant.id, (incidents) => {
+                        console.log('📡 Real-time update from restaurant:', restaurant.name, incidents.length, 'incidents');
+                        
+                        // Re-aggregate all incidents when any restaurant updates
+                        loadLossIncidents();
+                    });
+                    
+                    unsubscribeFunctions.push(unsubscribe);
                 });
+                
+                // Store cleanup function
+                realTimeUnsubscribe = () => {
+                    console.log('🔄 Cleaning up', unsubscribeFunctions.length, 'real-time listeners');
+                    unsubscribeFunctions.forEach(fn => fn());
+                };
+                
+                console.log('✅ Real-time listeners setup for', venueRestaurants.length, 'restaurants');
                 
             } catch (error) {
                 console.error('❌ Setup real-time updates error:', error);
@@ -1311,6 +1345,7 @@
                     filteredIncidents = filteredIncidents.filter(incident => 
                         incident.title?.toLowerCase().includes(searchTerm) ||
                         incident.description?.toLowerCase().includes(searchTerm) ||
+                        incident.restaurantName?.toLowerCase().includes(searchTerm) ||
                         incident.reportedBy?.toLowerCase().includes(searchTerm)
                     );
                 }
@@ -1388,7 +1423,6 @@
                 container.innerHTML = filteredIncidents
                     .sort((a, b) => VediAPI.timestampToDate(b.createdAt) - VediAPI.timestampToDate(a.createdAt))
                     .map(incident => {
-                        const restaurant = venueRestaurants.find(r => r.id === incident.restaurantId);
                         const createdDate = VediAPI.timestampToDate(incident.createdAt);
                         const relativeTime = VediAPI.getRelativeTime(incident.createdAt);
                         
@@ -1398,7 +1432,7 @@
                                     <div class="incident-info">
                                         <div class="incident-title">${incident.title || 'Untitled Incident'}</div>
                                         <div class="incident-meta">
-                                            ${restaurant ? restaurant.name : 'Unknown Restaurant'} • 
+                                            ${incident.restaurantName || 'Unknown Restaurant'} • 
                                             ${relativeTime} • 
                                             ${incident.reportedBy || 'Unknown'}
                                         </div>
@@ -1588,9 +1622,10 @@
 
         async function submitNewIncident() {
             try {
+                const restaurantId = document.getElementById('incidentRestaurant').value;
                 const incidentData = {
                     title: document.getElementById('incidentTitle').value.trim(),
-                    restaurantId: document.getElementById('incidentRestaurant').value,
+                    restaurantId: restaurantId,
                     type: document.getElementById('incidentType').value,
                     severity: document.getElementById('incidentSeverity').value,
                     amount: parseFloat(document.getElementById('incidentAmount').value) || 0,
@@ -1614,6 +1649,8 @@
                 closeNewIncidentModal();
                 showSuccess('Loss incident reported successfully');
                 
+                // Data will update via real-time listeners
+                
             } catch (error) {
                 console.error('❌ Submit new incident error:', error);
                 showError('Failed to report incident: ' + error.message);
@@ -1625,7 +1662,6 @@
             if (!incident) return;
             
             selectedIncident = incident;
-            const restaurant = venueRestaurants.find(r => r.id === incident.restaurantId);
             const createdDate = VediAPI.timestampToDate(incident.createdAt);
             
             document.getElementById('incidentDetailTitle').textContent = incident.title || 'Incident Details';
@@ -1633,7 +1669,7 @@
             document.getElementById('incidentDetailBody').innerHTML = `
                 <div style="display: grid; gap: 16px;">
                     <div>
-                        <strong>Restaurant:</strong> ${restaurant ? restaurant.name : 'Unknown Restaurant'}
+                        <strong>Restaurant:</strong> ${incident.restaurantName || 'Unknown Restaurant'}
                     </div>
                     <div>
                         <strong>Amount:</strong> ${formatCurrency(incident.amount || 0)}
