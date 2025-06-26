@@ -755,7 +755,7 @@
             <div class="filter-row">
                 <div class="filter-group">
                     <label class="filter-label">Time Period</label>
-                    <select class="filter-select" id="timePeriod">
+                    <select class="filter-select" id="timePeriod" onchange="applyFilters()">
                         <option value="today">Today</option>
                         <option value="week">This Week</option>
                         <option value="month" selected>This Month</option>
@@ -765,11 +765,10 @@
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">Restaurant</label>
-                    <select class="filter-select" id="restaurantFilter">
+                    <select class="filter-select" id="restaurantFilter" onchange="applyFilters()">
                         <option value="all">All Restaurants</option>
                     </select>
                 </div>
-                <button class="apply-filters-btn" onclick="applyFilters()">Update</button>
             </div>
         </section>
 
@@ -859,7 +858,7 @@
 
                 <div class="chart-card">
                     <div class="chart-header">
-                        <h3 class="chart-title">Revenue Distribution</h3>
+                        <h3 class="chart-title">Fee Distribution</h3>
                         <p class="chart-subtitle">Venue revenue breakdown by restaurant</p>
                     </div>
                     <div class="chart-container">
@@ -1151,6 +1150,9 @@
                     restaurantFilter.appendChild(option);
                 });
                 
+                // Add change event listener for auto-updates
+                restaurantFilter.addEventListener('change', applyFilters);
+                
                 console.log('✅ Restaurants loaded for improved financials:', venueRestaurants.length);
                 
             } catch (error) {
@@ -1213,8 +1215,9 @@
         async function loadFinancialData() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
+                const selectedRestaurant = document.getElementById('restaurantFilter').value;
                 
-                await calculateFinancialMetrics(timePeriod);
+                await calculateFinancialMetrics(timePeriod, selectedRestaurant);
                 await updateFinancialSummary();
                 await updateRestaurantFeesTable();
                 await createFinancialCharts();
@@ -1226,9 +1229,14 @@
         }
 
         // Calculate financial metrics from order data with CORRECTED CALCULATIONS
-        async function calculateFinancialMetrics(timePeriod) {
+        async function calculateFinancialMetrics(timePeriod, selectedRestaurant = 'all') {
             try {
-                const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
+                let filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
+                
+                // Filter by restaurant if specific restaurant is selected
+                if (selectedRestaurant && selectedRestaurant !== 'all') {
+                    filteredOrders = filteredOrders.filter(order => order.restaurantId === selectedRestaurant);
+                }
                 
                 let totalRestaurantSales = 0;
                 let totalVenueRevenue = 0;
@@ -1270,14 +1278,16 @@
                     orderCount: filteredOrders.length,
                     avgVenueFeeRate: actualAvgFeeRate, // This is now the REAL weighted average
                     revenueByRestaurant,
-                    orders: filteredOrders
+                    orders: filteredOrders,
+                    selectedRestaurant
                 };
                 
                 console.log('✅ CORRECTED financial metrics calculated:', {
                     restaurantSales: totalRestaurantSales,
                     venueRevenue: totalVenueRevenue,
                     actualAvgFeeRate: actualAvgFeeRate,
-                    orders: filteredOrders.length
+                    orders: filteredOrders.length,
+                    selectedRestaurant
                 });
                 
             } catch (error) {
@@ -1288,7 +1298,8 @@
                     orderCount: 0,
                     avgVenueFeeRate: 0,
                     revenueByRestaurant: {},
-                    orders: []
+                    orders: [],
+                    selectedRestaurant: 'all'
                 };
             }
         }
@@ -2077,13 +2088,38 @@
             }
         }
 
-        // Apply filters
+        // Apply filters with loading indicator
         async function applyFilters() {
             try {
+                // Show loading state
+                const loadingOverlay = document.getElementById('loadingOverlay');
+                const loadingText = document.querySelector('.loading-text');
+                
+                if (loadingOverlay && loadingText) {
+                    loadingText.textContent = 'Updating financial data...';
+                    loadingOverlay.classList.add('active');
+                }
+                
+                // Add small delay for smooth UX
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
                 await loadFinancialData();
+                
+                // Hide loading state
+                if (loadingOverlay) {
+                    loadingOverlay.classList.remove('active');
+                    loadingText.textContent = 'Loading...';
+                }
+                
             } catch (error) {
                 console.error('❌ Apply filters error:', error);
-                showError('Failed to apply filters');
+                showError('Failed to update financial data');
+                
+                // Hide loading state on error
+                const loadingOverlay = document.getElementById('loadingOverlay');
+                if (loadingOverlay) {
+                    loadingOverlay.classList.remove('active');
+                }
             }
         }
 
