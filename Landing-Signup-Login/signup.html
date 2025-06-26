@@ -22,6 +22,9 @@
 
 <!-- 3. Authentication modules -->
 <script src="../Api/auth/email-auth.js"></script>
+
+<!-- 4. Business modules (for invitation validation) -->
+<script src="../Api/business/venue-sync.js"></script>
     
     <style>
         * {
@@ -235,6 +238,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             background: white;
+            position: relative;
         }
 
         .account-type:hover {
@@ -246,6 +250,25 @@
         .account-type.selected {
             border-color: #667eea;
             background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        }
+
+        .account-type.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            cursor: not-allowed;
+        }
+
+        .account-type.disabled::before {
+            content: 'DISABLED';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e53e3e;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
         }
 
         .account-type-icon {
@@ -303,6 +326,20 @@
 
         .form-input::placeholder {
             color: #9ca3af;
+        }
+
+        /* Pre-filled form field styles for invitation */
+        .form-input[readonly] {
+            background-color: #f7fafc !important;
+            border: 2px solid #38a169 !important;
+            color: #2d3748;
+            cursor: not-allowed;
+        }
+
+        .form-input[readonly]:focus {
+            box-shadow: 0 0 0 4px rgba(56, 161, 105, 0.1) !important;
+            border-color: #38a169 !important;
+            transform: none;
         }
 
         .password-requirements {
@@ -512,6 +549,38 @@
             margin-bottom: 16px;
             font-size: 0.9rem;
             border-left: 4px solid #e53e3e;
+        }
+
+        /* Invitation banner animation */
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Success message for venue joining */
+        .venue-join-success {
+            background: linear-gradient(135deg, #38a169, #2f855a);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .venue-join-success h4 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+
+        .venue-join-success p {
+            margin: 0;
+            opacity: 0.9;
         }
 
         /* Desktop Optimizations */
@@ -844,11 +913,17 @@
         let termsAccepted = false;
         let newsletterOptIn = false;
         let isSubmitting = false;
+        
+        // Global invitation data
+        let invitationData = null;
 
         // Wait for Firebase to be ready
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🔥 Vedi Signup Page loaded');
             console.log('🔥 Firebase ready:', window.isFirebaseReady ? window.isFirebaseReady() : 'Loading...');
+            
+            // Check for invitation parameters
+            checkForInvitation();
             
             // Track page view
             if (window.firebaseAnalytics) {
@@ -859,9 +934,157 @@
             }
         });
 
+        // Check for invitation parameters on page load
+        async function checkForInvitation() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const invitationId = urlParams.get('invitation');
+            const invitationCode = urlParams.get('code');
+            
+            if (invitationId && invitationCode) {
+                console.log('🎯 Invitation detected:', { invitationId, invitationCode });
+                await handleInvitationSignup(invitationId, invitationCode);
+            }
+        }
+
+        // Handle invitation-based signup
+        async function handleInvitationSignup(invitationId, invitationCode) {
+            try {
+                console.log('📧 Processing invitation signup...');
+                
+                // Wait for VediAPI to be available
+                await waitForVediAPI();
+                
+                // Validate invitation using VediAPI
+                const invitation = await VediAPI.validateInvitationCode(invitationId, invitationCode);
+                
+                console.log('✅ Valid invitation loaded:', invitation);
+                
+                // Store invitation data globally
+                invitationData = { id: invitationId, ...invitation };
+                
+                // Modify the signup form for invitation
+                setupInvitationForm(invitation);
+                
+                // Show invitation banner
+                showInvitationBanner(invitation);
+                
+            } catch (error) {
+                console.error('❌ Invitation validation error:', error);
+                showInvitationError(error.message);
+            }
+        }
+
+        // Wait for VediAPI to be available
+        function waitForVediAPI() {
+            return new Promise((resolve) => {
+                const checkVediAPI = () => {
+                    if (window.VediAPI && window.VediAPI.validateInvitationCode) {
+                        console.log('✅ VediAPI ready for invitation validation');
+                        resolve();
+                    } else {
+                        console.log('⏳ Waiting for VediAPI...');
+                        setTimeout(checkVediAPI, 100);
+                    }
+                };
+                checkVediAPI();
+            });
+        }
+
+        // Setup form for invitation signup
+        function setupInvitationForm(invitation) {
+            // Disable venue manager option
+            const venueOption = document.querySelector('.account-type[data-type="venue"]');
+            const restaurantOption = document.querySelector('.account-type[data-type="restaurant"]');
+            
+            if (venueOption && restaurantOption) {
+                // Disable venue option
+                venueOption.classList.add('disabled');
+                
+                // Auto-select restaurant option
+                restaurantOption.click();
+                selectedAccountType = 'restaurant';
+                
+                // Pre-populate form fields
+                document.getElementById('businessName').value = invitation.restaurantName || '';
+                document.getElementById('email').value = invitation.contactEmail || '';
+                
+                // Make these fields readonly
+                document.getElementById('businessName').readOnly = true;
+                document.getElementById('email').readOnly = true;
+            }
+            
+            validateForm();
+        }
+
+        // Show invitation banner
+        function showInvitationBanner(invitation) {
+            const banner = document.createElement('div');
+            banner.className = 'invitation-banner';
+            banner.style.cssText = `
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+                padding: 20px;
+                border-radius: 12px;
+                margin-bottom: 30px;
+                text-align: center;
+                animation: slideInDown 0.5s ease-out;
+            `;
+            
+            banner.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 10px;">
+                    <div style="font-size: 2rem;">🎉</div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.3rem; font-weight: 600;">You're Invited!</h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">
+                            ${invitation.venueName} has invited you to join their venue
+                        </p>
+                    </div>
+                </div>
+                ${invitation.personalMessage ? `
+                    <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-top: 15px;">
+                        <small style="opacity: 0.8; display: block; margin-bottom: 5px;">Personal message:</small>
+                        <em>"${invitation.personalMessage}"</em>
+                    </div>
+                ` : ''}
+            `;
+            
+            // Insert banner after the form header
+            const formHeader = document.querySelector('.form-header');
+            formHeader.parentNode.insertBefore(banner, formHeader.nextSibling);
+        }
+
+        // Show invitation error
+        function showInvitationError(message) {
+            const errorBanner = document.createElement('div');
+            errorBanner.style.cssText = `
+                background: #fed7d7;
+                color: #c53030;
+                padding: 16px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                border-left: 4px solid #e53e3e;
+                text-align: center;
+            `;
+            
+            errorBanner.innerHTML = `
+                <strong>❌ Invalid Invitation</strong><br>
+                ${message}<br>
+                <small>Please contact the venue for a new invitation link.</small>
+            `;
+            
+            // Insert at the top of the form
+            const formHeader = document.querySelector('.form-header');
+            formHeader.parentNode.insertBefore(errorBanner, formHeader);
+        }
+
         // Account type selection
         document.querySelectorAll('.account-type').forEach(type => {
             type.addEventListener('click', () => {
+                // Don't allow clicking disabled options
+                if (type.classList.contains('disabled')) {
+                    return;
+                }
+                
                 document.querySelectorAll('.account-type').forEach(t => t.classList.remove('selected'));
                 type.classList.add('selected');
                 selectedAccountType = type.getAttribute('data-type');
@@ -955,6 +1178,23 @@
             input.addEventListener('input', validateForm);
         });
 
+        // Handle invitation acceptance during signup
+        async function handleInvitationAcceptance(userId) {
+            try {
+                console.log('🎯 Processing invitation acceptance...');
+                
+                // Store invitation data in sessionStorage for restaurant-setup.html to use
+                sessionStorage.setItem('pendingInvitation', JSON.stringify(invitationData));
+                
+                console.log('✅ Invitation data stored for restaurant setup');
+                
+            } catch (error) {
+                console.error('❌ Invitation acceptance error:', error);
+                // Don't fail the signup - we can handle this later
+                console.warn('⚠️ Signup succeeded but invitation processing failed');
+            }
+        }
+
         // Form submission with Firebase
         document.getElementById('signupForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -998,10 +1238,15 @@
                     
                     console.log('✅ User created successfully:', user);
                     
+                    // NEW: Handle invitation if present
+                    if (invitationData && selectedAccountType === 'restaurant') {
+                        await handleInvitationAcceptance(user.uid);
+                    }
+                    
                     // Track signup event
                     if (window.firebaseAnalytics) {
                         firebaseAnalytics.logEvent('sign_up', {
-                            method: 'email',
+                            method: invitationData ? 'invitation' : 'email',
                             account_type: selectedAccountType
                         });
                     }
@@ -1011,7 +1256,12 @@
                     signupBtn.style.background = 'linear-gradient(135deg, #38a169, #2f855a)';
                     
                     hideErrorMessage();
-                    showSuccessNotification('Welcome to Vedi! Your account has been created successfully.');
+                    
+                    if (invitationData) {
+                        showSuccessNotification(`Welcome to ${invitationData.venueName}! Your restaurant account has been created.`);
+                    } else {
+                        showSuccessNotification('Welcome to Vedi! Your account has been created successfully.');
+                    }
                     
                     // Redirect based on account type to setup pages
                     setTimeout(() => {
@@ -1108,7 +1358,7 @@
             }, 3000);
         }
 
-        console.log('🍽️ Vedi Signup Page with Firebase backend loaded successfully');
+        console.log('🍽️ Vedi Signup Page with Firebase backend and invitation system loaded successfully');
     </script>
 </body>
 </html>
