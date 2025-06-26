@@ -562,8 +562,6 @@
             height: 300px;
         }
 
-
-
         /* Status Badges */
         .status-badge {
             display: inline-block;
@@ -806,8 +804,6 @@
                 <div class="financial-change" id="avgVenueFeeChange">Weighted average fee rate</div>
                 <div class="financial-breakdown" id="avgVenueFeeBreakdown">Calculated: venue revenue ÷ restaurant sales</div>
             </div>
-
-
         </section>
 
         <!-- Fee Management Section -->
@@ -871,19 +867,7 @@
                     </div>
                 </div>
             </div>
-
-            <div class="chart-card">
-                <div class="chart-header">
-                    <h3 class="chart-title">Payment Processing Analytics</h3>
-                    <p class="chart-subtitle">Transaction success rates and volumes for <span id="paymentProcessingPeriod">selected period</span></p>
-                </div>
-                <div class="chart-container">
-                    <canvas id="paymentProcessingChart"></canvas>
-                </div>
-            </div>
         </section>
-
-
     </main>
 
     <!-- Loading Overlay -->
@@ -1235,14 +1219,6 @@
                 await updateRestaurantFeesTable();
                 await createFinancialCharts();
                 
-                // Update chart subtitles with current period
-                const periodName = getTimePeriodDisplayName(timePeriod);
-                const feeDistributionPeriod = document.getElementById('feeDistributionPeriod');
-                
-                if (feeDistributionPeriod) {
-                    feeDistributionPeriod.textContent = periodName.toLowerCase();
-                }
-                
             } catch (error) {
                 console.error('❌ Load financial data error:', error);
                 showError('Failed to load financial data');
@@ -1453,7 +1429,6 @@
             try {
                 await createRevenueChart();
                 await createFeeDistributionChart();
-                await createPaymentProcessingChart();
             } catch (error) {
                 console.error('❌ Create financial charts error:', error);
             }
@@ -1819,23 +1794,6 @@
             });
         }
 
-        // Generate sample fee data for different time periods
-        function generateSampleFeeData(timePeriod, feeRate) {
-            const baseValues = {
-                'today': 20,
-                'week': 150,
-                'month': 600,
-                'quarter': 2000,
-                'year': 8000
-            };
-            
-            const base = baseValues[timePeriod] || baseValues['week'];
-            const rate = (feeRate || 25) / 100;
-            const variation = 0.7 + (Math.random() * 0.6); // ±30% variation
-            
-            return Math.round(base * rate * variation * 100) / 100;
-        }
-
         // Get consistent colors for restaurants
         function getRestaurantColor(index) {
             const colors = [
@@ -1855,216 +1813,6 @@
                 'year': 'This Year'
             };
             return names[timePeriod] || 'Current Period';
-        }
-
-        // Create payment processing chart - NO SAMPLE DATA
-        async function createPaymentProcessingChart() {
-            const ctx = document.getElementById('paymentProcessingChart').getContext('2d');
-            const timePeriod = document.getElementById('timePeriod').value;
-            
-            const labels = generateTimeLabels(timePeriod);
-            const successfulData = new Array(labels.length).fill(0);
-            const failedData = new Array(labels.length).fill(0);
-            
-            // Process real order data for the selected time period - NO SAMPLE DATA
-            const filteredOrders = filterOrdersByTimePeriod(financialData.orders || [], timePeriod);
-            
-            if (filteredOrders.length === 0) {
-                // Show "No Data" message instead of chart
-                const chartContainer = ctx.canvas.parentElement;
-                chartContainer.innerHTML = `
-                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
-                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">💳</div>
-                        <div style="font-size: 18px; font-weight: 500; margin-bottom: 8px;">No Data Available</div>
-                        <div style="font-size: 14px;">No payment transactions found for ${getTimePeriodDisplayName(timePeriod).toLowerCase()}</div>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Use only real data
-            filteredOrders.forEach(order => {
-                if (order.createdAt) {
-                    const orderDate = timestampToDate(order.createdAt);
-                    const timeIndex = getTimeIndex(orderDate, timePeriod, labels.length);
-                    
-                    if (timeIndex >= 0 && timeIndex < labels.length) {
-                        // Check order status for real failure data
-                        if (order.status === 'failed' || order.status === 'cancelled' || order.paymentStatus === 'failed') {
-                            failedData[timeIndex]++;
-                        } else {
-                            successfulData[timeIndex]++;
-                        }
-                    }
-                }
-            });
-            
-            // Restore canvas if it was replaced
-            const chartContainer = ctx.canvas.parentElement;
-            if (!chartContainer.querySelector('canvas')) {
-                chartContainer.innerHTML = '<canvas id="paymentProcessingChart"></canvas>';
-                const newCtx = document.getElementById('paymentProcessingChart').getContext('2d');
-                createPaymentProcessingChartWithData(newCtx, labels, successfulData, failedData, timePeriod);
-                return;
-            }
-            
-            if (charts.paymentProcessing) {
-                charts.paymentProcessing.destroy();
-            }
-            
-            createPaymentProcessingChartWithData(ctx, labels, successfulData, failedData, timePeriod);
-        }
-
-        // Create the actual payment processing chart with data
-        function createPaymentProcessingChartWithData(ctx, labels, successfulData, failedData, timePeriod) {
-            charts.paymentProcessing = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Successful Payments',
-                        data: successfulData,
-                        backgroundColor: '#30D158',
-                        borderRadius: 4,
-                        borderSkipped: false,
-                    }, {
-                        label: 'Failed Payments',
-                        data: failedData,
-                        backgroundColor: '#FF3B30',
-                        borderRadius: 4,
-                        borderSkipped: false,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                usePointStyle: true,
-                                padding: 20,
-                                font: {
-                                    size: 14,
-                                    weight: '500'
-                                }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleColor: '#FFFFFF',
-                            bodyColor: '#FFFFFF',
-                            borderColor: '#E5E5E7',
-                            borderWidth: 1,
-                            cornerRadius: 8,
-                            callbacks: {
-                                title: function(context) {
-                                    return context[0].label;
-                                },
-                                label: function(context) {
-                                    const value = context.parsed.y;
-                                    const total = successfulData[context.dataIndex] + failedData[context.dataIndex];
-                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                                    
-                                    if (context.datasetIndex === 0) {
-                                        return `Successful: ${value} (${percentage}%)`;
-                                    } else {
-                                        return `Failed: ${value} (${percentage}%)`;
-                                    }
-                                },
-                                afterBody: function(context) {
-                                    const index = context[0].dataIndex;
-                                    const total = successfulData[index] + failedData[index];
-                                    const successRate = total > 0 ? ((successfulData[index] / total) * 100).toFixed(1) : '0.0';
-                                    return `\nTotal: ${total} transactions\nSuccess Rate: ${successRate}%`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: getTimePeriodLabel(timePeriod),
-                                font: {
-                                    size: 14,
-                                    weight: '500'
-                                }
-                            },
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.1)',
-                                drawBorder: false
-                            },
-                            ticks: {
-                                font: {
-                                    size: 12
-                                }
-                            }
-                        },
-                        y: {
-                            stacked: true,
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Number of Transactions',
-                                font: {
-                                    size: 14,
-                                    weight: '500'
-                                }
-                            },
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.1)',
-                                drawBorder: false
-                            },
-                            ticks: {
-                                stepSize: 1,
-                                font: {
-                                    size: 12
-                                }
-                            }
-                        }
-                    },
-                    animation: {
-                        duration: 1000,
-                        easing: 'easeInOutQuart'
-                    }
-                }
-            });
-        }
-
-        // Generate sample transaction data for different time periods
-        function generateSampleTransactionData(timePeriod, index) {
-            const baseTransactions = {
-                'today': { min: 2, max: 8 },
-                'week': { min: 5, max: 25 },
-                'month': { min: 20, max: 80 },
-                'quarter': { min: 150, max: 400 },
-                'year': { min: 400, max: 1200 }
-            };
-            
-            const range = baseTransactions[timePeriod] || baseTransactions['week'];
-            
-            // Add growth pattern and day-of-week effects
-            let growthFactor = 1 + (index * 0.1);
-            let dayOfWeekFactor = 1;
-            
-            if (timePeriod === 'week') {
-                // Weekend boost for weekly view
-                const dayFactors = [0.6, 0.7, 0.8, 1.0, 1.1, 1.4, 1.3]; // Mon-Sun
-                dayOfWeekFactor = dayFactors[index] || 1;
-            }
-            
-            const totalTransactions = Math.round(
-                (range.min + Math.random() * (range.max - range.min)) * 
-                growthFactor * dayOfWeekFactor
-            );
-            
-            // 97% success rate on average with some variation
-            const successRate = 0.95 + (Math.random() * 0.04); // 95-99% success rate
-            const successful = Math.round(totalTransactions * successRate);
-            const failed = totalTransactions - successful;
-            
-            return { successful: Math.max(0, successful), failed: Math.max(0, failed) };
         }
 
         // Generate revenue data from actual orders - NO SAMPLE DATA
@@ -2101,49 +1849,31 @@
             return { venueFeesData, restaurantSalesData, hasData: hasAnyData };
         }
 
-        // Generate sample data for demonstration
-        function generateSampleRevenueData(labels, timePeriod) {
-            const venueFeesData = [];
-            const restaurantSalesData = [];
-            
-            // Base values that create realistic patterns
-            const baseRestaurantSales = 150;
-            const avgFeeRate = 0.25; // 25% average
-            
-            labels.forEach((label, index) => {
-                // Create a growth pattern with some variation
-                const growthFactor = Math.pow(1 + (index * 0.3), 1.2);
-                const randomVariation = 0.8 + (Math.random() * 0.4); // ±20% variation
-                
-                const dailySales = baseRestaurantSales * growthFactor * randomVariation;
-                const dailyFees = dailySales * (avgFeeRate + (Math.random() * 0.1 - 0.05)); // ±5% fee variation
-                
-                restaurantSalesData.push(Math.round(dailySales * 100) / 100);
-                venueFeesData.push(Math.round(dailyFees * 100) / 100);
-            });
-            
-            return { venueFeesData, restaurantSalesData };
-        }
-
         // Helper function to get time index for different periods
         function getTimeIndex(orderDate, timePeriod, maxIndex) {
             const now = new Date();
             
             switch (timePeriod) {
                 case 'today':
+                    // Group by 4-hour blocks
                     const hoursAgo = Math.floor((now - orderDate) / (60 * 60 * 1000));
-                    return Math.max(0, 23 - hoursAgo);
+                    const blockIndex = Math.floor(hoursAgo / 4);
+                    return Math.max(0, 5 - blockIndex);
                 case 'week':
+                    // Last 7 days
                     const daysAgo = Math.floor((now - orderDate) / (24 * 60 * 60 * 1000));
                     return Math.max(0, 6 - daysAgo);
                 case 'month':
+                    // Last 4 weeks
                     const weeksAgo = Math.floor((now - orderDate) / (7 * 24 * 60 * 60 * 1000));
                     return Math.max(0, 3 - weeksAgo);
                 case 'quarter':
+                    // Last 3 months
                     const monthsAgo = Math.floor((now.getFullYear() - orderDate.getFullYear()) * 12 + 
                                                (now.getMonth() - orderDate.getMonth()));
                     return Math.max(0, 2 - monthsAgo);
                 case 'year':
+                    // Last 12 months
                     const yearMonthsAgo = Math.floor((now.getFullYear() - orderDate.getFullYear()) * 12 + 
                                                    (now.getMonth() - orderDate.getMonth()));
                     return Math.max(0, 11 - yearMonthsAgo);
@@ -2403,79 +2133,6 @@
             }
             
             return labels;
-        }
-
-        // Helper function to get time index for different periods - IMPROVED LOGIC
-        function getTimeIndex(orderDate, timePeriod, maxIndex) {
-            const now = new Date();
-            
-            switch (timePeriod) {
-                case 'today':
-                    // Group by 4-hour blocks
-                    const hoursAgo = Math.floor((now - orderDate) / (60 * 60 * 1000));
-                    const blockIndex = Math.floor(hoursAgo / 4);
-                    return Math.max(0, 5 - blockIndex);
-                case 'week':
-                    // Last 7 days
-                    const daysAgo = Math.floor((now - orderDate) / (24 * 60 * 60 * 1000));
-                    return Math.max(0, 6 - daysAgo);
-                case 'month':
-                    // Last 4 weeks
-                    const weeksAgo = Math.floor((now - orderDate) / (7 * 24 * 60 * 60 * 1000));
-                    return Math.max(0, 3 - weeksAgo);
-                case 'quarter':
-                    // Last 3 months
-                    const monthsAgo = Math.floor((now.getFullYear() - orderDate.getFullYear()) * 12 + 
-                                               (now.getMonth() - orderDate.getMonth()));
-                    return Math.max(0, 2 - monthsAgo);
-                case 'year':
-                    // Last 12 months
-                    const yearMonthsAgo = Math.floor((now.getFullYear() - orderDate.getFullYear()) * 12 + 
-                                                   (now.getMonth() - orderDate.getMonth()));
-                    return Math.max(0, 11 - yearMonthsAgo);
-                default:
-                    return 0;
-            }
-        }
-
-        // Generate sample data for demonstration - IMPROVED WITH REALISTIC PATTERNS
-        function generateSampleRevenueData(labels, timePeriod) {
-            const venueFeesData = [];
-            const restaurantSalesData = [];
-            
-            // Different base patterns for different time periods
-            const patterns = {
-                'today': { base: 50, variation: 0.3, growth: 0.1 },
-                'week': { base: 200, variation: 0.4, growth: 0.15 },
-                'month': { base: 800, variation: 0.25, growth: 0.2 },
-                'quarter': { base: 3000, variation: 0.2, growth: 0.25 },
-                'year': { base: 8000, variation: 0.3, growth: 0.1 }
-            };
-            
-            const pattern = patterns[timePeriod] || patterns['week'];
-            const avgFeeRate = (financialData.avgVenueFeeRate || 25) / 100;
-            
-            labels.forEach((label, index) => {
-                // Create realistic patterns with growth and variation
-                const growthFactor = 1 + (index * pattern.growth);
-                const randomVariation = 1 + ((Math.random() - 0.5) * pattern.variation);
-                
-                // Add day-of-week effects for week view
-                let dayOfWeekFactor = 1;
-                if (timePeriod === 'week') {
-                    // Weekend boost pattern
-                    const dayFactors = [0.7, 0.8, 0.9, 1.0, 1.1, 1.3, 1.2]; // Mon-Sun
-                    dayOfWeekFactor = dayFactors[index] || 1;
-                }
-                
-                const dailySales = pattern.base * growthFactor * randomVariation * dayOfWeekFactor;
-                const dailyFees = dailySales * (avgFeeRate + ((Math.random() - 0.5) * 0.05));
-                
-                restaurantSalesData.push(Math.round(dailySales * 100) / 100);
-                venueFeesData.push(Math.round(Math.max(0, dailyFees) * 100) / 100);
-            });
-            
-            return { venueFeesData, restaurantSalesData };
         }
 
         function updateUserDisplay() {
