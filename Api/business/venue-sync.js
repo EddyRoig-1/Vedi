@@ -1,6 +1,6 @@
 // api/business/venue-sync.js - Complete Venue-Restaurant Sync Operations  
 /**
- * Complete Venue Sync Module - UPDATED VERSION
+ * Complete Venue Sync Module - UPDATED VERSION with Full Invitation System
  * 
  * Handles all venue-restaurant relationship synchronization including:
  * - Restaurant-initiated requests to join venues
@@ -8,8 +8,10 @@
  * - Approval and denial workflows
  * - Restaurant-venue association management
  * - Status tracking and activity logging
+ * - Email invitation system integration
  * 
  * FIXED: Enhanced venue discovery with better filtering and error handling
+ * NEW: Complete invitation system with email integration
  */
 
 // ============================================================================
@@ -43,6 +45,13 @@ function generateInviteCode() {
 }
 
 /**
+ * Generate unique invitation code (alias for consistency)
+ */
+function generateInvitationCode() {
+    return generateInviteCode();
+}
+
+/**
  * Validate email address
  */
 function validateEmail(email) {
@@ -67,6 +76,14 @@ function startPerformanceMeasurement(operation) {
         const duration = Date.now() - startTime;
         console.log(`⚡ ${operation}: ${duration}ms ${success ? '✅' : '❌'}`, metadata);
     };
+}
+
+/**
+ * Log performance with consistent timing
+ */
+function logPerformance(operation, startTime, metadata = {}) {
+    const duration = performance.now() - startTime;
+    console.log(`⚡ ${operation}: ${Math.round(duration)}ms ${metadata.error ? '❌' : '✅'}`, metadata);
 }
 
 /**
@@ -714,21 +731,21 @@ async function getRestaurantRequests(restaurantId) {
 }
 
 // ============================================================================
-// VENUE-INITIATED INVITATIONS
+// VENUE-INITIATED INVITATIONS SYSTEM - COMPLETE IMPLEMENTATION
 // ============================================================================
 
 /**
- * Venue manager creates an invitation for a restaurant
+ * Create venue invitation (for venue management page)
  * @param {string} venueId - Venue ID sending invitation
- * @param {Object} restaurantData - Restaurant info (name, email, etc.)
+ * @param {Object} invitationData - Invitation details (restaurantName, contactEmail)
  * @param {string} personalMessage - Optional personal message
- * @returns {Promise<Object>} Created invitation with link
+ * @returns {Promise<Object>} Created invitation
  */
-async function createVenueInvitation(venueId, restaurantData, personalMessage = '') {
-    const endTracking = startPerformanceMeasurement('createVenueInvitation');
+async function createVenueInvitation(venueId, invitationData, personalMessage = '') {
+    const startTime = performance.now();
     
     try {
-        console.log('📨 Creating venue invitation:', { venueId, restaurantData });
+        console.log('📨 Creating venue invitation:', { venueId, invitationData });
         
         const db = getFirebaseDb();
         const auth = getFirebaseAuth();
@@ -739,84 +756,245 @@ async function createVenueInvitation(venueId, restaurantData, personalMessage = 
             throw new Error('Venue not found');
         }
         
-        // Generate unique invitation code
-        const inviteCode = generateInviteCode();
+        // Get current user info
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            throw new Error('Authentication required');
+        }
         
-        // Create invitation data
-        const invitationData = {
+        // Generate unique invitation code
+        const invitationCode = generateInvitationCode();
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        
+        // Create full invitation data
+        const fullInvitationData = {
             venueId: venueId,
             venueName: venue.name,
-            venueAddress: venue.address || 'Address not provided',
-            venueCity: venue.city || 'City not provided',
-            venueState: venue.state || 'State not provided',
-            venueDescription: venue.description || 'No description provided',
-            restaurantName: sanitizeInput(restaurantData.restaurantName),
-            contactEmail: sanitizeInput(restaurantData.contactEmail),
-            personalMessage: sanitizeInput(personalMessage.trim()),
-            inviteCode: inviteCode,
+            venueCity: venue.city || 'Not specified',
+            venueState: venue.state || 'Not specified',
+            restaurantName: sanitizeInput(invitationData.restaurantName || invitationData.name),
+            contactEmail: sanitizeInput(invitationData.contactEmail || invitationData.email),
+            personalMessage: sanitizeInput(personalMessage),
+            invitationCode: invitationCode,
             status: 'pending',
-            type: 'venue_invitation',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdByUserId: auth.currentUser?.uid || null,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+            expiresAt: expiresAt,
+            invitedBy: {
+                uid: currentUser.uid,
+                name: currentUser.displayName || 'Venue Manager',
+                email: currentUser.email || 'Not provided'
+            }
         };
-
-        // Save to venueInvitations collection
-        const docRef = await db.collection('venueInvitations').add(invitationData);
-
-        // Generate invitation link
-        const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-        const invitationLink = `${baseUrl}venue-invitation.html?invite=${inviteCode}`;
-
-        await endTracking(true);
-
-        console.log('✅ Venue invitation created:', docRef.id);
-        return { 
+        
+        // Save invitation to database
+        const docRef = await db.collection('venueInvitations').add(fullInvitationData);
+        
+        const invitation = { 
             id: docRef.id, 
-            ...invitationData,
-            invitationLink: invitationLink
+            ...fullInvitationData,
+            createdAt: new Date() // For immediate use
         };
-
+        
+        logPerformance('createVenueInvitation', startTime, { 
+            venueId, 
+            invitationId: docRef.id 
+        });
+        
+        console.log('✅ Venue invitation created:', docRef.id);
+        return invitation;
+        
     } catch (error) {
-        await endTracking(false, { error: error.message });
-        console.error('❌ Error creating venue invitation:', error);
+        console.error('❌ Create venue invitation error:', error);
+        logPerformance('createVenueInvitation', startTime, { error: error.message });
         throw error;
     }
 }
 
 /**
- * Get invitations for a venue
+ * Get venue invitations
  * @param {string} venueId - Venue ID
- * @param {string} status - Optional status filter
- * @returns {Promise<Array>} Array of invitations
+ * @param {string|null} status - Filter by status ('pending', 'accepted', 'expired', 'declined')
+ * @returns {Promise<Array>} Array of invitation objects
  */
 async function getVenueInvitations(venueId, status = null) {
-    const endTracking = startPerformanceMeasurement('getVenueInvitations');
+    const startTime = performance.now();
     
     try {
-        const db = getFirebaseDb();
+        console.log('📋 Getting venue invitations:', { venueId, status });
         
+        const db = getFirebaseDb();
         let query = db.collection('venueInvitations')
-            .where('venueId', '==', venueId);
+            .where('venueId', '==', venueId)
+            .orderBy('createdAt', 'desc');
         
         if (status) {
             query = query.where('status', '==', status);
         }
         
-        query = query.orderBy('createdAt', 'desc');
+        const snapshot = await query.get();
         
-        const querySnapshot = await query.get();
-        const invitations = querySnapshot.docs.map(doc => ({
+        const invitations = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
-
-        await endTracking(true);
+        
+        logPerformance('getVenueInvitations', startTime, { 
+            venueId, 
+            status, 
+            count: invitations.length 
+        });
+        
+        console.log('✅ Retrieved venue invitations:', invitations.length);
         return invitations;
-
+        
     } catch (error) {
-        await endTracking(false, { error: error.message });
-        console.error('❌ Error getting venue invitations:', error);
+        console.error('❌ Get venue invitations error:', error);
+        logPerformance('getVenueInvitations', startTime, { error: error.message });
+        throw error;
+    }
+}
+
+/**
+ * Validate invitation code (for restaurant signup)
+ * @param {string} invitationId - Invitation document ID
+ * @param {string} code - Invitation code to validate
+ * @returns {Promise<Object>} Valid invitation object
+ */
+async function validateInvitationCode(invitationId, code) {
+    const startTime = performance.now();
+    
+    try {
+        console.log('🔍 Validating invitation code:', { invitationId });
+        
+        const db = getFirebaseDb();
+        const invitationDoc = await db.collection('venueInvitations').doc(invitationId).get();
+        
+        if (!invitationDoc.exists) {
+            throw new Error('Invitation not found');
+        }
+        
+        const invitation = invitationDoc.data();
+        
+        if (invitation.status !== 'pending') {
+            throw new Error('Invitation is no longer valid');
+        }
+        
+        if (invitation.invitationCode !== code) {
+            throw new Error('Invalid invitation code');
+        }
+        
+        if (invitation.expiresAt && invitation.expiresAt.toDate() < new Date()) {
+            // Mark as expired
+            await db.collection('venueInvitations').doc(invitationId).update({
+                status: 'expired'
+            });
+            throw new Error('Invitation has expired');
+        }
+        
+        const validInvitation = { id: invitationDoc.id, ...invitation };
+        
+        logPerformance('validateInvitationCode', startTime, { 
+            invitationId, 
+            valid: true 
+        });
+        
+        console.log('✅ Invitation code validated successfully');
+        return validInvitation;
+        
+    } catch (error) {
+        console.error('❌ Validate invitation error:', error);
+        logPerformance('validateInvitationCode', startTime, { error: error.message });
+        throw error;
+    }
+}
+
+/**
+ * Accept venue invitation (for restaurant signup)
+ * @param {string} invitationId - Invitation document ID
+ * @param {string} restaurantId - Restaurant document ID
+ * @param {string} userId - User ID who accepted
+ * @returns {Promise<void>}
+ */
+async function acceptVenueInvitation(invitationId, restaurantId, userId) {
+    const startTime = performance.now();
+    
+    try {
+        console.log('✅ Accepting venue invitation:', { invitationId, restaurantId, userId });
+        
+        const db = getFirebaseDb();
+        
+        // Get invitation details first
+        const invitationDoc = await db.collection('venueInvitations').doc(invitationId).get();
+        if (!invitationDoc.exists) {
+            throw new Error('Invitation not found');
+        }
+        
+        const invitation = invitationDoc.data();
+        
+        // Start transaction for consistency
+        await db.runTransaction(async (transaction) => {
+            // Update invitation status
+            transaction.update(db.collection('venueInvitations').doc(invitationId), {
+                status: 'accepted',
+                acceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                acceptedBy: userId,
+                restaurantId: restaurantId
+            });
+            
+            // Update restaurant with venue information
+            transaction.update(db.collection('restaurants').doc(restaurantId), {
+                venueId: invitation.venueId,
+                venueName: invitation.venueName,
+                joinedVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
+                invitationId: invitationId,
+                verified: true, // Auto-verify invited restaurants
+                syncMethod: 'venue_invitation',
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        
+        logPerformance('acceptVenueInvitation', startTime, { 
+            invitationId, 
+            restaurantId, 
+            userId 
+        });
+        
+        console.log('✅ Venue invitation accepted successfully');
+        
+    } catch (error) {
+        console.error('❌ Accept invitation error:', error);
+        logPerformance('acceptVenueInvitation', startTime, { error: error.message });
+        throw error;
+    }
+}
+
+/**
+ * Decline venue invitation
+ * @param {string} invitationId - Invitation document ID
+ * @param {string} reason - Reason for declining (optional)
+ * @returns {Promise<void>}
+ */
+async function declineVenueInvitation(invitationId, reason = '') {
+    const startTime = performance.now();
+    
+    try {
+        console.log('❌ Declining venue invitation:', { invitationId });
+        
+        const db = getFirebaseDb();
+        
+        await db.collection('venueInvitations').doc(invitationId).update({
+            status: 'declined',
+            declinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            declineReason: sanitizeInput(reason)
+        });
+        
+        logPerformance('declineVenueInvitation', startTime, { invitationId });
+        
+        console.log('✅ Venue invitation declined');
+        
+    } catch (error) {
+        console.error('❌ Decline invitation error:', error);
+        logPerformance('declineVenueInvitation', startTime, { error: error.message });
         throw error;
     }
 }
@@ -1298,8 +1476,6 @@ if (typeof window !== 'undefined') {
     window.VediAPI.requestToJoinVenue = requestToJoinVenue;
     window.VediAPI.cancelVenueRequest = cancelVenueRequest;
     window.VediAPI.getRestaurantRequests = getRestaurantRequests;
-    window.VediAPI.createVenueInvitation = createVenueInvitation;
-    window.VediAPI.getVenueInvitations = getVenueInvitations;
     window.VediAPI.approveRestaurantRequest = approveRestaurantRequest;
     window.VediAPI.denyRestaurantRequest = denyRestaurantRequest;
     window.VediAPI.unsyncRestaurantFromVenue = unsyncRestaurantFromVenue;
@@ -1308,6 +1484,13 @@ if (typeof window !== 'undefined') {
     window.VediAPI.getVenueRequests = getVenueRequests;
     window.VediAPI.getAvailableVenuesForRestaurant = getAvailableVenuesForRestaurant;
     window.VediAPI.checkVenueEligibility = checkVenueEligibility;
+
+    // COMPLETE INVITATION SYSTEM
+    window.VediAPI.createVenueInvitation = createVenueInvitation;
+    window.VediAPI.getVenueInvitations = getVenueInvitations;
+    window.VediAPI.validateInvitationCode = validateInvitationCode;
+    window.VediAPI.acceptVenueInvitation = acceptVenueInvitation;
+    window.VediAPI.declineVenueInvitation = declineVenueInvitation;
 
     // Helper functions
     window.VediAPI.getPendingRequestByRestaurant = getPendingRequestByRestaurant;
@@ -1333,6 +1516,9 @@ if (typeof window !== 'undefined') {
     if (!window.VediAPI.generateInviteCode) {
         window.VediAPI.generateInviteCode = generateInviteCode;
     }
+    if (!window.VediAPI.generateInvitationCode) {
+        window.VediAPI.generateInvitationCode = generateInvitationCode;
+    }
     if (!window.VediAPI.trackUserActivity) {
         window.VediAPI.trackUserActivity = trackUserActivity;
     }
@@ -1343,6 +1529,7 @@ if (typeof window !== 'undefined') {
     console.log('🏢 Venue functions: createVenueInvitation, getVenueInvitations, getVenueRequests, getVenueRestaurants');
     console.log('✅ Approval functions: approveRestaurantRequest, denyRestaurantRequest');
     console.log('🔗 Sync functions: unsyncRestaurantFromVenue');
+    console.log('📨 INVITATION functions: createVenueInvitation, getVenueInvitations, validateInvitationCode, acceptVenueInvitation, declineVenueInvitation');
     console.log('🔧 FIXED Enhanced functions: getAvailableVenuesForRestaurant with improved filtering');
     console.log('🔍 DEBUG functions: debugVenueLoading for testing venue discovery');
     console.log('⚡ Enhanced venue-restaurant integration ready for production use');
@@ -1365,8 +1552,6 @@ if (typeof module !== 'undefined' && module.exports) {
         requestToJoinVenue,
         cancelVenueRequest,
         getRestaurantRequests,
-        createVenueInvitation,
-        getVenueInvitations,
         approveRestaurantRequest,
         denyRestaurantRequest,
         unsyncRestaurantFromVenue,
@@ -1375,6 +1560,13 @@ if (typeof module !== 'undefined' && module.exports) {
         getVenueRequests,
         getAvailableVenuesForRestaurant,
         checkVenueEligibility,
+        
+        // Invitation functions
+        createVenueInvitation,
+        getVenueInvitations,
+        validateInvitationCode,
+        acceptVenueInvitation,
+        declineVenueInvitation,
         
         // Helpers
         getPendingRequestByRestaurant,
@@ -1388,6 +1580,7 @@ if (typeof module !== 'undefined' && module.exports) {
         validateEmail,
         sanitizeInput,
         generateInviteCode,
+        generateInvitationCode,
         getRelativeTime,
         startPerformanceMeasurement,
         trackUserActivity
