@@ -437,20 +437,42 @@
             color: #1D1D1F;
         }
 
-        .fee-edit-btn {
-            background-color: #007AFF;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 6px 12px;
-            font-size: 13px;
+        .fee-editable {
+            font-size: 17px;
             font-weight: 500;
+            color: #1D1D1F;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            padding: 4px 8px;
+            width: 80px;
+            text-align: center;
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
-        .fee-edit-btn:hover {
-            background-color: #0056CC;
+        .fee-editable:hover {
+            background-color: #F8F9FA;
+            border-color: #E5E5E7;
+        }
+
+        .fee-editable:focus {
+            outline: none;
+            background-color: #FFFFFF;
+            border-color: #007AFF;
+            cursor: text;
+        }
+
+        .fee-editable.editing {
+            background-color: #FFFFFF;
+            border-color: #007AFF;
+            cursor: text;
+        }
+
+        .fee-custom-indicator {
+            font-size: 11px;
+            color: #007AFF;
+            margin-left: 4px;
         }
 
         /* Charts Section */
@@ -797,7 +819,7 @@
             <div class="fee-controls">
                 <div class="fee-input-group">
                     <label class="fee-label">Default Venue Fee:</label>
-                    <input type="number" class="fee-input" id="defaultVenueFee" value="1.0" min="0" max="10" step="0.1">
+                    <input type="number" class="fee-input" id="defaultVenueFee" value="1.0" min="0" step="0.1">
                     <span class="fee-label">%</span>
                 </div>
                 <button class="update-fee-btn" onclick="updateDefaultVenueFee()">Update Default</button>
@@ -901,6 +923,7 @@
         let venueOrders = [];
         let financialData = {};
         let charts = {};
+        let customizedRestaurantFees = new Set(); // Track which restaurants have custom fees
 
         // Helper function for currency formatting (copied from performance page)
         function formatCurrency(amount, currency = 'USD') {
@@ -1133,6 +1156,14 @@
                     }));
                 }
                 
+                // Track which restaurants have custom fees
+                venueRestaurants.forEach(restaurant => {
+                    if (restaurant.venueFeePercentage !== undefined && 
+                        restaurant.venueFeePercentage !== currentVenue.defaultFeePercentage) {
+                        customizedRestaurantFees.add(restaurant.id);
+                    }
+                });
+                
                 // Populate restaurant filter
                 const restaurantFilter = document.getElementById('restaurantFilter');
                 restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
@@ -1359,14 +1390,26 @@
                     };
                 }).sort((a, b) => b.monthlyRevenue - a.monthlyRevenue);
                 
-                tableContainer.innerHTML = restaurantFeesData.map(restaurant => `
+                tableContainer.innerHTML = restaurantFeesData.map(restaurant => {
+                    const isCustomized = customizedRestaurantFees.has(restaurant.id);
+                    const customIndicator = isCustomized ? '<span class="fee-custom-indicator">●</span>' : '';
+                    
+                    return `
                     <div class="table-row">
                         <div>
                             <div class="restaurant-name">${restaurant.name}</div>
                             <div class="restaurant-cuisine">${restaurant.cuisineType || 'Restaurant'}</div>
                         </div>
                         <div>
-                            <div class="fee-value">${restaurant.venueFeePercentage.toFixed(1)}%</div>
+                            <input type="number" 
+                                   class="fee-editable" 
+                                   value="${restaurant.venueFeePercentage.toFixed(1)}" 
+                                   step="0.1" 
+                                   min="0"
+                                   data-restaurant-id="${restaurant.id}"
+                                   onchange="updateRestaurantFeeInline(this)"
+                                   onblur="updateRestaurantFeeInline(this)"
+                                   title="Click to edit fee percentage">%${customIndicator}
                         </div>
                         <div>
                             <div class="fee-value">${formatCurrency(restaurant.monthlyRevenue, 'USD')}</div>
@@ -1375,12 +1418,14 @@
                             <div class="fee-value">${restaurant.orderCount}</div>
                         </div>
                         <div>
-                            <button class="fee-edit-btn" onclick="editRestaurantFee('${restaurant.id}', ${restaurant.venueFeePercentage})">
-                                Edit Fee
+                            <button class="update-fee-btn" onclick="resetToDefault('${restaurant.id}')" 
+                                    ${!isCustomized ? 'style="opacity: 0.5; cursor: not-allowed;" disabled' : ''}>
+                                Reset to Default
                             </button>
                         </div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
                 
             } catch (error) {
                 console.error('❌ Update restaurant fees table error:', error);
@@ -1652,13 +1697,13 @@
             return { venueFeesData, totalVolumeData };
         }
 
-        // Update default venue fee (simplified - needs backend implementation)
+        // Update default venue fee (UPDATED: only affects non-customized restaurants)
         async function updateDefaultVenueFee() {
             try {
                 const newFeePercentage = parseFloat(document.getElementById('defaultVenueFee').value);
                 
-                if (isNaN(newFeePercentage) || newFeePercentage < 0 || newFeePercentage > 10) {
-                    showError('Please enter a valid fee percentage between 0 and 10');
+                if (isNaN(newFeePercentage) || newFeePercentage < 0) {
+                    showError('Please enter a valid fee percentage (0% or higher)');
                     return;
                 }
                 
@@ -1670,7 +1715,30 @@
                 
                 currentVenue.defaultFeePercentage = newFeePercentage;
                 
-                showSuccess(`Default venue fee updated to ${newFeePercentage}%`);
+                // Update non-customized restaurants to use the new default
+                const batch = db.batch();
+                let updatedCount = 0;
+                
+                venueRestaurants.forEach(restaurant => {
+                    if (!customizedRestaurantFees.has(restaurant.id)) {
+                        const restaurantRef = db.collection('restaurants').doc(restaurant.id);
+                        batch.update(restaurantRef, {
+                            venueFeePercentage: newFeePercentage,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            updatedBy: currentUser.uid
+                        });
+                        
+                        // Update local data
+                        restaurant.venueFeePercentage = newFeePercentage;
+                        updatedCount++;
+                    }
+                });
+                
+                if (updatedCount > 0) {
+                    await batch.commit();
+                }
+                
+                showSuccess(`Default venue fee updated to ${newFeePercentage}% (applied to ${updatedCount} restaurants using default)`);
                 
                 // Reload financial data
                 await loadFinancialData();
@@ -1681,7 +1749,7 @@
             }
         }
 
-        // Sync venue fee across all restaurants (simplified)
+        // Sync venue fee across all restaurants (UPDATED: affects all restaurants)
         async function syncVenueFeeAcrossRestaurants() {
             try {
                 const defaultFeePercentage = parseFloat(document.getElementById('defaultVenueFee').value);
@@ -1691,11 +1759,11 @@
                     return;
                 }
                 
-                if (!confirm(`Are you sure you want to apply ${defaultFeePercentage}% venue fee to all ${venueRestaurants.length} restaurants?`)) {
+                if (!confirm(`Are you sure you want to apply ${defaultFeePercentage}% venue fee to ALL ${venueRestaurants.length} restaurants? This will override any custom fees.`)) {
                     return;
                 }
                 
-                // Update fee for each restaurant
+                // Update fee for each restaurant and clear customization tracking
                 const db = getFirebaseDb();
                 const batch = db.batch();
                 
@@ -1706,9 +1774,15 @@
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                         updatedBy: currentUser.uid
                     });
+                    
+                    // Update local data
+                    restaurant.venueFeePercentage = defaultFeePercentage;
                 });
                 
                 await batch.commit();
+                
+                // Clear customization tracking since all restaurants now use the same fee
+                customizedRestaurantFees.clear();
                 
                 showSuccess(`Venue fee synced across ${venueRestaurants.length} restaurants`);
                 
@@ -1721,25 +1795,23 @@
             }
         }
 
-        // Edit restaurant fee
-        function editRestaurantFee(restaurantId, currentFee) {
-            const newFee = prompt(`Enter new venue fee percentage for this restaurant:`, currentFee.toFixed(1));
-            
-            if (newFee === null) return; // User cancelled
-            
-            const feePercentage = parseFloat(newFee);
-            
-            if (isNaN(feePercentage) || feePercentage < 0 || feePercentage > 10) {
-                showError('Please enter a valid fee percentage between 0 and 10');
-                return;
-            }
-            
-            updateRestaurantVenueFee(restaurantId, feePercentage);
-        }
-
-        // Update specific restaurant venue fee (simplified)
-        async function updateRestaurantVenueFee(restaurantId, feePercentage) {
+        // Update restaurant fee inline (NEW)
+        async function updateRestaurantFeeInline(input) {
             try {
+                const restaurantId = input.dataset.restaurantId;
+                const feePercentage = parseFloat(input.value);
+                
+                if (isNaN(feePercentage) || feePercentage < 0) {
+                    showError('Please enter a valid fee percentage (0% or higher)');
+                    // Reset to previous value
+                    const restaurant = venueRestaurants.find(r => r.id === restaurantId);
+                    if (restaurant) {
+                        input.value = restaurant.venueFeePercentage.toFixed(1);
+                    }
+                    return;
+                }
+                
+                // Update in Firebase
                 const db = getFirebaseDb();
                 await db.collection('restaurants').doc(restaurantId).update({
                     venueFeePercentage: feePercentage,
@@ -1747,20 +1819,66 @@
                     updatedBy: currentUser.uid
                 });
                 
-                showSuccess(`Restaurant venue fee updated to ${feePercentage}%`);
-                
                 // Update local data
                 const restaurant = venueRestaurants.find(r => r.id === restaurantId);
                 if (restaurant) {
                     restaurant.venueFeePercentage = feePercentage;
+                    
+                    // Track as customized if different from default
+                    if (feePercentage !== currentVenue.defaultFeePercentage) {
+                        customizedRestaurantFees.add(restaurantId);
+                    } else {
+                        customizedRestaurantFees.delete(restaurantId);
+                    }
                 }
+                
+                showSuccess(`Restaurant fee updated to ${feePercentage}%`);
+                
+                // Reload financial data to update calculations
+                await loadFinancialData();
+                
+            } catch (error) {
+                console.error('❌ Update restaurant fee inline error:', error);
+                showError('Failed to update restaurant fee');
+                
+                // Reset to previous value
+                const restaurant = venueRestaurants.find(r => r.id === input.dataset.restaurantId);
+                if (restaurant) {
+                    input.value = restaurant.venueFeePercentage.toFixed(1);
+                }
+            }
+        }
+
+        // Reset restaurant to default fee (NEW)
+        async function resetToDefault(restaurantId) {
+            try {
+                const defaultFee = currentVenue.defaultFeePercentage || 1.0;
+                
+                // Update in Firebase
+                const db = getFirebaseDb();
+                await db.collection('restaurants').doc(restaurantId).update({
+                    venueFeePercentage: defaultFee,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: currentUser.uid
+                });
+                
+                // Update local data
+                const restaurant = venueRestaurants.find(r => r.id === restaurantId);
+                if (restaurant) {
+                    restaurant.venueFeePercentage = defaultFee;
+                }
+                
+                // Remove from customized tracking
+                customizedRestaurantFees.delete(restaurantId);
+                
+                showSuccess(`Restaurant fee reset to default (${defaultFee}%)`);
                 
                 // Reload financial data
                 await loadFinancialData();
                 
             } catch (error) {
-                console.error('❌ Update restaurant venue fee error:', error);
-                showError('Failed to update restaurant venue fee');
+                console.error('❌ Reset to default error:', error);
+                showError('Failed to reset restaurant fee to default');
             }
         }
 
