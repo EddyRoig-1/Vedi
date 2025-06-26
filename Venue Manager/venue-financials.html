@@ -1458,15 +1458,9 @@
             }
         }
 
-        // Create revenue trends chart - FIXED CHART UPDATING
+        // Create revenue trends chart - COMPLETELY FIXED CHART UPDATING
         async function createRevenueChart() {
-            const ctx = document.getElementById('revenueChart');
-            if (!ctx) return;
-            
             const timePeriod = document.getElementById('timePeriod').value;
-            
-            const labels = generateTimeLabels(timePeriod);
-            const { venueFeesData, restaurantSalesData, hasData } = generateRevenueDataFromOrders(labels, timePeriod);
             
             // Always destroy existing chart first
             if (charts.revenue) {
@@ -1474,14 +1468,22 @@
                 charts.revenue = null;
             }
             
-            // Always ensure we have a proper canvas element
-            const chartContainer = ctx.parentElement;
-            chartContainer.innerHTML = '<canvas id="revenueChart"></canvas>';
-            const newCtx = document.getElementById('revenueChart').getContext('2d');
+            // Get the chart container by finding the parent of where the canvas should be
+            const chartCard = document.querySelector('.chart-card');
+            if (!chartCard) return;
             
-            // Check if there's any real data
+            const chartContainer = chartCard.querySelector('.chart-container');
+            if (!chartContainer) return;
+            
+            // ALWAYS completely reset the container content
+            chartContainer.innerHTML = '<canvas id="revenueChart"></canvas>';
+            
+            const labels = generateTimeLabels(timePeriod);
+            const { venueFeesData, restaurantSalesData, hasData } = generateRevenueDataFromOrders(labels, timePeriod);
+            
+            // Check if there's any real data AFTER creating canvas
             if (!hasData) {
-                // Show "No Data" message instead of chart
+                // Replace with "No Data" message
                 chartContainer.innerHTML = `
                     <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
                         <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">📊</div>
@@ -1492,7 +1494,12 @@
                 return;
             }
             
-            createRevenueChartWithData(newCtx, labels, venueFeesData, restaurantSalesData, timePeriod);
+            // Get the fresh canvas context and create chart
+            const canvas = document.getElementById('revenueChart');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                createRevenueChartWithData(ctx, labels, venueFeesData, restaurantSalesData, timePeriod);
+            }
         }
 
         // Create the actual chart with data
