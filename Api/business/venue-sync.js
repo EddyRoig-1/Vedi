@@ -1,6 +1,6 @@
-// api/business/venue-sync.js - Complete Venue-Restaurant Sync Operations  
+// api/business/venue-sync.js - Complete Venue-Restaurant Sync Operations with Currency Inheritance
 /**
- * Complete Venue Sync Module - UPDATED VERSION with Full Invitation System
+ * Complete Venue Sync Module - UPDATED VERSION with Full Invitation System and Currency Inheritance
  * 
  * Handles all venue-restaurant relationship synchronization including:
  * - Restaurant-initiated requests to join venues
@@ -9,9 +9,11 @@
  * - Restaurant-venue association management
  * - Status tracking and activity logging
  * - Email invitation system integration
+ * - Currency inheritance and management
  * 
  * FIXED: Enhanced venue discovery with better filtering and error handling
  * NEW: Complete invitation system with email integration
+ * NEW: Currency inheritance system for venue-restaurant sync
  */
 
 // ============================================================================
@@ -100,6 +102,129 @@ function getRelativeTime(timestamp) {
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
     return `${days}d ago`;
+}
+
+// ============================================================================
+// CURRENCY INHERITANCE SYSTEM
+// ============================================================================
+
+/**
+ * Apply venue currency to restaurant when joining
+ * @param {string} restaurantId - Restaurant ID
+ * @param {string} venueId - Venue ID
+ * @returns {Promise<void>}
+ */
+async function applyCurrencyInheritance(restaurantId, venueId) {
+    try {
+        console.log('💰 Applying currency inheritance:', { restaurantId, venueId });
+        
+        // Get venue currency
+        const venue = await getVenueById(venueId);
+        if (!venue) {
+            throw new Error('Venue not found');
+        }
+        
+        // Get restaurant current currency
+        const restaurant = await getRestaurantById(restaurantId);
+        if (!restaurant) {
+            throw new Error('Restaurant not found');
+        }
+        
+        const venueCurrency = venue.currency || { code: 'USD', symbol: '$', name: 'US Dollar' };
+        const restaurantCurrency = restaurant.currency || { code: 'USD', symbol: '$', name: 'US Dollar' };
+        
+        console.log('💰 Currency inheritance:', {
+            venue: venueCurrency.code,
+            restaurant: restaurantCurrency.code,
+            needsUpdate: venueCurrency.code !== restaurantCurrency.code
+        });
+        
+        // Only update if currencies are different
+        if (venueCurrency.code !== restaurantCurrency.code) {
+            const db = getFirebaseDb();
+            await db.collection('restaurants').doc(restaurantId).update({
+                currency: venueCurrency,
+                previousCurrency: restaurantCurrency, // Store for reference
+                currencyInheritedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            console.log('✅ Currency inherited successfully:', venueCurrency.code);
+        } else {
+            console.log('✅ Currency already matches venue currency');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error applying currency inheritance:', error);
+        throw error;
+    }
+}
+
+/**
+ * Check if restaurant and venue have different currencies
+ * @param {string} restaurantId - Restaurant ID
+ * @param {string} venueId - Venue ID
+ * @returns {Promise<Object>} Currency comparison result
+ */
+async function checkCurrencyCompatibility(restaurantId, venueId) {
+    try {
+        const [restaurant, venue] = await Promise.all([
+            getRestaurantById(restaurantId),
+            getVenueById(venueId)
+        ]);
+        
+        if (!restaurant || !venue) {
+            return { compatible: false, error: 'Restaurant or venue not found' };
+        }
+        
+        const restaurantCurrency = restaurant.currency || { code: 'USD', symbol: '$' };
+        const venueCurrency = venue.currency || { code: 'USD', symbol: '$' };
+        
+        const compatible = restaurantCurrency.code === venueCurrency.code;
+        
+        return {
+            compatible,
+            restaurantCurrency,
+            venueCurrency,
+            needsConversion: !compatible
+        };
+        
+    } catch (error) {
+        console.error('❌ Error checking currency compatibility:', error);
+        return { compatible: false, error: error.message };
+    }
+}
+
+/**
+ * Get currency information for display
+ * @param {Object} currency - Currency object
+ * @returns {string} Formatted currency display
+ */
+function formatCurrencyInfo(currency) {
+    if (!currency) {
+        return 'USD ($)';
+    }
+    return `${currency.code} (${currency.symbol})`;
+}
+
+/**
+ * Validate currency object
+ * @param {Object} currency - Currency object to validate
+ * @returns {boolean} Whether currency is valid
+ */
+function isValidCurrency(currency) {
+    return currency && 
+           typeof currency.code === 'string' && 
+           typeof currency.symbol === 'string' && 
+           currency.code.length === 3;
+}
+
+/**
+ * Get default currency (USD)
+ * @returns {Object} Default currency object
+ */
+function getDefaultCurrency() {
+    return { code: 'USD', symbol: '$', name: 'US Dollar' };
 }
 
 // ============================================================================
@@ -397,7 +522,8 @@ async function getAvailableVenuesForRestaurant(restaurantId, filters = {}) {
             status: v.status, 
             verified: v.verified,
             city: v.city,
-            state: v.state
+            state: v.state,
+            currency: v.currency?.code || 'USD'
         })));
         
         // Apply filters in memory - ONLY check status, NOT verification
@@ -423,7 +549,7 @@ async function getAvailableVenuesForRestaurant(restaurantId, filters = {}) {
             
             // NO VERIFICATION CHECK - venues can be shown regardless of verification status
             
-            console.log(`✅ Venue ${venue.name} passed all filters (status: ${venueStatus || 'undefined'}, verified: ${venue.verified})`);
+            console.log(`✅ Venue ${venue.name} passed all filters (status: ${venueStatus || 'undefined'}, verified: ${venue.verified}, currency: ${venue.currency?.code || 'USD'})`);
             return true;
         });
         
@@ -462,7 +588,8 @@ async function getAvailableVenuesForRestaurant(restaurantId, filters = {}) {
             city: v.city, 
             state: v.state,
             status: v.status,
-            verified: v.verified
+            verified: v.verified,
+            currency: v.currency?.code || 'USD'
         })));
         
         return filteredVenues;
@@ -547,11 +674,11 @@ async function checkVenueEligibility(restaurantId, venueId) {
 }
 
 // ============================================================================
-// RESTAURANT-INITIATED REQUESTS
+// RESTAURANT-INITIATED REQUESTS WITH CURRENCY INHERITANCE
 // ============================================================================
 
 /**
- * ENHANCED: Restaurant requests to join a venue
+ * ENHANCED: Restaurant requests to join a venue with currency awareness
  * @param {string} restaurantId - Restaurant ID making the request
  * @param {string} venueId - Target venue ID
  * @param {string} message - Optional message to venue manager
@@ -591,6 +718,10 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
             throw new Error('A request to join this venue is already pending');
         }
 
+        // Check currency compatibility and log it
+        const currencyCheck = await checkCurrencyCompatibility(restaurantId, venueId);
+        console.log('💰 Currency compatibility for join request:', currencyCheck);
+
         // Create the venue request with comprehensive data
         const requestData = {
             restaurantId: restaurantId,
@@ -601,11 +732,14 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
             restaurantCity: restaurant.city || 'Not provided',
             restaurantState: restaurant.state || 'Not provided',
             restaurantPhone: restaurant.phone || 'Not provided',
+            restaurantCurrency: restaurant.currency || { code: 'USD', symbol: '$' },
             venueId: venueId,
             venueName: venue.name || 'Unknown Venue',
             venueAddress: venue.address || 'Not provided',
             venueCity: venue.city || 'Not provided',
             venueState: venue.state || 'Not provided',
+            venueCurrency: venue.currency || { code: 'USD', symbol: '$' },
+            currencyCompatible: currencyCheck.compatible,
             status: 'pending',
             message: sanitizeInput(message.trim()),
             requestedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -631,7 +765,8 @@ async function requestToJoinVenue(restaurantId, venueId, message = '') {
                 metadata: {
                     restaurantId: restaurantId,
                     restaurantName: restaurant.name,
-                    requestId: docRef.id
+                    requestId: docRef.id,
+                    currencyCompatible: currencyCheck.compatible
                 }
             });
         } catch (error) {
@@ -731,11 +866,11 @@ async function getRestaurantRequests(restaurantId) {
 }
 
 // ============================================================================
-// VENUE-INITIATED INVITATIONS SYSTEM - COMPLETE IMPLEMENTATION
+// VENUE-INITIATED INVITATIONS SYSTEM WITH CURRENCY INHERITANCE
 // ============================================================================
 
 /**
- * Create venue invitation (for venue management page)
+ * Create venue invitation with currency inheritance info
  * @param {string} venueId - Venue ID sending invitation
  * @param {Object} invitationData - Invitation details (restaurantName, contactEmail)
  * @param {string} personalMessage - Optional personal message
@@ -766,12 +901,13 @@ async function createVenueInvitation(venueId, invitationData, personalMessage = 
         const invitationCode = generateInvitationCode();
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         
-        // Create full invitation data
+        // Create full invitation data with currency info
         const fullInvitationData = {
             venueId: venueId,
             venueName: venue.name,
             venueCity: venue.city || 'Not specified',
             venueState: venue.state || 'Not specified',
+            venueCurrency: venue.currency || { code: 'USD', symbol: '$', name: 'US Dollar' },
             restaurantName: sanitizeInput(invitationData.restaurantName || invitationData.name),
             contactEmail: sanitizeInput(invitationData.contactEmail || invitationData.email),
             personalMessage: sanitizeInput(personalMessage),
@@ -797,7 +933,8 @@ async function createVenueInvitation(venueId, invitationData, personalMessage = 
         
         logPerformance('createVenueInvitation', startTime, { 
             venueId, 
-            invitationId: docRef.id 
+            invitationId: docRef.id,
+            venueCurrency: venue.currency?.code || 'USD'
         });
         
         console.log('✅ Venue invitation created:', docRef.id);
@@ -895,7 +1032,8 @@ async function validateInvitationCode(invitationId, code) {
         
         logPerformance('validateInvitationCode', startTime, { 
             invitationId, 
-            valid: true 
+            valid: true,
+            venueCurrency: invitation.venueCurrency?.code || 'USD'
         });
         
         console.log('✅ Invitation code validated successfully');
@@ -909,7 +1047,7 @@ async function validateInvitationCode(invitationId, code) {
 }
 
 /**
- * Accept venue invitation (for restaurant signup)
+ * Accept venue invitation with currency inheritance
  * @param {string} invitationId - Invitation document ID
  * @param {string} restaurantId - Restaurant document ID
  * @param {string} userId - User ID who accepted
@@ -919,7 +1057,7 @@ async function acceptVenueInvitation(invitationId, restaurantId, userId) {
     const startTime = performance.now();
     
     try {
-        console.log('✅ Accepting venue invitation:', { invitationId, restaurantId, userId });
+        console.log('✅ Accepting venue invitation with currency inheritance:', { invitationId, restaurantId, userId });
         
         const db = getFirebaseDb();
         
@@ -931,6 +1069,14 @@ async function acceptVenueInvitation(invitationId, restaurantId, userId) {
         
         const invitation = invitationDoc.data();
         
+        // Get venue and restaurant for currency inheritance
+        const [venue, restaurant] = await Promise.all([
+            getVenueById(invitation.venueId),
+            getRestaurantById(restaurantId)
+        ]);
+        
+        const venueCurrency = venue.currency || { code: 'USD', symbol: '$', name: 'US Dollar' };
+        
         // Start transaction for consistency
         await db.runTransaction(async (transaction) => {
             // Update invitation status
@@ -941,10 +1087,13 @@ async function acceptVenueInvitation(invitationId, restaurantId, userId) {
                 restaurantId: restaurantId
             });
             
-            // Update restaurant with venue information
+            // Update restaurant with venue information AND currency inheritance
             transaction.update(db.collection('restaurants').doc(restaurantId), {
                 venueId: invitation.venueId,
                 venueName: invitation.venueName,
+                currency: venueCurrency, // 👈 KEY: Inherit venue currency
+                previousCurrency: restaurant.currency, // Store original for reference
+                currencyInheritedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 joinedVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
                 invitationId: invitationId,
                 verified: true, // Auto-verify invited restaurants
@@ -956,10 +1105,11 @@ async function acceptVenueInvitation(invitationId, restaurantId, userId) {
         logPerformance('acceptVenueInvitation', startTime, { 
             invitationId, 
             restaurantId, 
-            userId 
+            userId,
+            currencyInherited: venueCurrency.code
         });
         
-        console.log('✅ Venue invitation accepted successfully');
+        console.log('✅ Venue invitation accepted with currency inheritance successfully');
         
     } catch (error) {
         console.error('❌ Accept invitation error:', error);
@@ -1000,11 +1150,11 @@ async function declineVenueInvitation(invitationId, reason = '') {
 }
 
 // ============================================================================
-// APPROVAL AND SYNC PROCESSES
+// APPROVAL AND SYNC PROCESSES WITH CURRENCY INHERITANCE
 // ============================================================================
 
 /**
- * Venue manager approves a restaurant join request
+ * Venue manager approves a restaurant join request with currency inheritance
  * @param {string} requestId - Request ID to approve
  * @returns {Promise<Object>} Updated request and synced restaurant
  */
@@ -1012,7 +1162,7 @@ async function approveRestaurantRequest(requestId) {
     const endTracking = startPerformanceMeasurement('approveRestaurantRequest');
     
     try {
-        console.log('✅ Approving restaurant request:', requestId);
+        console.log('✅ Approving restaurant request with currency inheritance:', requestId);
         
         const db = getFirebaseDb();
         const auth = getFirebaseAuth();
@@ -1036,6 +1186,10 @@ async function approveRestaurantRequest(requestId) {
             throw new Error('Restaurant has already joined another venue');
         }
 
+        // Check currency compatibility
+        const currencyCheck = await checkCurrencyCompatibility(request.restaurantId, request.venueId);
+        console.log('💰 Currency compatibility check:', currencyCheck);
+
         // Start transaction to ensure consistency
         await db.runTransaction(async (transaction) => {
             // Update request status
@@ -1045,11 +1199,18 @@ async function approveRestaurantRequest(requestId) {
                 approvedByUserId: auth.currentUser?.uid || null
             });
 
-            // Sync restaurant to venue
+            // Get venue currency for inheritance
+            const venue = await getVenueById(request.venueId);
+            const venueCurrency = venue.currency || { code: 'USD', symbol: '$', name: 'US Dollar' };
+
+            // Sync restaurant to venue WITH currency inheritance
             transaction.update(db.collection('restaurants').doc(request.restaurantId), {
                 venueId: request.venueId,
                 venueName: request.venueName,
                 venueAddress: request.venueAddress,
+                currency: venueCurrency, // 👈 KEY: Inherit venue currency
+                previousCurrency: restaurant.currency, // Store original for reference
+                currencyInheritedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 joinedVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
                 venueStatus: 'active',
                 syncMethod: 'restaurant_request',
@@ -1059,12 +1220,12 @@ async function approveRestaurantRequest(requestId) {
 
         await endTracking(true);
 
-        console.log('✅ Restaurant request approved and synced successfully');
+        console.log('✅ Restaurant request approved with currency inheritance successfully');
         return { id: requestId, ...request, status: 'approved' };
 
     } catch (error) {
         await endTracking(false, { error: error.message });
-        console.error('❌ Error approving restaurant request:', error);
+        console.error('❌ Error approving restaurant request with currency:', error);
         throw error;
     }
 }
@@ -1147,6 +1308,8 @@ async function unsyncRestaurantFromVenue(restaurantId, reason = 'Left venue') {
             leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
             venueStatus: null,
             unsyncReason: sanitizeInput(reason),
+            // Note: We keep the inherited currency - restaurant can change it independently now
+            currencyDetachedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
@@ -1184,7 +1347,9 @@ async function getRestaurantSyncStatus(restaurantId) {
             venueName: restaurant.venueName || null,
             joinedAt: restaurant.joinedVenueAt || null,
             syncMethod: restaurant.syncMethod || null,
-            status: restaurant.venueStatus || null
+            status: restaurant.venueStatus || null,
+            currency: restaurant.currency || null,
+            currencyInheritedAt: restaurant.currencyInheritedAt || null
         };
 
         // Get pending requests if not associated
@@ -1212,6 +1377,8 @@ async function getRestaurantSyncStatus(restaurantId) {
             joinedAt: null,
             syncMethod: null,
             status: null,
+            currency: null,
+            currencyInheritedAt: null,
             pendingRequests: [],
             error: error.message
         };
@@ -1435,7 +1602,8 @@ async function debugVenueLoading() {
                 status: venue.status,
                 verified: venue.verified,
                 city: venue.city,
-                state: venue.state
+                state: venue.state,
+                currency: venue.currency?.code || 'USD'
             });
         });
         
@@ -1492,6 +1660,13 @@ if (typeof window !== 'undefined') {
     window.VediAPI.acceptVenueInvitation = acceptVenueInvitation;
     window.VediAPI.declineVenueInvitation = declineVenueInvitation;
 
+    // CURRENCY INHERITANCE SYSTEM
+    window.VediAPI.applyCurrencyInheritance = applyCurrencyInheritance;
+    window.VediAPI.checkCurrencyCompatibility = checkCurrencyCompatibility;
+    window.VediAPI.formatCurrencyInfo = formatCurrencyInfo;
+    window.VediAPI.isValidCurrency = isValidCurrency;
+    window.VediAPI.getDefaultCurrency = getDefaultCurrency;
+
     // Helper functions
     window.VediAPI.getPendingRequestByRestaurant = getPendingRequestByRestaurant;
     window.VediAPI.addVenueActivity = addVenueActivity;
@@ -1523,16 +1698,17 @@ if (typeof window !== 'undefined') {
         window.VediAPI.trackUserActivity = trackUserActivity;
     }
 
-    console.log('🔄 UPDATED Complete Venue Sync Module loaded successfully');
+    console.log('🔄 UPDATED Complete Venue Sync Module with Currency Inheritance loaded successfully');
     console.log('🎯 Core CRUD functions: getAllVenues, getVenueByManager, getRestaurantByOwner, updateRestaurant, updateVenue');
     console.log('🏪 Restaurant functions: requestToJoinVenue, cancelVenueRequest, getRestaurantRequests, getRestaurantSyncStatus');
     console.log('🏢 Venue functions: createVenueInvitation, getVenueInvitations, getVenueRequests, getVenueRestaurants');
     console.log('✅ Approval functions: approveRestaurantRequest, denyRestaurantRequest');
     console.log('🔗 Sync functions: unsyncRestaurantFromVenue');
     console.log('📨 INVITATION functions: createVenueInvitation, getVenueInvitations, validateInvitationCode, acceptVenueInvitation, declineVenueInvitation');
+    console.log('💰 CURRENCY functions: applyCurrencyInheritance, checkCurrencyCompatibility, formatCurrencyInfo');
     console.log('🔧 FIXED Enhanced functions: getAvailableVenuesForRestaurant with improved filtering');
     console.log('🔍 DEBUG functions: debugVenueLoading for testing venue discovery');
-    console.log('⚡ Enhanced venue-restaurant integration ready for production use');
+    console.log('⚡ Enhanced venue-restaurant integration with currency inheritance ready for production use');
 }
 
 // Export functions for Node.js environments
@@ -1567,6 +1743,13 @@ if (typeof module !== 'undefined' && module.exports) {
         validateInvitationCode,
         acceptVenueInvitation,
         declineVenueInvitation,
+        
+        // Currency inheritance functions
+        applyCurrencyInheritance,
+        checkCurrencyCompatibility,
+        formatCurrencyInfo,
+        isValidCurrency,
+        getDefaultCurrency,
         
         // Helpers
         getPendingRequestByRestaurant,
