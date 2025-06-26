@@ -1855,17 +1855,19 @@
         }
 
         // Temporary test function - no email needed
-// Update this function in your venue-management.html:
+
+// FIXED: Update this function in your venue-management.html
 
 async function sendInvitationEmail(invitationId, invitationData) {
     try {
-        console.log('📧 Testing invitation system...');
+        console.log('📧 Creating invitation link...');
         
-        // FIXED: Use correct signup URL path
-        const signupUrl = `${window.location.origin}/Landing-Signup-Login/signup.html?invitation=${invitationId}&code=${invitationData.invitationCode}`;
+        // FIXED: Use correct signup URL path with proper domain
+        const baseUrl = window.location.origin;
+        const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?invitation=${invitationId}&code=${invitationData.invitationCode}`;
         
-        // Show success message
-        alert(`✅ Invitation Created Successfully!
+        // Show success message with invitation details
+        const message = `✅ Invitation Created Successfully!
 
 Restaurant: ${invitationData.restaurantName}
 Email: ${invitationData.contactEmail}
@@ -1874,21 +1876,32 @@ Code: ${invitationData.invitationCode}
 Signup URL:
 ${signupUrl}
 
-✅ Saved to database!
-📧 Email will be added next.`);
+✅ Invitation saved to database!
+📧 Copy this URL and send it to the restaurant.`;
+        
+        alert(message);
         
         // Copy URL to clipboard
         if (navigator.clipboard) {
             await navigator.clipboard.writeText(signupUrl);
-            showMessage('Invitation URL copied to clipboard!', 'success');
+            showMessage('✅ Invitation URL copied to clipboard! Send this link to the restaurant.', 'success');
+        } else {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = signupUrl;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showMessage('✅ Invitation URL copied! Send this link to the restaurant.', 'success');
         }
         
-        console.log('✅ Test completed successfully');
-        console.log('🔗 Fixed Signup URL:', signupUrl);
+        console.log('✅ Invitation process completed successfully');
+        console.log('🔗 Signup URL:', signupUrl);
         
     } catch (error) {
-        console.error('❌ Test error:', error);
-        showMessage('Error: ' + error.message, 'error');
+        console.error('❌ Invitation creation error:', error);
+        showMessage('Error creating invitation: ' + error.message, 'error');
     }
 }
 
