@@ -1854,37 +1854,40 @@
             }
         }
 
-        // Send invitation email via Firebase Functions
-        async function sendInvitationEmail(invitationId, invitationData) {
-            try {
-                // Create signup URL with invitation parameters
-                const signupUrl = `${window.location.origin}/restaurant-signup.html?invitation=${invitationId}&code=${invitationData.invitationCode}`;
-                
-                // Email content
-                const emailData = {
-                    to: invitationData.contactEmail,
-                    subject: `Invitation to join ${invitationData.venueName}`,
-                    html: generateInvitationEmailHTML(invitationData, signupUrl),
-                    from: {
-                        name: invitationData.venueName,
-                        email: 'invitations@vedi.com' // Your platform email
-                    }
-                };
-                
-                // Use Firebase Functions to send email
-                const functions = getFirebaseFunctions();
-                const sendEmail = functions.httpsCallable('sendInvitationEmail');
-                await sendEmail(emailData);
-                
-                console.log('✅ Invitation email sent successfully via Firebase Functions');
-                
-            } catch (error) {
-                console.error('❌ Send email error:', error);
-                // Don't throw error here - invitation was saved, email delivery is secondary
-                console.warn('⚠️ Invitation saved but email delivery failed. Restaurant can still use invitation code.');
-                showMessage('Invitation created! Email delivery may have failed, but the restaurant can still join using the invitation code.', 'warning');
-            }
+        // Temporary test function - no email needed
+async function sendInvitationEmail(invitationId, invitationData) {
+    try {
+        console.log('📧 Testing invitation system...');
+        
+        // Create signup URL
+        const signupUrl = `${window.location.origin}/restaurant-signup.html?invitation=${invitationId}&code=${invitationData.invitationCode}`;
+        
+        // Show success message
+        alert(`✅ Invitation Created Successfully!
+
+Restaurant: ${invitationData.restaurantName}
+Email: ${invitationData.contactEmail}
+Code: ${invitationData.invitationCode}
+
+Signup URL:
+${signupUrl}
+
+✅ Saved to database!
+📧 Email will be added next.`);
+        
+        // Copy URL to clipboard
+        if (navigator.clipboard) {
+            await navigator.clipboard.writeText(signupUrl);
+            showMessage('Invitation URL copied to clipboard!', 'success');
         }
+        
+        console.log('✅ Test completed successfully');
+        
+    } catch (error) {
+        console.error('❌ Test error:', error);
+        showMessage('Error: ' + error.message, 'error');
+    }
+}
 
         // Generate HTML email template
         function generateInvitationEmailHTML(invitationData, signupUrl) {
