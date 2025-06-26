@@ -133,6 +133,23 @@ function generateInviteCode() {
 }
 
 /**
+ * Generate unique invitation code for venue invitations
+ * Creates secure 8-character alphanumeric code for venue invitations
+ * @param {number} length - Length of code (default 8)
+ * @returns {string} Generated invitation code in uppercase
+ */
+function generateInvitationCode(length = 8) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  
+  for (let i = 0; i < length; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  return code;
+}
+
+/**
  * Mask phone number for privacy protection
  * Shows only first few and last few digits with asterisks in between
  * @param {string} phoneNumber - Full phone number to mask
@@ -654,6 +671,7 @@ Object.assign(window.VediAPI, {
   // Data formatting utilities
   generateOrderNumber,
   generateInviteCode,
+  generateInvitationCode, // NEW: Added invitation code generation
   maskPhoneNumber,
   maskPhoneNumberCustomer,
   formatCurrency,
@@ -688,7 +706,7 @@ Object.assign(window.VediAPI, {
 
 console.log('🛠️ Enhanced Core Utilities Module loaded with CustomerAuthAPI integration');
 console.log('📅 Date/Time: timestampToDate, getTimePeriodStart, getWeekKey, getRelativeTime');
-console.log('📋 Formatting: generateOrderNumber, generateInviteCode, maskPhoneNumber, formatCurrency');
+console.log('📋 Formatting: generateOrderNumber, generateInviteCode, generateInvitationCode, maskPhoneNumber, formatCurrency');
 console.log('📱 Phone: formatPhoneNumber, formatPhoneNumberCustomer, validatePhoneNumberCustomer');
 console.log('🔒 Privacy: maskPhoneNumber, maskPhoneNumberCustomer with enhanced patterns');
 console.log('✅ Validation: getAuthErrorMessage, validateEmail, validatePhoneNumber, sanitizeInput');
@@ -696,4 +714,5 @@ console.log('🔧 Objects: deepClone, removeUndefinedValues, groupBy');
 console.log('📊 INJECTED Analytics: groupAPICallsByMethod, calculateErrorRate, getTopAPIMethods');
 console.log('🔄 INJECTED Tracking: withTracking wrapper for API methods');
 console.log('🌟 CustomerAuthAPI: Enhanced phone utilities for authentication system');
+console.log('🎯 NEW: generateInvitationCode for venue invitation system');
 console.log('💫 All utilities available globally via VediAPI namespace');
