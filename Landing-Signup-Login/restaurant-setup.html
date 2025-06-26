@@ -1360,7 +1360,7 @@
         let selectedCurrency = 'USD';
         let currentUser = null;
         let existingRestaurant = null;
-        let invitationData = null; // NEW: Store invitation data
+        let invitationData = null; // Store complete invitation data
 
         // Currency data
         const currencyData = {
@@ -1382,45 +1382,41 @@
             DKK: { symbol: 'kr', name: 'Danish Krone', code: 'DKK' }
         };
 
-        // NEW: Check for invitation data in URL or sessionStorage
-       function checkForInvitation() {
-    console.log('🔍 Checking for invitation data...');
-    
-    try {
-        // First check sessionStorage (from signup process)
-        const storedInvitation = sessionStorage.getItem('pendingInvitation');
-        if (storedInvitation) {
-            console.log('📧 Found invitation in sessionStorage:', storedInvitation);
-            const invitationData = JSON.parse(storedInvitation);
+        // FIXED: Check for invitation data in URL or sessionStorage
+        function checkForInvitation() {
+            console.log('🔍 Checking for invitation data...');
             
-            // FIX: Map the 'id' field to 'invitationId' for compatibility
-            if (invitationData.id && !invitationData.invitationId) {
-                invitationData.invitationId = invitationData.id;
+            try {
+                // First check sessionStorage (from signup process)
+                const storedInvitation = sessionStorage.getItem('pendingInvitation');
+                if (storedInvitation) {
+                    console.log('📧 Found invitation in sessionStorage:', storedInvitation);
+                    invitationData = JSON.parse(storedInvitation);
+                    sessionStorage.removeItem('pendingInvitation'); // Clean up
+                    return invitationData;
+                }
+                
+                // Then check URL parameters (direct link)
+                const urlParams = new URLSearchParams(window.location.search);
+                const invitationId = urlParams.get('invitation');
+                const code = urlParams.get('code');
+                
+                if (invitationId && code) {
+                    console.log('📧 Found invitation in URL params');
+                    invitationData = { invitationId, code };
+                    return invitationData;
+                }
+                
+                console.log('📧 No invitation data found');
+                return null;
+                
+            } catch (error) {
+                console.error('❌ Error checking for invitation:', error);
+                return null;
             }
-            
-            sessionStorage.removeItem('pendingInvitation'); // Clean up
-            return invitationData;
         }
-        
-        // Then check URL parameters (direct link)
-        const urlParams = new URLSearchParams(window.location.search);
-        const invitationId = urlParams.get('invitation');
-        const code = urlParams.get('code');
-        
-        if (invitationId && code) {
-            console.log('📧 Found invitation in URL params');
-            return { invitationId, code };
-        }
-        
-        console.log('📧 No invitation data found');
-        return null;
-        
-    } catch (error) {
-        console.error('❌ Error checking for invitation:', error);
-        return null;
-    }
-}
-        // NEW: Load and display invitation information
+
+        // FIXED: Load and validate invitation information
         async function loadInvitationData() {
             if (!invitationData) return;
             
@@ -1428,33 +1424,47 @@
                 console.log('📧 Loading invitation data:', invitationData);
                 showLoading('Loading invitation details...', 'Getting venue information');
                 
-                // Validate invitation and get details
-                const invitationDetails = await VediAPI.validateInvitationCode(invitationData);
+                // FIXED: Validate invitation and get details
+                const db = getFirebaseDb();
+                const invitationDoc = await db.collection('venueInvitations').doc(invitationData.invitationId).get();
                 
-                if (invitationDetails && invitationDetails.venueData) {
-                    console.log('✅ Invitation validated:', invitationDetails);
-                    
-                    // Store the complete invitation data
-                    invitationData = {
-                        ...invitationData,
-                        venueId: invitationDetails.venueData.id,
-                        venueName: invitationDetails.venueData.name,
-                        venueAddress: invitationDetails.venueData.address,
-                        venueFeePercentage: invitationDetails.venueData.feePercentage || 10,
-                        venueLocation: invitationDetails.venueData.location || ''
-                    };
-                    
-                    // Show invitation banner
-                    document.getElementById('inviteVenueName').textContent = invitationDetails.venueData.name;
-                    document.getElementById('inviteVenueAddress').textContent = invitationDetails.venueData.address;
-                    document.getElementById('invitationBanner').style.display = 'block';
-                    
-                    console.log('🎉 Invitation banner displayed');
-                } else {
-                    console.warn('⚠️ Invalid invitation data');
-                    showError('Invalid invitation. Please contact the venue for a new invitation.');
-                    invitationData = null;
+                if (!invitationDoc.exists) {
+                    throw new Error('Invitation not found');
                 }
+                
+                const invitation = invitationDoc.data();
+                
+                // Validate invitation code
+                if (invitation.invitationCode !== invitationData.code) {
+                    throw new Error('Invalid invitation code');
+                }
+                
+                // Check if invitation is still valid
+                if (invitation.status !== 'pending') {
+                    throw new Error('This invitation is no longer valid');
+                }
+                
+                // Check if invitation has expired
+                if (invitation.expiresAt && invitation.expiresAt.toDate() < new Date()) {
+                    throw new Error('This invitation has expired');
+                }
+                
+                // FIXED: Store complete invitation data with venue details
+                invitationData = {
+                    ...invitationData,
+                    ...invitation,
+                    venueId: invitation.venueId,
+                    venueName: invitation.venueName,
+                    venueCity: invitation.venueCity,
+                    venueState: invitation.venueState
+                };
+                
+                // Show invitation banner
+                document.getElementById('inviteVenueName').textContent = invitation.venueName;
+                document.getElementById('inviteVenueAddress').textContent = `${invitation.venueCity}, ${invitation.venueState}`;
+                document.getElementById('invitationBanner').style.display = 'block';
+                
+                console.log('🎉 Invitation validated and banner displayed:', invitationData);
                 
                 hideLoading();
                 
@@ -1471,14 +1481,14 @@
             console.log('🚀 Enhanced Restaurant Setup with Venue Invitation Support initializing...');
             
             try {
-                // NEW: Check for invitation data first
-                checkForInvitation();
+                // FIXED: Check for invitation data first
+                invitationData = checkForInvitation();
                 
                 showLoading('Checking authentication...', 'Verifying your account');
                 
                 // Check if user is authenticated
-                currentUser = await VediAPI.getCurrentUser();
-                if (!currentUser) {
+                const auth = getFirebaseAuth();
+                if (!auth.currentUser) {
                     showError('You must be logged in to set up your restaurant. Redirecting to login...');
                     setTimeout(() => {
                         window.location.href = '../Landing-Signup-Login/login.html';
@@ -1486,16 +1496,38 @@
                     return;
                 }
                 
+                currentUser = {
+                    uid: auth.currentUser.uid,
+                    email: auth.currentUser.email,
+                    name: auth.currentUser.displayName || auth.currentUser.email
+                };
+                
                 console.log('✅ User authenticated:', currentUser.email);
                 
-                // NEW: Load invitation data if present
+                // FIXED: Load invitation data if present
                 if (invitationData) {
                     await loadInvitationData();
                 }
                 
                 // Check if restaurant already exists
                 showLoading('Loading restaurant data...', 'Checking for existing setup');
-                existingRestaurant = await VediAPI.getRestaurantByOwner(currentUser.id);
+                
+                // FIXED: Check for existing restaurant
+                if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurantByOwner) {
+                    existingRestaurant = await VediAPI.getRestaurantByOwner(currentUser.uid);
+                } else {
+                    // Fallback: direct database query
+                    const db = getFirebaseDb();
+                    const restaurantQuery = await db.collection('restaurants')
+                        .where('ownerUserId', '==', currentUser.uid)
+                        .limit(1)
+                        .get();
+                    
+                    if (!restaurantQuery.empty) {
+                        const restaurantDoc = restaurantQuery.docs[0];
+                        existingRestaurant = { id: restaurantDoc.id, ...restaurantDoc.data() };
+                    }
+                }
                 
                 if (existingRestaurant) {
                     console.log('📝 Found existing restaurant for editing:', existingRestaurant);
@@ -1518,162 +1550,115 @@
             }
         });
 
-        // UI Helper Functions
-        function showLoading(text = 'Loading...', subtext = '') {
-            const overlay = document.getElementById('loadingOverlay');
-            const textEl = document.getElementById('loadingText');
-            const subtextEl = document.getElementById('loadingSubtext');
-            
-            if (textEl) textEl.textContent = text;
-            if (subtextEl) subtextEl.textContent = subtext;
-            if (overlay) overlay.classList.add('show');
-            
-            // Disable buttons during loading
-            const buttons = document.querySelectorAll('.btn');
-            buttons.forEach(btn => btn.disabled = true);
-        }
-
-        function hideLoading() {
-            const overlay = document.getElementById('loadingOverlay');
-            if (overlay) overlay.classList.remove('show');
-            
-            // Re-enable buttons
-            const buttons = document.querySelectorAll('.btn');
-            buttons.forEach(btn => btn.disabled = false);
-        }
-
-        function showError(message) {
-            hideSuccess();
-            const errorEl = document.getElementById('errorMessage');
-            if (errorEl) {
-                errorEl.textContent = message;
-                errorEl.classList.add('show');
-                setTimeout(() => errorEl.classList.remove('show'), 5000);
-            }
-            console.error('❌', message);
-        }
-
-        function showSuccess(message) {
-            // Success messages disabled - only keep console logging
-            console.log('✅', message);
-        }
-
-        function hideError() {
-            const errorEl = document.getElementById('errorMessage');
-            if (errorEl) errorEl.classList.remove('show');
-        }
-
-        function hideSuccess() {
-            // Success messages disabled - no action needed
-        }
-
-        // Currency selection functions
-        function setupCurrencySelection() {
-            const currencySelect = document.getElementById('currencySelect');
-            const customSection = document.getElementById('customCurrencySection');
-
-            currencySelect.addEventListener('change', function() {
-                selectedCurrency = this.value;
-
-                if (this.value === 'CUSTOM') {
-                    customSection.classList.add('show');
-                } else {
-                    customSection.classList.remove('show');
-                }
-            });
-        }
-
-        function getSelectedCurrencyData() {
-            if (selectedCurrency === 'CUSTOM') {
-                const code = document.getElementById('customCurrencyCode').value.trim().toUpperCase();
-                const symbol = document.getElementById('customCurrencySymbol').value.trim();
-                const name = document.getElementById('customCurrencyName').value.trim();
-
-                if (!code || !symbol || !name) {
-                    showError('Please fill in all custom currency fields.');
-                    return null;
-                }
-
-                return { code, symbol, name };
-            } else {
-                return currencyData[selectedCurrency];
-            }
-        }
-
-        // Load existing data from Firebase
-        function populateFieldsFromFirebase(restaurant) {
-            console.log('📝 Populating fields with Firebase data:', restaurant);
+        // FIXED: Enhanced restaurant creation with proper venue linking
+        async function goToDashboard() {
+            console.log('🚀 Saving data and redirecting to dashboard...');
             
             try {
-                // Load currency settings
-                if (restaurant.currency) {
-                    const currencySelect = document.getElementById('currencySelect');
+                showLoading('Completing setup...', 'Saving your restaurant information');
+                
+                // Save all step data
+                for (let i = 1; i <= 3; i++) {
+                    const originalStep = currentStep;
+                    currentStep = i;
+                    saveCurrentStepData();
+                    currentStep = originalStep;
+                }
+                
+                // Prepare restaurant data for Firebase
+                const restaurantData = {
+                    ...formData,
+                    ownerUserId: currentUser.uid,
+                    setupCompleted: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                console.log('📦 Restaurant data to save:', restaurantData);
+                
+                let savedRestaurant;
+                
+                // Create or update restaurant
+                if (existingRestaurant) {
+                    // Update existing restaurant
+                    if (typeof VediAPI !== 'undefined' && VediAPI.updateRestaurant) {
+                        savedRestaurant = await VediAPI.updateRestaurant(existingRestaurant.id, restaurantData);
+                    } else {
+                        // Fallback: direct database update
+                        const db = getFirebaseDb();
+                        await db.collection('restaurants').doc(existingRestaurant.id).update(restaurantData);
+                        savedRestaurant = { id: existingRestaurant.id, ...restaurantData };
+                    }
+                    console.log('✅ Restaurant updated:', savedRestaurant);
+                } else {
+                    // Create new restaurant
+                    if (typeof VediAPI !== 'undefined' && VediAPI.createRestaurant) {
+                        savedRestaurant = await VediAPI.createRestaurant(restaurantData);
+                    } else {
+                        // Fallback: direct database create
+                        const db = getFirebaseDb();
+                        const docRef = await db.collection('restaurants').add(restaurantData);
+                        savedRestaurant = { id: docRef.id, ...restaurantData };
+                    }
+                    console.log('✅ Restaurant created:', savedRestaurant);
+                }
+                
+                // FIXED: Handle venue invitation linking
+                if (invitationData && invitationData.venueId) {
+                    showLoading('Linking to venue...', 'Completing invitation process');
                     
-                    if (restaurant.currency.code && currencyData[restaurant.currency.code]) {
-                        currencySelect.value = restaurant.currency.code;
-                        selectedCurrency = restaurant.currency.code;
-                    } else if (restaurant.currency.code) {
-                        // Custom currency
-                        currencySelect.value = 'CUSTOM';
-                        selectedCurrency = 'CUSTOM';
-                        document.getElementById('customCurrencyCode').value = restaurant.currency.code;
-                        document.getElementById('customCurrencySymbol').value = restaurant.currency.symbol;
-                        document.getElementById('customCurrencyName').value = restaurant.currency.name;
-                        document.getElementById('customCurrencySection').classList.add('show');
+                    try {
+                        console.log('🔗 Processing venue invitation:', invitationData);
+                        
+                        // Update restaurant with venue information
+                        const venueUpdateData = {
+                            venueId: invitationData.venueId,
+                            venueName: invitationData.venueName,
+                            venueCity: invitationData.venueCity,
+                            venueState: invitationData.venueState,
+                            joinedVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            invitationId: invitationData.invitationId,
+                            verified: true, // Auto-verify invited restaurants
+                            syncMethod: 'venue_invitation',
+                            venueStatus: 'active'
+                        };
+                        
+                        // Update restaurant with venue data
+                        const db = getFirebaseDb();
+                        await db.collection('restaurants').doc(savedRestaurant.id).update(venueUpdateData);
+                        
+                        // FIXED: Accept the venue invitation
+                        await db.collection('venueInvitations').doc(invitationData.invitationId).update({
+                            status: 'accepted',
+                            acceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            acceptedBy: currentUser.uid,
+                            restaurantId: savedRestaurant.id
+                        });
+                        
+                        console.log('✅ Venue invitation accepted and restaurant linked');
+                        
+                    } catch (syncError) {
+                        console.error('⚠️ Error with venue sync (restaurant still created):', syncError);
+                        // Continue to dashboard even if sync fails
+                        showError('Restaurant created but venue linking failed. Please contact the venue manager.');
                     }
                 }
-
-                // Basic information
-                if (restaurant.name) document.getElementById('restaurantName').value = restaurant.name;
-                if (restaurant.cuisineType) document.getElementById('cuisineType').value = restaurant.cuisineType;
-                if (restaurant.description) document.getElementById('restaurantDescription').value = restaurant.description;
                 
-                // Location & Contact
-                if (restaurant.address) document.getElementById('address').value = restaurant.address;
-                if (restaurant.city) document.getElementById('city').value = restaurant.city;
-                if (restaurant.state) document.getElementById('state').value = restaurant.state;
-                if (restaurant.zipCode) document.getElementById('zipCode').value = restaurant.zipCode;
-                // NEW: Populate country field
-                if (restaurant.country) document.getElementById('country').value = restaurant.country;
-                if (restaurant.phone) document.getElementById('phone').value = restaurant.phone;
-                if (restaurant.email) document.getElementById('email').value = restaurant.email;
-                if (restaurant.website) document.getElementById('website').value = restaurant.website;
+                showLoading('Preparing dashboard...', 'Getting your restaurant ready');
                 
-                // Operating details
-                if (restaurant.tableCount) document.getElementById('tableCount').value = restaurant.tableCount;
-                if (restaurant.seatingCapacity) document.getElementById('seatingCapacity').value = restaurant.seatingCapacity;
-
-                // Set checkboxes for dining options
-                if (restaurant.diningOptions && Array.isArray(restaurant.diningOptions)) {
-                    restaurant.diningOptions.forEach(option => {
-                        const checkbox = document.querySelector('input[name="diningOptions"][value="' + option + '"]');
-                        if (checkbox) checkbox.checked = true;
-                    });
-                }
-
-                // Set checkboxes for payment methods
-                if (restaurant.paymentMethods && Array.isArray(restaurant.paymentMethods)) {
-                    restaurant.paymentMethods.forEach(method => {
-                        const checkbox = document.querySelector('input[name="paymentMethods"][value="' + method + '"]');
-                        if (checkbox) checkbox.checked = true;
-                    });
-                }
-
-                // Load operating hours
-                if (restaurant.operatingHours) {
-                    operatingHours = restaurant.operatingHours;
-                    updateHoursDisplay();
-                }
+                // Small delay for smooth transition
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                console.log('✅ Fields populated successfully');
+                window.location.href = '../Owner/dashboard.html';
                 
             } catch (error) {
-                console.error('❌ Error populating fields:', error);
-                showError('Error loading restaurant data: ' + error.message);
+                console.error('❌ Dashboard redirect error:', error);
+                hideLoading();
+                showError('Error completing setup: ' + error.message);
             }
         }
 
-        // Main navigation functions
+        // FIXED: Enhanced nextStep to handle completion
         async function nextStep() {
             console.log('Next step clicked, current step:', currentStep);
             
@@ -1693,13 +1678,8 @@
                     updateButtons();
                     console.log('Moved to step:', currentStep);
                 } else {
-                    // On final step, just move to the completion view without saving
-                    // The actual saving will happen when "Go to Dashboard" is clicked
-                    currentStep = totalSteps;
-                    showStep(currentStep);
-                    updateProgress();
-                    updateButtons();
-                    console.log('Reached final step');
+                    // On final step, save everything and go to completion view
+                    await goToDashboard();
                 }
                 
             } catch (error) {
@@ -1856,7 +1836,6 @@
                 formData.city = document.getElementById('city').value.trim();
                 formData.state = document.getElementById('state').value.trim();
                 formData.zipCode = document.getElementById('zipCode').value.trim();
-                // NEW: Save country data
                 formData.country = document.getElementById('country').value.trim();
                 formData.phone = document.getElementById('phone').value.trim();
                 formData.email = document.getElementById('email').value.trim();
@@ -1882,154 +1861,169 @@
             console.log('Current form data saved:', formData);
         }
 
-        async function saveToFirebase() {
-            console.log('💾 Saving to Firebase...');
+        // Firebase utility functions
+        function getFirebaseAuth() {
+            return window.firebaseAuth || firebase.auth();
+        }
+
+        function getFirebaseDb() {
+            return window.firebaseDb || firebase.firestore();
+        }
+
+        // UI Helper Functions
+        function showLoading(text = 'Loading...', subtext = '') {
+            const overlay = document.getElementById('loadingOverlay');
+            const textEl = document.getElementById('loadingText');
+            const subtextEl = document.getElementById('loadingSubtext');
             
-            try {
-                showLoading('Saving restaurant data...', 'This may take a moment');
-                
-                // Save final step data
-                saveCurrentStepData();
-                
-                // Prepare restaurant data for Firebase
-                const restaurantData = {
-                    ...formData,
-                    ownerUserId: currentUser.id, // Always required
-                    setupCompleted: true
-                };
-                
-                // NEW: Add venue data if this is from an invitation
-                if (invitationData && invitationData.venueId) {
-                    console.log('🏢 Adding venue data from invitation:', invitationData);
-                    
-                    restaurantData.venueId = invitationData.venueId;
-                    restaurantData.venueName = invitationData.venueName;
-                    restaurantData.venueAddress = invitationData.venueAddress;
-                    restaurantData.venueFeePercentage = invitationData.venueFeePercentage;
-                    restaurantData.venueLocation = invitationData.venueLocation;
-                    restaurantData.venueStatus = 'active';
-                    restaurantData.invitedByVenue = true;
-                    restaurantData.invitationAcceptedAt = new Date();
+            if (textEl) textEl.textContent = text;
+            if (subtextEl) subtextEl.textContent = subtext;
+            if (overlay) overlay.classList.add('show');
+            
+            // Disable buttons during loading
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => btn.disabled = true);
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.remove('show');
+            
+            // Re-enable buttons
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => btn.disabled = false);
+        }
+
+        function showError(message) {
+            hideSuccess();
+            const errorEl = document.getElementById('errorMessage');
+            if (errorEl) {
+                errorEl.textContent = message;
+                errorEl.classList.add('show');
+                setTimeout(() => errorEl.classList.remove('show'), 5000);
+            }
+            console.error('❌', message);
+        }
+
+        function showSuccess(message) {
+            console.log('✅', message);
+        }
+
+        function hideError() {
+            const errorEl = document.getElementById('errorMessage');
+            if (errorEl) errorEl.classList.remove('show');
+        }
+
+        function hideSuccess() {
+            // Success messages disabled - no action needed
+        }
+
+        // Currency selection functions
+        function setupCurrencySelection() {
+            const currencySelect = document.getElementById('currencySelect');
+            const customSection = document.getElementById('customCurrencySection');
+
+            currencySelect.addEventListener('change', function() {
+                selectedCurrency = this.value;
+
+                if (this.value === 'CUSTOM') {
+                    customSection.classList.add('show');
+                } else {
+                    customSection.classList.remove('show');
                 }
-                
-                console.log('Restaurant data to save:', restaurantData);
-                
-                let savedRestaurant;
-                
-                // Always create new restaurant since this is setup flow
-                savedRestaurant = await VediAPI.createRestaurant(restaurantData);
-                console.log('✅ Restaurant created:', savedRestaurant);
-                
-                // NEW: If this was from an invitation, accept it and create sync relationship
-                if (invitationData && invitationData.venueId) {
-                    try {
-                        console.log('🔗 Accepting venue invitation and creating sync relationship...');
-                        
-                        // Accept the invitation
-                        await VediAPI.acceptVenueInvitation(invitationData.invitationId || invitationData.code);
-                        console.log('✅ Venue invitation accepted');
-                        
-                        // Create restaurant-venue sync relationship
-                        await VediAPI.createRestaurantVenueSync(savedRestaurant.id, invitationData.venueId);
-                        console.log('✅ Restaurant-venue sync relationship created');
-                        
-                    } catch (syncError) {
-                        console.warn('⚠️ Error with venue sync (restaurant still created):', syncError);
-                        // Don't fail the whole process if sync fails
-                    }
+            });
+        }
+
+        function getSelectedCurrencyData() {
+            if (selectedCurrency === 'CUSTOM') {
+                const code = document.getElementById('customCurrencyCode').value.trim().toUpperCase();
+                const symbol = document.getElementById('customCurrencySymbol').value.trim();
+                const name = document.getElementById('customCurrencyName').value.trim();
+
+                if (!code || !symbol || !name) {
+                    showError('Please fill in all custom currency fields.');
+                    return null;
                 }
-                
-                showSuccess('Restaurant created successfully!');
-                hideLoading();
-                
-                // Move to final step
-                currentStep = totalSteps;
-                showStep(currentStep);
-                updateProgress();
-                updateButtons();
-                
-                // Show completion message after a delay
-                setTimeout(() => {
-                    showSuccess('Setup completed! Your restaurant is ready to go.');
-                }, 1000);
-                
-            } catch (error) {
-                console.error('❌ Firebase save error:', error);
-                hideLoading();
-                showError('Failed to save restaurant data: ' + error.message);
+
+                return { code, symbol, name };
+            } else {
+                return currencyData[selectedCurrency];
             }
         }
 
-        async function goToDashboard() {
-            console.log('🚀 Saving data and redirecting to dashboard...');
+        // Load existing data from Firebase
+        function populateFieldsFromFirebase(restaurant) {
+            console.log('📝 Populating fields with Firebase data:', restaurant);
             
             try {
-                showLoading('Completing setup...', 'Saving your restaurant information');
-                
-                // Always save the data when going to dashboard
-                saveCurrentStepData();
-                
-                // Prepare restaurant data for Firebase
-                const restaurantData = {
-                    ...formData,
-                    ownerUserId: currentUser.id,
-                    setupCompleted: true
-                };
-                
-                // NEW: Add venue data if this is from an invitation
-                if (invitationData && invitationData.venueId) {
-                    console.log('🏢 Adding venue data from invitation:', invitationData);
+                // Load currency settings
+                if (restaurant.currency) {
+                    const currencySelect = document.getElementById('currencySelect');
                     
-                    restaurantData.venueId = invitationData.venueId;
-                    restaurantData.venueName = invitationData.venueName;
-                    restaurantData.venueAddress = invitationData.venueAddress;
-                    restaurantData.venueFeePercentage = invitationData.venueFeePercentage;
-                    restaurantData.venueLocation = invitationData.venueLocation;
-                    restaurantData.venueStatus = 'active';
-                    restaurantData.invitedByVenue = true;
-                    restaurantData.invitationAcceptedAt = new Date();
-                }
-                
-                console.log('Restaurant data to save:', restaurantData);
-                
-                // Save to Firebase
-                const savedRestaurant = await VediAPI.createRestaurant(restaurantData);
-                console.log('✅ Restaurant created:', savedRestaurant);
-                
-                // NEW: If this was from an invitation, handle venue linking
-                if (invitationData && invitationData.venueId) {
-                    showLoading('Linking to venue...', 'Completing invitation process');
-                    
-                    try {
-                        // Accept the invitation
-                        await VediAPI.acceptVenueInvitation(invitationData.invitationId || invitationData.code);
-                        console.log('✅ Venue invitation accepted');
-                        
-                        // Create restaurant-venue sync relationship
-                        await VediAPI.createRestaurantVenueSync(savedRestaurant.id, invitationData.venueId);
-                        console.log('✅ Restaurant-venue sync relationship created');
-                        
-                    } catch (syncError) {
-                        console.warn('⚠️ Error with venue sync (restaurant still created):', syncError);
-                        // Continue to dashboard even if sync fails
+                    if (restaurant.currency.code && currencyData[restaurant.currency.code]) {
+                        currencySelect.value = restaurant.currency.code;
+                        selectedCurrency = restaurant.currency.code;
+                    } else if (restaurant.currency.code) {
+                        // Custom currency
+                        currencySelect.value = 'CUSTOM';
+                        selectedCurrency = 'CUSTOM';
+                        document.getElementById('customCurrencyCode').value = restaurant.currency.code;
+                        document.getElementById('customCurrencySymbol').value = restaurant.currency.symbol;
+                        document.getElementById('customCurrencyName').value = restaurant.currency.name;
+                        document.getElementById('customCurrencySection').classList.add('show');
                     }
                 }
+
+                // Basic information
+                if (restaurant.name) document.getElementById('restaurantName').value = restaurant.name;
+                if (restaurant.cuisineType) document.getElementById('cuisineType').value = restaurant.cuisineType;
+                if (restaurant.description) document.getElementById('restaurantDescription').value = restaurant.description;
                 
-                showLoading('Preparing dashboard...', 'Getting your restaurant ready');
+                // Location & Contact
+                if (restaurant.address) document.getElementById('address').value = restaurant.address;
+                if (restaurant.city) document.getElementById('city').value = restaurant.city;
+                if (restaurant.state) document.getElementById('state').value = restaurant.state;
+                if (restaurant.zipCode) document.getElementById('zipCode').value = restaurant.zipCode;
+                if (restaurant.country) document.getElementById('country').value = restaurant.country;
+                if (restaurant.phone) document.getElementById('phone').value = restaurant.phone;
+                if (restaurant.email) document.getElementById('email').value = restaurant.email;
+                if (restaurant.website) document.getElementById('website').value = restaurant.website;
                 
-                // Small delay for smooth transition
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Operating details
+                if (restaurant.tableCount) document.getElementById('tableCount').value = restaurant.tableCount;
+                if (restaurant.seatingCapacity) document.getElementById('seatingCapacity').value = restaurant.seatingCapacity;
+
+                // Set checkboxes for dining options
+                if (restaurant.diningOptions && Array.isArray(restaurant.diningOptions)) {
+                    restaurant.diningOptions.forEach(option => {
+                        const checkbox = document.querySelector('input[name="diningOptions"][value="' + option + '"]');
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+
+                // Set checkboxes for payment methods
+                if (restaurant.paymentMethods && Array.isArray(restaurant.paymentMethods)) {
+                    restaurant.paymentMethods.forEach(method => {
+                        const checkbox = document.querySelector('input[name="paymentMethods"][value="' + method + '"]');
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+
+                // Load operating hours
+                if (restaurant.operatingHours) {
+                    operatingHours = restaurant.operatingHours;
+                    updateHoursDisplay();
+                }
                 
-                window.location.href = '../Owner/dashboard.html';
+                console.log('✅ Fields populated successfully');
                 
             } catch (error) {
-                console.error('❌ Dashboard redirect error:', error);
-                hideLoading();
-                showError('Error completing setup: ' + error.message);
+                console.error('❌ Error populating fields:', error);
+                showError('Error loading restaurant data: ' + error.message);
             }
         }
 
-        // Operating hours functions (same as before but with better error handling)
+        // Operating hours functions
         function saveHoursForDays() {
             console.log('Saving hours for days...');
             
@@ -2323,7 +2317,11 @@
             firebaseAuth.onAuthStateChanged(async (user) => {
                 if (user && !currentUser) {
                     // User became available during setup
-                    currentUser = await VediAPI.getCurrentUser();
+                    currentUser = {
+                        uid: user.uid,
+                        email: user.email,
+                        name: user.displayName || user.email
+                    };
                     console.log('✅ User authenticated during setup:', currentUser?.email);
                 }
             });
@@ -2338,7 +2336,7 @@
             }
         });
 
-        console.log('🍽️ Enhanced Restaurant Setup with Venue Invitation Support loaded successfully');
+        console.log('🍽️ Enhanced Restaurant Setup with Fixed Venue Invitation Support loaded');
     </script>
 </body>
 </html>
