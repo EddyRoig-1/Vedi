@@ -1,0 +1,1401 @@
+<!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Saving settings...</div>
+        </div>
+    </div><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venue Settings - Configure Your Venue</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+    
+    <!-- VediAPI Core -->
+    <script src="../Api/core/firebase-init.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    
+    <!-- Authentication -->
+    <script src="../Api/auth/email-auth.js"></script>
+    
+    <!-- Real-time Data -->
+    <script src="../Api/realtime/listeners.js"></script>
+    
+    <!-- Business APIs -->
+    <script src="../Api/business/venues.js"></script>
+    <script src="../Api/business/restaurants.js"></script>
+    <script src="../Api/business/venue-sync.js"></script>
+    
+    <style>
+        /* Minimal iOS Design System - Clean & Simple */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+            background: #F8F9FA;
+            color: #1D1D1F;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        /* Header */
+        .header {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid #E5E5E7;
+            padding: 16px 24px;
+            margin: -24px -24px 32px -24px;
+        }
+
+        .header-content {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .venue-info h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .venue-info p {
+            font-size: 15px;
+            color: #86868B;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .back-btn, .save-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .back-btn {
+            background-color: #F1F3F4;
+            color: #1D1D1F;
+        }
+
+        .back-btn:hover {
+            background-color: #E5E5E7;
+            transform: translateY(-1px);
+        }
+
+        .save-btn {
+            background-color: #007AFF;
+            color: white;
+        }
+
+        .save-btn:hover {
+            background-color: #0056D6;
+            transform: translateY(-1px);
+        }
+
+        /* Page Header */
+        .page-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .page-title {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 17px;
+            color: #86868B;
+        }
+
+        /* Settings Sections */
+        .settings-section {
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+        }
+
+        .section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-icon {
+            font-size: 24px;
+            color: #007AFF;
+            font-weight: 600;
+        }
+
+        /* Form Elements */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #1D1D1F;
+            font-weight: 600;
+            font-size: 17px;
+        }
+
+        .form-input, .form-textarea, .form-select {
+            width: 100%;
+            min-height: 44px;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 10px;
+            font-size: 17px;
+            transition: all 0.2s ease;
+            outline: none;
+            background: #FFFFFF;
+            font-family: inherit;
+            color: #1D1D1F;
+        }
+
+        .form-input:focus, .form-textarea:focus, .form-select:focus {
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 88px;
+            line-height: 1.5;
+            padding: 16px;
+        }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23007AFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+            cursor: pointer;
+        }
+
+        /* Currency Section */
+        .currency-section {
+            background: #FFFFFF;
+            border: 1px solid #E5E5E7;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+
+        .currency-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .currency-icon {
+            font-size: 24px;
+            color: #007AFF;
+            font-weight: 600;
+        }
+
+        .currency-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #007AFF;
+        }
+
+        .currency-description {
+            color: #86868B;
+            font-size: 15px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .currency-select {
+            width: 100%;
+            min-height: 44px;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 10px;
+            font-size: 17px;
+            background: #FFFFFF;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23007AFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+            cursor: pointer;
+            font-family: inherit;
+            color: #1D1D1F;
+        }
+
+        .currency-select:focus {
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+            outline: none;
+        }
+
+        .currency-warning {
+            background: #FEF2F2;
+            border: 1px solid #FECACA;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .currency-warning.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        .currency-warning-title {
+            font-weight: 600;
+            color: #DC2626;
+            margin-bottom: 8px;
+        }
+
+        .currency-warning-list {
+            margin: 0;
+            padding-left: 20px;
+            color: #B91C1C;
+            font-size: 14px;
+        }
+
+        /* Venue Type Selection */
+        .venue-type-section {
+            margin-bottom: 24px;
+        }
+
+        .venue-type-select {
+            width: 100%;
+            min-height: 44px;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 10px;
+            font-size: 17px;
+            background: #FFFFFF;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23007AFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+            cursor: pointer;
+            font-family: inherit;
+            color: #1D1D1F;
+        }
+
+        .venue-type-select:focus {
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+            outline: none;
+        }
+
+        /* Checkboxes */
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #FFFFFF;
+            border: 1px solid #E5E5E7;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            min-height: 44px;
+        }
+
+        .checkbox-item:hover {
+            background: #F8F9FA;
+        }
+
+        .checkbox-item:has(input:checked) {
+            background: rgba(0, 122, 255, 0.05);
+            border-color: #007AFF;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            accent-color: #007AFF;
+        }
+
+        /* Space Management */
+        .space-container {
+            background: #F8F9FA;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 16px;
+            border: 1px solid #E5E5E7;
+        }
+
+        .space-list {
+            margin-bottom: 24px;
+        }
+
+        .space-item {
+            background: white;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid #E5E5E7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .space-item:hover {
+            border-color: #007AFF;
+        }
+
+        .space-info {
+            flex: 1;
+        }
+
+        .space-name {
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 4px;
+            font-size: 17px;
+        }
+
+        .space-details {
+            color: #86868B;
+            font-size: 15px;
+        }
+
+        .space-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .space-btn {
+            background-color: #FF3B30;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .space-btn:hover {
+            background-color: #E8342A;
+            transform: scale(1.05);
+        }
+
+        .add-space-form {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px dashed #D1D5DB;
+        }
+
+        .add-space-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 20px;
+        }
+
+        .space-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .add-space-btn {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .add-space-btn:hover {
+            background-color: #0056D6;
+            transform: translateY(-1px);
+        }
+
+        /* Messages */
+        .message {
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .message.error {
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #FFCDD2;
+        }
+
+        .message.success {
+            background: #E8F5E8;
+            color: #2E7D32;
+            border: 1px solid #C8E6C9;
+        }
+
+        .message.warning {
+            background: #FFF8E1;
+            color: #F57C00;
+            border: 1px solid #FFCC02;
+        }
+
+        .message.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Loading States */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .loading-content {
+            background: #FFFFFF;
+            padding: 48px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            border: 1px solid #E5E5E7;
+        }
+
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #E5E5E7;
+            border-top: 3px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #1D1D1F;
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .loading-subtext {
+            color: #86868B;
+            font-size: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+
+            .header {
+                margin: -16px -16px 24px -16px;
+                padding: 16px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                align-items: start;
+            }
+
+            .settings-section {
+                padding: 24px 20px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .checkbox-group {
+                grid-template-columns: 1fr;
+            }
+
+            .space-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .page-title {
+                font-size: 28px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 12px;
+            }
+            
+            .settings-section {
+                padding: 20px 16px;
+                margin-bottom: 16px;
+            }
+            
+            .form-grid {
+                gap: 16px;
+            }
+
+            .header-actions {
+                width: 100%;
+            }
+
+            .back-btn, .save-btn {
+                flex: 1;
+            }
+        }
+
+        /* Focus states for accessibility */
+        .back-btn:focus, .save-btn:focus, .add-space-btn:focus {
+            outline: 2px solid #007AFF;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="venue-info">
+                <h1 id="venueName">Venue Settings</h1>
+                <p id="venueLocation">Configure your venue information</p>
+            </div>
+            <div class="header-actions">
+                <button class="back-btn" onclick="goBack()">← Back to Management</button>
+                <button class="save-btn" onclick="saveAllSettings()">Save Changes</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Page Header -->
+        <section class="page-header">
+            <h1 class="page-title">Venue Settings</h1>
+            <p class="page-subtitle">Manage your venue configuration, currency, and operational settings</p>
+        </section>
+
+        <!-- Error/Success Messages -->
+        <div id="errorMessage" class="message error" style="display: none;"></div>
+        <div id="successMessage" class="message success" style="display: none;"></div>
+
+        <!-- Currency Settings Section -->
+        <section class="currency-section">
+            <div class="currency-header">
+                <span class="currency-icon">Currency</span>
+            </div>
+            <p class="currency-description">
+                Set your venue's currency. All restaurants in your venue will automatically use this currency for consistency in reporting and transactions.
+            </p>
+            
+            <div class="form-group">
+                <label class="form-label" for="currencySelect">Venue Currency</label>
+                <select class="currency-select" id="currencySelect">
+                    <option value='{"code":"USD","symbol":"$","name":"US Dollar"}'>USD - US Dollar ($)</option>
+                    <option value='{"code":"EUR","symbol":"€","name":"Euro"}'>EUR - Euro (€)</option>
+                    <option value='{"code":"GBP","symbol":"£","name":"British Pound"}'>GBP - British Pound (£)</option>
+                    <option value='{"code":"CAD","symbol":"CA$","name":"Canadian Dollar"}'>CAD - Canadian Dollar (CA$)</option>
+                    <option value='{"code":"AUD","symbol":"AU$","name":"Australian Dollar"}'>AUD - Australian Dollar (AU$)</option>
+                    <option value='{"code":"JPY","symbol":"¥","name":"Japanese Yen"}'>JPY - Japanese Yen (¥)</option>
+                </select>
+            </div>
+
+            <div class="currency-warning" id="currencyWarning">
+                <div class="currency-warning-title">Changing Currency Will:</div>
+                <ul class="currency-warning-list">
+                    <li>Update all restaurants in your venue to use the new currency</li>
+                    <li>Apply to all future loss tracking and reports</li>
+                    <li>Require confirmation from restaurant owners</li>
+                    <li>Take effect immediately after saving</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Basic Information -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="section-icon">🏢</span>
+                Basic Information
+            </h2>
+            
+            <div class="settings-grid">
+                <div class="setting-group">
+                    <h3 class="setting-title">Venue Details</h3>
+                <div class="form-group">
+                    <label class="form-label">Venue Name</label>
+                    <input type="text" class="form-input" id="venueNameInput" placeholder="Enter venue name">
+                </div>
+                    <div class="form-group">
+                        <label class="form-label">Venue Type</label>
+                        <select class="venue-type-select" id="venueTypeSelect">
+                            <option value="">Select venue type</option>
+                            <option value="food-hall">🍽️ Food Hall - Multiple restaurants in one location</option>
+                            <option value="food-court">🏬 Food Court - Shopping center dining area</option>
+                            <option value="market">🛒 Market - Public or farmers market space</option>
+                            <option value="convention">🏛️ Convention Center - Event and convention dining</option>
+                            <option value="other">🏗️ Other - Custom venue type</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Venue Size (sq ft)</label>
+                        <input type="number" class="form-input" id="venueSize" placeholder="e.g., 5000">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Venue Description</label>
+                        <textarea class="form-textarea" id="venueDescription" placeholder="Describe your venue's atmosphere, amenities, and what makes it special"></textarea>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Location & Contact -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="section-icon">Location</span>
+                Location & Contact
+            </h2>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Street Address</label>
+                    <input type="text" class="form-input" id="venueAddress" placeholder="123 Main Street">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">City</label>
+                    <input type="text" class="form-input" id="venueCity" placeholder="Your City">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">State/Province</label>
+                    <input type="text" class="form-input" id="venueState" placeholder="State">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Country</label>
+                    <input type="text" class="form-input" id="venueCountry" placeholder="United States">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">ZIP/Postal Code</label>
+                    <input type="text" class="form-input" id="venueZipCode" placeholder="12345">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <input type="tel" class="form-input" id="venuePhone" placeholder="(555) 123-4567">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contact Email</label>
+                    <input type="email" class="form-input" id="venueEmail" placeholder="info@yourvenue.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Website (Optional)</label>
+                    <input type="url" class="form-input" id="venueWebsite" placeholder="https://www.yourvenue.com">
+                </div>
+            </div>
+        </section>
+
+        <!-- Operational Settings -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="section-icon">Settings</span>
+                Operational Settings
+            </h2>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Maximum Restaurant Capacity</label>
+                    <input type="number" class="form-input" id="maxRestaurants" placeholder="e.g., 15" min="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Total Customer Seating</label>
+                    <input type="number" class="form-input" id="totalSeating" placeholder="e.g., 200">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Default Venue Fee (%)</label>
+                    <input type="number" class="form-input" id="defaultVenueFee" min="0" max="10" step="0.1" placeholder="1.0">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="requireApproval">
+                    <label for="requireApproval">Require approval for new restaurants</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="allowCustomFees">
+                    <label for="allowCustomFees">Allow custom fee arrangements</label>
+                </div>
+            </div>
+        </section>
+
+        <!-- Amenities -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="section-icon">Amenities</span>
+                Amenities & Features
+            </h2>
+            
+            <div class="form-group">
+                <label class="form-label">Available Amenities</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="parkingAvailable">
+                        <label for="parkingAvailable">Parking Available</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="wifiAvailable">
+                        <label for="wifiAvailable">Free WiFi</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="wheelchairAccessible">
+                        <label for="wheelchairAccessible">ADA Accessible</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="outdoorSeating">
+                        <label for="outdoorSeating">Outdoor Seating</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="deliveryAccess">
+                        <label for="deliveryAccess">Delivery Access</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="eventSpace">
+                        <label for="eventSpace">Event Space</label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-circle"></div>
+        <div class="loading-text">Saving settings...</div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentVenue = null;
+        let venueSpaces = [];
+        let selectedVenueType = '';
+        let selectedCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' };
+        let originalCurrency = null;
+
+        // Firebase utility functions
+        function getFirebaseAuth() {
+            return window.firebaseAuth || firebase.auth();
+        }
+
+        function getFirebaseDb() {
+            return window.firebaseDb || firebase.firestore();
+        }
+
+        // Initialize page
+        async function initializeSettings() {
+            try {
+                console.log('🚀 Initializing venue settings...');
+                
+                // Wait for Firebase
+                await waitForFirebase();
+                
+                // Check authentication
+                await checkAuthentication();
+                
+                // Load venue data
+                await loadVenueData();
+                
+                // Setup UI interactions
+                setupCurrencySelection();
+                setupVenueTypeSelection();
+                setupPhoneFormatting();
+                
+                console.log('✅ Venue settings initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Settings initialization error:', error);
+                showMessage('Failed to load venue settings. Please refresh the page.', 'error');
+            }
+        }
+
+        // Wait for Firebase to be initialized
+        function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (window.firebase && window.firebaseAuth && window.firebaseDb) {
+                        console.log('✅ Firebase ready for venue settings');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase initialization timeout'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Check authentication
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                const auth = getFirebaseAuth();
+                
+                auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        try {
+                            const db = getFirebaseDb();
+                            const userDoc = await db.collection('users').doc(user.uid).get();
+                            
+                            if (!userDoc.exists) {
+                                throw new Error('User profile not found');
+                            }
+                            
+                            const userData = userDoc.data();
+                            
+                            if (userData.accountType !== 'venue') {
+                                throw new Error('Access denied. Venue manager account required.');
+                            }
+                            
+                            currentUser = { ...userData, uid: user.uid };
+                            resolve();
+                            
+                        } catch (error) {
+                            console.error('❌ User verification error:', error);
+                            reject(error);
+                        }
+                    } else {
+                        window.location.href = '/login.html';
+                    }
+                });
+            });
+        }
+
+        // Load venue data
+        async function loadVenueData() {
+            try {
+                // Use VediAPI if available
+                if (typeof VediAPI.getVenueByManager === 'function') {
+                    currentVenue = await VediAPI.getVenueByManager(currentUser.uid);
+                } else {
+                    // Fallback: direct database query
+                    const db = getFirebaseDb();
+                    const venueQuery = await db.collection('venues')
+                        .where('managerUserId', '==', currentUser.uid)
+                        .limit(1)
+                        .get();
+                    
+                    if (venueQuery.empty) {
+                        throw new Error('No venue found for this manager');
+                    }
+                    
+                    const venueDoc = venueQuery.docs[0];
+                    currentVenue = { id: venueDoc.id, ...venueDoc.data() };
+                }
+                
+                if (!currentVenue) {
+                    throw new Error('No venue found for this manager');
+                }
+                
+                // Update header
+                document.getElementById('venueName').textContent = `${currentVenue.name} Settings`;
+                document.getElementById('venueLocation').textContent = 
+                    `${currentVenue.city}, ${currentVenue.state}`;
+                
+                // Populate form fields
+                populateFormFields();
+                
+                console.log('✅ Venue loaded for settings:', currentVenue.name);
+                
+            } catch (error) {
+                console.error('❌ Load venue error:', error);
+                throw error;
+            }
+        }
+
+        // Populate form fields with venue data
+        function populateFormFields() {
+            if (!currentVenue) return;
+            
+            try {
+                // Basic information
+                document.getElementById('venueNameInput').value = currentVenue.name || '';
+                document.getElementById('venueSize').value = currentVenue.size || '';
+                document.getElementById('venueDescription').value = currentVenue.description || '';
+                
+                // Location & Contact
+                document.getElementById('venueAddress').value = currentVenue.address || '';
+                document.getElementById('venueCity').value = currentVenue.city || '';
+                document.getElementById('venueState').value = currentVenue.state || '';
+                document.getElementById('venueCountry').value = currentVenue.country || '';
+                document.getElementById('venueZipCode').value = currentVenue.zipCode || '';
+                document.getElementById('venuePhone').value = currentVenue.phone || '';
+                document.getElementById('venueEmail').value = currentVenue.email || '';
+                document.getElementById('venueWebsite').value = currentVenue.website || '';
+                
+                // Operational settings
+                document.getElementById('maxRestaurants').value = currentVenue.maxRestaurants || '';
+                document.getElementById('totalSeating').value = currentVenue.totalSeating || '';
+                document.getElementById('defaultVenueFee').value = currentVenue.defaultFeePercentage || '';
+                document.getElementById('requireApproval').checked = currentVenue.requireApproval || false;
+                document.getElementById('allowCustomFees').checked = currentVenue.allowCustomFees !== false;
+                
+                // Amenities
+                document.getElementById('parkingAvailable').checked = currentVenue.parkingAvailable || false;
+                document.getElementById('wifiAvailable').checked = currentVenue.wifiAvailable || false;
+                document.getElementById('wheelchairAccessible').checked = (currentVenue.amenities || []).includes('accessibility');
+                document.getElementById('outdoorSeating').checked = (currentVenue.amenities || []).includes('outdoor');
+                document.getElementById('deliveryAccess').checked = (currentVenue.amenities || []).includes('delivery');
+                document.getElementById('eventSpace').checked = (currentVenue.amenities || []).includes('events');
+                
+                // Venue type
+                if (currentVenue.venueType || currentVenue.type) {
+                    selectedVenueType = currentVenue.venueType || currentVenue.type;
+                    const option = document.querySelector(`[data-type="${selectedVenueType}"]`);
+                    if (option) option.classList.add('selected');
+                }
+                
+                // Currency
+                if (currentVenue.currency) {
+                    selectedCurrency = currentVenue.currency;
+                    originalCurrency = { ...currentVenue.currency };
+                    const currencyOption = document.querySelector(`[data-currency*='"code":"${currentVenue.currency.code}"']`);
+                    if (currencyOption) currencyOption.classList.add('selected');
+                }
+                
+                // Spaces
+                if (currentVenue.spaces) {
+                    venueSpaces = currentVenue.spaces || [];
+                    updateSpaceDisplay();
+                }
+                
+                console.log('✅ Form fields populated');
+                
+            } catch (error) {
+                console.error('❌ Error populating form fields:', error);
+                showMessage('Error loading venue data', 'error');
+            }
+        }
+
+        // Setup currency selection
+        function setupCurrencySelection() {
+            const currencyOptions = document.querySelectorAll('.currency-option');
+            
+            currencyOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // Remove selected class from all options
+                    currencyOptions.forEach(opt => opt.classList.remove('selected'));
+                    
+                    // Add selected class to clicked option
+                    this.classList.add('selected');
+                    
+                    // Parse currency data
+                    selectedCurrency = JSON.parse(this.dataset.currency);
+                    
+                    // Show warning if currency is changing
+                    if (originalCurrency && originalCurrency.code !== selectedCurrency.code) {
+                        document.getElementById('currencyWarning').style.display = 'block';
+                    } else {
+                        document.getElementById('currencyWarning').style.display = 'none';
+                    }
+                    
+                    console.log('Selected currency:', selectedCurrency);
+                });
+            });
+        }
+
+        // Setup venue type selection
+        function setupVenueTypeSelection() {
+            const venueTypeOptions = document.querySelectorAll('.venue-type-option');
+            
+            venueTypeOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // Remove selected class from all options
+                    venueTypeOptions.forEach(opt => opt.classList.remove('selected'));
+                    
+                    // Add selected class to clicked option
+                    this.classList.add('selected');
+                    selectedVenueType = this.dataset.type;
+                    
+                    console.log('Selected venue type:', selectedVenueType);
+                });
+            });
+        }
+
+        // Space management functions
+        function addSpace() {
+            try {
+                const name = document.getElementById('spaceName').value.trim();
+                const size = document.getElementById('spaceSize').value;
+                const rent = document.getElementById('spaceRent').value;
+                const type = document.getElementById('spaceType').value;
+                const description = document.getElementById('spaceDescription').value.trim();
+                
+                if (!name) {
+                    showMessage('Please enter a space name/number.', 'error');
+                    document.getElementById('spaceName').focus();
+                    return;
+                }
+                
+                const space = {
+                    id: Date.now(),
+                    name,
+                    size: size ? parseInt(size) : null,
+                    rent: rent ? parseInt(rent) : null,
+                    type: type || '',
+                    description: description || '',
+                    status: 'available'
+                };
+                
+                venueSpaces.push(space);
+                updateSpaceDisplay();
+                clearSpaceForm();
+                
+                showMessage(`Space "${name}" added successfully!`, 'success');
+                
+            } catch (error) {
+                console.error('❌ Error adding space:', error);
+                showMessage('Error adding space', 'error');
+            }
+        }
+
+        function removeSpace(spaceId) {
+            try {
+                const spaceToRemove = venueSpaces.find(space => space.id === spaceId);
+                venueSpaces = venueSpaces.filter(space => space.id !== spaceId);
+                updateSpaceDisplay();
+                
+                if (spaceToRemove) {
+                    showMessage(`Space "${spaceToRemove.name}" removed successfully!`, 'success');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error removing space:', error);
+                showMessage('Error removing space', 'error');
+            }
+        }
+
+        function updateSpaceDisplay() {
+            const spaceList = document.getElementById('spaceList');
+            
+            if (venueSpaces.length === 0) {
+                spaceList.innerHTML = '<p style="color: #86868B; text-align: center; padding: 20px;">No restaurant spaces added yet. Add your first space below.</p>';
+                return;
+            }
+            
+            spaceList.innerHTML = venueSpaces.map(space => `
+                <div class="space-item">
+                    <div class="space-info">
+                        <div class="space-name">${space.name} ${space.type ? `(${space.type})` : ''}</div>
+                        <div class="space-details">
+                            ${space.size ? `${space.size} sq ft` : ''} 
+                            ${space.rent ? `• $${space.rent}/month` : ''} 
+                            ${space.description ? `• ${space.description}` : ''}
+                        </div>
+                    </div>
+                    <div class="space-actions">
+                        <button class="space-btn" onclick="removeSpace(${space.id})" title="Remove space">×</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearSpaceForm() {
+            document.getElementById('spaceName').value = '';
+            document.getElementById('spaceSize').value = '';
+            document.getElementById('spaceRent').value = '';
+            document.getElementById('spaceType').value = '';
+            document.getElementById('spaceDescription').value = '';
+        }
+
+        // Phone formatting
+        function setupPhoneFormatting() {
+            const phoneInput = document.getElementById('venuePhone');
+            if (phoneInput) {
+                phoneInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.length >= 6) {
+                        value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6,10)}`;
+                    } else if (value.length >= 3) {
+                        value = `(${value.slice(0,3)}) ${value.slice(3)}`;
+                    }
+                    e.target.value = value;
+                });
+            }
+        }
+
+        // Save all settings
+        async function saveAllSettings() {
+            try {
+                showLoading();
+                
+                // Validate required fields
+                const venueName = document.getElementById('venueNameInput').value.trim();
+                if (!venueName) {
+                    showMessage('Venue name is required.', 'error');
+                    hideLoading();
+                    return;
+                }
+                
+                // Collect amenities
+                const amenities = [];
+                if (document.getElementById('wheelchairAccessible').checked) amenities.push('accessibility');
+                if (document.getElementById('outdoorSeating').checked) amenities.push('outdoor');
+                if (document.getElementById('deliveryAccess').checked) amenities.push('delivery');
+                if (document.getElementById('eventSpace').checked) amenities.push('events');
+                
+                // Prepare venue data
+                const venueData = {
+                    name: venueName,
+                    venueType: selectedVenueType,
+                    size: parseInt(document.getElementById('venueSize').value) || null,
+                    description: document.getElementById('venueDescription').value.trim(),
+                    address: document.getElementById('venueAddress').value.trim(),
+                    city: document.getElementById('venueCity').value.trim(),
+                    state: document.getElementById('venueState').value.trim(),
+                    country: document.getElementById('venueCountry').value.trim(),
+                    zipCode: document.getElementById('venueZipCode').value.trim(),
+                    phone: document.getElementById('venuePhone').value.trim(),
+                    email: document.getElementById('venueEmail').value.trim(),
+                    website: document.getElementById('venueWebsite').value.trim(),
+                    maxRestaurants: parseInt(document.getElementById('maxRestaurants').value) || null,
+                    totalSeating: parseInt(document.getElementById('totalSeating').value) || null,
+                    defaultFeePercentage: parseFloat(document.getElementById('defaultVenueFee').value) || 0,
+                    requireApproval: document.getElementById('requireApproval').checked,
+                    allowCustomFees: document.getElementById('allowCustomFees').checked,
+                    parkingAvailable: document.getElementById('parkingAvailable').checked,
+                    wifiAvailable: document.getElementById('wifiAvailable').checked,
+                    amenities: amenities,
+                    currency: selectedCurrency,
+                    spaces: venueSpaces,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                // Update venue
+                if (typeof VediAPI.updateVenue === 'function') {
+                    await VediAPI.updateVenue(currentVenue.id, venueData);
+                } else {
+                    // Fallback: direct database update
+                    const db = getFirebaseDb();
+                    await db.collection('venues').doc(currentVenue.id).update(venueData);
+                }
+                
+                // If currency changed, update all restaurants
+                if (originalCurrency && originalCurrency.code !== selectedCurrency.code) {
+                    await updateRestaurantsCurrency();
+                }
+                
+                hideLoading();
+                showMessage('Venue settings saved successfully!', 'success');
+                
+                // Update original currency
+                originalCurrency = { ...selectedCurrency };
+                document.getElementById('currencyWarning').style.display = 'none';
+                
+                // Reload venue data
+                await loadVenueData();
+                
+            } catch (error) {
+                console.error('❌ Save settings error:', error);
+                hideLoading();
+                showMessage('Failed to save settings: ' + error.message, 'error');
+            }
+        }
+
+        // Update all restaurants currency
+        async function updateRestaurantsCurrency() {
+            try {
+                console.log('💰 Updating all restaurant currencies...');
+                
+                // Get all restaurants in venue
+                let venueRestaurants = [];
+                if (typeof VediAPI.getRestaurantsByVenue === 'function') {
+                    venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                } else {
+                    // Fallback: direct query
+                    const db = getFirebaseDb();
+                    const restaurantsQuery = await db.collection('restaurants')
+                        .where('venueId', '==', currentVenue.id)
+                        .get();
+                    
+                    venueRestaurants = restaurantsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                }
+                
+                // Update each restaurant
+                const updatePromises = venueRestaurants.map(async (restaurant) => {
+                    const updateData = {
+                        currency: selectedCurrency,
+                        previousCurrency: restaurant.currency || originalCurrency,
+                        currencyUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    
+                    if (typeof VediAPI.updateRestaurant === 'function') {
+                        return VediAPI.updateRestaurant(restaurant.id, updateData);
+                    } else {
+                        // Fallback: direct update
+                        const db = getFirebaseDb();
+                        return db.collection('restaurants').doc(restaurant.id).update(updateData);
+                    }
+                });
+                
+                await Promise.all(updatePromises);
+                
+                console.log(`✅ Updated ${venueRestaurants.length} restaurants to ${selectedCurrency.code}`);
+                
+            } catch (error) {
+                console.error('❌ Error updating restaurant currencies:', error);
+                throw error;
+            }
+        }
+
+        // Navigation functions
+        function goBack() {
+            window.location.href = 'venue-management.html';
+        }
+
+        function handleNavigation(event, url) {
+            event.preventDefault();
+            showLoading();
+            setTimeout(() => {
+                window.location.href = url;
+            }, 300);
+        }
+
+        // Utility functions
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        function showMessage(message, type = 'info') {
+            const messageEl = document.getElementById(type + 'Message');
+            if (messageEl) {
+                messageEl.textContent = message;
+                messageEl.style.display = 'block';
+                setTimeout(() => {
+                    messageEl.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🏢 Venue Settings page starting...');
+            initializeSettings();
+        });
+    </script>
+</body>
+</html>
