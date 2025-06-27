@@ -666,6 +666,173 @@
             color: #86868B;
         }
 
+        /* Enhanced Modal Styles for Invitation Types */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .step {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #E5E5E7;
+            color: #86868B;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin: 0 8px;
+            position: relative;
+        }
+
+        .step.active {
+            background: #007AFF;
+            color: white;
+        }
+
+        .step.completed {
+            background: #30D158;
+            color: white;
+        }
+
+        .step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 2px;
+            background: #E5E5E7;
+        }
+
+        .step.completed:not(:last-child)::after {
+            background: #30D158;
+        }
+
+        .invitation-type-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .invitation-type-option {
+            border: 2px solid #E5E5E7;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            background: #FFFFFF;
+        }
+
+        .invitation-type-option:hover {
+            border-color: #007AFF;
+            background: #F0F8FF;
+        }
+
+        .invitation-type-option.selected {
+            border-color: #007AFF;
+            background: #F0F8FF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .invitation-type-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .invitation-type-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .invitation-type-description {
+            font-size: 14px;
+            color: #86868B;
+            line-height: 1.4;
+        }
+
+        .form-section {
+            display: none;
+        }
+
+        .form-section.active {
+            display: block;
+        }
+
+        .join-code-display {
+            background: #F0F8FF;
+            border: 2px solid #007AFF;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .join-code-label {
+            font-size: 14px;
+            color: #007AFF;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .join-code-value {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 32px;
+            font-weight: 700;
+            color: #007AFF;
+            letter-spacing: 4px;
+            margin-bottom: 8px;
+        }
+
+        .join-code-info {
+            font-size: 12px;
+            color: #86868B;
+        }
+
+        .info-box {
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            border: 1px solid;
+        }
+
+        .info-box.blue {
+            background: #F0F8FF;
+            border-color: #007AFF;
+            color: #0056CC;
+        }
+
+        .info-box.green {
+            background: #F0FDF4;
+            border-color: #22C55E;
+            color: #15803D;
+        }
+
+        .copy-button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+        }
+
+        .copy-button:hover {
+            background: #0056CC;
+        }
+
         .modal-actions {
             display: flex;
             gap: 12px;
@@ -708,6 +875,11 @@
 
         .modal-btn.danger:hover {
             background-color: #E8342A;
+        }
+
+        .modal-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         /* Setting inputs for modals */
@@ -963,6 +1135,10 @@
             .modal-actions {
                 flex-direction: column;
             }
+
+            .invitation-type-selector {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -1009,7 +1185,7 @@
         <section class="quick-actions">
             <div class="action-card" onclick="openInviteModal()">
                 <h3 class="action-title">Invite Restaurant</h3>
-                <p class="action-description">Send an invitation to a restaurant to join your venue</p>
+                <p class="action-description">Send an invitation or join code to restaurants</p>
                 <button class="action-button">Send Invitation</button>
             </div>
 
@@ -1068,35 +1244,139 @@
         <div class="loading-text">Loading...</div>
     </div>
 
-    <!-- Enhanced Invite Restaurant Modal -->
+    <!-- Enhanced Invite Restaurant Modal with Type Selection -->
     <div class="modal" id="inviteModal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Invite Restaurant</h2>
-                <p class="modal-subtitle">Send an invitation to a restaurant to join your venue</p>
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step active" id="step1">1</div>
+                <div class="step" id="step2">2</div>
+                <div class="step" id="step3">3</div>
             </div>
-            
-            <div class="setting-item">
-                <label class="setting-label">Restaurant Name *</label>
-                <input type="text" class="setting-input" id="inviteRestaurantName" 
-                       placeholder="Enter restaurant name" required minlength="2">
+
+            <!-- Step 1: Invitation Type Selection -->
+            <div class="form-section active" id="inviteStep1">
+                <div class="modal-header">
+                    <h2 class="modal-title">How would you like to invite?</h2>
+                    <p class="modal-subtitle">Choose the invitation method based on whether the restaurant already has an account</p>
+                </div>
+                
+                <div class="invitation-type-selector">
+                    <div class="invitation-type-option" onclick="selectInvitationType('new-user')" id="newUserOption">
+                        <span class="invitation-type-icon">👤</span>
+                        <div class="invitation-type-title">New User</div>
+                        <div class="invitation-type-description">Send signup link to restaurants that don't have an account yet</div>
+                    </div>
+                    
+                    <div class="invitation-type-option" onclick="selectInvitationType('existing-user')" id="existingUserOption">
+                        <span class="invitation-type-icon">🔑</span>
+                        <div class="invitation-type-title">Existing User</div>
+                        <div class="invitation-type-description">Send join code to restaurants that already have accounts</div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="modal-btn secondary" onclick="closeInviteModal()">Cancel</button>
+                    <button class="modal-btn primary" onclick="proceedToStep2()" id="proceedBtn" disabled>Continue</button>
+                </div>
             </div>
-            
-            <div class="setting-item">
-                <label class="setting-label">Contact Email *</label>
-                <input type="email" class="setting-input" id="inviteContactEmail" 
-                       placeholder="restaurant@example.com" required>
+
+            <!-- Step 2: Restaurant Information -->
+            <div class="form-section" id="inviteStep2">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="step2Title">Restaurant Information</h2>
+                    <p class="modal-subtitle" id="step2Subtitle">Enter the restaurant details</p>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Restaurant Name *</label>
+                    <input type="text" class="setting-input" id="inviteRestaurantName" 
+                           placeholder="Enter restaurant name" required minlength="2">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Contact Email *</label>
+                    <input type="email" class="setting-input" id="inviteContactEmail" 
+                           placeholder="restaurant@example.com" required>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Personal Message (Optional)</label>
+                    <textarea class="setting-textarea" id="invitePersonalMessage" 
+                              placeholder="Welcome to our venue! We'd love to have you join us..."></textarea>
+                </div>
+
+                <div class="info-box blue">
+                    <strong id="currencyInheritanceInfo">Currency Inheritance:</strong>
+                    <span id="currencyInheritanceText">Restaurant will inherit venue currency when they join</span>
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="modal-btn secondary" onclick="backToStep1()">Back</button>
+                    <button class="modal-btn primary" onclick="proceedToStep3()" id="createInviteBtn">Create Invitation</button>
+                </div>
             </div>
-            
-            <div class="setting-item">
-                <label class="setting-label">Personal Message (Optional)</label>
-                <textarea class="setting-textarea" id="invitePersonalMessage" 
-                          placeholder="Welcome to our venue! We'd love to have you join us..."></textarea>
-            </div>
-            
-            <div class="modal-actions">
-                <button class="modal-btn secondary" onclick="closeInviteModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="sendInvitation()">Send Invitation</button>
+
+            <!-- Step 3: Invitation Created -->
+            <div class="form-section" id="inviteStep3">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="step3Title">Invitation Created!</h2>
+                    <p class="modal-subtitle" id="step3Subtitle">Share this information with the restaurant</p>
+                </div>
+
+                <!-- For New Users: Signup Link -->
+                <div id="newUserInvitation" style="display: none;">
+                    <div class="info-box green">
+                        <strong>✅ Signup Invitation Created</strong><br>
+                        Send this link to the restaurant so they can create an account and join your venue.
+                    </div>
+
+                    <div class="setting-item">
+                        <label class="setting-label">Signup Link</label>
+                        <input type="text" class="setting-input" id="signupLinkDisplay" readonly>
+                        <button class="copy-button" onclick="copySignupLink()">Copy Link</button>
+                    </div>
+
+                    <div class="setting-item">
+                        <label class="setting-label">Invitation Code</label>
+                        <input type="text" class="setting-input" id="invitationCodeDisplay" readonly>
+                        <button class="copy-button" onclick="copyInvitationCode()">Copy Code</button>
+                    </div>
+                </div>
+
+                <!-- For Existing Users: Join Code -->
+                <div id="existingUserInvitation" style="display: none;">
+                    <div class="info-box green">
+                        <strong>🔑 Join Code Generated</strong><br>
+                        Send this code to the restaurant. They can enter it in their restaurant settings to join your venue.
+                    </div>
+
+                    <div class="join-code-display">
+                        <div class="join-code-label">JOIN CODE</div>
+                        <div class="join-code-value" id="joinCodeDisplay">ABC123</div>
+                        <div class="join-code-info">Valid for 7 days • Single use</div>
+                        <button class="copy-button" onclick="copyJoinCode()">Copy Code</button>
+                    </div>
+
+                    <div class="setting-item">
+                        <label class="setting-label">Instructions for Restaurant</label>
+                        <textarea class="setting-textarea" id="joinInstructions" readonly>
+1. Log into your restaurant dashboard
+2. Go to Settings > Venue Association  
+3. Enter the join code above
+4. Click "Join Venue" to complete the process</textarea>
+                        <button class="copy-button" onclick="copyInstructions()">Copy Instructions</button>
+                    </div>
+                </div>
+
+                <div class="info-box blue">
+                    <strong>Currency Inheritance:</strong> When the restaurant joins, their currency will automatically change to <span id="finalCurrencyDisplay"></span> to match your venue.
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="modal-btn secondary" onclick="createAnotherInvitation()">Create Another</button>
+                    <button class="modal-btn primary" onclick="closeInviteModal()">Done</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1109,6 +1389,10 @@
         let venueRequests = [];
         let realTimeListeners = [];
         let venueCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' }; // Venue currency authority
+        
+        // Enhanced invitation flow variables
+        let selectedInvitationType = null;
+        let currentInvitationData = null;
 
         // ============================================================================
         // CURRENCY MANAGEMENT - Venue-Level Currency Authority
@@ -1206,41 +1490,416 @@
             };
         }
 
+        // ============================================================================
+        // ENHANCED INVITATION MODAL MANAGEMENT
+        // ============================================================================
+
+        /**
+         * Open invitation modal with type selection
+         */
+        function openInviteModal() {
+            const modal = document.getElementById('inviteModal');
+            if (!modal) {
+                console.error('❌ Invite modal element not found');
+                showMessage('Unable to open invitation form. Please refresh the page.', 'error');
+                return;
+            }
+
+            // Reset modal to step 1
+            resetInvitationModal();
+            modal.classList.add('active');
+        }
+
+        /**
+         * Close invitation modal
+         */
+        function closeInviteModal() {
+            const modal = document.getElementById('inviteModal');
+            if (!modal) return;
+            
+            modal.classList.remove('active');
+            
+            // Reset after animation
+            setTimeout(() => {
+                resetInvitationModal();
+            }, 300);
+        }
+
+        /**
+         * Reset invitation modal to initial state
+         */
+        function resetInvitationModal() {
+            // Reset selection
+            selectedInvitationType = null;
+            currentInvitationData = null;
+            
+            // Reset steps
+            showStep(1);
+            updateStepIndicator(1);
+            
+            // Reset form
+            clearFormInputs();
+            
+            // Reset invitation type selection
+            document.getElementById('newUserOption').classList.remove('selected');
+            document.getElementById('existingUserOption').classList.remove('selected');
+            document.getElementById('proceedBtn').disabled = true;
+        }
+
+        /**
+         * Select invitation type
+         */
+        function selectInvitationType(type) {
+            selectedInvitationType = type;
+            
+            // Update UI
+            document.getElementById('newUserOption').classList.remove('selected');
+            document.getElementById('existingUserOption').classList.remove('selected');
+            
+            if (type === 'new-user') {
+                document.getElementById('newUserOption').classList.add('selected');
+            } else {
+                document.getElementById('existingUserOption').classList.add('selected');
+            }
+            
+            // Enable proceed button
+            document.getElementById('proceedBtn').disabled = false;
+            
+            console.log('🎯 Selected invitation type:', type);
+        }
+
+        /**
+         * Proceed to step 2
+         */
+        function proceedToStep2() {
+            if (!selectedInvitationType) {
+                showMessage('Please select an invitation type', 'error');
+                return;
+            }
+            
+            // Update step 2 content based on selection
+            if (selectedInvitationType === 'new-user') {
+                document.getElementById('step2Title').textContent = 'New User Invitation';
+                document.getElementById('step2Subtitle').textContent = 'Enter restaurant details to send a signup invitation';
+                document.getElementById('currencyInheritanceInfo').textContent = 'Signup Process:';
+                document.getElementById('currencyInheritanceText').textContent = 'Restaurant will create account → inherit venue currency during setup';
+            } else {
+                document.getElementById('step2Title').textContent = 'Existing User Join Code';
+                document.getElementById('step2Subtitle').textContent = 'Enter restaurant details to generate a join code';
+                document.getElementById('currencyInheritanceInfo').textContent = 'Join Process:';
+                document.getElementById('currencyInheritanceText').textContent = 'Restaurant will enter code → currency changes to match venue';
+            }
+            
+            showStep(2);
+            updateStepIndicator(2);
+        }
+
+        /**
+         * Go back to step 1
+         */
+        function backToStep1() {
+            showStep(1);
+            updateStepIndicator(1);
+        }
+
+        /**
+         * Proceed to step 3 - Create invitation
+         */
+        async function proceedToStep3() {
+            if (!validateStep2Form()) {
+                return;
+            }
+            
+            try {
+                const createBtn = document.getElementById('createInviteBtn');
+                createBtn.disabled = true;
+                createBtn.textContent = 'Creating...';
+                
+                if (selectedInvitationType === 'new-user') {
+                    await createNewUserInvitation();
+                } else {
+                    await createExistingUserJoinCode();
+                }
+                
+                showStep(3);
+                updateStepIndicator(3);
+                
+            } catch (error) {
+                console.error('❌ Create invitation error:', error);
+                showMessage('Failed to create invitation: ' + error.message, 'error');
+            } finally {
+                const createBtn = document.getElementById('createInviteBtn');
+                createBtn.disabled = false;
+                createBtn.textContent = 'Create Invitation';
+            }
+        }
+
+        /**
+         * Validate step 2 form
+         */
+        function validateStep2Form() {
+            const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
+            const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+            
+            if (!restaurantName || restaurantName.length < 2) {
+                showMessage('Please enter a valid restaurant name (at least 2 characters)', 'error');
+                return false;
+            }
+            
+            if (!contactEmail || !VediAPI.validateEmail(contactEmail)) {
+                showMessage('Please enter a valid email address', 'error');
+                return false;
+            }
+            
+            return true;
+        }
+
+        /**
+         * Create new user invitation (signup link)
+         */
+        async function createNewUserInvitation() {
+            console.log('📧 Creating new user invitation...');
+            
+            const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
+            const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+            const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
+            
+            // Generate invitation code and create database record
+            const invitationCode = generateInvitationCode();
+            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            
+            const invitationData = {
+                venueId: currentVenue.id,
+                venueName: currentVenue.name,
+                venueCity: currentVenue.city,
+                venueState: currentVenue.state,
+                venueCurrency: venueCurrency,
+                restaurantName: restaurantName,
+                contactEmail: contactEmail,
+                personalMessage: personalMessage,
+                invitationCode: invitationCode,
+                type: 'new-user',
+                status: 'pending',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                expiresAt: expiresAt,
+                invitedBy: {
+                    uid: currentUser.uid,
+                    name: currentUser.name,
+                    email: currentUser.email
+                }
+            };
+            
+            // Save to database using VediAPI if available
+            let docRef;
+            if (typeof VediAPI.createVenueInvitation === 'function') {
+                const invitation = await VediAPI.createVenueInvitation(currentVenue.id, invitationData, personalMessage);
+                docRef = { id: invitation.id };
+            } else {
+                // Fallback: direct database save
+                const db = getFirebaseDb();
+                docRef = await db.collection('venueInvitations').add(invitationData);
+            }
+            
+            // Generate signup URL
+            const baseUrl = window.location.origin;
+            const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?invitation=${docRef.id}&code=${invitationCode}`;
+            
+            // Store for display
+            currentInvitationData = {
+                ...invitationData,
+                id: docRef.id,
+                signupUrl: signupUrl
+            };
+            
+            // Update step 3 UI for new user
+            document.getElementById('step3Title').textContent = 'Signup Invitation Created!';
+            document.getElementById('step3Subtitle').textContent = 'Send this signup link to the restaurant';
+            document.getElementById('newUserInvitation').style.display = 'block';
+            document.getElementById('existingUserInvitation').style.display = 'none';
+            document.getElementById('signupLinkDisplay').value = signupUrl;
+            document.getElementById('invitationCodeDisplay').value = invitationCode;
+            document.getElementById('finalCurrencyDisplay').textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
+            
+            console.log('✅ New user invitation created:', docRef.id);
+        }
+
+        /**
+         * Create existing user join code
+         */
+        async function createExistingUserJoinCode() {
+            console.log('🔑 Creating existing user join code...');
+            
+            const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
+            const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+            const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
+            
+            // Generate shorter join code for existing users
+            const joinCode = generateJoinCode();
+            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            
+            const joinCodeData = {
+                venueId: currentVenue.id,
+                venueName: currentVenue.name,
+                venueCity: currentVenue.city,
+                venueState: currentVenue.state,
+                venueCurrency: venueCurrency,
+                restaurantName: restaurantName,
+                contactEmail: contactEmail,
+                personalMessage: personalMessage,
+                joinCode: joinCode,
+                type: 'existing-user',
+                status: 'pending',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                expiresAt: expiresAt,
+                usedBy: null,
+                usedAt: null,
+                createdBy: {
+                    uid: currentUser.uid,
+                    name: currentUser.name,
+                    email: currentUser.email
+                }
+            };
+            
+            // Save to database (different collection for join codes)
+            const db = getFirebaseDb();
+            const docRef = await db.collection('venueJoinCodes').add(joinCodeData);
+            
+            // Store for display
+            currentInvitationData = {
+                ...joinCodeData,
+                id: docRef.id
+            };
+            
+            // Update step 3 UI for existing user
+            document.getElementById('step3Title').textContent = 'Join Code Generated!';
+            document.getElementById('step3Subtitle').textContent = 'Send this code to the restaurant';
+            document.getElementById('newUserInvitation').style.display = 'none';
+            document.getElementById('existingUserInvitation').style.display = 'block';
+            document.getElementById('joinCodeDisplay').textContent = joinCode;
+            document.getElementById('finalCurrencyDisplay').textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
+            
+            console.log('✅ Join code created:', docRef.id);
+        }
+
+        /**
+         * Generate join code (6 characters for existing users)
+         */
+        function generateJoinCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        /**
+         * Generate invitation code (8 characters for new users)
+         */
+        function generateInvitationCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 8; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        /**
+         * Copy functions
+         */
+        async function copySignupLink() {
+            const link = document.getElementById('signupLinkDisplay').value;
+            await copyToClipboard(link, 'Signup link copied to clipboard!');
+        }
+
+        async function copyInvitationCode() {
+            const code = document.getElementById('invitationCodeDisplay').value;
+            await copyToClipboard(code, 'Invitation code copied to clipboard!');
+        }
+
+        async function copyJoinCode() {
+            const code = document.getElementById('joinCodeDisplay').textContent;
+            await copyToClipboard(code, 'Join code copied to clipboard!');
+        }
+
+        async function copyInstructions() {
+            const instructions = document.getElementById('joinInstructions').value;
+            await copyToClipboard(instructions, 'Instructions copied to clipboard!');
+        }
+
+        /**
+         * Copy to clipboard utility
+         */
+        async function copyToClipboard(text, successMessage) {
+            try {
+                if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                }
+                showMessage(successMessage, 'success');
+            } catch (error) {
+                console.error('❌ Copy error:', error);
+                showMessage('Failed to copy to clipboard', 'error');
+            }
+        }
+
+        /**
+         * Create another invitation
+         */
+        function createAnotherInvitation() {
+            resetInvitationModal();
+        }
+
+        /**
+         * Step management functions
+         */
+        function showStep(stepNumber) {
+            // Hide all steps
+            document.querySelectorAll('.form-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show target step
+            document.getElementById(`inviteStep${stepNumber}`).classList.add('active');
+        }
+
+        function updateStepIndicator(currentStep) {
+            for (let i = 1; i <= 3; i++) {
+                const step = document.getElementById(`step${i}`);
+                step.classList.remove('active', 'completed');
+                
+                if (i < currentStep) {
+                    step.classList.add('completed');
+                } else if (i === currentStep) {
+                    step.classList.add('active');
+                }
+            }
+        }
+
+        function clearFormInputs() {
+            document.getElementById('inviteRestaurantName').value = '';
+            document.getElementById('inviteContactEmail').value = '';
+            document.getElementById('invitePersonalMessage').value = '';
+        }
+
+        // ============================================================================
+        // INITIALIZATION AND DATA LOADING
+        // ============================================================================
+
         // Initialize dashboard
         async function initializeDashboard() {
             try {
                 console.log('🚀 Initializing venue management dashboard...');
                 
-                // Wait for Firebase to be ready
-                await waitForFirebase();
-                
-                // Check authentication
-                await checkAuthentication();
-                
-                // Load venue data
-                await loadVenueData();
-                
-                // Set up venue currency
-                updateCurrencyDisplay();
-                
-                // Load restaurants
-                await loadRestaurants();
-                
-                // Load requests
-                await loadRequests();
-                
-                // Setup real-time listeners
-                await setupRealTimeListeners();
-                
-                console.log('✅ Venue management dashboard initialized successfully');
-                
-            } catch (error) {
-                console.error('❌ Dashboard initialization error:', error);
-                showMessage('Failed to load venue management dashboard. Please refresh the page.', 'error');
-            }
-        }
-
-        // Wait for Firebase to be initialized
+                // Wait for Firebase to be initialized
         function waitForFirebase() {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
@@ -1409,6 +2068,10 @@
                 console.error('❌ Setup real-time listeners error:', error);
             }
         }
+
+        // ============================================================================
+        // UI UPDATE FUNCTIONS
+        // ============================================================================
 
         // Update restaurant grid with venue currency display
         function updateRestaurantGrid() {
@@ -1626,264 +2289,9 @@
             `;
         }
 
-        // Generate unique invitation code
-        function generateInvitationCode() {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let code = '';
-            for (let i = 0; i < 8; i++) {
-                code += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return code;
-        }
-
-        // Fixed modal management with null checks
-        function openInviteModal() {
-            const modal = document.getElementById('inviteModal');
-            if (!modal) {
-                console.error('❌ Invite modal element not found');
-                showMessage('Unable to open invitation form. Please refresh the page.', 'error');
-                return;
-            }
-            
-            // Clear any previous form data
-            const restaurantNameInput = document.getElementById('inviteRestaurantName');
-            const contactEmailInput = document.getElementById('inviteContactEmail');
-            const personalMessageInput = document.getElementById('invitePersonalMessage');
-            
-            if (restaurantNameInput) restaurantNameInput.value = '';
-            if (contactEmailInput) contactEmailInput.value = '';
-            if (personalMessageInput) personalMessageInput.value = '';
-            
-            modal.classList.add('active');
-        }
-
-        function closeInviteModal() {
-            const modal = document.getElementById('inviteModal');
-            if (!modal) {
-                console.error('❌ Invite modal element not found');
-                return;
-            }
-            
-            modal.classList.remove('active');
-            
-            // Clear form data
-            const restaurantNameInput = document.getElementById('inviteRestaurantName');
-            const contactEmailInput = document.getElementById('inviteContactEmail');
-            const personalMessageInput = document.getElementById('invitePersonalMessage');
-            
-            if (restaurantNameInput) restaurantNameInput.value = '';
-            if (contactEmailInput) contactEmailInput.value = '';
-            if (personalMessageInput) personalMessageInput.value = '';
-        }
-
-        // Enhanced invitation sending with Firebase Functions including currency inheritance
-        async function sendInvitation() {
-            try {
-                const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
-                const contactEmail = document.getElementById('inviteContactEmail').value.trim();
-                const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
-                
-                // Enhanced validation
-                if (!restaurantName || restaurantName.length < 2) {
-                    showMessage('Please enter a valid restaurant name (at least 2 characters)', 'error');
-                    return;
-                }
-                
-                if (!contactEmail || !VediAPI.validateEmail(contactEmail)) {
-                    showMessage('Please enter a valid email address', 'error');
-                    return;
-                }
-                
-                // Check if we already have a restaurant with this email
-                if (venueRestaurants.some(r => r.email === contactEmail)) {
-                    showMessage('A restaurant with this email is already in your venue', 'error');
-                    return;
-                }
-                
-                // Check for existing invitations
-                try {
-                    const db = getFirebaseDb();
-                    const existingQuery = await db.collection('venueInvitations')
-                        .where('venueId', '==', currentVenue.id)
-                        .where('contactEmail', '==', contactEmail)
-                        .where('status', '==', 'pending')
-                        .get();
-                    
-                    if (!existingQuery.empty) {
-                        showMessage('An invitation to this email is already pending', 'error');
-                        return;
-                    }
-                } catch (error) {
-                    console.warn('⚠️ Could not check existing invitations:', error);
-                }
-                
-                // Show loading state
-                const sendButton = document.querySelector('#inviteModal .modal-btn.primary');
-                const originalText = sendButton.textContent;
-                sendButton.disabled = true;
-                sendButton.textContent = 'Sending...';
-                
-                // Generate unique invitation code
-                const invitationCode = generateInvitationCode();
-                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-                
-                // Create invitation record with venue currency information
-                const invitationData = {
-                    venueId: currentVenue.id,
-                    venueName: currentVenue.name,
-                    venueCity: currentVenue.city,
-                    venueState: currentVenue.state,
-                    venueCurrency: venueCurrency, // Include venue currency for inheritance
-                    restaurantName: restaurantName,
-                    contactEmail: contactEmail,
-                    personalMessage: personalMessage,
-                    invitationCode: invitationCode,
-                    status: 'pending',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    expiresAt: expiresAt,
-                    invitedBy: {
-                        uid: currentUser.uid,
-                        name: currentUser.name,
-                        email: currentUser.email
-                    }
-                };
-                
-                // Save invitation to database
-                const db = getFirebaseDb();
-                const docRef = await db.collection('venueInvitations').add(invitationData);
-                
-                // Send invitation email via Firebase Functions
-                await sendInvitationEmail(docRef.id, invitationData);
-                
-                showMessage(`Invitation sent to ${restaurantName} successfully! They will receive an email with a link to join your venue.`, 'success');
-                closeInviteModal();
-                
-                console.log('✅ Invitation sent:', { id: docRef.id, ...invitationData });
-                
-            } catch (error) {
-                console.error('❌ Send invitation error:', error);
-                showMessage('Failed to send invitation: ' + error.message, 'error');
-            } finally {
-                // Reset button state
-                const sendButton = document.querySelector('#inviteModal .modal-btn.primary');
-                if (sendButton) {
-                    sendButton.disabled = false;
-                    sendButton.textContent = 'Send Invitation';
-                }
-            }
-        }
-
-        // FIXED: Update this function in your venue-management.html
-        async function sendInvitationEmail(invitationId, invitationData) {
-            try {
-                console.log('📧 Creating invitation link...');
-                
-                // FIXED: Use correct signup URL path with proper domain
-                const baseUrl = window.location.origin;
-                const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?invitation=${invitationId}&code=${invitationData.invitationCode}`;
-                
-                // Show success message with invitation details including currency info
-                const message = `✅ Invitation Created Successfully!
-
-Restaurant: ${invitationData.restaurantName}
-Email: ${invitationData.contactEmail}
-Code: ${invitationData.invitationCode}
-Venue Currency: ${venueCurrency.name} (${venueCurrency.symbol})
-
-Signup URL:
-${signupUrl}
-
-✅ Invitation saved to database!
-📧 Copy this URL and send it to the restaurant.
-💰 Restaurant will inherit ${venueCurrency.code} currency when they join.`;
-                
-                alert(message);
-                
-                // Copy URL to clipboard
-                if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(signupUrl);
-                    showMessage('✅ Invitation URL copied to clipboard! Send this link to the restaurant.', 'success');
-                } else {
-                    // Fallback for older browsers
-                    const textArea = document.createElement('textarea');
-                    textArea.value = signupUrl;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    showMessage('✅ Invitation URL copied! Send this link to the restaurant.', 'success');
-                }
-                
-                console.log('✅ Invitation process completed successfully');
-                console.log('🔗 Signup URL:', signupUrl);
-                console.log('💰 Venue Currency:', venueCurrency);
-                
-            } catch (error) {
-                console.error('❌ Invitation creation error:', error);
-                showMessage('Error creating invitation: ' + error.message, 'error');
-            }
-        }
-
-        // Generate HTML email template
-        function generateInvitationEmailHTML(invitationData, signupUrl) {
-            return `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <title>Join ${invitationData.venueName}</title>
-                <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: #007AFF; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-                    .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 8px 8px; }
-                    .button { display: inline-block; background: #007AFF; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
-                    .code { background: #e9ecef; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 16px; letter-spacing: 2px; }
-                    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 14px; color: #6c757d; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🍽️ You're Invited to Join ${invitationData.venueName}!</h1>
-                    </div>
-                    <div class="content">
-                        <h2>Hello ${invitationData.restaurantName}!</h2>
-                        
-                        <p>You've been invited to join <strong>${invitationData.venueName}</strong> in ${invitationData.venueCity}, ${invitationData.venueState}.</p>
-                        
-                        ${invitationData.personalMessage ? `
-                        <div style="background: white; padding: 20px; border-left: 4px solid #007AFF; margin: 20px 0;">
-                            <h4>Personal Message:</h4>
-                            <p><em>"${invitationData.personalMessage}"</em></p>
-                        </div>
-                        ` : ''}
-                        
-                        <p>To accept this invitation and set up your restaurant:</p>
-                        
-                        <a href="${signupUrl}" class="button">Accept Invitation & Sign Up</a>
-                        
-                        <p>Or use this invitation code when signing up:</p>
-                        <div class="code">${invitationData.invitationCode}</div>
-                        
-                        <div class="footer">
-                            <p><strong>What's Next?</strong></p>
-                            <ul>
-                                <li>Click the button above to create your restaurant account</li>
-                                <li>Complete your restaurant setup</li>
-                                <li>Start accepting orders through the venue</li>
-                                <li>Access venue analytics and reporting</li>
-                            </ul>
-                            
-                            <p><small>This invitation expires in 7 days. If you have any questions, please contact the venue directly.</small></p>
-                            <p><small>© 2025 Vedi Platform - Restaurant & Venue Management</small></p>
-                        </div>
-                    </div>
-                </div>
-            </body>
-            </html>
-            `;
-        }
+        // ============================================================================
+        // REQUEST APPROVAL AND MANAGEMENT
+        // ============================================================================
 
         // Show approval confirmation modal
         function showApprovalModal(requestId, restaurantName) {
@@ -1992,10 +2400,7 @@ ${signupUrl}
                 buttonElement.disabled = true;
                 buttonElement.textContent = 'Approving...';
                 
-                if (typeof approveRestaurantRequestWithCurrency === 'function') {
-                    // Use enhanced approval function with currency inheritance
-                    await approveRestaurantRequestWithCurrency(requestId, currentVenue.id);
-                } else if (typeof VediAPI.approveRestaurantRequest === 'function') {
+                if (typeof VediAPI.approveRestaurantRequest === 'function') {
                     await VediAPI.approveRestaurantRequest(requestId);
                 } else {
                     // Fallback: manual approval
@@ -2072,40 +2477,26 @@ ${signupUrl}
             }
         }
 
+        // ============================================================================
+        // RESTAURANT MANAGEMENT ACTIONS
+        // ============================================================================
+
         // View restaurant details
         function viewRestaurantDetails(restaurantId, restaurantName) {
-            // This could open a detailed modal or navigate to a detailed view
             showMessage(`Detailed view for ${restaurantName} coming soon!`, 'warning');
         }
 
-        // Close modal helper
-        function closeModal(element) {
-            const modal = element.closest('.modal');
-            if (modal) {
-                modal.remove();
-            }
-        }
-
-        // Update this function in venue-management.html
-        function getRestaurantStatus(restaurant) {
-            if (restaurant.acceptingOrders) {
-                return { text: 'Online', class: 'status-online' };
-            } else {
-                return { text: 'Offline', class: 'status-offline' };
-            }
-        }
-
-        // Restaurant management actions
+        // View restaurant
         function viewRestaurant(restaurantId) {
-            // This would open a detailed view of the restaurant
             showMessage('Restaurant details view coming soon!', 'warning');
         }
 
+        // Edit restaurant fees
         function editRestaurantFees(restaurantId) {
-            // Redirect to fee management or open modal
             window.location.href = `venue-financials.html#restaurant-${restaurantId}`;
         }
 
+        // Remove restaurant from venue
         async function removeRestaurant(restaurantId, restaurantName) {
             try {
                 if (!confirm(`Are you sure you want to remove ${restaurantName} from your venue?\n\nThis action cannot be undone.`)) {
@@ -2115,29 +2506,17 @@ ${signupUrl}
                 const reason = prompt('Please provide a reason for removing this restaurant:');
                 if (reason === null) return; // User cancelled
                 
-                if (typeof unsyncRestaurantFromVenue === 'function') {
-                    // Use enhanced unsync function that handles currency reversion
-                    await unsyncRestaurantFromVenue(restaurantId, currentVenue.id, reason);
-                } else if (typeof VediAPI.unsyncRestaurantFromVenue === 'function') {
+                if (typeof VediAPI.unsyncRestaurantFromVenue === 'function') {
                     await VediAPI.unsyncRestaurantFromVenue(restaurantId, reason);
                 } else {
                     // Fallback: manual removal
-                    if (typeof VediAPI.updateRestaurant === 'function') {
-                        await VediAPI.updateRestaurant(restaurantId, {
-                            venueId: null,
-                            venueName: null,
-                            leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            unsyncReason: reason
-                        });
-                    } else {
-                        const db = getFirebaseDb();
-                        await db.collection('restaurants').doc(restaurantId).update({
-                            venueId: null,
-                            venueName: null,
-                            leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            unsyncReason: reason
-                        });
-                    }
+                    const db = getFirebaseDb();
+                    await db.collection('restaurants').doc(restaurantId).update({
+                        venueId: null,
+                        venueName: null,
+                        leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        unsyncReason: reason
+                    });
                 }
                 
                 showMessage(`${restaurantName} has been removed from your venue`, 'success');
@@ -2151,12 +2530,33 @@ ${signupUrl}
             }
         }
 
+        // Get restaurant status
+        function getRestaurantStatus(restaurant) {
+            if (restaurant.acceptingOrders) {
+                return { text: 'Online', class: 'status-online' };
+            } else {
+                return { text: 'Offline', class: 'status-offline' };
+            }
+        }
+
+        // ============================================================================
+        // UTILITY FUNCTIONS
+        // ============================================================================
+
+        // Close modal helper
+        function closeModal(element) {
+            const modal = element.closest('.modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
         // Navigate to venue settings page
         function navigateToSettings() {
             handleNavigation({ preventDefault: () => {} }, 'venue-settings.html');
         }
 
-        // Utility functions
+        // Refresh functions
         async function refreshRestaurants() {
             await loadRestaurants();
         }
@@ -2166,7 +2566,6 @@ ${signupUrl}
         }
 
         function viewAllReports() {
-            // Navigate to reports page
             handleNavigation({ preventDefault: () => {} }, 'venue-reports.html');
         }
 
@@ -2190,22 +2589,6 @@ ${signupUrl}
                 window.location.href = url;
             }, 300);
         }
-
-        // Hide loading overlay when page loads
-        window.addEventListener('load', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.remove('active');
-            }
-        });
-
-        // Show loading overlay on page unload
-        window.addEventListener('beforeunload', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.add('active');
-            }
-        });
 
         // Handle logout
         async function handleLogout() {
@@ -2255,6 +2638,10 @@ ${signupUrl}
             });
         }
 
+        // ============================================================================
+        // EVENT LISTENERS AND INITIALIZATION
+        // ============================================================================
+
         // Close modal when clicking outside
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
@@ -2264,6 +2651,22 @@ ${signupUrl}
                         e.target.remove();
                     }
                 }, 300);
+            }
+        });
+
+        // Hide loading overlay when page loads
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('active');
+            }
+        });
+
+        // Show loading overlay on page unload
+        window.addEventListener('beforeunload', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('active');
             }
         });
 
@@ -2285,4 +2688,4 @@ ${signupUrl}
         });
     </script>
 </body>
-</html>
+</html> 
