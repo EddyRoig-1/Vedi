@@ -194,6 +194,40 @@
             opacity: 0.8;
         }
 
+        .venue-currency {
+            font-size: 14px;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Currency Lock Styles */
+        .currency-locked {
+            background: #F8F9FA !important;
+            color: #86868B !important;
+            border-color: #E5E5E7 !important;
+            cursor: not-allowed !important;
+        }
+
+        .currency-locked-notice {
+            background: #E3F2FD;
+            border: 1px solid #BBDEFB;
+            color: #1565C0;
+            padding: 16px;
+            border-radius: 12px;
+            margin-top: 12px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .currency-locked-notice .icon {
+            font-size: 18px;
+        }
+
         /* Loading States */
         .loading-overlay {
             position: fixed;
@@ -947,6 +981,7 @@
                 <div class="venue-info">
                     <div class="venue-name" id="inviteVenueName">Loading venue...</div>
                     <div class="venue-address" id="inviteVenueAddress">Loading address...</div>
+                    <div class="venue-currency" id="inviteVenueCurrency">Currency: Loading...</div>
                 </div>
             </div>
 
@@ -993,6 +1028,15 @@
                             <option value="DKK">Danish Krone (DKK)</option>
                             <option value="CUSTOM">Custom Currency</option>
                         </select>
+                        
+                        <!-- Currency Lock Notice (shown when currency is inherited from venue) -->
+                        <div id="currencyLockNotice" class="currency-locked-notice" style="display: none;">
+                            <span class="icon">🔒</span>
+                            <div>
+                                <strong>Currency inherited from venue</strong><br>
+                                <span id="inheritedCurrencyText">Your restaurant will use the same currency as the venue you're joining.</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1361,6 +1405,8 @@
         let currentUser = null;
         let existingRestaurant = null;
         let invitationData = null; // Store complete invitation data
+        let isInvited = false; // Flag to track if user is invited
+        let venueCurrency = null; // Store venue currency for inheritance
 
         // Currency data
         const currencyData = {
@@ -1381,6 +1427,93 @@
             NOK: { symbol: 'kr', name: 'Norwegian Krone', code: 'NOK' },
             DKK: { symbol: 'kr', name: 'Danish Krone', code: 'DKK' }
         };
+
+        // ============================================================================
+        // CURRENCY INHERITANCE FUNCTIONS
+        // ============================================================================
+
+        /**
+         * Apply currency inheritance from venue invitation
+         * This locks the currency selection and shows inheritance notice
+         */
+        function applyCurrencyInheritance() {
+            if (!invitationData || !invitationData.venueCurrency) {
+                console.log('💰 No venue currency to inherit');
+                return;
+            }
+
+            try {
+                venueCurrency = invitationData.venueCurrency;
+                isInvited = true;
+
+                console.log('💰 Applying currency inheritance:', venueCurrency);
+
+                // Lock the currency dropdown
+                const currencySelect = document.getElementById('currencySelect');
+                const currencyLockNotice = document.getElementById('currencyLockNotice');
+                const customCurrencySection = document.getElementById('customCurrencySection');
+                const inheritedCurrencyText = document.getElementById('inheritedCurrencyText');
+
+                if (currencySelect) {
+                    // Set the currency to venue currency
+                    if (currencyData[venueCurrency.code]) {
+                        currencySelect.value = venueCurrency.code;
+                        selectedCurrency = venueCurrency.code;
+                    } else {
+                        // Handle custom venue currency
+                        currencySelect.value = 'CUSTOM';
+                        selectedCurrency = 'CUSTOM';
+                        document.getElementById('customCurrencyCode').value = venueCurrency.code;
+                        document.getElementById('customCurrencySymbol').value = venueCurrency.symbol;
+                        document.getElementById('customCurrencyName').value = venueCurrency.name;
+                        customCurrencySection.classList.add('show');
+                    }
+
+                    // Lock the dropdown
+                    currencySelect.disabled = true;
+                    currencySelect.classList.add('currency-locked');
+                }
+
+                // Show inheritance notice
+                if (currencyLockNotice && inheritedCurrencyText) {
+                    inheritedCurrencyText.innerHTML = `
+                        Your restaurant will use <strong>${venueCurrency.name} (${venueCurrency.symbol})</strong> 
+                        to match ${invitationData.venueName}.
+                    `;
+                    currencyLockNotice.style.display = 'flex';
+                }
+
+                // Lock custom currency fields if shown
+                if (customCurrencySection.classList.contains('show')) {
+                    document.getElementById('customCurrencyCode').disabled = true;
+                    document.getElementById('customCurrencySymbol').disabled = true;
+                    document.getElementById('customCurrencyName').disabled = true;
+                    document.getElementById('customCurrencyCode').classList.add('currency-locked');
+                    document.getElementById('customCurrencySymbol').classList.add('currency-locked');
+                    document.getElementById('customCurrencyName').classList.add('currency-locked');
+                }
+
+                console.log('✅ Currency inheritance applied successfully');
+
+            } catch (error) {
+                console.error('❌ Error applying currency inheritance:', error);
+                showError('Error applying venue currency inheritance');
+            }
+        }
+
+        /**
+         * Get the final currency data to save
+         * This respects venue inheritance or user selection
+         */
+        function getFinalCurrencyData() {
+            if (isInvited && venueCurrency) {
+                // Return venue currency for invited restaurants
+                return venueCurrency;
+            } else {
+                // Return user-selected currency for independent restaurants
+                return getSelectedCurrencyData();
+            }
+        }
 
         // FIXED: Check for invitation data in URL or sessionStorage
         function checkForInvitation() {
@@ -1416,86 +1549,94 @@
             }
         }
 
-       // FIXED: Load and validate invitation information
-async function loadInvitationData() {
-    if (!invitationData) return;
-    
-    try {
-        console.log('📧 Loading invitation data:', invitationData);
-        showLoading('Loading invitation details...', 'Getting venue information');
-        
-        // FIXED: Use correct field name - check both 'id' and 'invitationId'
-        const invitationId = invitationData.id || invitationData.invitationId;
-        
-        if (!invitationId) {
-            throw new Error('No invitation ID found in invitation data');
-        }
-        
-        console.log('🔍 Looking for invitation with ID:', invitationId);
-        
-        const db = getFirebaseDb();
-        const invitationDoc = await db.collection('venueInvitations').doc(invitationId).get();
-        
-        if (!invitationDoc.exists) {
-            throw new Error('Invitation not found in database');
-        }
-        
-        const invitation = invitationDoc.data();
-        console.log('📧 Found invitation in database:', invitation);
-        
-        // Validate invitation code if provided
-        if (invitationData.code && invitation.invitationCode !== invitationData.code) {
-            throw new Error('Invalid invitation code');
-        }
-        
-        // Check if invitation is still valid
-        if (invitation.status !== 'pending') {
-            throw new Error('This invitation is no longer valid');
-        }
-        
-        // Check if invitation has expired
-        if (invitation.expiresAt && invitation.expiresAt.toDate() < new Date()) {
-            throw new Error('This invitation has expired');
-        }
-        
-        // FIXED: Store complete invitation data with venue details
-        invitationData = {
-            ...invitationData,
-            ...invitation,
-            invitationId: invitationId, // Ensure we have the ID
-            venueId: invitation.venueId,
-            venueName: invitation.venueName,
-            venueCity: invitation.venueCity,
-            venueState: invitation.venueState
-        };
-        
-        // Show invitation banner
-        document.getElementById('inviteVenueName').textContent = invitation.venueName;
-        document.getElementById('inviteVenueAddress').textContent = `${invitation.venueCity}, ${invitation.venueState}`;
-        document.getElementById('invitationBanner').style.display = 'block';
-        
-        console.log('🎉 Invitation validated and banner displayed:', invitationData);
-        
-        hideLoading();
-        
-    } catch (error) {
-        console.error('❌ Error loading invitation:', error);
-        hideLoading();
-        showError('Error validating invitation: ' + error.message);
-        invitationData = null;
-    }
-}
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🚀 Enhanced Restaurant Setup with Venue Invitation Support initializing...');
+        // ENHANCED: Load and validate invitation information with currency inheritance
+        async function loadInvitationData() {
+            if (!invitationData) return;
             
             try {
-                // FIXED: Check for invitation data first
+                console.log('📧 Loading invitation data:', invitationData);
+                showLoading('Loading invitation details...', 'Getting venue information');
+                
+                // Use correct field name - check both 'id' and 'invitationId'
+                const invitationId = invitationData.id || invitationData.invitationId;
+                
+                if (!invitationId) {
+                    throw new Error('No invitation ID found in invitation data');
+                }
+                
+                console.log('🔍 Looking for invitation with ID:', invitationId);
+                
+                const db = getFirebaseDb();
+                const invitationDoc = await db.collection('venueInvitations').doc(invitationId).get();
+                
+                if (!invitationDoc.exists) {
+                    throw new Error('Invitation not found in database');
+                }
+                
+                const invitation = invitationDoc.data();
+                console.log('📧 Found invitation in database:', invitation);
+                
+                // Validate invitation code if provided
+                if (invitationData.code && invitation.invitationCode !== invitationData.code) {
+                    throw new Error('Invalid invitation code');
+                }
+                
+                // Check if invitation is still valid
+                if (invitation.status !== 'pending') {
+                    throw new Error('This invitation is no longer valid');
+                }
+                
+                // Check if invitation has expired
+                if (invitation.expiresAt && invitation.expiresAt.toDate() < new Date()) {
+                    throw new Error('This invitation has expired');
+                }
+                
+                // Store complete invitation data with venue details
+                invitationData = {
+                    ...invitationData,
+                    ...invitation,
+                    invitationId: invitationId,
+                    venueId: invitation.venueId,
+                    venueName: invitation.venueName,
+                    venueCity: invitation.venueCity,
+                    venueState: invitation.venueState,
+                    venueCurrency: invitation.venueCurrency || { code: 'USD', symbol: '$', name: 'US Dollar' }
+                };
+                
+                // Show invitation banner with currency info
+                document.getElementById('inviteVenueName').textContent = invitation.venueName;
+                document.getElementById('inviteVenueAddress').textContent = `${invitation.venueCity}, ${invitation.venueState}`;
+                document.getElementById('inviteVenueCurrency').textContent = 
+                    `Currency: ${invitationData.venueCurrency.name} (${invitationData.venueCurrency.symbol})`;
+                document.getElementById('invitationBanner').style.display = 'block';
+                
+                // Apply currency inheritance
+                applyCurrencyInheritance();
+                
+                console.log('🎉 Invitation validated and currency inheritance applied:', invitationData);
+                
+                hideLoading();
+                
+            } catch (error) {
+                console.error('❌ Error loading invitation:', error);
+                hideLoading();
+                showError('Error validating invitation: ' + error.message);
+                invitationData = null;
+                isInvited = false;
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Enhanced Restaurant Setup with Currency Inheritance initializing...');
+            
+            try {
+                // Check for invitation data first
                 invitationData = checkForInvitation();
                 
                 showLoading('Checking authentication...', 'Verifying your account');
                 
-                // FIXED: Wait for authentication state to be ready
+                // Wait for authentication state to be ready
                 try {
                     const auth = getFirebaseAuth();
                     
@@ -1549,7 +1690,7 @@ async function loadInvitationData() {
                     return;
                 }
                 
-                // FIXED: Load invitation data if present
+                // Load invitation data if present
                 if (invitationData) {
                     await loadInvitationData();
                 }
@@ -1557,7 +1698,7 @@ async function loadInvitationData() {
                 // Check if restaurant already exists
                 showLoading('Loading restaurant data...', 'Checking for existing setup');
                 
-                // FIXED: Check for existing restaurant
+                // Check for existing restaurant
                 if (typeof VediAPI !== 'undefined' && VediAPI.getRestaurantByOwner) {
                     existingRestaurant = await VediAPI.getRestaurantByOwner(currentUser.uid);
                 } else {
@@ -1595,7 +1736,7 @@ async function loadInvitationData() {
             }
         });
 
-        // FIXED: Enhanced restaurant creation with proper venue linking
+        // ENHANCED: Enhanced restaurant creation with venue linking and currency inheritance
         async function goToDashboard() {
             console.log('🚀 Saving data and redirecting to dashboard...');
             
@@ -1610,14 +1751,20 @@ async function loadInvitationData() {
                     currentStep = originalStep;
                 }
                 
-               // Prepare restaurant data for Firebase
+                // Get final currency data (respects venue inheritance)
+                const finalCurrency = getFinalCurrencyData();
+                if (finalCurrency) {
+                    formData.currency = finalCurrency;
+                }
+
+                // Prepare restaurant data for Firebase
                 const restaurantData = {
                     ...formData,
                     ownerUserId: currentUser.uid,
                     setupCompleted: true,
-                    verified: true,                    // ← ADD THIS
-                    verificationStatus: 'approved',    // ← ADD THIS
-                    isOnline: true,                    // ← ADD THIS
+                    verified: true,
+                    verificationStatus: 'approved',
+                    isOnline: true,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
@@ -1651,19 +1798,22 @@ async function loadInvitationData() {
                     console.log('✅ Restaurant created:', savedRestaurant);
                 }
                 
-                // FIXED: Handle venue invitation linking
+                // Handle venue invitation linking with currency inheritance
                 if (invitationData && invitationData.venueId) {
-                    showLoading('Linking to venue...', 'Completing invitation process');
+                    showLoading('Linking to venue...', 'Completing invitation process with currency inheritance');
                     
                     try {
-                        console.log('🔗 Processing venue invitation:', invitationData);
+                        console.log('🔗 Processing venue invitation with currency inheritance:', invitationData);
                         
-                        // Update restaurant with venue information
+                        // Update restaurant with venue information and currency inheritance
                         const venueUpdateData = {
                             venueId: invitationData.venueId,
                             venueName: invitationData.venueName,
                             venueCity: invitationData.venueCity,
                             venueState: invitationData.venueState,
+                            currency: venueCurrency, // Inherit venue currency
+                            previousCurrency: restaurantData.currency, // Store original for reference
+                            currencyInheritedAt: firebase.firestore.FieldValue.serverTimestamp(),
                             joinedVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
                             invitationId: invitationData.invitationId,
                             verified: true, // Auto-verify invited restaurants
@@ -1675,7 +1825,7 @@ async function loadInvitationData() {
                         const db = getFirebaseDb();
                         await db.collection('restaurants').doc(savedRestaurant.id).update(venueUpdateData);
                         
-                        // FIXED: Accept the venue invitation
+                        // Accept the venue invitation
                         await db.collection('venueInvitations').doc(invitationData.invitationId).update({
                             status: 'accepted',
                             acceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1683,7 +1833,7 @@ async function loadInvitationData() {
                             restaurantId: savedRestaurant.id
                         });
                         
-                        console.log('✅ Venue invitation accepted and restaurant linked');
+                        console.log('✅ Venue invitation accepted with currency inheritance');
                         
                     } catch (syncError) {
                         console.error('⚠️ Error with venue sync (restaurant still created):', syncError);
@@ -1706,7 +1856,7 @@ async function loadInvitationData() {
             }
         }
 
-        // FIXED: Enhanced nextStep to handle completion
+        // Enhanced nextStep to handle completion
         async function nextStep() {
             console.log('Next step clicked, current step:', currentStep);
             
@@ -1758,10 +1908,13 @@ async function loadInvitationData() {
                     return false;
                 }
                 
-                // Validate currency selection
-                const currencyInfo = getSelectedCurrencyData();
+                // Validate currency selection (respects inheritance)
+                const currencyInfo = getFinalCurrencyData();
                 if (!currencyInfo) {
-                    return false; // getSelectedCurrencyData already shows error
+                    if (!isInvited) {
+                        showError('Please select a currency for your restaurant.');
+                        return false;
+                    }
                 }
                 
             } else if (currentStep === 2) {
@@ -1869,8 +2022,8 @@ async function loadInvitationData() {
             console.log('Saving data for step:', currentStep);
             
             if (currentStep === 1) {
-                // Save currency data
-                const currencyInfo = getSelectedCurrencyData();
+                // Save currency data (respects venue inheritance)
+                const currencyInfo = getFinalCurrencyData();
                 if (currencyInfo) {
                     formData.currency = currencyInfo;
                 }
@@ -1966,12 +2119,22 @@ async function loadInvitationData() {
             // Success messages disabled - no action needed
         }
 
-        // Currency selection functions
+        // Currency selection functions (enhanced for inheritance)
         function setupCurrencySelection() {
             const currencySelect = document.getElementById('currencySelect');
             const customSection = document.getElementById('customCurrencySection');
 
             currencySelect.addEventListener('change', function() {
+                // Only allow changes if not invited (currency inheritance)
+                if (isInvited) {
+                    // Reset to venue currency
+                    if (venueCurrency && currencyData[venueCurrency.code]) {
+                        this.value = venueCurrency.code;
+                    }
+                    showError('Currency is inherited from the venue you\'re joining.');
+                    return;
+                }
+
                 selectedCurrency = this.value;
 
                 if (this.value === 'CUSTOM') {
@@ -1983,6 +2146,12 @@ async function loadInvitationData() {
         }
 
         function getSelectedCurrencyData() {
+            // For invited restaurants, return venue currency
+            if (isInvited && venueCurrency) {
+                return venueCurrency;
+            }
+
+            // For independent restaurants, return user selection
             if (selectedCurrency === 'CUSTOM') {
                 const code = document.getElementById('customCurrencyCode').value.trim().toUpperCase();
                 const symbol = document.getElementById('customCurrencySymbol').value.trim();
@@ -1999,13 +2168,13 @@ async function loadInvitationData() {
             }
         }
 
-        // Load existing data from Firebase
+        // Load existing data from Firebase (enhanced for currency inheritance)
         function populateFieldsFromFirebase(restaurant) {
             console.log('📝 Populating fields with Firebase data:', restaurant);
             
             try {
-                // Load currency settings
-                if (restaurant.currency) {
+                // Load currency settings (respects inheritance)
+                if (restaurant.currency && !isInvited) {
                     const currencySelect = document.getElementById('currencySelect');
                     
                     if (restaurant.currency.code && currencyData[restaurant.currency.code]) {
@@ -2384,7 +2553,7 @@ async function loadInvitationData() {
             }
         });
 
-        console.log('🍽️ Enhanced Restaurant Setup with Fixed Venue Invitation Support loaded');
+        console.log('🍽️ Enhanced Restaurant Setup with Currency Inheritance loaded');
     </script>
 </body>
 </html>
