@@ -5,8 +5,8 @@ const nodemailer = require('nodemailer');
 
 admin.initializeApp();
 
-// Configure your email transport
-const transporter = nodemailer.createTransporter({
+// Configure your email transport - FIXED: createTransport not createTransporter
+const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: functions.config().email?.user || 'your-email@gmail.com',
