@@ -8,6 +8,8 @@
  * 
  * All utility functions are designed to be pure (no side effects) and
  * can be safely used across all other modules.
+ * 
+ * UPDATED: Now includes timezone-aware functions for venues and restaurants
  */
 
 // ============================================================================
@@ -108,6 +110,329 @@ function getRelativeTime(timestamp) {
     console.error('❌ Error calculating relative time:', error);
     return 'Unknown time';
   }
+}
+
+// ============================================================================
+// TIMEZONE-AWARE DATE AND TIME UTILITIES (NEW)
+// ============================================================================
+
+/**
+ * Get calendar period boundaries in entity's timezone
+ * Calendar-based periods with timezone support for venues and restaurants
+ * @param {string} period - Period type ('today', 'thisWeek', 'thisMonth', 'thisQuarter', 'thisYear')
+ * @param {Object} entity - Entity (venue or restaurant) with timezone
+ * @returns {Object} Object with start and end dates in entity's timezone
+ */
+function getCalendarPeriodBoundaries(period, entity = null) {
+    try {
+        // Get timezone from entity or use UTC as fallback
+        const timezone = getEntityTimezone(entity);
+        const now = new Date();
+        
+        // Get current time in entity's timezone
+        const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+        
+        let start, end;
+        
+        switch (period.toLowerCase()) {
+            case 'today':
+                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 0, 0, 0);
+                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59);
+                break;
+                
+            case 'thisweek':
+                // Monday to Sunday
+                const dayOfWeek = nowInTimezone.getDay();
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Sunday = 0, Monday = 1
+                start = new Date(nowInTimezone);
+                start.setDate(nowInTimezone.getDate() + mondayOffset);
+                start.setHours(0, 0, 0, 0);
+                
+                end = new Date(start);
+                end.setDate(start.getDate() + 6);
+                end.setHours(23, 59, 59, 999);
+                break;
+                
+            case 'thismonth':
+                // 1st to end of month
+                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 1, 0, 0, 0);
+                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() + 1, 0, 23, 59, 59);
+                break;
+                
+            case 'thisquarter':
+                // Q1/Q2/Q3/Q4
+                const quarterMonth = Math.floor(nowInTimezone.getMonth() / 3) * 3;
+                start = new Date(nowInTimezone.getFullYear(), quarterMonth, 1, 0, 0, 0);
+                end = new Date(nowInTimezone.getFullYear(), quarterMonth + 3, 0, 23, 59, 59);
+                break;
+                
+            case 'thisyear':
+                // January 1st to December 31st
+                start = new Date(nowInTimezone.getFullYear(), 0, 1, 0, 0, 0);
+                end = new Date(nowInTimezone.getFullYear(), 11, 31, 23, 59, 59);
+                break;
+                
+            default:
+                console.warn('⚠️ Invalid calendar period:', period);
+                // Default to today
+                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 0, 0, 0);
+                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59);
+        }
+        
+        return { start, end, timezone };
+        
+    } catch (error) {
+        console.error('❌ Get calendar period boundaries error:', error);
+        // Fallback to current date
+        const fallbackStart = new Date();
+        fallbackStart.setHours(0, 0, 0, 0);
+        const fallbackEnd = new Date();
+        fallbackEnd.setHours(23, 59, 59, 999);
+        
+        return { 
+            start: fallbackStart, 
+            end: fallbackEnd, 
+            timezone: 'UTC'
+        };
+    }
+}
+
+/**
+ * Get previous calendar period for comparison
+ * @param {string} period - Period type
+ * @param {Object} entity - Entity with timezone
+ * @returns {Object} Previous period boundaries
+ */
+function getPreviousCalendarPeriod(period, entity = null) {
+    try {
+        const timezone = getEntityTimezone(entity);
+        const now = new Date();
+        const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+        
+        let start, end;
+        
+        switch (period.toLowerCase()) {
+            case 'today':
+                // Yesterday
+                start = new Date(nowInTimezone);
+                start.setDate(nowInTimezone.getDate() - 1);
+                start.setHours(0, 0, 0, 0);
+                
+                end = new Date(start);
+                end.setHours(23, 59, 59, 999);
+                break;
+                
+            case 'thisweek':
+                // Last week (same Monday-Sunday)
+                const dayOfWeek = nowInTimezone.getDay();
+                const lastMondayOffset = dayOfWeek === 0 ? -13 : -6 - dayOfWeek; // Previous Monday
+                start = new Date(nowInTimezone);
+                start.setDate(nowInTimezone.getDate() + lastMondayOffset);
+                start.setHours(0, 0, 0, 0);
+                
+                end = new Date(start);
+                end.setDate(start.getDate() + 6);
+                end.setHours(23, 59, 59, 999);
+                break;
+                
+            case 'thismonth':
+                // Last month (1st to end)
+                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() - 1, 1, 0, 0, 0);
+                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 0, 23, 59, 59);
+                break;
+                
+            case 'thisquarter':
+                // Previous quarter
+                const currentQuarter = Math.floor(nowInTimezone.getMonth() / 3);
+                const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
+                const prevYear = currentQuarter === 0 ? nowInTimezone.getFullYear() - 1 : nowInTimezone.getFullYear();
+                
+                start = new Date(prevYear, prevQuarter * 3, 1, 0, 0, 0);
+                end = new Date(prevYear, prevQuarter * 3 + 3, 0, 23, 59, 59);
+                break;
+                
+            case 'thisyear':
+                // Last year
+                start = new Date(nowInTimezone.getFullYear() - 1, 0, 1, 0, 0, 0);
+                end = new Date(nowInTimezone.getFullYear() - 1, 11, 31, 23, 59, 59);
+                break;
+                
+            default:
+                console.warn('⚠️ Invalid calendar period for previous:', period);
+                // Default to yesterday
+                start = new Date(nowInTimezone);
+                start.setDate(nowInTimezone.getDate() - 1);
+                start.setHours(0, 0, 0, 0);
+                
+                end = new Date(start);
+                end.setHours(23, 59, 59, 999);
+        }
+        
+        return { start, end, timezone };
+        
+    } catch (error) {
+        console.error('❌ Get previous calendar period error:', error);
+        // Fallback to yesterday
+        const fallbackStart = new Date();
+        fallbackStart.setDate(fallbackStart.getDate() - 1);
+        fallbackStart.setHours(0, 0, 0, 0);
+        
+        const fallbackEnd = new Date(fallbackStart);
+        fallbackEnd.setHours(23, 59, 59, 999);
+        
+        return { 
+            start: fallbackStart, 
+            end: fallbackEnd, 
+            timezone: 'UTC'
+        };
+    }
+}
+
+/**
+ * Get timezone for any entity (venue or restaurant)
+ * @param {Object} entity - Venue or restaurant data object
+ * @returns {string} Entity's effective timezone
+ */
+function getEntityTimezone(entity) {
+    try {
+        if (!entity) {
+            return 'UTC';
+        }
+        
+        // If it's a venue, return venue timezone
+        if (entity.managerUserId || entity.maxRestaurants) { // Venue indicators
+            return entity.timezone || 'UTC';
+        }
+        
+        // If it's a restaurant, check for venue timezone first
+        if (entity.ownerId || entity.restaurantType) { // Restaurant indicators
+            // If restaurant is in venue, use venue timezone
+            if (entity.venueId && entity.venueTimezone) {
+                return entity.venueTimezone;
+            }
+            
+            // Independent restaurant uses own timezone
+            if (entity.timezone) {
+                return entity.timezone;
+            }
+        }
+        
+        // Fallback: check for timezone property
+        return entity.timezone || 'UTC';
+        
+    } catch (error) {
+        console.error('❌ Get entity timezone error:', error);
+        return 'UTC';
+    }
+}
+
+/**
+ * Convert timestamp to date in entity's timezone
+ * Enhanced version of timestampToDate with timezone support
+ * @param {Object|number|string} timestamp - Firebase timestamp or regular timestamp
+ * @param {Object} entity - Entity with timezone (optional)
+ * @returns {Date} Date object in entity's timezone
+ */
+function timestampToDateInTimezone(timestamp, entity = null) {
+    try {
+        let date;
+        
+        if (timestamp && timestamp.toDate) {
+            // Firebase Timestamp object
+            date = timestamp.toDate();
+        } else if (timestamp && timestamp.seconds) {
+            // Firebase Timestamp-like object with seconds
+            date = new Date(timestamp.seconds * 1000);
+        } else {
+            // Regular timestamp or date string
+            date = new Date(timestamp);
+        }
+        
+        // If entity provided, convert to entity's timezone
+        if (entity) {
+            const timezone = getEntityTimezone(entity);
+            return new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+        }
+        
+        return date;
+        
+    } catch (error) {
+        console.error('❌ Error converting timestamp to timezone:', error);
+        return new Date(); // Return current date as fallback
+    }
+}
+
+/**
+ * Filter orders by calendar time period in entity's timezone
+ * @param {Array} orders - Array of order objects
+ * @param {string} period - Time period
+ * @param {Object} entity - Entity with timezone
+ * @returns {Array} Filtered orders
+ */
+function filterOrdersByTimePeriod(orders, period, entity = null) {
+    try {
+        const { start, end } = getCalendarPeriodBoundaries(period, entity);
+        
+        return orders.filter(order => {
+            const orderDate = timestampToDateInTimezone(order.timestamp || order.createdAt, entity);
+            return orderDate >= start && orderDate <= end;
+        });
+        
+    } catch (error) {
+        console.error('❌ Filter orders by time period error:', error);
+        return orders; // Return all orders as fallback
+    }
+}
+
+/**
+ * Get current date/time in entity's timezone
+ * @param {Object} entity - Venue or restaurant object
+ * @returns {Date} Current date in entity timezone
+ */
+function getCurrentTimeInEntityTimezone(entity) {
+    try {
+        const timezone = getEntityTimezone(entity);
+        const now = new Date();
+        
+        // Convert to entity timezone
+        const timeInTimezone = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+        
+        return timeInTimezone;
+        
+    } catch (error) {
+        console.error('❌ Get current time in entity timezone error:', error);
+        return new Date(); // Fallback to local time
+    }
+}
+
+/**
+ * Format date in entity's timezone
+ * @param {Date} date - Date to format
+ * @param {Object} entity - Venue or restaurant object
+ * @param {Object} options - Formatting options
+ * @returns {string} Formatted date string
+ */
+function formatDateInEntityTimezone(date, entity, options = {}) {
+    try {
+        const timezone = getEntityTimezone(entity);
+        
+        const defaultOptions = {
+            timeZone: timezone,
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        };
+        
+        const formatOptions = { ...defaultOptions, ...options };
+        
+        return date.toLocaleString('en-US', formatOptions);
+        
+    } catch (error) {
+        console.error('❌ Format date in entity timezone error:', error);
+        return date.toLocaleString(); // Fallback to local formatting
+    }
 }
 
 // ============================================================================
@@ -242,6 +567,33 @@ function formatCurrency(amount, currency = 'USD') {
     console.error('❌ Currency formatting error:', error);
     return `$${amount.toFixed(2)}`;
   }
+}
+
+/**
+ * Enhanced format currency with entity context
+ * @param {number} amount - Amount to format
+ * @param {Object} entity - Entity with currency and timezone
+ * @returns {string} Formatted currency string
+ */
+function formatCurrencyForEntity(amount, entity) {
+    try {
+        const currency = entity?.currency?.code || 'USD';
+        const symbol = entity?.currency?.symbol || '$';
+        
+        // Use Intl.NumberFormat with proper currency
+        try {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: currency
+            }).format(amount);
+        } catch (intlError) {
+            // Fallback to symbol if currency code is invalid
+            return `${symbol}${amount.toFixed(2)}`;
+        }
+    } catch (error) {
+        console.error('❌ Format currency for entity error:', error);
+        return `$${amount.toFixed(2)}`;
+    }
 }
 
 /**
@@ -662,11 +1014,20 @@ if (!window.VediAPI) {
 
 // Attach all utility functions to VediAPI
 Object.assign(window.VediAPI, {
-  // Date and time utilities
+  // Date and time utilities (original)
   timestampToDate,
   getTimePeriodStart,
   getWeekKey,
   getRelativeTime,
+  
+  // NEW: Timezone-aware date and time utilities
+  getCalendarPeriodBoundaries,
+  getPreviousCalendarPeriod,
+  getEntityTimezone,
+  timestampToDateInTimezone,
+  filterOrdersByTimePeriod,
+  getCurrentTimeInEntityTimezone,
+  formatDateInEntityTimezone,
   
   // Data formatting utilities
   generateOrderNumber,
@@ -675,6 +1036,7 @@ Object.assign(window.VediAPI, {
   maskPhoneNumber,
   maskPhoneNumberCustomer,
   formatCurrency,
+  formatCurrencyForEntity, // NEW: Entity-aware currency formatting
   formatPercentage,
   
   // Error handling and validation
@@ -704,9 +1066,12 @@ Object.assign(window.VediAPI, {
   withTracking
 });
 
-console.log('🛠️ Enhanced Core Utilities Module loaded with CustomerAuthAPI integration');
+console.log('🛠️ Enhanced Core Utilities Module loaded with TIMEZONE SUPPORT');
 console.log('📅 Date/Time: timestampToDate, getTimePeriodStart, getWeekKey, getRelativeTime');
+console.log('🕐 NEW Timezone: getCalendarPeriodBoundaries, getPreviousCalendarPeriod, getEntityTimezone');
+console.log('🌍 NEW Entity Support: timestampToDateInTimezone, filterOrdersByTimePeriod, formatDateInEntityTimezone');
 console.log('📋 Formatting: generateOrderNumber, generateInviteCode, generateInvitationCode, maskPhoneNumber, formatCurrency');
+console.log('💰 NEW Currency: formatCurrencyForEntity with entity-aware formatting');
 console.log('📱 Phone: formatPhoneNumber, formatPhoneNumberCustomer, validatePhoneNumberCustomer');
 console.log('🔒 Privacy: maskPhoneNumber, maskPhoneNumberCustomer with enhanced patterns');
 console.log('✅ Validation: getAuthErrorMessage, validateEmail, validatePhoneNumber, sanitizeInput');
@@ -715,4 +1080,5 @@ console.log('📊 INJECTED Analytics: groupAPICallsByMethod, calculateErrorRate,
 console.log('🔄 INJECTED Tracking: withTracking wrapper for API methods');
 console.log('🌟 CustomerAuthAPI: Enhanced phone utilities for authentication system');
 console.log('🎯 NEW: generateInvitationCode for venue invitation system');
+console.log('⏰ TIMEZONE READY: All time functions now support venue/restaurant timezones');
 console.log('💫 All utilities available globally via VediAPI namespace');
