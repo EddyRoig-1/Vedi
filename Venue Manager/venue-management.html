@@ -914,7 +914,7 @@
         <section class="quick-actions">
             <div class="action-card" onclick="openInviteModal()">
                 <h3 class="action-title">Invite Restaurant</h3>
-                <p class="action-description">Send an invitation or join code to restaurants</p>
+                <p class="action-description">Send an invitation or join code to restaurant owners</p>
                 <button class="action-button">Send Invitation</button>
             </div>
 
@@ -970,20 +970,20 @@
             <div class="form-section active" id="inviteStep1">
                 <div class="modal-header">
                     <h2 class="modal-title">How would you like to invite?</h2>
-                    <p class="modal-subtitle">Choose the invitation method based on whether the restaurant already has an account</p>
+                    <p class="modal-subtitle">Choose the invitation method based on whether the restaurant owner already has an account</p>
                 </div>
                 
                 <div class="invitation-type-selector">
                     <div class="invitation-type-option" onclick="selectInvitationType('new-user')" id="newUserOption">
                         <span class="invitation-type-icon">👤</span>
                         <div class="invitation-type-title">New User</div>
-                        <div class="invitation-type-description">Send signup link to restaurants that don't have an account yet</div>
+                        <div class="invitation-type-description">Send signup link to restaurant owners that don't have an account yet</div>
                     </div>
                     
                     <div class="invitation-type-option" onclick="selectInvitationType('existing-user')" id="existingUserOption">
                         <span class="invitation-type-icon">🔑</span>
                         <div class="invitation-type-title">Existing User</div>
-                        <div class="invitation-type-description">Send join code to restaurants that already have accounts</div>
+                        <div class="invitation-type-description">Send join code to restaurant owners that already have accounts</div>
                     </div>
                 </div>
 
@@ -993,23 +993,17 @@
                 </div>
             </div>
 
-            <!-- Step 2: Restaurant Information -->
+            <!-- Step 2: Restaurant Owner Contact Information -->
             <div class="form-section" id="inviteStep2">
                 <div class="modal-header">
-                    <h2 class="modal-title" id="step2Title">Restaurant Information</h2>
-                    <p class="modal-subtitle" id="step2Subtitle">Enter the restaurant details</p>
+                    <h2 class="modal-title" id="step2Title">Restaurant Owner Contact</h2>
+                    <p class="modal-subtitle" id="step2Subtitle">Enter the restaurant owner's email address</p>
                 </div>
                 
                 <div class="setting-item">
-                    <label class="setting-label">Restaurant Name *</label>
-                    <input type="text" class="setting-input" id="inviteRestaurantName" 
-                           placeholder="Enter restaurant name" required minlength="2">
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label">Contact Email *</label>
+                    <label class="setting-label">Restaurant Owner Email *</label>
                     <input type="email" class="setting-input" id="inviteContactEmail" 
-                           placeholder="restaurant@example.com" required>
+                           placeholder="restaurant.owner@example.com" required>
                 </div>
                 
                 <div class="setting-item">
@@ -1033,14 +1027,14 @@
             <div class="form-section" id="inviteStep3">
                 <div class="modal-header">
                     <h2 class="modal-title" id="step3Title">Invitation Created!</h2>
-                    <p class="modal-subtitle" id="step3Subtitle">Share this information with the restaurant</p>
+                    <p class="modal-subtitle" id="step3Subtitle">Share this information with the restaurant owner</p>
                 </div>
 
                 <!-- For New Users: Signup Link -->
                 <div id="newUserInvitation" style="display: none;">
                     <div class="info-box green">
                         <strong>✅ Signup Invitation Created</strong><br>
-                        Send this link to the restaurant so they can create an account and join your venue.
+                        Send this link to the restaurant owner so they can create an account and join your venue.
                     </div>
 
                     <div class="setting-item">
@@ -1050,7 +1044,7 @@
                     </div>
 
                     <div class="setting-item">
-                        <label class="setting-label">Invitation Code</label>
+                        <label class="setting-label">Invitation Code (Backup)</label>
                         <input type="text" class="setting-input" id="invitationCodeDisplay" readonly>
                         <button class="copy-button" onclick="copyInvitationCode()">Copy Code</button>
                     </div>
@@ -1060,7 +1054,7 @@
                 <div id="existingUserInvitation" style="display: none;">
                     <div class="info-box green">
                         <strong>🔑 Join Code Generated</strong><br>
-                        Send this code to the restaurant. They can enter it in their restaurant settings to join your venue.
+                        Send this code to the restaurant owner. They can enter it in their restaurant settings to join your venue.
                     </div>
 
                     <div class="join-code-display">
@@ -1071,7 +1065,7 @@
                     </div>
 
                     <div class="setting-item">
-                        <label class="setting-label">Instructions for Restaurant</label>
+                        <label class="setting-label">Instructions for Restaurant Owner</label>
                         <textarea class="setting-textarea" id="joinInstructions" readonly>
 1. Log into your restaurant dashboard
 2. Go to Settings > Venue Association  
@@ -1241,14 +1235,14 @@
             
             if (selectedInvitationType === 'new-user') {
                 document.getElementById('step2Title').textContent = 'New User Invitation';
-                document.getElementById('step2Subtitle').textContent = 'Enter restaurant details to send a signup invitation';
+                document.getElementById('step2Subtitle').textContent = 'Enter restaurant owner email to send a signup invitation';
                 document.getElementById('currencyInheritanceInfo').textContent = 'Signup Process:';
-                document.getElementById('currencyInheritanceText').textContent = 'Restaurant will create account → inherit venue currency during setup';
+                document.getElementById('currencyInheritanceText').textContent = 'Restaurant owner will create account → inherit venue currency during setup';
             } else {
                 document.getElementById('step2Title').textContent = 'Existing User Join Code';
-                document.getElementById('step2Subtitle').textContent = 'Enter restaurant details to generate a join code';
+                document.getElementById('step2Subtitle').textContent = 'Enter restaurant owner email to generate a join code';
                 document.getElementById('currencyInheritanceInfo').textContent = 'Join Process:';
-                document.getElementById('currencyInheritanceText').textContent = 'Restaurant will enter code → currency changes to match venue';
+                document.getElementById('currencyInheritanceText').textContent = 'Restaurant owner will enter code → currency changes to match venue';
             }
             
             showStep(2);
@@ -1290,13 +1284,7 @@
         }
 
         function validateStep2Form() {
-            const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
             const contactEmail = document.getElementById('inviteContactEmail').value.trim();
-            
-            if (!restaurantName || restaurantName.length < 2) {
-                showMessage('Please enter a valid restaurant name (at least 2 characters)', 'error');
-                return false;
-            }
             
             if (!contactEmail || !VediAPI.validateEmail(contactEmail)) {
                 showMessage('Please enter a valid email address', 'error');
@@ -1309,7 +1297,6 @@
         async function createNewUserInvitation() {
             console.log('📧 Creating new user invitation...');
             
-            const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
             const contactEmail = document.getElementById('inviteContactEmail').value.trim();
             const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
             
@@ -1322,7 +1309,6 @@
                 venueCity: currentVenue.city,
                 venueState: currentVenue.state,
                 venueCurrency: venueCurrency,
-                restaurantName: restaurantName,
                 contactEmail: contactEmail,
                 personalMessage: personalMessage,
                 invitationCode: invitationCode,
@@ -1356,7 +1342,7 @@
             };
             
             document.getElementById('step3Title').textContent = 'Signup Invitation Created!';
-            document.getElementById('step3Subtitle').textContent = 'Send this signup link to the restaurant';
+            document.getElementById('step3Subtitle').textContent = 'Send this signup link to the restaurant owner';
             document.getElementById('newUserInvitation').style.display = 'block';
             document.getElementById('existingUserInvitation').style.display = 'none';
             document.getElementById('signupLinkDisplay').value = signupUrl;
@@ -1369,7 +1355,6 @@
         async function createExistingUserJoinCode() {
             console.log('🔑 Creating existing user join code...');
             
-            const restaurantName = document.getElementById('inviteRestaurantName').value.trim();
             const contactEmail = document.getElementById('inviteContactEmail').value.trim();
             const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
             
@@ -1382,7 +1367,6 @@
                 venueCity: currentVenue.city,
                 venueState: currentVenue.state,
                 venueCurrency: venueCurrency,
-                restaurantName: restaurantName,
                 contactEmail: contactEmail,
                 personalMessage: personalMessage,
                 joinCode: joinCode,
@@ -1408,7 +1392,7 @@
             };
             
             document.getElementById('step3Title').textContent = 'Join Code Generated!';
-            document.getElementById('step3Subtitle').textContent = 'Send this code to the restaurant';
+            document.getElementById('step3Subtitle').textContent = 'Send this code to the restaurant owner';
             document.getElementById('newUserInvitation').style.display = 'none';
             document.getElementById('existingUserInvitation').style.display = 'block';
             document.getElementById('joinCodeDisplay').textContent = joinCode;
@@ -1499,7 +1483,6 @@
         }
 
         function clearFormInputs() {
-            document.getElementById('inviteRestaurantName').value = '';
             document.getElementById('inviteContactEmail').value = '';
             document.getElementById('invitePersonalMessage').value = '';
         }
@@ -1668,7 +1651,7 @@
                     <div class="empty-state" style="grid-column: 1 / -1;">
                         <div class="empty-state-icon">🍽️</div>
                         <h3>No restaurants in this venue yet</h3>
-                        <p>Send invitations to restaurants to get started</p>
+                        <p>Send invitations to restaurant owners to get started</p>
                         <button class="action-button" onclick="openInviteModal()" style="margin-top: 16px; max-width: 200px;">
                             Send First Invitation
                         </button>
