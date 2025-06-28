@@ -230,28 +230,25 @@
 
         /* Join Code Section Styles */
         .join-code-section {
-            background: #F0F8FF;
-            border: 2px solid #007AFF;
+            background: #FFFFFF;
+            border: 1px solid #E5E5E7;
             border-radius: 12px;
-            padding: 24px;
+            padding: 20px;
             margin-bottom: 24px;
         }
 
         .join-code-title {
-            font-size: 20px;
+            font-size: 17px;
             font-weight: 600;
-            color: #007AFF;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            color: #1D1D1F;
+            margin-bottom: 8px;
         }
 
         .join-code-description {
-            color: #0056CC;
-            margin-bottom: 20px;
+            color: #86868B;
+            margin-bottom: 16px;
             font-size: 15px;
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
         .join-code-input-group {
@@ -262,15 +259,15 @@
 
         .join-code-input {
             flex: 1;
-            max-width: 200px;
+            max-width: 160px;
         }
 
         .join-code-input input {
             width: 100%;
             height: 44px;
             padding: 12px 16px;
-            border: 2px solid #007AFF;
-            border-radius: 8px;
+            border: 1px solid #E5E5E7;
+            border-radius: 10px;
             font-size: 17px;
             font-weight: 600;
             text-align: center;
@@ -278,12 +275,14 @@
             letter-spacing: 2px;
             font-family: 'SF Mono', Monaco, monospace;
             background: #FFFFFF;
-            color: #007AFF;
+            color: #1D1D1F;
+            transition: all 0.2s ease;
         }
 
         .join-code-input input:focus {
             outline: none;
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
         }
 
         .join-code-input input::placeholder {
@@ -296,13 +295,14 @@
             background: #007AFF;
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 12px 20px;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
+            min-height: 44px;
         }
 
         .join-venue-btn:hover:not(:disabled) {
@@ -893,10 +893,10 @@
             <!-- Join Code Section (NEW!) -->
             <div class="join-code-section" id="joinCodeSection" style="display: none;">
                 <div class="join-code-title">
-                    🔑 Have an invitation code?
+                    Have an invitation code?
                 </div>
                 <div class="join-code-description">
-                    Enter the join code you received from a venue manager to join their venue. Your restaurant's currency will automatically change to match the venue's currency.
+                    Enter the join code you received from a venue manager to join their venue.
                 </div>
                 <div class="join-code-input-group">
                     <div class="join-code-input">
@@ -1672,17 +1672,11 @@
          * Leave venue function with currency unlock
          */
         async function leaveVenue() {
-            if (!confirm('Are you sure you want to leave this venue? This action cannot be undone and you will need to request to rejoin.')) {
-                return;
-            }
-            
-            const reason = prompt('Please provide a reason for leaving the venue (optional):') || 'Restaurant decided to leave venue';
-            
             try {
                 showLoading('Leaving venue...', 'Updating restaurant settings');
                 
                 if (typeof VediAPI.unsyncRestaurantFromVenue === 'function') {
-                    await VediAPI.unsyncRestaurantFromVenue(restaurantId, reason);
+                    await VediAPI.unsyncRestaurantFromVenue(restaurantId, 'Restaurant left venue via settings');
                 } else {
                     // Manual venue leaving
                     await VediAPI.updateRestaurant(restaurantId, {
@@ -1691,7 +1685,7 @@
                         venueAddress: null,
                         leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
                         venueStatus: null,
-                        unsyncReason: reason,
+                        unsyncReason: 'Restaurant left venue via settings',
                         // Note: We keep the inherited currency - restaurant can change it independently now
                         currencyDetachedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
@@ -1760,7 +1754,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <div style="font-weight: 600; color: #1D1D1F; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
-                                    🏢 ${restaurantSyncStatus.venueName || 'Unknown Venue'}
+                                    ${restaurantSyncStatus.venueName || 'Unknown Venue'}
                                     <span class="venue-status-badge active">Active</span>
                                 </div>
                                 <div style="color: #86868B; font-size: 14px;">
@@ -1775,7 +1769,7 @@
                                 ` : ''}
                                 ${currentRestaurant.currency ? `
                                     <div style="color: #2E7D32; font-size: 12px; margin-top: 4px; font-weight: 600;">
-                                        💰 Currency: ${currentRestaurant.currency.code} (${currentRestaurant.currency.symbol})
+                                        Currency: ${currentRestaurant.currency.code} (${currentRestaurant.currency.symbol})
                                     </div>
                                 ` : ''}
                             </div>
@@ -1789,17 +1783,16 @@
                 // Restaurant is independent - show simple info message
                 venueContainer.innerHTML = `
                     <div class="venue-info-card">
-                        <div style="font-size: 48px; margin-bottom: 16px;">🏢</div>
-                        <h3 style="color: #1D1D1F; font-size: 20px; font-weight: 600; margin-bottom: 8px;">Are you within a venue?</h3>
-                        <p style="color: #86868B; font-size: 16px; line-height: 1.5; margin-bottom: 16px;">
+                        <h3 style="color: #1D1D1F; font-size: 17px; font-weight: 600; margin-bottom: 8px;">Are you within a venue?</h3>
+                        <p style="color: #86868B; font-size: 15px; line-height: 1.4; margin-bottom: 16px;">
                             Ask your venue manager to add you to their team. They can send you an invitation link to join their venue system.
                         </p>
-                        <div style="background: #F8F9FA; border: 1px solid #E5E5E7; border-radius: 8px; padding: 16px; margin-top: 16px;">
-                            <div style="color: #6B7280; font-size: 14px;">
+                        <div style="background: #F8F9FA; border: 1px solid #E5E5E7; border-radius: 8px; padding: 16px;">
+                            <div style="color: #6B7280; font-size: 14px; line-height: 1.4;">
                                 <strong>How it works:</strong><br>
                                 1. Contact your venue manager<br>
                                 2. They'll send you an invitation link or join code<br>
-                                3. Click the link or enter the code below to join<br>
+                                3. Click the link or enter the code above to join<br>
                                 4. Your restaurant will inherit the venue's currency automatically
                             </div>
                         </div>
@@ -1813,9 +1806,8 @@
             if (venueContainer) {
                 venueContainer.innerHTML = `
                     <div class="venue-info-card">
-                        <div style="font-size: 48px; margin-bottom: 16px;">🏢</div>
-                        <h3 style="color: #1D1D1F; font-size: 20px; font-weight: 600; margin-bottom: 8px;">Venue Association</h3>
-                        <p style="color: #86868B; font-size: 16px;">
+                        <h3 style="color: #1D1D1F; font-size: 17px; font-weight: 600; margin-bottom: 8px;">Venue Association</h3>
+                        <p style="color: #86868B; font-size: 15px;">
                             Currently not associated with any venue. Contact your venue manager if you operate within a venue space.
                         </p>
                     </div>
