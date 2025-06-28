@@ -30,6 +30,7 @@
     <script src="../Api/business/venues.js"></script>
     <script src="../Api/business/restaurants.js"></script>
     <script src="../Api/business/venue-sync.js"></script>
+    <script src="../Api/business/timezone.js"></script>
     
     <style>
         /* iOS Design System - Matching venue-management proportions */
@@ -276,7 +277,7 @@
             background-color: #0056CC;
         }
 
-        /* Currency Section */
+        /* Currency & Timezone Section */
         .currency-section {
             background: #FFFFFF;
             border-radius: 12px;
@@ -311,7 +312,7 @@
             line-height: 1.5;
         }
 
-        .currency-select {
+        .currency-select, .timezone-select {
             width: 100%;
             height: 44px;
             padding: 0 16px;
@@ -330,13 +331,13 @@
             color: #1D1D1F;
         }
 
-        .currency-select:focus {
+        .currency-select:focus, .timezone-select:focus {
             border-color: #007AFF;
             box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
             outline: none;
         }
 
-        .currency-warning {
+        .currency-warning, .timezone-warning {
             background: #FEF2F2;
             border: 1px solid #FECACA;
             border-radius: 8px;
@@ -345,22 +346,38 @@
             display: none;
         }
 
-        .currency-warning.show {
+        .currency-warning.show, .timezone-warning.show {
             display: block;
             animation: slideDown 0.3s ease;
         }
 
-        .currency-warning-title {
+        .currency-warning-title, .timezone-warning-title {
             font-weight: 600;
             color: #DC2626;
             margin-bottom: 8px;
         }
 
-        .currency-warning-list {
+        .currency-warning-list, .timezone-warning-list {
             margin: 0;
             padding-left: 20px;
             color: #B91C1C;
             font-size: 14px;
+        }
+
+        /* Timezone Info Box */
+        .timezone-info {
+            background: #F0F8FF;
+            border: 1px solid #B3D9FF;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: #0056CC;
+        }
+
+        .timezone-current-time {
+            font-weight: 500;
+            margin-top: 4px;
         }
 
         /* Venue Type Selection */
@@ -734,33 +751,59 @@
         <!-- Page Header -->
         <section class="page-header">
             <h1 class="page-title">Venue Settings</h1>
-            <p class="page-subtitle">Manage your venue configuration, currency, and operational settings</p>
+            <p class="page-subtitle">Manage your venue configuration, currency, timezone, and operational settings</p>
         </section>
 
         <!-- Error/Success Messages -->
         <div id="errorMessage" class="message error"></div>
         <div id="successMessage" class="message success"></div>
 
-        <!-- Currency Settings Section -->
+        <!-- Currency & Timezone Settings Section -->
         <section class="currency-section">
             <div class="currency-header">
-                <span class="currency-icon">💰</span>
-                <h2 class="currency-title">Currency Settings</h2>
+                <span class="currency-icon">🌍</span>
+                <h2 class="currency-title">Currency & Timezone Settings</h2>
             </div>
             <p class="currency-description">
-                Set your venue's currency. All restaurants in your venue will automatically use this currency for consistency in reporting and transactions.
+                Configure your venue's currency and timezone. All restaurants in your venue will automatically inherit these settings for consistency in reporting and transactions.
             </p>
             
-            <div class="form-group">
-                <label class="form-label" for="currencySelect">Venue Currency</label>
-                <select class="currency-select" id="currencySelect">
-                    <option value='{"code":"USD","symbol":"$","name":"US Dollar"}'>USD - US Dollar ($)</option>
-                    <option value='{"code":"EUR","symbol":"€","name":"Euro"}'>EUR - Euro (€)</option>
-                    <option value='{"code":"GBP","symbol":"£","name":"British Pound"}'>GBP - British Pound (£)</option>
-                    <option value='{"code":"CAD","symbol":"CA$","name":"Canadian Dollar"}'>CAD - Canadian Dollar (CA$)</option>
-                    <option value='{"code":"AUD","symbol":"AU$","name":"Australian Dollar"}'>AUD - Australian Dollar (AU$)</option>
-                    <option value='{"code":"JPY","symbol":"¥","name":"Japanese Yen"}'>JPY - Japanese Yen (¥)</option>
-                </select>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="currencySelect">Venue Currency</label>
+                    <select class="currency-select" id="currencySelect">
+                        <option value='{"code":"USD","symbol":"$","name":"US Dollar"}'>USD - US Dollar ($)</option>
+                        <option value='{"code":"EUR","symbol":"€","name":"Euro"}'>EUR - Euro (€)</option>
+                        <option value='{"code":"GBP","symbol":"£","name":"British Pound"}'>GBP - British Pound (£)</option>
+                        <option value='{"code":"CAD","symbol":"CA$","name":"Canadian Dollar"}'>CAD - Canadian Dollar (CA$)</option>
+                        <option value='{"code":"AUD","symbol":"AU$","name":"Australian Dollar"}'>AUD - Australian Dollar (AU$)</option>
+                        <option value='{"code":"JPY","symbol":"¥","name":"Japanese Yen"}'>JPY - Japanese Yen (¥)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="timezoneSelect">Venue Timezone</label>
+                    <select class="timezone-select" id="timezoneSelect">
+                        <option value="America/New_York">🇺🇸 Eastern Time (ET)</option>
+                        <option value="America/Chicago">🇺🇸 Central Time (CT)</option>
+                        <option value="America/Denver">🇺🇸 Mountain Time (MT)</option>
+                        <option value="America/Los_Angeles">🇺🇸 Pacific Time (PT)</option>
+                        <option value="America/Phoenix">🇺🇸 Arizona Time (MST)</option>
+                        <option value="America/Anchorage">🇺🇸 Alaska Time (AKST)</option>
+                        <option value="Pacific/Honolulu">🇺🇸 Hawaii Time (HST)</option>
+                        <option value="America/Toronto">🇨🇦 Eastern Time - Canada</option>
+                        <option value="America/Vancouver">🇨🇦 Pacific Time - Canada</option>
+                        <option value="Europe/London">🇬🇧 London Time (GMT/BST)</option>
+                        <option value="Europe/Paris">🇫🇷 Central European Time</option>
+                        <option value="Asia/Tokyo">🇯🇵 Japan Standard Time</option>
+                        <option value="Australia/Sydney">🇦🇺 Australian Eastern Time</option>
+                        <option value="UTC">🌍 Coordinated Universal Time (UTC)</option>
+                    </select>
+                    <div class="timezone-info" id="timezoneInfo">
+                        <div>Current time in selected timezone:</div>
+                        <div class="timezone-current-time" id="currentTimeDisplay">--</div>
+                    </div>
+                </div>
             </div>
 
             <div class="currency-warning" id="currencyWarning">
@@ -769,6 +812,16 @@
                     <li>Update all restaurants in your venue to use the new currency</li>
                     <li>Apply to all future loss tracking and reports</li>
                     <li>Require confirmation from restaurant owners</li>
+                    <li>Take effect immediately after saving</li>
+                </ul>
+            </div>
+
+            <div class="timezone-warning" id="timezoneWarning">
+                <div class="timezone-warning-title">Changing Timezone Will:</div>
+                <ul class="timezone-warning-list">
+                    <li>Update all restaurants in your venue to use the new timezone</li>
+                    <li>Affect all time-based analytics and reports</li>
+                    <li>Change how business hours and peak times are calculated</li>
                     <li>Take effect immediately after saving</li>
                 </ul>
             </div>
@@ -943,7 +996,10 @@
         let venueSpaces = [];
         let selectedVenueType = '';
         let selectedCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' };
+        let selectedTimezone = 'UTC';
         let originalCurrency = null;
+        let originalTimezone = null;
+        let timezoneUpdateInterval = null;
 
         // Firebase utility functions
         function getFirebaseAuth() {
@@ -970,6 +1026,7 @@
                 
                 // Setup UI interactions
                 setupCurrencySelection();
+                setupTimezoneSelection();
                 setupVenueTypeSelection();
                 setupPhoneFormatting();
                 
@@ -1146,6 +1203,19 @@
                     }
                 }
                 
+                // Timezone
+                if (currentVenue.timezone) {
+                    selectedTimezone = currentVenue.timezone;
+                    originalTimezone = currentVenue.timezone;
+                    document.getElementById('timezoneSelect').value = selectedTimezone;
+                } else {
+                    selectedTimezone = 'UTC';
+                    originalTimezone = 'UTC';
+                }
+                
+                // Update timezone display
+                updateTimezoneDisplay();
+                
                 console.log('✅ Form fields populated');
                 
             } catch (error) {
@@ -1170,6 +1240,60 @@
                 
                 console.log('Selected currency:', selectedCurrency);
             });
+        }
+
+        // Setup timezone selection
+        function setupTimezoneSelection() {
+            const timezoneSelect = document.getElementById('timezoneSelect');
+            
+            timezoneSelect.addEventListener('change', function() {
+                selectedTimezone = this.value;
+                
+                // Show warning if timezone is changing
+                if (originalTimezone && originalTimezone !== selectedTimezone) {
+                    document.getElementById('timezoneWarning').classList.add('show');
+                } else {
+                    document.getElementById('timezoneWarning').classList.remove('show');
+                }
+                
+                // Update timezone display
+                updateTimezoneDisplay();
+                
+                console.log('Selected timezone:', selectedTimezone);
+            });
+            
+            // Initial timezone display update
+            updateTimezoneDisplay();
+            
+            // Update timezone display every 30 seconds
+            if (timezoneUpdateInterval) {
+                clearInterval(timezoneUpdateInterval);
+            }
+            timezoneUpdateInterval = setInterval(updateTimezoneDisplay, 30000);
+        }
+
+        // Update timezone display
+        function updateTimezoneDisplay() {
+            try {
+                const now = new Date();
+                const timeInTimezone = now.toLocaleString('en-US', {
+                    timeZone: selectedTimezone,
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZoneName: 'short'
+                });
+                
+                document.getElementById('currentTimeDisplay').textContent = timeInTimezone;
+                
+            } catch (error) {
+                console.error('❌ Error updating timezone display:', error);
+                document.getElementById('currentTimeDisplay').textContent = 'Invalid timezone';
+            }
         }
 
         // Setup venue type selection
@@ -1241,6 +1365,7 @@
                     wifiAvailable: document.getElementById('wifiAvailable').checked,
                     amenities: amenities,
                     currency: selectedCurrency,
+                    timezone: selectedTimezone,
                     spaces: venueSpaces,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
@@ -1254,17 +1379,29 @@
                     await db.collection('venues').doc(currentVenue.id).update(venueData);
                 }
                 
-                // If currency changed, update all restaurants
+                // Handle currency changes
                 if (originalCurrency && originalCurrency.code !== selectedCurrency.code) {
                     await updateRestaurantsCurrency();
+                }
+                
+                // Handle timezone changes using TimezoneAPI
+                if (originalTimezone && originalTimezone !== selectedTimezone) {
+                    if (typeof TimezoneAPI !== 'undefined' && typeof TimezoneAPI.updateVenueTimezone === 'function') {
+                        await TimezoneAPI.updateVenueTimezone(currentVenue.id, selectedTimezone);
+                    } else {
+                        // Fallback: update restaurants timezone manually
+                        await updateRestaurantsTimezone();
+                    }
                 }
                 
                 hideLoading();
                 showMessage('Venue settings saved successfully!', 'success');
                 
-                // Update original currency
+                // Update original values
                 originalCurrency = { ...selectedCurrency };
+                originalTimezone = selectedTimezone;
                 document.getElementById('currencyWarning').classList.remove('show');
+                document.getElementById('timezoneWarning').classList.remove('show');
                 
                 // Reload venue data
                 await loadVenueData();
@@ -1326,9 +1463,66 @@
             }
         }
 
+        // Update all restaurants timezone (fallback)
+        async function updateRestaurantsTimezone() {
+            try {
+                console.log('🕐 Updating all restaurant timezones...');
+                
+                // Get all restaurants in venue
+                let venueRestaurants = [];
+                if (typeof VediAPI !== 'undefined' && typeof VediAPI.getRestaurantsByVenue === 'function') {
+                    venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
+                } else {
+                    // Fallback: direct query
+                    const db = getFirebaseDb();
+                    const restaurantsQuery = await db.collection('restaurants')
+                        .where('venueId', '==', currentVenue.id)
+                        .get();
+                    
+                    venueRestaurants = restaurantsQuery.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                }
+                
+                // Update each restaurant
+                const updatePromises = venueRestaurants.map(async (restaurant) => {
+                    const updateData = {
+                        timezone: selectedTimezone,
+                        venueTimezone: selectedTimezone,
+                        timezoneSource: 'venue',
+                        previousTimezone: restaurant.timezone || originalTimezone,
+                        timezoneUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    
+                    if (typeof VediAPI !== 'undefined' && typeof VediAPI.updateRestaurant === 'function') {
+                        return VediAPI.updateRestaurant(restaurant.id, updateData);
+                    } else {
+                        // Fallback: direct update
+                        const db = getFirebaseDb();
+                        return db.collection('restaurants').doc(restaurant.id).update(updateData);
+                    }
+                });
+                
+                await Promise.all(updatePromises);
+                
+                console.log(`✅ Updated ${venueRestaurants.length} restaurants to ${selectedTimezone}`);
+                
+            } catch (error) {
+                console.error('❌ Error updating restaurant timezones:', error);
+                throw error;
+            }
+        }
+
         // Handle logout
         function handleLogout() {
             if (confirm('Are you sure you want to sign out?')) {
+                // Clear timezone update interval
+                if (timezoneUpdateInterval) {
+                    clearInterval(timezoneUpdateInterval);
+                }
+                
                 const auth = getFirebaseAuth();
                 auth.signOut().then(() => {
                     window.location.href = '/login.html';
@@ -1341,6 +1535,12 @@
         // Handle navigation
         function handleNavigation(event, page) {
             event.preventDefault();
+            
+            // Clear timezone update interval
+            if (timezoneUpdateInterval) {
+                clearInterval(timezoneUpdateInterval);
+            }
+            
             window.location.href = page;
         }
 
@@ -1363,6 +1563,13 @@
                 }, 5000);
             }
         }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (timezoneUpdateInterval) {
+                clearInterval(timezoneUpdateInterval);
+            }
+        });
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
