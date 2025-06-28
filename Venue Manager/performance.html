@@ -154,23 +154,6 @@
             padding: 32px 24px;
         }
 
-        /* Page Header */
-        .page-header {
-            margin-bottom: 32px;
-        }
-
-        .page-title {
-            font-size: 34px;
-            font-weight: 700;
-            color: #000000;
-            margin-bottom: 8px;
-        }
-
-        .page-subtitle {
-            font-size: 17px;
-            color: #86868B;
-        }
-
         /* Filter Controls */
         .filter-controls {
             background-color: #FFFFFF;
@@ -594,7 +577,7 @@
 </head>
 <body>
     <!-- Header -->
-    <header class="header">
+    <header class="header" id="headerSection" style="display: none;">
         <div class="header-content">
             <div class="venue-info">
                 <h1 id="venueName">Loading...</h1>
@@ -611,7 +594,7 @@
     </header>
 
     <!-- Navigation -->
-    <nav class="navigation">
+    <nav class="navigation" id="navigationSection" style="display: none;">
         <div class="nav-content">
             <a href="venue-overview.html" class="nav-item" onclick="handleNavigation(event, 'venue-overview.html')">Overview</a>
             <a href="performance.html" class="nav-item active">Performance</a>
@@ -619,23 +602,24 @@
             <a href="venue-reports.html" class="nav-item" onclick="handleNavigation(event, 'venue-reports.html')">Reports</a>
             <a href="venue-management.html" class="nav-item" onclick="handleNavigation(event, 'venue-management.html')">Management</a>
             <a href="venue-financials.html" class="nav-item" onclick="handleNavigation(event, 'venue-financials.html')">Financials</a>
+            <a href="venue-settings.html" class="nav-item" onclick="handleNavigation(event, 'venue-settings.html')">Settings</a>
         </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Page Header -->
-        <section class="page-header">
-            <h1 class="page-title">Performance Analytics</h1>
-            <p class="page-subtitle">Comprehensive venue and restaurant performance insights</p>
-        </section>
+        <!-- Loading State -->
+        <div id="mainLoadingState" class="loading" style="min-height: 400px; display: flex;">
+            <div class="spinner"></div>
+            Loading performance data...
+        </div>
 
         <!-- Filter Controls -->
-        <section class="filter-controls">
+        <section class="filter-controls" id="filterControls" style="display: none;">
             <div class="filter-row">
                 <div class="filter-group">
                     <label class="filter-label">Time Period</label>
-                    <select class="filter-select" id="timePeriod">
+                    <select class="filter-select" id="timePeriod" onchange="applyFilters()">
                         <option value="today">Today</option>
                         <option value="week">This Week</option>
                         <option value="month" selected>This Month</option>
@@ -645,25 +629,24 @@
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">Restaurant</label>
-                    <select class="filter-select" id="restaurantFilter">
+                    <select class="filter-select" id="restaurantFilter" onchange="applyFilters()">
                         <option value="all">All Restaurants</option>
                     </select>
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">Metric</label>
-                    <select class="filter-select" id="metricFilter">
+                    <select class="filter-select" id="metricFilter" onchange="applyFilters()">
                         <option value="revenue">Revenue</option>
                         <option value="orders">Order Volume</option>
                         <option value="avg_order">Average Order Value</option>
                         <option value="losses">Loss Analysis</option>
                     </select>
                 </div>
-                <button class="apply-filters-btn" onclick="applyFilters()">Update</button>
             </div>
         </section>
 
         <!-- Key Performance Stats -->
-        <section class="stats-grid">
+        <section class="stats-grid" id="statsGrid" style="display: none;">
             <div class="stat-card">
                 <div class="stat-header">
                     <span class="stat-title">Total Revenue</span>
@@ -702,7 +685,7 @@
         </section>
 
         <!-- Charts Section -->
-        <section class="charts-section">
+        <section class="charts-section" id="chartsSection" style="display: none;">
             <div class="charts-grid">
                 <div class="chart-card">
                     <div class="chart-header">
@@ -737,7 +720,7 @@
         </section>
 
         <!-- Restaurant Performance Table -->
-        <section class="restaurant-performance">
+        <section class="restaurant-performance" id="restaurantSection" style="display: none;">
             <div class="section-header">
                 <h2 class="section-title">Restaurant Performance</h2>
                 <button class="view-all-btn">View Detailed Reports</button>
@@ -774,32 +757,47 @@
         let venueOrders = [];
         let lossIncidents = [];
         let charts = {};
+        let venueCurrency = 'USD'; // Single venue currency (same as financials page)
 
-        // Helper function for currency formatting
-        function formatCurrency(amount, currency = 'USD') {
+        // Helper function for currency formatting (same as financials page)
+        function formatCurrency(amount, currency = null) {
             try {
+                const currencyCode = currency || venueCurrency;
+                
                 if (VediAPI && VediAPI.formatCurrency) {
-                    return VediAPI.formatCurrency(amount, currency);
+                    return VediAPI.formatCurrency(amount, currencyCode);
                 } else {
-                    // Fallback formatting
                     return new Intl.NumberFormat('en-US', {
                         style: 'currency',
-                        currency: currency
+                        currency: currencyCode
                     }).format(amount);
                 }
             } catch (error) {
                 console.error('❌ Currency formatting error:', error);
-                return `$${amount.toFixed(2)}`;
+                const symbol = getCurrencySymbol(currency || venueCurrency);
+                return `${symbol}${amount.toFixed(2)}`;
             }
+        }
+
+        // Get currency symbol for fallback formatting
+        function getCurrencySymbol(currencyCode) {
+            const symbols = {
+                'USD': '$',
+                'EUR': '€',
+                'GBP': '£',
+                'CAD': 'C$',
+                'AUD': 'A$',
+                'JPY': '¥',
+                'CHF': 'CHF',
+                'SEK': 'kr',
+                'NOK': 'kr',
+                'DKK': 'kr'
+            };
+            return symbols[currencyCode] || currencyCode + ' ';
         }
 
         // Helper function for time period start
         function getTimePeriodStart(timePeriod) {
-            if (VediAPI && VediAPI.getTimePeriodStart) {
-                return VediAPI.getTimePeriodStart(timePeriod);
-            }
-            
-            // Fallback implementation
             const now = new Date();
             
             switch (timePeriod.toLowerCase()) {
@@ -824,11 +822,6 @@
         // Helper function for timestamp conversion
         function timestampToDate(timestamp) {
             try {
-                if (VediAPI && VediAPI.timestampToDate) {
-                    return VediAPI.timestampToDate(timestamp);
-                }
-                
-                // Fallback implementation
                 if (timestamp && timestamp.toDate) {
                     return timestamp.toDate();
                 }
@@ -856,27 +849,67 @@
             try {
                 console.log('🚀 Initializing performance analytics...');
                 
-                // Wait for Firebase to be ready
+                // Keep main loading state visible
+                showMainLoadingState();
+                
                 await waitForFirebase();
-                
-                // Check authentication
                 await checkAuthentication();
-                
-                // Load venue data
                 await loadVenueData();
-                
-                // Load restaurants
                 await loadRestaurants();
-                
-                // Load performance data
                 await loadPerformanceData();
+                
+                // Wait a moment for DOM to update, THEN hide loading and show content
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Show all content first
+                showDashboardContent();
+                
+                // Small delay to ensure content is visible, then hide loading
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                // Hide loading state after content is displayed
+                hideMainLoadingState();
                 
                 console.log('✅ Performance analytics initialized successfully');
                 
             } catch (error) {
                 console.error('❌ Analytics initialization error:', error);
+                hideMainLoadingState();
                 showError('Failed to load performance analytics. Please refresh the page.');
             }
+        }
+
+        // Show main loading state
+        function showMainLoadingState() {
+            const loadingState = document.getElementById('mainLoadingState');
+            if (loadingState) {
+                loadingState.style.display = 'flex';
+            }
+        }
+
+        // Hide main loading state
+        function hideMainLoadingState() {
+            const loadingState = document.getElementById('mainLoadingState');
+            if (loadingState) {
+                loadingState.style.display = 'none';
+            }
+        }
+
+        // Show dashboard content
+        function showDashboardContent() {
+            const headerSection = document.getElementById('headerSection');
+            const navigationSection = document.getElementById('navigationSection');
+            const filterControls = document.getElementById('filterControls');
+            const statsGrid = document.getElementById('statsGrid');
+            const chartsSection = document.getElementById('chartsSection');
+            const restaurantSection = document.getElementById('restaurantSection');
+            
+            if (headerSection) headerSection.style.display = 'block';
+            if (navigationSection) navigationSection.style.display = 'block';
+            if (filterControls) filterControls.style.display = 'block';
+            if (statsGrid) statsGrid.style.display = 'grid';
+            if (chartsSection) chartsSection.style.display = 'block';
+            if (restaurantSection) restaurantSection.style.display = 'block';
         }
 
         // Wait for Firebase to be initialized
@@ -941,38 +974,31 @@
         // Load venue data
         async function loadVenueData() {
             try {
-                // Direct Firebase query if VediAPI function is not available
-                let venue;
+                const db = getFirebaseDb();
+                const venueQuery = await db.collection('venues')
+                    .where('managerUserId', '==', currentUser.uid)
+                    .limit(1)
+                    .get();
                 
-                if (VediAPI && VediAPI.getVenueByManager) {
-                    venue = await VediAPI.getVenueByManager(currentUser.uid);
-                } else {
-                    // Fallback to direct Firebase query
-                    const db = getFirebaseDb();
-                    const venueQuery = await db.collection('venues')
-                        .where('managerUserId', '==', currentUser.uid)
-                        .limit(1)
-                        .get();
-                    
-                    if (venueQuery.empty) {
-                        throw new Error('No venue found for this manager');
-                    }
-                    
-                    const venueDoc = venueQuery.docs[0];
-                    venue = { id: venueDoc.id, ...venueDoc.data() };
-                }
-                
-                if (!venue) {
+                if (venueQuery.empty) {
                     throw new Error('No venue found for this manager');
                 }
                 
-                currentVenue = venue;
+                const venueDoc = venueQuery.docs[0];
+                currentVenue = { id: venueDoc.id, ...venueDoc.data() };
                 
-                document.getElementById('venueName').textContent = venue.name;
+                // Set venue currency (same logic as financials page)
+                if (currentVenue.currency && currentVenue.currency.code) {
+                    venueCurrency = currentVenue.currency.code;
+                } else if (currentVenue.currencyCode) {
+                    venueCurrency = currentVenue.currencyCode;
+                }
+                
+                document.getElementById('venueName').textContent = currentVenue.name;
                 document.getElementById('venueLocation').textContent = 
-                    `${venue.city}, ${venue.state}`;
+                    `${currentVenue.city}, ${currentVenue.state}`;
                 
-                console.log('✅ Venue loaded for analytics:', venue.name);
+                console.log('✅ Venue loaded for analytics:', currentVenue.name, 'Currency:', venueCurrency);
                 
             } catch (error) {
                 console.error('❌ Load venue error:', error);
@@ -983,19 +1009,25 @@
         // Load restaurants
         async function loadRestaurants() {
             try {
-                if (VediAPI && VediAPI.getRestaurantsByVenue) {
-                    venueRestaurants = await VediAPI.getRestaurantsByVenue(currentVenue.id);
-                } else {
-                    // Fallback to direct Firebase query
-                    const db = getFirebaseDb();
-                    const restaurantsQuery = await db.collection('restaurants')
-                        .where('venueId', '==', currentVenue.id)
-                        .get();
-                    
-                    venueRestaurants = restaurantsQuery.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data()
-                    }));
+                const db = getFirebaseDb();
+                const restaurantsQuery = await db.collection('restaurants')
+                    .where('venueId', '==', currentVenue.id)
+                    .get();
+                
+                venueRestaurants = restaurantsQuery.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Detect venue currency from first restaurant if not set in venue
+                if (venueCurrency === 'USD' && venueRestaurants.length > 0) {
+                    const firstRestaurant = venueRestaurants[0];
+                    if (firstRestaurant.currency && firstRestaurant.currency.code) {
+                        venueCurrency = firstRestaurant.currency.code;
+                    } else if (firstRestaurant.currencyCode) {
+                        venueCurrency = firstRestaurant.currencyCode;
+                    }
+                    console.log('✅ Currency detected from restaurant:', venueCurrency);
                 }
                 
                 // Populate restaurant filter
@@ -1044,7 +1076,6 @@
         // Load orders for analytics
         async function loadOrders() {
             try {
-                // Initialize venueOrders array first
                 venueOrders = [];
                 
                 if (!venueRestaurants || venueRestaurants.length === 0) {
@@ -1057,28 +1088,17 @@
                 // Load orders for each restaurant
                 for (const restaurantId of restaurantIds) {
                     try {
-                        let orders;
+                        const db = getFirebaseDb();
+                        const ordersQuery = await db.collection('orders')
+                            .where('restaurantId', '==', restaurantId)
+                            .orderBy('createdAt', 'desc')
+                            .limit(500) // Optimized limit
+                            .get();
                         
-                        if (VediAPI && VediAPI.getOrders) {
-                            orders = await VediAPI.getOrders(restaurantId, {
-                                limit: 1000,
-                                orderBy: 'createdAt',
-                                orderDirection: 'desc'
-                            });
-                        } else {
-                            // Fallback to direct Firebase query
-                            const db = getFirebaseDb();
-                            const ordersQuery = await db.collection('orders')
-                                .where('restaurantId', '==', restaurantId)
-                                .orderBy('createdAt', 'desc')
-                                .limit(1000)
-                                .get();
-                            
-                            orders = ordersQuery.docs.map(doc => ({
-                                id: doc.id,
-                                ...doc.data()
-                            }));
-                        }
+                        const orders = ordersQuery.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
                         
                         venueOrders.push(...orders);
                     } catch (error) {
@@ -1097,20 +1117,14 @@
         // Load loss incidents
         async function loadLossIncidents() {
             try {
-                // Initialize lossIncidents array first
                 lossIncidents = [];
                 
-                if (currentVenue.id && VediAPI && VediAPI.getLossIncidentsByVenue) {
-                    lossIncidents = await VediAPI.getLossIncidentsByVenue(currentVenue.id, {
-                        limit: 1000
-                    });
-                } else if (currentVenue.id) {
-                    // Fallback to direct Firebase query
+                if (currentVenue.id) {
                     const db = getFirebaseDb();
                     const incidentsQuery = await db.collection('lossIncidents')
                         .where('venueId', '==', currentVenue.id)
                         .orderBy('createdAt', 'desc')
-                        .limit(1000)
+                        .limit(500)
                         .get();
                     
                     lossIncidents = incidentsQuery.docs.map(doc => ({
@@ -1134,7 +1148,7 @@
                 const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
                 const filteredLosses = filterLossesByTimePeriod(lossIncidents || [], timePeriod);
                 
-                // Calculate revenue stats
+                // Calculate revenue stats (using venue currency)
                 const totalRevenue = filteredOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
                 const totalOrders = filteredOrders.length;
                 const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -1142,19 +1156,19 @@
                 // Calculate loss stats
                 const totalLosses = filteredLosses.reduce((sum, incident) => sum + (parseFloat(incident.amount) || 0), 0);
                 
-                // Update displays
-                document.getElementById('totalRevenue').textContent = formatCurrency(totalRevenue, 'USD');
+                // Update displays with venue currency
+                document.getElementById('totalRevenue').textContent = formatCurrency(totalRevenue);
                 document.getElementById('totalOrders').textContent = totalOrders.toLocaleString();
-                document.getElementById('averageOrderValue').textContent = formatCurrency(averageOrderValue, 'USD');
-                document.getElementById('totalLosses').textContent = formatCurrency(totalLosses, 'USD');
+                document.getElementById('averageOrderValue').textContent = formatCurrency(averageOrderValue);
+                document.getElementById('totalLosses').textContent = formatCurrency(totalLosses);
                 
-                // Update change indicators (will be calculated from actual data)
+                // Update change indicators
                 document.getElementById('revenueChange').textContent = `${totalOrders} orders this period`;
-                document.getElementById('ordersChange').textContent = `Total value: ${formatCurrency(totalRevenue, 'USD')}`;
+                document.getElementById('ordersChange').textContent = `Total value: ${formatCurrency(totalRevenue)}`;
                 document.getElementById('aovChange').textContent = 'across all restaurants';
                 document.getElementById('lossesChange').textContent = `${filteredLosses.length} incidents reported`;
                 
-                // Update trend indicators (simplified - would need previous period data for real trends)
+                // Update trend indicators
                 document.getElementById('revenueTrend').textContent = totalRevenue > 0 ? '+' : '--';
                 document.getElementById('ordersTrend').textContent = totalOrders > 0 ? '+' : '--';
                 document.getElementById('aovTrend').textContent = averageOrderValue > 0 ? '+' : '--';
@@ -1247,7 +1261,7 @@
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return '$' + value.toFixed(0);
+                                    return formatCurrency(value);
                                 }
                             }
                         }
@@ -1375,7 +1389,7 @@
                 return;
             }
             
-            // Calculate restaurant performance
+            // Calculate restaurant performance (using venue currency)
             const restaurantPerformance = venueRestaurants.map(restaurant => {
                 const restaurantOrders = filteredOrders.filter(order => order.restaurantId === restaurant.id);
                 const revenue = restaurantOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
@@ -1400,13 +1414,13 @@
                             <div class="restaurant-cuisine">${restaurant.cuisineType || 'Restaurant'}</div>
                         </div>
                         <div>
-                            <div class="metric-value">${formatCurrency(restaurant.revenue, restaurant.currency?.code || 'USD')}</div>
+                            <div class="metric-value">${formatCurrency(restaurant.revenue)}</div>
                         </div>
                         <div>
                             <div class="metric-value">${restaurant.orderCount}</div>
                         </div>
                         <div>
-                            <div class="metric-value">${formatCurrency(restaurant.avgOrder, restaurant.currency?.code || 'USD')}</div>
+                            <div class="metric-value">${formatCurrency(restaurant.avgOrder)}</div>
                         </div>
                         <div>
                             <span class="status-badge ${status.class}">${status.text}</span>
@@ -1448,31 +1462,13 @@
         function handleNavigation(event, url) {
             event.preventDefault();
             
-            // Show loading overlay
             const loadingOverlay = document.getElementById('loadingOverlay');
             loadingOverlay.classList.add('active');
             
-            // Simulate brief loading time for smooth UX, then navigate
             setTimeout(() => {
                 window.location.href = url;
             }, 300);
         }
-
-        // Hide loading overlay when page loads
-        window.addEventListener('load', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.remove('active');
-            }
-        });
-
-        // Show loading overlay on page unload
-        window.addEventListener('beforeunload', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.add('active');
-            }
-        });
 
         // Handle logout
         async function handleLogout() {
@@ -1500,9 +1496,25 @@
             }, 5000);
         }
 
+        // Hide loading overlay when page loads
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('active');
+            }
+        });
+
+        // Show loading overlay on page unload
+        window.addEventListener('beforeunload', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('active');
+            }
+        });
+
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🍽️ Venue Performance Analytics starting...');
+            console.log('📊 Performance Analytics Dashboard starting...');
             initializeDashboard();
         });
     </script>
