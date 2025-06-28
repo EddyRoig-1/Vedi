@@ -1161,7 +1161,17 @@
         function getCalendarPeriodBoundaries(timePeriod) {
             try {
                 if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getCalendarPeriodBoundaries) {
-                    return TimezoneAPI.getCalendarPeriodBoundaries(timePeriod, currentRestaurant);
+                    // Convert incident reports format to TimezoneAPI format
+                    const periodMapping = {
+                        'today': 'today',
+                        'week': 'thisweek', 
+                        'month': 'thismonth',
+                        'quarter': 'thisquarter',
+                        'year': 'thisyear'
+                    };
+                    
+                    const mappedPeriod = periodMapping[timePeriod.toLowerCase()] || timePeriod;
+                    return TimezoneAPI.getCalendarPeriodBoundaries(mappedPeriod, currentRestaurant);
                 }
                 
                 // Fallback calendar logic
@@ -1207,11 +1217,18 @@
                         return { start: yearStart, end: yearEnd };
                         
                     default:
-                        return { start: null, end: null };
+                        console.warn('⚠️ Unknown time period, defaulting to today:', timePeriod);
+                        const defaultStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate());
+                        const defaultEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59, 999);
+                        return { start: defaultStart, end: defaultEnd };
                 }
             } catch (error) {
                 console.error('❌ Error getting calendar period boundaries:', error);
-                return { start: null, end: null };
+                const fallbackStart = new Date();
+                fallbackStart.setHours(0, 0, 0, 0);
+                const fallbackEnd = new Date();
+                fallbackEnd.setHours(23, 59, 59, 999);
+                return { start: fallbackStart, end: fallbackEnd };
             }
         }
 
