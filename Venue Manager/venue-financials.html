@@ -157,23 +157,6 @@
             padding: 32px 24px;
         }
 
-        /* Page Header */
-        .page-header {
-            margin-bottom: 32px;
-        }
-
-        .page-title {
-            font-size: 34px;
-            font-weight: 700;
-            color: #000000;
-            margin-bottom: 8px;
-        }
-
-        .page-subtitle {
-            font-size: 17px;
-            color: #86868B;
-        }
-
         /* Filter Controls */
         .filter-controls {
             background-color: #FFFFFF;
@@ -215,24 +198,6 @@
         .filter-select:focus, .filter-input:focus {
             outline: none;
             border-color: #007AFF;
-        }
-
-        .apply-filters-btn {
-            height: 44px;
-            background-color: #007AFF;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 0 24px;
-            font-size: 17px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .apply-filters-btn:hover {
-            background-color: #0056CC;
-            transform: translateY(-1px);
         }
 
         /* Financial Summary Grid */
@@ -303,21 +268,6 @@
             font-size: 13px;
             font-weight: 500;
             color: #86868B;
-        }
-
-        .financial-breakdown {
-            font-size: 11px;
-            color: #86868B;
-            margin-top: 8px;
-            padding: 6px 8px;
-            background-color: #F8F9FA;
-            border-radius: 4px;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            display: none; /* Hidden by default */
-        }
-
-        .financial-card:hover .financial-breakdown {
-            display: block; /* Show on hover */
         }
 
         /* Fee Management Section */
@@ -393,7 +343,7 @@
             background-color: #28CD4F;
         }
 
-        /* Restaurant Fee Table - IMPROVED HEADERS */
+        /* Restaurant Fee Table */
         .restaurant-fees-table {
             background-color: #FFFFFF;
             border-radius: 12px;
@@ -518,18 +468,6 @@
             font-size: 11px;
             color: #007AFF;
             margin-left: 4px;
-        }
-
-        .calculation-breakdown {
-            font-size: 11px;
-            color: #86868B;
-            margin-top: 2px;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            display: none; /* Hidden by default */
-        }
-
-        .table-row:hover .calculation-breakdown {
-            display: block; /* Show on hover */
         }
 
         /* Charts Section */
@@ -749,6 +687,7 @@
             <a href="venue-reports.html" class="nav-item" onclick="handleNavigation(event, 'venue-reports.html')">Reports</a>
             <a href="venue-management.html" class="nav-item" onclick="handleNavigation(event, 'venue-management.html')">Management</a>
             <a href="#" class="nav-item active">Financials</a>
+            <a href="venue-settings.html" class="nav-item" onclick="handleNavigation(event, 'venue-settings.html')" style="margin-left: auto;">Settings</a>
         </div>
     </nav>
 
@@ -785,7 +724,6 @@
                 </div>
                 <div class="financial-value" id="venueRevenue">$0.00</div>
                 <div class="financial-change" id="venueRevenueChange">Total fees collected from all restaurants</div>
-                <div class="financial-breakdown" id="venueRevenueBreakdown">Sum of all venue fees earned</div>
             </div>
 
             <div class="financial-card">
@@ -795,7 +733,6 @@
                 </div>
                 <div class="financial-value" id="transactionVolume">$0.00</div>
                 <div class="financial-change" id="transactionVolumeChange">Combined sales across all restaurants</div>
-                <div class="financial-breakdown" id="transactionVolumeBreakdown">Total customer payments before fees</div>
             </div>
 
             <div class="financial-card">
@@ -805,7 +742,6 @@
                 </div>
                 <div class="financial-value" id="avgVenueFee">0.0%</div>
                 <div class="financial-change" id="avgVenueFeeChange">Weighted average fee rate</div>
-                <div class="financial-breakdown" id="avgVenueFeeBreakdown">Calculated: venue revenue ÷ restaurant sales</div>
             </div>
         </section>
 
@@ -986,7 +922,7 @@
         // Initialize dashboard
         async function initializeDashboard() {
             try {
-                console.log('🚀 Initializing improved venue financials dashboard...');
+                console.log('🚀 Initializing clean venue financials dashboard...');
                 
                 await waitForFirebase();
                 await checkAuthentication();
@@ -995,7 +931,7 @@
                 await loadOrders();
                 await loadFinancialData();
                 
-                console.log('✅ Improved venue financials dashboard initialized successfully');
+                console.log('✅ Clean venue financials dashboard initialized successfully');
                 
             } catch (error) {
                 console.error('❌ Dashboard initialization error:', error);
@@ -1013,7 +949,7 @@
                     attempts++;
                     
                     if (window.firebase && window.firebaseAuth && window.firebaseDb) {
-                        console.log('✅ Firebase ready for improved financials');
+                        console.log('✅ Firebase ready');
                         resolve();
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Firebase initialization timeout'));
@@ -1095,11 +1031,13 @@
                     `${venue.city}, ${venue.state}`;
                 
                 const defaultFeeInput = document.getElementById('defaultVenueFee');
-                if (venue.defaultFeePercentage !== undefined) {
+                if (venue.defaultFeePercentage !== undefined && venue.defaultFeePercentage !== null) {
                     defaultFeeInput.value = venue.defaultFeePercentage;
+                } else {
+                    defaultFeeInput.value = 1.0;
                 }
                 
-                console.log('✅ Venue loaded for improved financials:', venue.name);
+                console.log('✅ Venue loaded:', venue.name);
                 
             } catch (error) {
                 console.error('❌ Load venue error:', error);
@@ -1135,10 +1073,14 @@
                     console.log('✅ Venue currency detected:', venueCurrency);
                 }
                 
-                // Track which restaurants have custom fees
+                // Track which restaurants have custom fees - FIXED 0% handling
                 venueRestaurants.forEach(restaurant => {
-                    if (restaurant.venueFeePercentage !== undefined && 
-                        restaurant.venueFeePercentage !== currentVenue.defaultFeePercentage) {
+                    const restaurantFee = restaurant.venueFeePercentage !== undefined && restaurant.venueFeePercentage !== null ? 
+                        restaurant.venueFeePercentage : null;
+                    const defaultFee = currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null ? 
+                        currentVenue.defaultFeePercentage : 1.0;
+                    
+                    if (restaurantFee !== null && restaurantFee !== defaultFee) {
                         customizedRestaurantFees.add(restaurant.id);
                     }
                 });
@@ -1154,10 +1096,7 @@
                     restaurantFilter.appendChild(option);
                 });
                 
-                // Add change event listener for auto-updates
-                restaurantFilter.addEventListener('change', applyFilters);
-                
-                console.log('✅ Restaurants loaded for improved financials:', venueRestaurants.length);
+                console.log('✅ Restaurants loaded:', venueRestaurants.length);
                 
             } catch (error) {
                 console.error('❌ Load restaurants error:', error);
@@ -1207,7 +1146,7 @@
                     }
                 }
                 
-                console.log('✅ Orders loaded for improved financials:', venueOrders.length);
+                console.log('✅ Orders loaded:', venueOrders.length);
                 
             } catch (error) {
                 console.error('❌ Load orders error:', error);
@@ -1215,7 +1154,7 @@
             }
         }
 
-        // Load financial data with improved calculations and DYNAMIC CHART UPDATES
+        // Load financial data
         async function loadFinancialData() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
@@ -1232,7 +1171,7 @@
             }
         }
 
-        // Calculate financial metrics from order data with CORRECTED CALCULATIONS
+        // Calculate financial metrics - FIXED 0% FEE HANDLING
         async function calculateFinancialMetrics(timePeriod, selectedRestaurant = 'all') {
             try {
                 let filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
@@ -1248,11 +1187,28 @@
                 
                 filteredOrders.forEach(order => {
                     const orderTotal = parseFloat(order.total) || 0;
-                    // Get the actual fee rate for this specific order/restaurant
+                    
+                    // FIXED: Properly handle 0% fees without fallback to 1.0
                     const restaurant = venueRestaurants.find(r => r.id === order.restaurantId);
-                    const actualFeeRate = restaurant ? 
-                        (parseFloat(restaurant.venueFeePercentage) || parseFloat(currentVenue.defaultFeePercentage) || 1.0) / 100 :
-                        (parseFloat(order.venueFeePercentage) || parseFloat(currentVenue.defaultFeePercentage) || 1.0) / 100;
+                    let actualFeeRate;
+                    
+                    if (restaurant) {
+                        if (restaurant.venueFeePercentage !== undefined && restaurant.venueFeePercentage !== null) {
+                            actualFeeRate = parseFloat(restaurant.venueFeePercentage) / 100;
+                        } else if (currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null) {
+                            actualFeeRate = parseFloat(currentVenue.defaultFeePercentage) / 100;
+                        } else {
+                            actualFeeRate = 1.0 / 100;
+                        }
+                    } else {
+                        if (order.venueFeePercentage !== undefined && order.venueFeePercentage !== null) {
+                            actualFeeRate = parseFloat(order.venueFeePercentage) / 100;
+                        } else if (currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null) {
+                            actualFeeRate = parseFloat(currentVenue.defaultFeePercentage) / 100;
+                        } else {
+                            actualFeeRate = 1.0 / 100;
+                        }
+                    }
                     
                     const orderVenueFee = orderTotal * actualFeeRate;
                     
@@ -1273,25 +1229,24 @@
                     revenueByRestaurant[order.restaurantId].orders += 1;
                 });
                 
-                // Calculate ACTUAL weighted average fee rate based on real data
+                // Calculate actual weighted average fee rate
                 const actualAvgFeeRate = totalRestaurantSales > 0 ? (totalVenueRevenue / totalRestaurantSales) * 100 : 0;
                 
                 financialData = {
                     totalRestaurantSales,
                     totalVenueRevenue,
                     orderCount: filteredOrders.length,
-                    avgVenueFeeRate: actualAvgFeeRate, // This is now the REAL weighted average
+                    avgVenueFeeRate: actualAvgFeeRate,
                     revenueByRestaurant,
                     orders: filteredOrders,
                     selectedRestaurant
                 };
                 
-                console.log('✅ CORRECTED financial metrics calculated:', {
+                console.log('✅ Financial metrics calculated:', {
                     restaurantSales: totalRestaurantSales,
                     venueRevenue: totalVenueRevenue,
                     actualAvgFeeRate: actualAvgFeeRate,
-                    orders: filteredOrders.length,
-                    selectedRestaurant
+                    orders: filteredOrders.length
                 });
                 
             } catch (error) {
@@ -1319,28 +1274,22 @@
             });
         }
 
-        // Update financial summary with CORRECTED CALCULATIONS
+        // Update financial summary
         async function updateFinancialSummary() {
             try {
-                // Total Venue Revenue (fees collected) - CORRECTED
+                // Total Venue Revenue
                 document.getElementById('venueRevenue').textContent = 
                     formatCurrency(financialData.totalVenueRevenue || 0);
-                document.getElementById('venueRevenueBreakdown').textContent = 
-                    `Actual calculation: ${formatCurrency(financialData.totalRestaurantSales || 0)} × ${(financialData.avgVenueFeeRate || 0).toFixed(1)}% weighted avg = ${formatCurrency(financialData.totalVenueRevenue || 0)}`;
                 
-                // Total Restaurant Sales (customer payments)
+                // Total Restaurant Sales
                 document.getElementById('transactionVolume').textContent = 
                     formatCurrency(financialData.totalRestaurantSales || 0);
-                document.getElementById('transactionVolumeBreakdown').textContent = 
-                    `Total customer payments across ${venueRestaurants.length} restaurants`;
                 
-                // Average Fee Rate - CORRECTED to show actual weighted average
+                // Average Fee Rate
                 document.getElementById('avgVenueFee').textContent = 
                     `${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
-                document.getElementById('avgVenueFeeBreakdown').textContent = 
-                    `Weighted average: ${formatCurrency(financialData.totalVenueRevenue || 0)} ÷ ${formatCurrency(financialData.totalRestaurantSales || 0)} = ${(financialData.avgVenueFeeRate || 0).toFixed(1)}%`;
                 
-                // Update change descriptions
+                // Update descriptions
                 document.getElementById('venueRevenueChange').textContent = 
                     `Total fees collected from all restaurants`;
                 document.getElementById('transactionVolumeChange').textContent = 
@@ -1353,7 +1302,7 @@
             }
         }
 
-        // Update restaurant fees table with IMPROVED CALCULATIONS
+        // Update restaurant fees table - FIXED 0% FEE HANDLING
         async function updateRestaurantFeesTable() {
             const tableContainer = document.getElementById('restaurantFeesTable');
             
@@ -1369,8 +1318,16 @@
             try {
                 const restaurantFeesData = venueRestaurants.map(restaurant => {
                     const restaurantData = financialData.revenueByRestaurant?.[restaurant.id] || {};
-                    const venueFeePercentage = parseFloat(restaurant.venueFeePercentage) || 
-                                             parseFloat(currentVenue.defaultFeePercentage) || 1.0;
+                    
+                    // FIXED: Properly handle 0% fees
+                    let venueFeePercentage;
+                    if (restaurant.venueFeePercentage !== undefined && restaurant.venueFeePercentage !== null) {
+                        venueFeePercentage = parseFloat(restaurant.venueFeePercentage);
+                    } else if (currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null) {
+                        venueFeePercentage = parseFloat(currentVenue.defaultFeePercentage);
+                    } else {
+                        venueFeePercentage = 1.0;
+                    }
                     
                     return {
                         ...restaurant,
@@ -1419,11 +1376,9 @@
                         </div>
                         <div>
                             <div class="fee-value">${formatCurrency(restaurant.restaurantSales)}</div>
-                            <div class="calculation-breakdown">Total customer payments</div>
                         </div>
                         <div>
                             <div class="fee-value">${formatCurrency(restaurant.venueFeesEarned)}</div>
-                            <div class="calculation-breakdown">${formatCurrency(restaurant.restaurantSales)} × ${restaurant.venueFeePercentage.toFixed(1)}% = ${formatCurrency(restaurant.restaurantSales * (restaurant.venueFeePercentage / 100))}</div>
                         </div>
                         <div>
                             <div class="fee-value">${restaurant.orderCount}</div>
@@ -1448,7 +1403,7 @@
             }
         }
 
-        // Create financial charts with improved data
+        // Create financial charts
         async function createFinancialCharts() {
             try {
                 await createRevenueChart();
@@ -1458,32 +1413,25 @@
             }
         }
 
-        // Create revenue trends chart - COMPLETELY FIXED CHART UPDATING
+        // Create revenue chart
         async function createRevenueChart() {
             const timePeriod = document.getElementById('timePeriod').value;
             
-            // Always destroy existing chart first
+            // Destroy existing chart
             if (charts.revenue) {
                 charts.revenue.destroy();
                 charts.revenue = null;
             }
             
-            // Get the chart container by finding the parent of where the canvas should be
-            const chartCard = document.querySelector('.chart-card');
-            if (!chartCard) return;
-            
-            const chartContainer = chartCard.querySelector('.chart-container');
+            const chartContainer = document.querySelector('.chart-container');
             if (!chartContainer) return;
             
-            // ALWAYS completely reset the container content
             chartContainer.innerHTML = '<canvas id="revenueChart"></canvas>';
             
             const labels = generateTimeLabels(timePeriod);
             const { venueFeesData, restaurantSalesData, hasData } = generateRevenueDataFromOrders(labels, timePeriod);
             
-            // Check if there's any real data AFTER creating canvas
             if (!hasData) {
-                // Replace with "No Data" message
                 chartContainer.innerHTML = `
                     <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
                         <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">📊</div>
@@ -1494,7 +1442,6 @@
                 return;
             }
             
-            // Get the fresh canvas context and create chart
             const canvas = document.getElementById('revenueChart');
             if (canvas) {
                 const ctx = canvas.getContext('2d');
@@ -1502,7 +1449,7 @@
             }
         }
 
-        // Create the actual chart with data
+        // Create the actual revenue chart
         function createRevenueChartWithData(ctx, labels, venueFeesData, restaurantSalesData, timePeriod) {
             charts.revenue = new Chart(ctx, {
                 type: 'line',
@@ -1578,15 +1525,6 @@
                                     } else {
                                         return `Restaurant Sales: ${value}`;
                                     }
-                                },
-                                afterBody: function(context) {
-                                    if (context.length >= 2) {
-                                        const venueTotal = context[0].parsed.y;
-                                        const salesTotal = context[1].parsed.y;
-                                        const efficiency = salesTotal > 0 ? (venueTotal / salesTotal * 100).toFixed(1) : '0.0';
-                                        return `\nVenue Fee Rate: ${efficiency}%`;
-                                    }
-                                    return '';
                                 }
                             }
                         }
@@ -1682,29 +1620,43 @@
             });
         }
 
-        // Create fee distribution chart - NO SAMPLE DATA
+        // Create fee distribution chart
         async function createFeeDistributionChart() {
             const ctx = document.getElementById('feeDistributionChart');
             if (!ctx) return;
             
             const timePeriod = document.getElementById('timePeriod').value;
             
-            const restaurantLabels = [];
-            const venueFeesData = [];
-            const restaurantColors = [];
+            // Destroy existing chart
+            if (charts.feeDistribution) {
+                charts.feeDistribution.destroy();
+                charts.feeDistribution = null;
+            }
             
-            // Filter data based on current time period - ONLY REAL DATA
+            const chartContainer = ctx.parentElement;
+            chartContainer.innerHTML = '<canvas id="feeDistributionChart"></canvas>';
+            const newCtx = document.getElementById('feeDistributionChart').getContext('2d');
+            
+            // Calculate data for current period
             const filteredOrders = filterOrdersByTimePeriod(financialData.orders || [], timePeriod);
             const periodRevenueByRestaurant = {};
             
-            // Calculate revenue for the selected time period
             filteredOrders.forEach(order => {
                 const restaurant = venueRestaurants.find(r => r.id === order.restaurantId);
                 if (!restaurant) return;
                 
                 const orderTotal = parseFloat(order.total) || 0;
-                const actualFeeRate = (parseFloat(restaurant.venueFeePercentage) || 
-                                     parseFloat(currentVenue.defaultFeePercentage) || 1.0) / 100;
+                
+                // FIXED: Properly handle 0% fees
+                let actualFeeRate;
+                if (restaurant.venueFeePercentage !== undefined && restaurant.venueFeePercentage !== null) {
+                    actualFeeRate = parseFloat(restaurant.venueFeePercentage) / 100;
+                } else if (currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null) {
+                    actualFeeRate = parseFloat(currentVenue.defaultFeePercentage) / 100;
+                } else {
+                    actualFeeRate = 1.0 / 100;
+                }
+                
                 const orderVenueFee = orderTotal * actualFeeRate;
                 
                 if (!periodRevenueByRestaurant[order.restaurantId]) {
@@ -1717,20 +1669,7 @@
                 periodRevenueByRestaurant[order.restaurantId].venueFeesEarned += orderVenueFee;
             });
             
-            // Always destroy existing chart first
-            if (charts.feeDistribution) {
-                charts.feeDistribution.destroy();
-                charts.feeDistribution = null;
-            }
-            
-            // Always ensure we have a proper canvas element
-            const chartContainer = ctx.parentElement;
-            chartContainer.innerHTML = '<canvas id="feeDistributionChart"></canvas>';
-            const newCtx = document.getElementById('feeDistributionChart').getContext('2d');
-            
-            // Only use real data - no sample generation
             if (Object.keys(periodRevenueByRestaurant).length === 0) {
-                // Show "No Data" message instead of chart
                 chartContainer.innerHTML = `
                     <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 300px; color: #86868B; text-align: center;">
                         <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">🍽️</div>
@@ -1741,7 +1680,10 @@
                 return;
             }
             
-            // Use real data
+            const restaurantLabels = [];
+            const venueFeesData = [];
+            const restaurantColors = [];
+            
             Object.values(periodRevenueByRestaurant)
                 .sort((a, b) => b.venueFeesEarned - a.venueFeesEarned)
                 .forEach((restaurant, index) => {
@@ -1755,7 +1697,7 @@
             createFeeDistributionChartWithData(newCtx, restaurantLabels, venueFeesData, restaurantColors, timePeriod);
         }
 
-        // Create the actual fee distribution chart with data
+        // Create the actual fee distribution chart
         function createFeeDistributionChartWithData(ctx, restaurantLabels, venueFeesData, restaurantColors, timePeriod) {
             charts.feeDistribution = new Chart(ctx, {
                 type: 'doughnut',
@@ -1802,9 +1744,6 @@
                                     const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                     const percentage = ((context.parsed / total) * 100).toFixed(1);
                                     return [`Venue Fees: ${value}`, `Share: ${percentage}%`];
-                                },
-                                afterLabel: function(context) {
-                                    return `Period: ${getTimePeriodDisplayName(timePeriod)}`;
                                 }
                             }
                         }
@@ -1840,13 +1779,12 @@
             return names[timePeriod] || 'Current Period';
         }
 
-        // Generate revenue data from actual orders - NO SAMPLE DATA
+        // Generate revenue data from actual orders
         function generateRevenueDataFromOrders(labels, timePeriod) {
             const venueFeesData = new Array(labels.length).fill(0);
             const restaurantSalesData = new Array(labels.length).fill(0);
             
             if (!financialData.orders || financialData.orders.length === 0) {
-                // Return empty data - no sample generation
                 return { venueFeesData, restaurantSalesData, hasData: false };
             }
             
@@ -1856,9 +1794,26 @@
                 const orderDate = timestampToDate(order.createdAt);
                 const orderTotal = parseFloat(order.total) || 0;
                 const restaurant = venueRestaurants.find(r => r.id === order.restaurantId);
-                const actualFeeRate = restaurant ? 
-                    (parseFloat(restaurant.venueFeePercentage) || parseFloat(currentVenue.defaultFeePercentage) || 1.0) / 100 :
-                    (parseFloat(order.venueFeePercentage) || parseFloat(currentVenue.defaultFeePercentage) || 1.0) / 100;
+                
+                // FIXED: Properly handle 0% fees
+                let actualFeeRate;
+                if (restaurant) {
+                    if (restaurant.venueFeePercentage !== undefined && restaurant.venueFeePercentage !== null) {
+                        actualFeeRate = parseFloat(restaurant.venueFeePercentage) / 100;
+                    } else if (currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null) {
+                        actualFeeRate = parseFloat(currentVenue.defaultFeePercentage) / 100;
+                    } else {
+                        actualFeeRate = 1.0 / 100;
+                    }
+                } else {
+                    if (order.venueFeePercentage !== undefined && order.venueFeePercentage !== null) {
+                        actualFeeRate = parseFloat(order.venueFeePercentage) / 100;
+                    } else if (currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null) {
+                        actualFeeRate = parseFloat(currentVenue.defaultFeePercentage) / 100;
+                    } else {
+                        actualFeeRate = 1.0 / 100;
+                    }
+                }
                 
                 const orderVenueFee = orderTotal * actualFeeRate;
                 
@@ -1880,25 +1835,20 @@
             
             switch (timePeriod) {
                 case 'today':
-                    // Group by 4-hour blocks
                     const hoursAgo = Math.floor((now - orderDate) / (60 * 60 * 1000));
                     const blockIndex = Math.floor(hoursAgo / 4);
                     return Math.max(0, 5 - blockIndex);
                 case 'week':
-                    // Last 7 days
                     const daysAgo = Math.floor((now - orderDate) / (24 * 60 * 60 * 1000));
                     return Math.max(0, 6 - daysAgo);
                 case 'month':
-                    // Last 4 weeks
                     const weeksAgo = Math.floor((now - orderDate) / (7 * 24 * 60 * 60 * 1000));
                     return Math.max(0, 3 - weeksAgo);
                 case 'quarter':
-                    // Last 3 months
                     const monthsAgo = Math.floor((now.getFullYear() - orderDate.getFullYear()) * 12 + 
                                                (now.getMonth() - orderDate.getMonth()));
                     return Math.max(0, 2 - monthsAgo);
                 case 'year':
-                    // Last 12 months
                     const yearMonthsAgo = Math.floor((now.getFullYear() - orderDate.getFullYear()) * 12 + 
                                                    (now.getMonth() - orderDate.getMonth()));
                     return Math.max(0, 11 - yearMonthsAgo);
@@ -1917,6 +1867,49 @@
                 case 'year': return 'Months of Year';
                 default: return 'Time Period';
             }
+        }
+
+        // Generate time labels based on period
+        function generateTimeLabels(timePeriod) {
+            const now = new Date();
+            const labels = [];
+            
+            switch (timePeriod) {
+                case 'today':
+                    for (let i = 5; i >= 0; i--) {
+                        const time = new Date(now.getTime() - (i * 4 * 60 * 60 * 1000));
+                        labels.push(time.getHours().toString().padStart(2, '0') + ':00');
+                    }
+                    break;
+                case 'week':
+                    for (let i = 6; i >= 0; i--) {
+                        const day = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
+                        labels.push(day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
+                    }
+                    break;
+                case 'month':
+                    for (let i = 3; i >= 0; i--) {
+                        const weekStart = new Date(now.getTime() - (i * 7 * 24 * 60 * 60 * 1000));
+                        labels.push(`Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`);
+                    }
+                    break;
+                case 'quarter':
+                    for (let i = 2; i >= 0; i--) {
+                        const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                        labels.push(month.toLocaleDateString('en-US', { month: 'long' }));
+                    }
+                    break;
+                case 'year':
+                    for (let i = 11; i >= 0; i--) {
+                        const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                        labels.push(month.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+                    }
+                    break;
+                default:
+                    labels.push('No Data');
+            }
+            
+            return labels;
         }
 
         // Update default venue fee
@@ -2019,7 +2012,6 @@
             editElement.style.alignItems = 'center';
             editElement.style.gap = '8px';
             
-            // Focus on the input
             const input = document.getElementById(`feeInput_${restaurantId}`);
             input.focus();
             input.select();
@@ -2047,8 +2039,10 @@
                 if (restaurant) {
                     restaurant.venueFeePercentage = feePercentage;
                     
-                    // Track as customized if different from default
-                    if (feePercentage !== currentVenue.defaultFeePercentage) {
+                    const defaultFee = currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null ? 
+                        currentVenue.defaultFeePercentage : 1.0;
+                    
+                    if (feePercentage !== defaultFee) {
                         customizedRestaurantFees.add(restaurantId);
                     } else {
                         customizedRestaurantFees.delete(restaurantId);
@@ -2057,14 +2051,12 @@
                 
                 showSuccess(`Restaurant fee updated to ${feePercentage}%`);
                 
-                // Switch back to display mode
                 const displayElement = document.getElementById(`feeDisplay_${restaurantId}`);
                 const editElement = document.getElementById(`feeEdit_${restaurantId}`);
                 
                 displayElement.style.display = 'flex';
                 editElement.style.display = 'none';
                 
-                // Reload financial data to update calculations
                 await loadFinancialData();
                 
             } catch (error) {
@@ -2076,7 +2068,8 @@
         // Reset restaurant to default fee
         async function resetToDefault(restaurantId) {
             try {
-                const defaultFee = currentVenue.defaultFeePercentage || 1.0;
+                const defaultFee = currentVenue.defaultFeePercentage !== undefined && currentVenue.defaultFeePercentage !== null ? 
+                    currentVenue.defaultFeePercentage : 1.0;
                 
                 const db = getFirebaseDb();
                 await db.collection('restaurants').doc(restaurantId).update({
@@ -2105,7 +2098,6 @@
         // Apply filters with loading indicator
         async function applyFilters() {
             try {
-                // Show loading state
                 const loadingOverlay = document.getElementById('loadingOverlay');
                 const loadingText = document.querySelector('.loading-text');
                 
@@ -2114,12 +2106,10 @@
                     loadingOverlay.classList.add('active');
                 }
                 
-                // Add small delay for smooth UX
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
                 await loadFinancialData();
                 
-                // Hide loading state
                 if (loadingOverlay) {
                     loadingOverlay.classList.remove('active');
                     loadingText.textContent = 'Loading...';
@@ -2129,60 +2119,11 @@
                 console.error('❌ Apply filters error:', error);
                 showError('Failed to update financial data');
                 
-                // Hide loading state on error
                 const loadingOverlay = document.getElementById('loadingOverlay');
                 if (loadingOverlay) {
                     loadingOverlay.classList.remove('active');
                 }
             }
-        }
-
-        // Generate time labels based on period - IMPROVED FOR DYNAMIC PERIODS
-        function generateTimeLabels(timePeriod) {
-            const now = new Date();
-            const labels = [];
-            
-            switch (timePeriod) {
-                case 'today':
-                    // Last 24 hours in 4-hour blocks
-                    for (let i = 5; i >= 0; i--) {
-                        const time = new Date(now.getTime() - (i * 4 * 60 * 60 * 1000));
-                        labels.push(time.getHours().toString().padStart(2, '0') + ':00');
-                    }
-                    break;
-                case 'week':
-                    // Last 7 days
-                    for (let i = 6; i >= 0; i--) {
-                        const day = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-                        labels.push(day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
-                    }
-                    break;
-                case 'month':
-                    // Last 4 weeks
-                    for (let i = 3; i >= 0; i--) {
-                        const weekStart = new Date(now.getTime() - (i * 7 * 24 * 60 * 60 * 1000));
-                        labels.push(`Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`);
-                    }
-                    break;
-                case 'quarter':
-                    // Last 3 months
-                    for (let i = 2; i >= 0; i--) {
-                        const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                        labels.push(month.toLocaleDateString('en-US', { month: 'long' }));
-                    }
-                    break;
-                case 'year':
-                    // Last 12 months
-                    for (let i = 11; i >= 0; i--) {
-                        const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                        labels.push(month.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
-                    }
-                    break;
-                default:
-                    labels.push('No Data');
-            }
-            
-            return labels;
         }
 
         function updateUserDisplay() {
@@ -2202,22 +2143,6 @@
                 window.location.href = url;
             }, 300);
         }
-
-        // Hide loading overlay when page loads
-        window.addEventListener('load', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.remove('active');
-            }
-        });
-
-        // Show loading overlay on page unload
-        window.addEventListener('beforeunload', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.add('active');
-            }
-        });
 
         // Handle logout
         async function handleLogout() {
@@ -2261,8 +2186,24 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('💰 Improved Venue Financials Dashboard starting...');
+            console.log('💰 Clean Venue Financials Dashboard starting...');
             initializeDashboard();
+        });
+
+        // Hide loading overlay when page loads
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('active');
+            }
+        });
+
+        // Show loading overlay on page unload
+        window.addEventListener('beforeunload', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('active');
+            }
         });
     </script>
 </body>
