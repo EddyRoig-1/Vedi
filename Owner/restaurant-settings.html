@@ -857,8 +857,97 @@
             outline: 2px solid #FF3B30;
         }
 
-        .btn-success:focus {
-            outline: 2px solid #30D158;
+        /* Leave Venue Confirmation Styles */
+        .leave-confirmation {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: #FFFFFF;
+            border: 1px solid #E5E5E7;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            min-width: 250px;
+            display: none;
+        }
+
+        .leave-confirmation.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        .leave-confirmation-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #FF3B30;
+            margin-bottom: 8px;
+        }
+
+        .leave-confirmation-text {
+            font-size: 13px;
+            color: #86868B;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .leave-confirmation-input {
+            width: 100%;
+            height: 36px;
+            padding: 8px 12px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 15px;
+            margin-bottom: 12px;
+            background: #FFFFFF;
+            color: #1D1D1F;
+            transition: all 0.2s ease;
+        }
+
+        .leave-confirmation-input:focus {
+            outline: none;
+            border-color: #FF3B30;
+            box-shadow: 0 0 0 2px rgba(255, 59, 48, 0.1);
+        }
+
+        .leave-confirmation-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .leave-confirm-btn {
+            flex: 1;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .leave-confirm-btn.cancel {
+            background: #F1F3F4;
+            color: #1D1D1F;
+        }
+
+        .leave-confirm-btn.cancel:hover {
+            background: #E5E5E7;
+        }
+
+        .leave-confirm-btn.confirm {
+            background: #FF3B30;
+            color: white;
+        }
+
+        .leave-confirm-btn.confirm:hover:not(:disabled) {
+            background: #E8342A;
+        }
+
+        .leave-confirm-btn.confirm:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -1643,6 +1732,82 @@
         // VENUE ASSOCIATION FUNCTIONS (SIMPLIFIED)
         // ============================================================================
 
+        // ============================================================================
+        // LEAVE VENUE CONFIRMATION FUNCTIONS (NEW!)
+        // ============================================================================
+
+        /**
+         * Show leave venue confirmation popup
+         */
+        function showLeaveConfirmation() {
+            const confirmation = document.getElementById('leaveConfirmation');
+            const input = document.getElementById('leaveConfirmationInput');
+            
+            if (confirmation) {
+                confirmation.classList.add('show');
+            }
+            
+            if (input) {
+                input.value = '';
+                input.focus();
+                // Add input listener for real-time validation
+                input.addEventListener('input', validateLeaveInput);
+            }
+        }
+
+        /**
+         * Hide leave venue confirmation popup
+         */
+        function hideLeaveConfirmation() {
+            const confirmation = document.getElementById('leaveConfirmation');
+            const input = document.getElementById('leaveConfirmationInput');
+            
+            if (confirmation) {
+                confirmation.classList.remove('show');
+            }
+            
+            if (input) {
+                input.removeEventListener('input', validateLeaveInput);
+                input.value = '';
+            }
+            
+            const confirmBtn = document.getElementById('confirmLeaveBtn');
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+            }
+        }
+
+        /**
+         * Validate leave input and enable/disable confirm button
+         */
+        function validateLeaveInput() {
+            const input = document.getElementById('leaveConfirmationInput');
+            const confirmBtn = document.getElementById('confirmLeaveBtn');
+            
+            if (input && confirmBtn) {
+                const inputValue = input.value.toLowerCase().trim();
+                confirmBtn.disabled = inputValue !== 'leave';
+            }
+        }
+
+        /**
+         * Confirm and execute venue leaving
+         */
+        async function confirmLeaveVenue() {
+            const input = document.getElementById('leaveConfirmationInput');
+            
+            if (!input || input.value.toLowerCase().trim() !== 'leave') {
+                showError('Please type "leave" to confirm');
+                return;
+            }
+            
+            // Hide the confirmation popup
+            hideLeaveConfirmation();
+            
+            // Execute the leave venue function
+            await leaveVenue();
+        }
+
         /**
          * Leave venue function with currency unlock
          */
@@ -1748,9 +1913,22 @@
                                     </div>
                                 ` : ''}
                             </div>
-                            <button class="btn btn-danger btn-small" onclick="leaveVenue()">
-                                Leave Venue
-                            </button>
+                            <div style="position: relative;">
+                                <button class="btn btn-danger btn-small" onclick="showLeaveConfirmation()" id="leaveVenueBtn">
+                                    Leave Venue
+                                </button>
+                                
+                                <!-- Leave Confirmation Popup -->
+                                <div class="leave-confirmation" id="leaveConfirmation">
+                                    <div class="leave-confirmation-title">Leave Venue</div>
+                                    <div class="leave-confirmation-text">Type "leave" to confirm you want to leave this venue:</div>
+                                    <input type="text" class="leave-confirmation-input" id="leaveConfirmationInput" placeholder="Type 'leave'" autocomplete="off">
+                                    <div class="leave-confirmation-actions">
+                                        <button class="leave-confirm-btn cancel" onclick="hideLeaveConfirmation()">Cancel</button>
+                                        <button class="leave-confirm-btn confirm" id="confirmLeaveBtn" onclick="confirmLeaveVenue()" disabled>Confirm</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
