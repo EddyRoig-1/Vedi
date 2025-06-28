@@ -96,6 +96,24 @@
             gap: 16px;
         }
 
+        .timezone-display {
+            text-align: right;
+            margin-right: 8px;
+        }
+
+        .timezone-time {
+            font-size: 15px;
+            font-weight: 600;
+            color: #007AFF;
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+        }
+
+        .timezone-label {
+            font-size: 12px;
+            color: #86868B;
+            font-weight: 500;
+        }
+
         .user-info {
             text-align: right;
         }
@@ -724,6 +742,10 @@
                 <p id="venueLocation">Loading venue information...</p>
             </div>
             <div class="user-section">
+                <div class="timezone-display" id="headerTimezoneDisplay">
+                    <div class="timezone-time">--:--:--</div>
+                    <div class="timezone-label">Venue Time</div>
+                </div>
                 <div class="user-info">
                     <div class="user-name" id="userName">Venue Manager</div>
                     <div class="user-role">Venue Management</div>
@@ -799,7 +821,7 @@
                         <option value="Australia/Sydney">🇦🇺 Australian Eastern Time</option>
                         <option value="UTC">🌍 Coordinated Universal Time (UTC)</option>
                     </select>
-                    <div class="timezone-info" id="timezoneInfo">
+                    <div class="timezone-info" id="timezoneInfo" style="display: none;">
                         <div>Current time in selected timezone:</div>
                         <div class="timezone-current-time" id="currentTimeDisplay">--</div>
                     </div>
@@ -1276,7 +1298,20 @@
         function updateTimezoneDisplay() {
             try {
                 const now = new Date();
-                const timeInTimezone = now.toLocaleString('en-US', {
+                
+                // Update header timezone display
+                const headerTime = now.toLocaleString('en-US', {
+                    timeZone: selectedTimezone,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                
+                document.getElementById('headerTimezoneDisplay').querySelector('.timezone-time').textContent = headerTime;
+                
+                // Update form timezone display (hidden by default)
+                const formTime = now.toLocaleString('en-US', {
                     timeZone: selectedTimezone,
                     weekday: 'short',
                     year: 'numeric',
@@ -1285,13 +1320,15 @@
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit',
+                    hour12: false,
                     timeZoneName: 'short'
                 });
                 
-                document.getElementById('currentTimeDisplay').textContent = timeInTimezone;
+                document.getElementById('currentTimeDisplay').textContent = formTime;
                 
             } catch (error) {
                 console.error('❌ Error updating timezone display:', error);
+                document.getElementById('headerTimezoneDisplay').querySelector('.timezone-time').textContent = '--:--:--';
                 document.getElementById('currentTimeDisplay').textContent = 'Invalid timezone';
             }
         }
