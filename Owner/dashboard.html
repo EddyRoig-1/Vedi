@@ -30,6 +30,7 @@
     <script src="../Api/business/venue-sync.js"></script>
     <script src="../Api/business/menu-categories.js"></script>
     <script src="../Api/business/menu-items.js"></script>
+    <script src="../Api/business/timezone.js"></script>
     
     <!-- OPERATIONS MODULES -->
     <script src="../Api/operations/loss-incidents.js"></script>
@@ -101,7 +102,41 @@
 
         .header-actions {
             display: flex;
+            gap: 16px;
             align-items: center;
+        }
+
+        .timezone-display {
+            text-align: right;
+            margin-right: 8px;
+        }
+
+        .timezone-time {
+            font-size: 15px;
+            font-weight: 600;
+            color: #007AFF;
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+        }
+
+        .timezone-label {
+            font-size: 12px;
+            color: #86868B;
+            font-weight: 500;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1D1D1F;
+        }
+
+        .user-role {
+            font-size: 13px;
+            color: #86868B;
         }
 
         .logout-btn {
@@ -623,6 +658,15 @@
                 text-align: center;
             }
 
+            .header-actions {
+                justify-content: space-between;
+                flex-direction: row;
+            }
+
+            .timezone-display {
+                margin-right: 0;
+            }
+
             .section-header {
                 flex-direction: column;
                 gap: 16px;
@@ -663,6 +707,18 @@
             .stat-number {
                 font-size: 28px;
             }
+
+            .header-content {
+                padding: 16px;
+            }
+
+            .timezone-time {
+                font-size: 14px;
+            }
+
+            .user-name {
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -683,6 +739,14 @@
                     <div id="venueDisplay"></div>
                 </div>
                 <div class="header-actions">
+                    <div class="timezone-display" id="headerTimezoneDisplay">
+                        <div class="timezone-time">--:--:--</div>
+                        <div class="timezone-label">Restaurant Time</div>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Restaurant Owner</div>
+                        <div class="user-role">Restaurant Management</div>
+                    </div>
                     <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
                 </div>
             </div>
@@ -821,6 +885,8 @@
         let currentRestaurant = null;
         let categories = [];
         let menuItems = [];
+        let selectedTimezone = 'UTC';
+        let timezoneUpdateInterval = null;
 
         // SECURITY MESSAGE LISTENER FOR IFRAME ERRORS
         // ========================================
@@ -852,6 +918,93 @@
                 // Your existing restaurant update logic if any
             }
         });
+
+        /**
+         * Get restaurant's effective timezone (venue timezone if associated, own if independent)
+         */
+        function getRestaurantEffectiveTimezone() {
+            if (!currentRestaurant) {
+                return 'UTC';
+            }
+            
+            // Use TimezoneAPI if available
+            if (typeof TimezoneAPI !== 'undefined' && typeof TimezoneAPI.getRestaurantEffectiveTimezone === 'function') {
+                return TimezoneAPI.getRestaurantEffectiveTimezone(currentRestaurant);
+            }
+            
+            // Fallback logic
+            if (currentRestaurant.venueId && currentRestaurant.venueTimezone) {
+                return currentRestaurant.venueTimezone;
+            }
+            
+            if (currentRestaurant.timezone) {
+                return currentRestaurant.timezone;
+            }
+            
+            return 'UTC';
+        }
+
+        /**
+         * Start timezone updates in header
+         */
+        function startTimezoneUpdates() {
+            // Get effective timezone
+            selectedTimezone = getRestaurantEffectiveTimezone();
+            console.log('🕐 Restaurant effective timezone:', selectedTimezone);
+            
+            // Initial update
+            updateTimezoneDisplay();
+            
+            // Update every second for live clock
+            if (timezoneUpdateInterval) {
+                clearInterval(timezoneUpdateInterval);
+            }
+            timezoneUpdateInterval = setInterval(updateTimezoneDisplay, 1000);
+        }
+
+        /**
+         * Update timezone display in header
+         */
+        function updateTimezoneDisplay() {
+            try {
+                const now = new Date();
+                
+                // Update header timezone display with proper timezone
+                const headerTime = now.toLocaleString('en-US', {
+                    timeZone: selectedTimezone,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                
+                const headerElement = document.getElementById('headerTimezoneDisplay');
+                const timeElement = headerElement?.querySelector('.timezone-time');
+                if (timeElement) {
+                    timeElement.textContent = headerTime;
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating timezone display:', error);
+                const headerElement = document.getElementById('headerTimezoneDisplay');
+                const timeElement = headerElement?.querySelector('.timezone-time');
+                if (timeElement) {
+                    timeElement.textContent = '--:--:--';
+                }
+            }
+        }
+
+        /**
+         * Update user display with restaurant owner name
+         */
+        function updateUserDisplay() {
+            if (currentUser) {
+                const userNameElement = document.getElementById('userName');
+                if (userNameElement) {
+                    userNameElement.textContent = currentUser.name || currentUser.email || 'Restaurant Owner';
+                }
+            }
+        }
 
         // Initialize app with DIRECT FIREBASE AUTH
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1063,6 +1216,7 @@
                     return;
                 }
                 console.log('✅ Loaded restaurant:', currentRestaurant.name);
+                console.log('🕐 Restaurant timezone:', currentRestaurant.timezone || currentRestaurant.venueTimezone || 'UTC');
 
                 // Update header with restaurant name and venue info
                 document.getElementById('mainHeaderTitle').textContent = currentRestaurant.name;
@@ -1077,6 +1231,12 @@
                 } else {
                     restaurantInfo.style.display = 'none';
                 }
+
+                // Update user display with restaurant owner name
+                updateUserDisplay();
+
+                // Start timezone updates  
+                startTimezoneUpdates();
 
                 // Load menu data for overview stats - USING VEDIAPI (BUSINESS LOGIC)
                 console.log('📋 Loading menu data for overview...');
@@ -1169,6 +1329,9 @@
                 // Update stats
                 console.log('📊 Updating overview stats...');
                 updateStats();
+
+                // Refresh timezone in case restaurant timezone changed
+                selectedTimezone = getRestaurantEffectiveTimezone();
 
                 console.log('✅ Overview data loading complete!');
 
@@ -1444,7 +1607,7 @@
             document.getElementById('avgPrice').textContent = formatPrice(avgPrice);
         }
 
-               // Currency utility functions
+        // Currency utility functions
         function getRestaurantCurrency() {
             if (currentRestaurant && currentRestaurant.currency) {
                 return currentRestaurant.currency;
@@ -1519,6 +1682,12 @@
             
             try {
                 showLoading('Signing out...');
+                
+                // Clear timezone update interval
+                if (timezoneUpdateInterval) {
+                    clearInterval(timezoneUpdateInterval);
+                }
+                
                 // DIRECT FIREBASE CALL - No VediAPI wrapper
                 await firebase.auth().signOut();
                 window.location.href = '../Landing-Signup-Login/login.html';
@@ -1691,7 +1860,14 @@
             showNotification(message, 'error');
         }
 
-        console.log('🎉 Restaurant dashboard with iOS-style design loaded successfully');
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (timezoneUpdateInterval) {
+                clearInterval(timezoneUpdateInterval);
+            }
+        });
+
+        console.log('🎉 Restaurant dashboard with iOS-style design and timezone display loaded successfully');
     </script>
 </body>
 </html>
