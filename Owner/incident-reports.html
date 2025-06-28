@@ -13,6 +13,9 @@
 
     <!-- Secure Iframe Initialization (REPLACES all other API modules) -->
     <script src="../Api/core/secure-iframe-init.js"></script>
+    
+    <!-- Restaurant Timezone Support -->
+    <script src="../Api/business/timezone.js"></script>
 
     <!-- Chart.js for analytics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
@@ -25,7 +28,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
             background: #F8F9FA;
             min-height: 100vh;
             color: #1D1D1F;
@@ -37,6 +40,99 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 32px;
+        }
+
+        /* Header with Timezone Display */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            background: #FFFFFF;
+            padding: 24px;
+            border-radius: 16px;
+            border: 1px solid #E5E5E7;
+        }
+
+        .header-left {
+            flex: 1;
+        }
+
+        .page-title {
+            font-size: 34px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 17px;
+            color: #8E8E93;
+            font-weight: 400;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .restaurant-info {
+            text-align: center;
+        }
+
+        .restaurant-name {
+            font-size: 17px;
+            font-weight: 600;
+            color: #1D1D1F;
+            line-height: 1.2;
+        }
+
+        .restaurant-role {
+            font-size: 13px;
+            color: #8E8E93;
+            font-weight: 500;
+        }
+
+        .timezone-display {
+            text-align: center;
+        }
+
+        .current-time {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1D1D1F;
+            line-height: 1.2;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timezone-info {
+            font-size: 13px;
+            color: #8E8E93;
+            font-weight: 500;
+        }
+
+        .signout-button {
+            background: #FF3B30;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 44px;
+        }
+
+        .signout-button:hover {
+            background: #D70015;
+            transform: scale(0.98);
+        }
+
+        .signout-button:active {
+            background: #B8000F;
+            transform: scale(0.96);
         }
 
         /* Loading State */
@@ -76,24 +172,6 @@
             border: 1px solid #FFCDD2;
             display: none;
             font-weight: 500;
-        }
-
-        /* Page Header */
-        .page-header {
-            margin-bottom: 32px;
-        }
-
-        .page-title {
-            font-size: 34px;
-            font-weight: 700;
-            color: #000000;
-            margin-bottom: 8px;
-        }
-
-        .page-subtitle {
-            font-size: 17px;
-            color: #8E8E93;
-            font-weight: 400;
         }
 
         /* Stats Grid */
@@ -560,22 +638,19 @@
 
         /* Responsive Design */
         @media (max-width: 768px) {
-            .header-content,
-            .nav-content,
+            .page-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .header-right {
+                width: 100%;
+                justify-content: space-between;
+            }
+
             .container {
-                padding-left: 16px;
-                padding-right: 16px;
-            }
-
-            .nav-content {
-                gap: 24px;
-                overflow-x: auto;
-                scrollbar-width: none;
-                -ms-overflow-style: none;
-            }
-
-            .nav-content::-webkit-scrollbar {
-                display: none;
+                padding: 16px;
             }
 
             .stats-grid {
@@ -608,6 +683,10 @@
 
             .chart-container {
                 height: 300px;
+            }
+
+            .restaurant-info, .timezone-display {
+                text-align: left;
             }
         }
 
@@ -770,10 +849,29 @@
 
         <!-- Main Content -->
         <div id="mainContent" style="display: none;">
+            <!-- Header with Restaurant Info and Timezone -->
+            <div class="page-header">
+                <div class="header-left">
+                    <h1 class="page-title">Loss Reports</h1>
+                    <p class="page-subtitle">Track and manage restaurant incidents in your local timezone</p>
+                </div>
+                <div class="header-right">
+                    <div class="restaurant-info">
+                        <div class="restaurant-name" id="restaurantOwnerName">Restaurant Owner</div>
+                        <div class="restaurant-role">Loss Reports</div>
+                    </div>
+                    <div class="timezone-display">
+                        <div class="current-time" id="currentTime">--:--</div>
+                        <div class="timezone-info" id="timezoneInfo">Loading timezone...</div>
+                    </div>
+                    <button class="signout-button" onclick="handleSignOut()">Sign Out</button>
+                </div>
+            </div>
+
             <!-- Statistics Overview -->
             <div class="stats-section">
                 <div class="stats-header">
-                    <h2 class="section-title">Loss Reports</h2>
+                    <h2 class="section-title">Loss Summary</h2>
                     <div style="display: flex; gap: 12px;">
                         <button class="btn-secondary" onclick="exportReport()">Export Report</button>
                         <button class="btn-primary btn-danger" onclick="openReportModal()">Report Incident</button>
@@ -790,8 +888,8 @@
                         <div class="stat-label">Total Loss</div>
                     </div>
                     <div class="stat-card warning">
-                        <div class="stat-number" id="monthlyLoss">$0</div>
-                        <div class="stat-label">This Month</div>
+                        <div class="stat-number" id="currentPeriodLoss">$0</div>
+                        <div class="stat-label" id="currentPeriodLabel">This Month</div>
                     </div>
                     <div class="stat-card success">
                         <div class="stat-number" id="mostCommonIncident">None</div>
@@ -806,11 +904,11 @@
                     <div class="filter-group">
                         <label class="filter-label">Time Period</label>
                         <select class="filter-select" id="timePeriod">
-                            <option value="all">All Time</option>
                             <option value="today">Today</option>
                             <option value="week">This Week</option>
                             <option value="month" selected>This Month</option>
                             <option value="quarter">This Quarter</option>
+                            <option value="year">This Year</option>
                         </select>
                     </div>
                     <div class="filter-group">
@@ -849,7 +947,7 @@
             <!-- Analytics Chart -->
             <div class="chart-section">
                 <div class="chart-header">
-                    <h2 class="section-title">Loss Analytics</h2>
+                    <h2 class="section-title" id="chartTitle">Loss Analytics</h2>
                 </div>
                 <div class="chart-container">
                     <canvas id="combinedChart"></canvas>
@@ -979,8 +1077,8 @@
         // Global variables
         let currentUser = null;
         let currentRestaurant = null;
-        let allIncidents = []; // This will contain ALL incidents for recent incidents display
-        let filteredIncidents = []; // This will contain filtered incidents for stats/charts
+        let allIncidents = []; // All incidents for recent incidents display
+        let filteredIncidents = []; // Filtered incidents for stats/charts
         let combinedChart = null;
         let realtimeUnsubscribe = null;
         let currentFilters = {
@@ -990,11 +1088,10 @@
             status: 'all'
         };
 
-        // Currency cache for formatting
-        const appCache = {
-            currency: { code: 'USD', symbol: '$' },
-            lastRefresh: 0
-        };
+        // Restaurant timezone and currency
+        let restaurantTimezone = 'UTC';
+        let restaurantCurrency = { code: 'USD', symbol: '$' };
+        let timezoneUpdateInterval = null;
 
         // Define consistent color scheme for incident types
         const INCIDENT_TYPE_COLORS = {
@@ -1023,11 +1120,403 @@
         }
 
         // ============================================================================
+        // RESTAURANT TIMEZONE & CURRENCY MANAGEMENT
+        // ============================================================================
+
+        /**
+         * Get restaurant's effective timezone (venue timezone if associated, own timezone if independent)
+         */
+        function getRestaurantEffectiveTimezone() {
+            if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getRestaurantEffectiveTimezone) {
+                return TimezoneAPI.getRestaurantEffectiveTimezone(currentRestaurant);
+            }
+            
+            // Fallback logic
+            if (currentRestaurant.venueId && currentRestaurant.venueTimezone) {
+                return currentRestaurant.venueTimezone;
+            }
+            
+            return currentRestaurant.timezone || 'UTC';
+        }
+
+        /**
+         * Update timezone display in header
+         */
+        function updateTimezoneDisplay() {
+            try {
+                const now = new Date();
+                const timeInTimezone = new Date(now.toLocaleString('en-US', { timeZone: restaurantTimezone }));
+                
+                // Format time
+                const timeString = timeInTimezone.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                
+                // Get timezone info
+                const timezoneInfo = TimezoneAPI?.getTimezoneInfo ? 
+                    TimezoneAPI.getTimezoneInfo(restaurantTimezone) : 
+                    { label: restaurantTimezone };
+                
+                // Update display
+                document.getElementById('currentTime').textContent = timeString;
+                document.getElementById('timezoneInfo').textContent = timezoneInfo.label || restaurantTimezone;
+                
+            } catch (error) {
+                console.error('❌ Error updating timezone display:', error);
+                document.getElementById('currentTime').textContent = '--:--';
+                document.getElementById('timezoneInfo').textContent = 'Timezone Error';
+            }
+        }
+
+        /**
+         * Get restaurant's effective currency
+         */
+        function getRestaurantCurrency() {
+            if (currentRestaurant.currency) {
+                return currentRestaurant.currency;
+            }
+            
+            // Fallback
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
+        }
+
+        /**
+         * Format currency using restaurant's currency
+         */
+        function formatCurrency(amount) {
+            if (!amount && amount !== 0) return `${restaurantCurrency.symbol}0.00`;
+            return `${restaurantCurrency.symbol}${Number(amount).toFixed(2)}`;
+        }
+
+        // ============================================================================
+        // CALENDAR-BASED TIME PERIOD LOGIC (FROM PERFORMANCE PAGE)
+        // ============================================================================
+
+        /**
+         * Get calendar-based time period boundaries in restaurant's timezone
+         */
+        function getCalendarPeriodBoundaries(timePeriod) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getCalendarPeriodBoundaries) {
+                    return TimezoneAPI.getCalendarPeriodBoundaries(timePeriod, currentRestaurant);
+                }
+                
+                // Fallback calendar logic
+                const now = new Date();
+                const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: restaurantTimezone }));
+                
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        const todayStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate());
+                        const todayEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59, 999);
+                        return { start: todayStart, end: todayEnd };
+                        
+                    case 'week':
+                        // Get current week Monday to Sunday
+                        const dayOfWeek = nowInTimezone.getDay();
+                        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                        const weekStart = new Date(nowInTimezone);
+                        weekStart.setDate(nowInTimezone.getDate() + mondayOffset);
+                        weekStart.setHours(0, 0, 0, 0);
+                        
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        weekEnd.setHours(23, 59, 59, 999);
+                        return { start: weekStart, end: weekEnd };
+                        
+                    case 'month':
+                        // Get current month 1st to last day
+                        const monthStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 1);
+                        const monthEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() + 1, 0, 23, 59, 59, 999);
+                        return { start: monthStart, end: monthEnd };
+                        
+                    case 'quarter':
+                        // Get current quarter start to end
+                        const quarterStartMonth = Math.floor(nowInTimezone.getMonth() / 3) * 3;
+                        const quarterStart = new Date(nowInTimezone.getFullYear(), quarterStartMonth, 1);
+                        const quarterEnd = new Date(nowInTimezone.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+                        return { start: quarterStart, end: quarterEnd };
+                        
+                    case 'year':
+                        // Get current year January 1st to December 31st
+                        const yearStart = new Date(nowInTimezone.getFullYear(), 0, 1);
+                        const yearEnd = new Date(nowInTimezone.getFullYear(), 11, 31, 23, 59, 59, 999);
+                        return { start: yearStart, end: yearEnd };
+                        
+                    default:
+                        return { start: null, end: null };
+                }
+            } catch (error) {
+                console.error('❌ Error getting calendar period boundaries:', error);
+                return { start: null, end: null };
+            }
+        }
+
+        /**
+         * Convert timestamp to date in restaurant's timezone
+         */
+        function timestampToDate(timestamp) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.timestampToDateInTimezone) {
+                    return TimezoneAPI.timestampToDateInTimezone(timestamp, currentRestaurant);
+                }
+                
+                // Fallback conversion
+                let date;
+                if (timestamp && timestamp.toDate) {
+                    date = timestamp.toDate();
+                } else if (timestamp && timestamp.seconds) {
+                    date = new Date(timestamp.seconds * 1000);
+                } else {
+                    date = new Date(timestamp);
+                }
+                
+                // Convert to restaurant timezone
+                return new Date(date.toLocaleString('en-US', { timeZone: restaurantTimezone }));
+            } catch (error) {
+                console.error('❌ Timestamp conversion error:', error);
+                return new Date();
+            }
+        }
+
+        /**
+         * Filter incidents by calendar time period in restaurant's timezone
+         */
+        function filterIncidentsByTimePeriod(incidents, timePeriod) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.filterOrdersByTimePeriod) {
+                    // Use TimezoneAPI for filtering (adapting orders function for incidents)
+                    return incidents.filter(incident => {
+                        const boundaries = getCalendarPeriodBoundaries(timePeriod);
+                        if (!boundaries.start || !boundaries.end) return true;
+                        
+                        const incidentDate = timestampToDate(incident.createdAt);
+                        return incidentDate >= boundaries.start && incidentDate <= boundaries.end;
+                    });
+                }
+                
+                // Fallback filtering
+                const boundaries = getCalendarPeriodBoundaries(timePeriod);
+                if (!boundaries.start || !boundaries.end) return incidents;
+                
+                return incidents.filter(incident => {
+                    const incidentDate = timestampToDate(incident.createdAt);
+                    return incidentDate >= boundaries.start && incidentDate <= boundaries.end;
+                });
+            } catch (error) {
+                console.error('❌ Error filtering incidents by time period:', error);
+                return incidents;
+            }
+        }
+
+        // ============================================================================
+        // SMART CHART ADAPTATIONS (FROM PERFORMANCE PAGE)
+        // ============================================================================
+
+        /**
+         * Generate smart chart data based on period type and restaurant timezone
+         */
+        function generateChartData(incidents, timePeriod) {
+            const boundaries = getCalendarPeriodBoundaries(timePeriod);
+            const labels = [];
+            const incidentsByType = {
+                theft: [], accident: [], walkout: [], 
+                recall: [], waste: [], other: []
+            };
+            const totalLoss = [];
+            
+            try {
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        // Hourly breakdown for today
+                        for (let hour = 0; hour < 24; hour++) {
+                            const hourData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate.getHours() === hour) {
+                                    const type = incident.type || 'other';
+                                    hourData[type] += 1;
+                                    hourData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(`${hour}:00`);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(hourData[type]);
+                            });
+                            totalLoss.push(hourData.loss);
+                        }
+                        break;
+                        
+                    case 'week':
+                        // Daily breakdown for the week (Mon-Sun)
+                        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                            const currentDay = new Date(boundaries.start);
+                            currentDay.setDate(boundaries.start.getDate() + dayOffset);
+                            
+                            const dayData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate.toDateString() === currentDay.toDateString()) {
+                                    const type = incident.type || 'other';
+                                    dayData[type] += 1;
+                                    dayData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(weekDays[dayOffset]);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(dayData[type]);
+                            });
+                            totalLoss.push(dayData.loss);
+                        }
+                        break;
+                        
+                    case 'month':
+                        // Daily breakdown for the month
+                        const daysInMonth = new Date(boundaries.end.getFullYear(), boundaries.end.getMonth() + 1, 0).getDate();
+                        for (let day = 1; day <= daysInMonth; day++) {
+                            const currentDay = new Date(boundaries.start.getFullYear(), boundaries.start.getMonth(), day);
+                            
+                            const dayData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate.toDateString() === currentDay.toDateString()) {
+                                    const type = incident.type || 'other';
+                                    dayData[type] += 1;
+                                    dayData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(day.toString());
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(dayData[type]);
+                            });
+                            totalLoss.push(dayData.loss);
+                        }
+                        break;
+                        
+                    case 'quarter':
+                        // Monthly breakdown for the quarter
+                        const quarterStartMonth = boundaries.start.getMonth();
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        
+                        for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                            const currentMonth = quarterStartMonth + monthOffset;
+                            const monthStart = new Date(boundaries.start.getFullYear(), currentMonth, 1);
+                            const monthEnd = new Date(boundaries.start.getFullYear(), currentMonth + 1, 0, 23, 59, 59, 999);
+                            
+                            const monthData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate >= monthStart && incidentDate <= monthEnd) {
+                                    const type = incident.type || 'other';
+                                    monthData[type] += 1;
+                                    monthData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(monthNames[currentMonth]);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(monthData[type]);
+                            });
+                            totalLoss.push(monthData.loss);
+                        }
+                        break;
+                        
+                    case 'year':
+                        // Monthly breakdown for the year
+                        const yearMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        
+                        for (let month = 0; month < 12; month++) {
+                            const monthStart = new Date(boundaries.start.getFullYear(), month, 1);
+                            const monthEnd = new Date(boundaries.start.getFullYear(), month + 1, 0, 23, 59, 59, 999);
+                            
+                            const monthData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate >= monthStart && incidentDate <= monthEnd) {
+                                    const type = incident.type || 'other';
+                                    monthData[type] += 1;
+                                    monthData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(yearMonthNames[month]);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(monthData[type]);
+                            });
+                            totalLoss.push(monthData.loss);
+                        }
+                        break;
+                        
+                    default:
+                        // Fallback to daily grouping
+                        const lossData = {};
+                        incidents.forEach(incident => {
+                            const date = timestampToDate(incident.createdAt);
+                            const dateKey = date.toISOString().split('T')[0];
+                            if (!lossData[dateKey]) {
+                                lossData[dateKey] = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            }
+                            const type = incident.type || 'other';
+                            lossData[dateKey][type] += 1;
+                            lossData[dateKey].loss += incident.amount || 0;
+                        });
+                        
+                        const dates = Object.keys(lossData).sort();
+                        labels.push(...dates.map(date => new Date(date).toLocaleDateString()));
+                        Object.keys(incidentsByType).forEach(type => {
+                            incidentsByType[type].push(...dates.map(date => lossData[date][type]));
+                        });
+                        totalLoss.push(...dates.map(date => lossData[date].loss));
+                }
+                
+                return { labels, incidentsByType, totalLoss };
+                
+            } catch (error) {
+                console.error('❌ Error generating chart data:', error);
+                return { 
+                    labels: [], 
+                    incidentsByType: { theft: [], accident: [], walkout: [], recall: [], waste: [], other: [] }, 
+                    totalLoss: [] 
+                };
+            }
+        }
+
+        /**
+         * Update chart title based on selected period and restaurant timezone
+         */
+        function updateChartTitle(timePeriod) {
+            const titleMap = {
+                'today': 'Today\'s Incidents & Losses (Hourly)',
+                'week': 'This Week\'s Incidents & Losses (Daily)', 
+                'month': 'This Month\'s Incidents & Losses (Daily)',
+                'quarter': 'This Quarter\'s Incidents & Losses (Monthly)',
+                'year': 'This Year\'s Incidents & Losses (Monthly)'
+            };
+            
+            const title = titleMap[timePeriod] || 'Incident Count & Loss Trends';
+            const chartTitleElement = document.getElementById('chartTitle');
+            if (chartTitleElement) {
+                chartTitleElement.textContent = title;
+            }
+        }
+
+        // ============================================================================
         // SECURE INITIALIZATION WITH IFRAME INIT
         // ============================================================================
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('📉 Incident Reports initializing with secure iframe init...');
+            console.log('📉 Restaurant Incident Reports with Timezone & Calendar Logic initializing...');
             
             // Use secure initialization
             setTimeout(async () => {
@@ -1045,14 +1534,23 @@
                     console.log('✅ User authenticated:', currentUser.email);
                     console.log('✅ Restaurant loaded:', currentRestaurant.name);
                     
-                    // Step 3: Set currency from restaurant data
-                    appCache.currency = currentRestaurant.currency || { code: 'USD', symbol: '$' };
-                    console.log('💰 Currency loaded:', appCache.currency);
+                    // Step 3: Setup restaurant timezone and currency
+                    restaurantTimezone = getRestaurantEffectiveTimezone();
+                    restaurantCurrency = getRestaurantCurrency();
                     
-                    // Step 4: Setup real-time incident tracking
+                    console.log('🕐 Restaurant timezone:', restaurantTimezone);
+                    console.log('💰 Restaurant currency:', restaurantCurrency);
+                    
+                    // Step 4: Update header with restaurant info
+                    updateHeaderInfo();
+                    
+                    // Step 5: Start timezone display updates
+                    startTimezoneUpdates();
+                    
+                    // Step 6: Setup real-time incident tracking
                     setupRealtimeTracking();
                     
-                    // Step 5: Initialize UI
+                    // Step 7: Initialize UI
                     setupFilterHandlers();
                     await loadIncidentData();
                     initializeCharts();
@@ -1063,7 +1561,7 @@
                     // Auto-refresh every 60 seconds
                     setInterval(loadIncidentData, 60000);
                     
-                    console.log('✅ Incident Reports initialized successfully');
+                    console.log('✅ Restaurant Incident Reports with Timezone & Calendar Logic initialized successfully');
                     
                 } catch (error) {
                     console.error('❌ Initialization error:', error);
@@ -1072,6 +1570,52 @@
                 }
             }, 1000);
         });
+
+        /**
+         * Update header with restaurant owner info
+         */
+        function updateHeaderInfo() {
+            try {
+                // Update restaurant owner name
+                const ownerName = currentUser.name || currentUser.email || 'Restaurant Owner';
+                document.getElementById('restaurantOwnerName').textContent = ownerName;
+                
+                // Update currency symbol in form
+                const currencySymbol = document.getElementById('currencySymbol');
+                if (currencySymbol) {
+                    currencySymbol.textContent = restaurantCurrency.symbol;
+                }
+                
+                const currencyHelp = document.getElementById('currencyHelp');
+                if (currencyHelp) {
+                    currencyHelp.textContent = `* Amount in ${restaurantCurrency.code}`;
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating header info:', error);
+            }
+        }
+
+        /**
+         * Start timezone display updates
+         */
+        function startTimezoneUpdates() {
+            // Update immediately
+            updateTimezoneDisplay();
+            
+            // Update every second
+            timezoneUpdateInterval = setInterval(updateTimezoneDisplay, 1000);
+        }
+
+        /**
+         * Stop timezone display updates
+         */
+        function stopTimezoneUpdates() {
+            if (timezoneUpdateInterval) {
+                clearInterval(timezoneUpdateInterval);
+                timezoneUpdateInterval = null;
+            }
+        }
 
         // ============================================================================
         // REAL-TIME TRACKING AND DATA LOADING
@@ -1116,29 +1660,60 @@
 
         async function loadIncidentData() {
             try {
-                console.log('🔄 Loading incident data...');
+                console.log('🔄 Loading incident data with calendar-based filtering...');
                 
                 // Load ALL incidents for recent incidents display (no filters)
                 allIncidents = await VediAPI.getLossIncidents(currentRestaurant.id, {
                     limit: 1000
                 });
 
-                // Load FILTERED incidents for stats and charts
-                const filterOptions = {
-                    timePeriod: currentFilters.timePeriod !== 'all' ? currentFilters.timePeriod : undefined,
-                    type: currentFilters.incidentType !== 'all' ? currentFilters.incidentType : undefined,
-                    severity: currentFilters.severity !== 'all' ? currentFilters.severity : undefined,
-                    status: currentFilters.status !== 'all' ? currentFilters.status : undefined,
-                    limit: 1000
-                };
-
-                filteredIncidents = await VediAPI.getLossIncidents(currentRestaurant.id, filterOptions);
+                // Apply filters using calendar-based time periods
+                applyFiltersToIncidents();
 
                 console.log('✅ Incident data loaded:', allIncidents.length, 'total,', filteredIncidents.length, 'filtered');
                 updateDashboard();
 
             } catch (error) {
                 console.error('❌ Load incident data error:', error);
+            }
+        }
+
+        /**
+         * Apply filters using calendar-based periods and restaurant timezone
+         */
+        function applyFiltersToIncidents() {
+            try {
+                // Start with all incidents
+                let filtered = [...allIncidents];
+                
+                // Apply time period filter using calendar boundaries
+                if (currentFilters.timePeriod !== 'all') {
+                    filtered = filterIncidentsByTimePeriod(filtered, currentFilters.timePeriod);
+                }
+                
+                // Apply other filters
+                if (currentFilters.incidentType !== 'all') {
+                    filtered = filtered.filter(incident => 
+                        incident.type === currentFilters.incidentType);
+                }
+                
+                if (currentFilters.severity !== 'all') {
+                    filtered = filtered.filter(incident => 
+                        incident.severity === currentFilters.severity);
+                }
+                
+                if (currentFilters.status !== 'all') {
+                    filtered = filtered.filter(incident => 
+                        incident.status === currentFilters.status);
+                }
+                
+                filteredIncidents = filtered;
+                
+                console.log('🔍 Filters applied:', currentFilters, 'Result:', filteredIncidents.length, 'incidents');
+                
+            } catch (error) {
+                console.error('❌ Error applying filters:', error);
+                filteredIncidents = allIncidents;
             }
         }
 
@@ -1153,25 +1728,40 @@
         // ============================================================================
 
         function updateStats() {
-            // Use filtered incidents for stats
-            const totalIncidents = filteredIncidents.length;
-            const totalLoss = filteredIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
-            
-            // Calculate monthly loss from filtered incidents
-            const now = new Date();
-            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            const monthlyIncidents = filteredIncidents.filter(incident => 
-                VediAPI.timestampToDate(incident.createdAt) >= monthStart
-            );
-            const monthlyLoss = monthlyIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
-            
-            // Calculate most common incident type from filtered incidents
-            const mostCommonIncident = calculateMostCommonIncident(filteredIncidents);
+            try {
+                // Use filtered incidents for stats
+                const totalIncidents = filteredIncidents.length;
+                const totalLoss = filteredIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
+                
+                // Calculate current period loss
+                const currentPeriodLoss = totalLoss; // Since filteredIncidents are already filtered by period
+                
+                // Calculate most common incident type from filtered incidents
+                const mostCommonIncident = calculateMostCommonIncident(filteredIncidents);
 
-            document.getElementById('totalIncidents').textContent = totalIncidents;
-            document.getElementById('totalLoss').textContent = formatCurrency(totalLoss);
-            document.getElementById('monthlyLoss').textContent = formatCurrency(monthlyLoss);
-            document.getElementById('mostCommonIncident').textContent = mostCommonIncident;
+                // Update displays with restaurant currency
+                document.getElementById('totalIncidents').textContent = totalIncidents;
+                document.getElementById('totalLoss').textContent = formatCurrency(totalLoss);
+                document.getElementById('currentPeriodLoss').textContent = formatCurrency(currentPeriodLoss);
+                document.getElementById('mostCommonIncident').textContent = mostCommonIncident;
+                
+                // Update current period label based on selected time period
+                const periodLabels = {
+                    'today': 'Today',
+                    'week': 'This Week',
+                    'month': 'This Month',
+                    'quarter': 'This Quarter',
+                    'year': 'This Year'
+                };
+                
+                const currentPeriodLabel = document.getElementById('currentPeriodLabel');
+                if (currentPeriodLabel) {
+                    currentPeriodLabel.textContent = periodLabels[currentFilters.timePeriod] || 'Current Period';
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating stats:', error);
+            }
         }
 
         function calculateMostCommonIncident(incidents) {
@@ -1215,9 +1805,14 @@
             }
 
             grid.innerHTML = allIncidents
-                .sort((a, b) => VediAPI.timestampToDate(b.createdAt) - VediAPI.timestampToDate(a.createdAt))
+                .sort((a, b) => timestampToDate(b.createdAt) - timestampToDate(a.createdAt))
                 .map(incident => {
-                    const date = VediAPI.timestampToDate(incident.createdAt).toLocaleDateString();
+                    const date = timestampToDate(incident.createdAt).toLocaleDateString('en-US', {
+                        timeZone: restaurantTimezone,
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
                     const typeColor = getIncidentTypeColor(incident.type || 'other');
                     
                     return `
@@ -1324,7 +1919,7 @@
                         },
                         {
                             type: 'line',
-                            label: `Total Loss (${appCache.currency.code})`,
+                            label: `Total Loss (${restaurantCurrency.code})`,
                             data: [],
                             borderColor: '#FF3B30',
                             backgroundColor: 'rgba(255, 59, 48, 0.1)',
@@ -1363,7 +1958,7 @@
                                 usePointStyle: true,
                                 padding: 15,
                                 filter: function(item, chart) {
-                                    return item.text !== 'Total Loss ($)' || true;
+                                    return true;
                                 }
                             }
                         },
@@ -1441,7 +2036,7 @@
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: `Loss Amount (${appCache.currency.code})`,
+                                text: `Loss Amount (${restaurantCurrency.code})`,
                                 color: '#333'
                             },
                             grid: {
@@ -1467,8 +2062,8 @@
         function updateCombinedChart() {
             if (!combinedChart) return;
 
-            // Get time-based data with incident type breakdown
-            const { labels, incidentsByType, totalLoss } = getTimeBasedDataWithTypes();
+            // Get time-based data with incident type breakdown using restaurant timezone
+            const { labels, incidentsByType, totalLoss } = generateChartData(filteredIncidents, currentFilters.timePeriod);
 
             // Update chart data
             combinedChart.data.labels = labels;
@@ -1482,164 +2077,16 @@
             // Update loss line dataset
             combinedChart.data.datasets[6].data = totalLoss;
             
-            // Update chart title based on filter
-            const timePeriod = currentFilters.timePeriod;
-            const titleMap = {
-                'today': 'Today\'s Incidents & Losses (Hourly)',
-                'week': 'This Week\'s Incidents & Losses (Daily)', 
-                'month': 'This Month\'s Incidents & Losses (Daily)',
-                'quarter': 'This Quarter\'s Incidents & Losses (Weekly)',
-                'all': 'All Time Incidents & Losses (Monthly)'
-            };
-            
-            combinedChart.options.plugins.title.text = titleMap[timePeriod] || 'Incident Count & Loss Trends';
+            // Update chart title based on filter and timezone
+            updateChartTitle(currentFilters.timePeriod);
             
             // Update loss line label with current currency
-            combinedChart.data.datasets[6].label = `Total Loss (${appCache.currency.code})`;
+            combinedChart.data.datasets[6].label = `Total Loss (${restaurantCurrency.code})`;
             
             // Update y1 axis title with current currency
-            combinedChart.options.scales.y1.title.text = `Loss Amount (${appCache.currency.code})`;
+            combinedChart.options.scales.y1.title.text = `Loss Amount (${restaurantCurrency.code})`;
             
             combinedChart.update();
-        }
-
-        function getTimeBasedDataWithTypes() {
-            const timePeriod = currentFilters.timePeriod;
-            const now = new Date();
-            let timeData = {};
-            let labels = [];
-
-            // Initialize time periods based on filter
-            switch(timePeriod) {
-                case 'today':
-                    // Hourly breakdown for today
-                    for (let i = 0; i < 24; i++) {
-                        const hour = i.toString().padStart(2, '0') + ':00';
-                        timeData[hour] = {
-                            theft: 0, accident: 0, walkout: 0, 
-                            recall: 0, waste: 0, other: 0, loss: 0
-                        };
-                    }
-                    labels = Object.keys(timeData);
-                    break;
-
-                case 'week':
-                    // Daily breakdown for last 7 days
-                    for (let i = 6; i >= 0; i--) {
-                        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-                        const dateKey = date.toLocaleDateString('en-US', { weekday: 'short' });
-                        timeData[dateKey] = {
-                            theft: 0, accident: 0, walkout: 0, 
-                            recall: 0, waste: 0, other: 0, loss: 0
-                        };
-                    }
-                    labels = Object.keys(timeData);
-                    break;
-
-                case 'month':
-                    // Daily breakdown for last 30 days
-                    for (let i = 29; i >= 0; i--) {
-                        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-                        const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        timeData[dateKey] = {
-                            theft: 0, accident: 0, walkout: 0, 
-                            recall: 0, waste: 0, other: 0, loss: 0
-                        };
-                    }
-                    labels = Object.keys(timeData);
-                    break;
-
-                case 'quarter':
-                    // Weekly breakdown for last 12 weeks
-                    for (let i = 11; i >= 0; i--) {
-                        const date = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-                        const weekStart = new Date(date.getTime() - date.getDay() * 24 * 60 * 60 * 1000);
-                        const dateKey = 'Week of ' + weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        timeData[dateKey] = {
-                            theft: 0, accident: 0, walkout: 0, 
-                            recall: 0, waste: 0, other: 0, loss: 0
-                        };
-                    }
-                    labels = Object.keys(timeData);
-                    break;
-
-                case 'all':
-                default:
-                    // Monthly breakdown for last 12 months
-                    for (let i = 11; i >= 0; i--) {
-                        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                        const dateKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                        timeData[dateKey] = {
-                            theft: 0, accident: 0, walkout: 0, 
-                            recall: 0, waste: 0, other: 0, loss: 0
-                        };
-                    }
-                    labels = Object.keys(timeData);
-                    break;
-            }
-
-            // Populate data from FILTERED incidents
-            filteredIncidents.forEach(incident => {
-                if (!incident.createdAt) return;
-                
-                const incidentDate = VediAPI.timestampToDate(incident.createdAt);
-                const incidentType = incident.type || 'other';
-                let timeKey;
-
-                switch(timePeriod) {
-                    case 'today':
-                        if (incidentDate.toDateString() === now.toDateString()) {
-                            timeKey = incidentDate.getHours().toString().padStart(2, '0') + ':00';
-                        }
-                        break;
-
-                    case 'week':
-                        const daysDiff = Math.floor((now - incidentDate) / (24 * 60 * 60 * 1000));
-                        if (daysDiff >= 0 && daysDiff < 7) {
-                            timeKey = incidentDate.toLocaleDateString('en-US', { weekday: 'short' });
-                        }
-                        break;
-
-                    case 'month':
-                        const daysDiffMonth = Math.floor((now - incidentDate) / (24 * 60 * 60 * 1000));
-                        if (daysDiffMonth >= 0 && daysDiffMonth < 30) {
-                            timeKey = incidentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        }
-                        break;
-
-                    case 'quarter':
-                        const weeksDiff = Math.floor((now - incidentDate) / (7 * 24 * 60 * 60 * 1000));
-                        if (weeksDiff >= 0 && weeksDiff < 12) {
-                            const weekStart = new Date(incidentDate.getTime() - incidentDate.getDay() * 24 * 60 * 60 * 1000);
-                            timeKey = 'Week of ' + weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        }
-                        break;
-
-                    case 'all':
-                    default:
-                        timeKey = incidentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                        break;
-                }
-
-                if (timeKey && timeData[timeKey]) {
-                    timeData[timeKey][incidentType] += 1;
-                    timeData[timeKey].loss += incident.amount || 0;
-                }
-            });
-
-            // Prepare data for chart
-            const incidentsByType = {
-                theft: labels.map(label => timeData[label].theft),
-                accident: labels.map(label => timeData[label].accident),
-                walkout: labels.map(label => timeData[label].walkout),
-                recall: labels.map(label => timeData[label].recall),
-                waste: labels.map(label => timeData[label].waste),
-                other: labels.map(label => timeData[label].other)
-            };
-            
-            const totalLoss = labels.map(label => timeData[label].loss);
-
-            return { labels, incidentsByType, totalLoss };
         }
 
         // ============================================================================
@@ -1654,13 +2101,13 @@
             // Update currency symbol in the form
             const currencySymbol = document.getElementById('currencySymbol');
             if (currencySymbol) {
-                currencySymbol.textContent = appCache.currency.symbol;
+                currencySymbol.textContent = restaurantCurrency.symbol;
             }
             
             // Update currency help text
             const currencyHelp = document.getElementById('currencyHelp');
             if (currencyHelp) {
-                currencyHelp.textContent = `* Amount in ${appCache.currency.code}`;
+                currencyHelp.textContent = `* Amount in ${restaurantCurrency.code}`;
             }
             
             // Prevent body scroll when modal is open
@@ -1738,14 +2185,16 @@
                     status: 'reported',
                     reportedBy: currentUser.id,
                     category: getIncidentCategory(type),
-                    resolutionNotes: actions
+                    resolutionNotes: actions,
+                    timezone: restaurantTimezone,
+                    currency: restaurantCurrency
                 };
 
                 if (currentRestaurant.venueId) {
                     incidentData.venueId = currentRestaurant.venueId;
                 }
 
-                console.log('📝 Creating incident:', incidentData);
+                console.log('📝 Creating incident with timezone:', incidentData);
                 
                 const newIncident = await VediAPI.createLossIncident(incidentData);
                 
@@ -1785,8 +2234,13 @@
                     status: document.getElementById('statusFilter').value
                 };
 
-                console.log('🔍 Applying filters:', currentFilters);
-                await loadIncidentData();
+                console.log('🔍 Applying calendar-based filters:', currentFilters);
+                
+                // Apply filters using calendar-based logic
+                applyFiltersToIncidents();
+                
+                // Update UI
+                updateDashboard();
 
             } catch (error) {
                 console.error('❌ Apply filters error:', error);
@@ -1803,18 +2257,25 @@
                     'Incident Type',
                     'Title',
                     'Description',
-                    `Amount (${appCache.currency.code})`,
+                    `Amount (${restaurantCurrency.code})`,
                     'Severity',
                     'Status',
                     'Reported By',
-                    'Category'
+                    'Category',
+                    'Timezone'
                 ];
                 
-                // Prepare CSV data
+                // Prepare CSV data with timezone-aware dates
                 const csvData = allIncidents.map(incident => {
                     const date = incident.createdAt ? 
-                        VediAPI.timestampToDate(incident.createdAt).toLocaleDateString() : 
-                        'N/A';
+                        timestampToDate(incident.createdAt).toLocaleDateString('en-US', {
+                            timeZone: restaurantTimezone,
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }) : 'N/A';
                     
                     return [
                         date,
@@ -1825,23 +2286,24 @@
                         incident.severity || 'medium',
                         incident.status || 'reported',
                         incident.reportedBy || 'Unknown',
-                        incident.category || 'other'
+                        incident.category || 'other',
+                        restaurantTimezone
                     ];
                 });
                 
-                // Add summary row
+                // Add summary row with timezone info
                 const totalIncidents = allIncidents.length;
                 const totalLoss = allIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
-                const mostCommon = calculateMostCommonIncident();
+                const mostCommon = calculateMostCommonIncident(allIncidents);
                 
-                // Add summary with currency awareness
                 csvData.push([]);
-                csvData.push(['SUMMARY', '', '', '', '', '', '', '', '']);
-                csvData.push(['Total Incidents', totalIncidents, '', '', '', '', '', '', '']);
-                csvData.push([`Total Loss (${appCache.currency.code})`, totalLoss, '', '', '', '', '', '', '']);
-                csvData.push(['Most Common Type', mostCommon, '', '', '', '', '', '', '']);
-                csvData.push(['Report Generated', new Date().toLocaleString(), '', '', '', '', '', '', '']);
-                csvData.push(['Currency', `${appCache.currency.code} (${appCache.currency.symbol})`, '', '', '', '', '', '', '']);
+                csvData.push(['SUMMARY', '', '', '', '', '', '', '', '', '']);
+                csvData.push(['Total Incidents', totalIncidents, '', '', '', '', '', '', '', '']);
+                csvData.push([`Total Loss (${restaurantCurrency.code})`, totalLoss, '', '', '', '', '', '', '', '']);
+                csvData.push(['Most Common Type', mostCommon, '', '', '', '', '', '', '', '']);
+                csvData.push(['Report Generated', new Date().toLocaleString('en-US', { timeZone: restaurantTimezone }), '', '', '', '', '', '', '', '']);
+                csvData.push(['Restaurant Timezone', restaurantTimezone, '', '', '', '', '', '', '', '']);
+                csvData.push(['Currency', `${restaurantCurrency.code} (${restaurantCurrency.symbol})`, '', '', '', '', '', '', '', '']);
                 
                 // Convert to CSV format
                 const csvContent = [
@@ -1876,9 +2338,10 @@
             
             console.log('👁️ Viewing incident details:', incident.title);
             
-            // Format the incident date
+            // Format the incident date in restaurant timezone
             const createdDate = incident.createdAt ? 
-                VediAPI.timestampToDate(incident.createdAt).toLocaleDateString('en-US', {
+                timestampToDate(incident.createdAt).toLocaleDateString('en-US', {
+                    timeZone: restaurantTimezone,
                     year: 'numeric',
                     month: 'long', 
                     day: 'numeric',
@@ -1963,10 +2426,16 @@
                             <div class="detail-value">${(incident.category || 'other').charAt(0).toUpperCase() + (incident.category || 'other').slice(1)}</div>
                         </div>
                         
+                        <div class="detail-item">
+                            <div class="detail-label">Timezone</div>
+                            <div class="detail-value">${incident.timezone || restaurantTimezone}</div>
+                        </div>
+                        
                         ${incident.updatedAt ? `
                         <div class="detail-item">
                             <div class="detail-label">Last Updated</div>
-                            <div class="detail-value">${VediAPI.timestampToDate(incident.updatedAt).toLocaleDateString('en-US', {
+                            <div class="detail-value">${timestampToDate(incident.updatedAt).toLocaleDateString('en-US', {
+                                timeZone: restaurantTimezone,
                                 year: 'numeric',
                                 month: 'short', 
                                 day: 'numeric',
@@ -2023,14 +2492,31 @@
             document.body.style.overflow = '';
         }
 
+        function handleSignOut() {
+            try {
+                // Stop timezone updates
+                stopTimezoneUpdates();
+                
+                // Clean up real-time listeners
+                if (realtimeUnsubscribe) {
+                    realtimeUnsubscribe();
+                }
+                
+                // Sign out
+                const auth = firebase.auth();
+                auth.signOut().then(() => {
+                    window.location.href = '/login.html';
+                }).catch((error) => {
+                    console.error('❌ Sign out error:', error);
+                });
+            } catch (error) {
+                console.error('❌ Handle sign out error:', error);
+            }
+        }
+
         // ============================================================================
         // UTILITY FUNCTIONS
         // ============================================================================
-
-        function formatCurrency(amount) {
-            if (!amount && amount !== 0) return `${appCache.currency.symbol}0.00`;
-            return `${appCache.currency.symbol}${Number(amount).toFixed(2)}`;
-        }
 
         function truncateText(text, maxLength) {
             if (text.length <= maxLength) return text;
@@ -2057,12 +2543,19 @@
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
+            stopTimezoneUpdates();
             if (realtimeUnsubscribe) {
                 realtimeUnsubscribe();
             }
         });
 
-        console.log('📉 iOS-Style Incident Reports loaded successfully');
+        console.log('📉 Restaurant Incident Reports with Calendar Logic & Timezone Support loaded successfully');
+        console.log('🕐 NEW: Restaurant timezone awareness with live timezone display');
+        console.log('📅 NEW: Calendar-based time periods (Mon-Sun weeks, 1st-last day months, Q1-Q4 quarters)');
+        console.log('📊 NEW: Smart chart adaptations based on selected period and restaurant timezone');
+        console.log('💰 NEW: Restaurant currency inheritance and proper formatting');
+        console.log('🔄 Enhanced: All dates and times use restaurant\'s effective timezone');
+        console.log('📁 Enhanced: CSV exports include timezone and currency information');
     </script>
 </body>
 </html>
