@@ -228,6 +228,94 @@
             font-weight: 400;
         }
 
+        /* Join Code Section Styles */
+        .join-code-section {
+            background: #F0F8FF;
+            border: 2px solid #007AFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .join-code-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #007AFF;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .join-code-description {
+            color: #0056CC;
+            margin-bottom: 20px;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .join-code-input-group {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .join-code-input {
+            flex: 1;
+            max-width: 200px;
+        }
+
+        .join-code-input input {
+            width: 100%;
+            height: 44px;
+            padding: 12px 16px;
+            border: 2px solid #007AFF;
+            border-radius: 8px;
+            font-size: 17px;
+            font-weight: 600;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-family: 'SF Mono', Monaco, monospace;
+            background: #FFFFFF;
+            color: #007AFF;
+        }
+
+        .join-code-input input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+        }
+
+        .join-code-input input::placeholder {
+            color: #86868B;
+            font-weight: normal;
+            letter-spacing: normal;
+        }
+
+        .join-venue-btn {
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .join-venue-btn:hover:not(:disabled) {
+            background: #0056CC;
+            transform: translateY(-1px);
+        }
+
+        .join-venue-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         /* Form Elements */
         .form-grid {
             display: grid;
@@ -284,7 +372,7 @@
             cursor: pointer;
         }
 
-        /* Currency Lock Styles - NEW */
+        /* Currency Lock Styles */
         .form-select.locked {
             background-color: #F8F9FA;
             color: #86868B;
@@ -729,6 +817,15 @@
             .add-hours-section {
                 padding: 20px 16px;
             }
+
+            .join-code-input-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .join-code-input {
+                max-width: 100%;
+            }
         }
 
         @media (max-width: 600px) {
@@ -792,6 +889,24 @@
         <div class="step active" id="step1">
             <h2 class="step-title">Restaurant Information</h2>
             <p class="step-description">Update your restaurant's basic information and venue association.</p>
+
+            <!-- Join Code Section (NEW!) -->
+            <div class="join-code-section" id="joinCodeSection" style="display: none;">
+                <div class="join-code-title">
+                    🔑 Have an invitation code?
+                </div>
+                <div class="join-code-description">
+                    Enter the join code you received from a venue manager to join their venue. Your restaurant's currency will automatically change to match the venue's currency.
+                </div>
+                <div class="join-code-input-group">
+                    <div class="join-code-input">
+                        <input type="text" id="joinCodeInput" placeholder="ABC123" maxlength="6">
+                    </div>
+                    <button class="join-venue-btn" id="joinVenueBtn" onclick="validateAndJoinWithCode()">
+                        Join Venue
+                    </button>
+                </div>
+            </div>
 
             <!-- Venue Association -->
             <div class="form-group">
@@ -1170,7 +1285,7 @@
         let currentRestaurant = null;
         let restaurantId = null;
         let restaurantSyncStatus = null;
-        let isCurrencyLocked = false; // NEW: Track currency lock status
+        let isCurrencyLocked = false;
 
         // Currency data
         const currencyData = {
@@ -1307,6 +1422,156 @@
         }
 
         // ============================================================================
+        // JOIN CODE FUNCTIONALITY (NEW!)
+        // ============================================================================
+
+        /**
+         * Validate and join venue using a join code
+         */
+        async function validateAndJoinWithCode() {
+            const joinCodeInput = document.getElementById('joinCodeInput');
+            const joinVenueBtn = document.getElementById('joinVenueBtn');
+            
+            if (!joinCodeInput || !joinVenueBtn) return;
+            
+            const joinCode = joinCodeInput.value.trim().toUpperCase();
+            
+            if (!joinCode) {
+                showError('Please enter a join code');
+                return;
+            }
+            
+            if (joinCode.length !== 6) {
+                showError('Join code must be 6 characters long');
+                return;
+            }
+            
+            try {
+                showLoading('Validating join code...', 'Checking code and venue information');
+                joinVenueBtn.disabled = true;
+                
+                console.log('🔑 Validating join code:', joinCode);
+                
+                // Query the venueJoinCodes collection
+                const db = getFirebaseDb();
+                const joinCodeQuery = await db.collection('venueJoinCodes')
+                    .where('joinCode', '==', joinCode)
+                    .where('status', '==', 'pending')
+                    .limit(1)
+                    .get();
+                
+                if (joinCodeQuery.empty) {
+                    throw new Error('Invalid join code or code has already been used. Please check the code and try again.');
+                }
+                
+                const joinCodeDoc = joinCodeQuery.docs[0];
+                const joinCodeData = joinCodeDoc.data();
+                
+                // Check if code has expired
+                const now = new Date();
+                const expiresAt = joinCodeData.expiresAt.toDate();
+                
+                if (now > expiresAt) {
+                    throw new Error('This join code has expired. Please request a new one from your venue manager.');
+                }
+                
+                console.log('✅ Valid join code found for venue:', joinCodeData.venueName);
+                
+                showLoading('Joining venue...', `Adding your restaurant to ${joinCodeData.venueName}`);
+                
+                // Get venue information
+                const venueDoc = await db.collection('venues').doc(joinCodeData.venueId).get();
+                if (!venueDoc.exists) {
+                    throw new Error('Venue no longer exists');
+                }
+                
+                const venueData = venueDoc.data();
+                
+                console.log('🏢 Venue data loaded:', venueData.name);
+                console.log('💰 Venue currency:', venueData.currency);
+                
+                // Update restaurant with venue association and currency inheritance
+                const updateData = {
+                    venueId: joinCodeData.venueId,
+                    venueName: joinCodeData.venueName,
+                    venueCity: joinCodeData.venueCity,
+                    venueState: joinCodeData.venueState,
+                    joinedVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    venueStatus: 'active',
+                    syncMethod: 'join_code',
+                    invitationAcceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    // Currency inheritance
+                    previousCurrency: currentRestaurant.currency || null,
+                    currency: joinCodeData.venueCurrency || venueData.currency || { code: 'USD', symbol: '$', name: 'US Dollar' },
+                    currencyInheritedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    currencyInheritedFrom: 'venue_join_code'
+                };
+                
+                console.log('📝 Updating restaurant with venue association:', updateData);
+                
+                await VediAPI.updateRestaurant(restaurantId, updateData);
+                
+                // Mark join code as used
+                await db.collection('venueJoinCodes').doc(joinCodeDoc.id).update({
+                    status: 'used',
+                    usedBy: {
+                        restaurantId: restaurantId,
+                        restaurantName: currentRestaurant.name,
+                        ownerEmail: currentUser.email
+                    },
+                    usedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                console.log('✅ Join code marked as used');
+                
+                // Update current restaurant data
+                currentRestaurant = { ...currentRestaurant, ...updateData };
+                
+                // Clear the join code input
+                joinCodeInput.value = '';
+                
+                // Refresh UI components
+                await setupVenueAssociationUI();
+                applyCurrencyInheritanceUI();
+                
+                hideLoading();
+                showSuccess(`Successfully joined ${joinCodeData.venueName}! Your currency has been updated to match the venue.`);
+                
+                // Hide the join code section since restaurant is now associated
+                hideJoinCodeSection();
+                
+            } catch (error) {
+                console.error('❌ Error validating join code:', error);
+                hideLoading();
+                showError(error.message || 'Failed to validate join code. Please try again.');
+            } finally {
+                joinVenueBtn.disabled = false;
+            }
+        }
+
+        /**
+         * Show join code section for independent restaurants
+         */
+        function showJoinCodeSection() {
+            const joinCodeSection = document.getElementById('joinCodeSection');
+            if (joinCodeSection) {
+                joinCodeSection.style.display = 'block';
+                console.log('🔑 Join code section shown');
+            }
+        }
+
+        /**
+         * Hide join code section for venue-associated restaurants
+         */
+        function hideJoinCodeSection() {
+            const joinCodeSection = document.getElementById('joinCodeSection');
+            if (joinCodeSection) {
+                joinCodeSection.style.display = 'none';
+                console.log('🔑 Join code section hidden');
+            }
+        }
+
+        // ============================================================================
         // CURRENCY INHERITANCE SYSTEM
         // ============================================================================
 
@@ -1380,18 +1645,20 @@
             console.log('💰 Applying currency inheritance UI logic');
             
             if (restaurantSyncStatus && restaurantSyncStatus.isAssociated && currentRestaurant.venueId) {
-                // Restaurant is associated with venue - lock currency
+                // Restaurant is associated with venue - lock currency and hide join code
                 const venue = {
                     name: restaurantSyncStatus.venueName || currentRestaurant.venueName || 'Unknown Venue',
                     currency: currentRestaurant.currency || { code: 'USD', symbol: '$' }
                 };
                 
                 lockCurrencyForVenue(venue);
+                hideJoinCodeSection();
                 
                 console.log('🔒 Currency locked - restaurant associated with venue:', venue.name);
             } else {
-                // Restaurant is independent - unlock currency
+                // Restaurant is independent - unlock currency and show join code
                 unlockCurrencyFromVenue();
+                showJoinCodeSection();
                 
                 console.log('🔓 Currency unlocked - restaurant is independent');
             }
@@ -1531,8 +1798,8 @@
                             <div style="color: #6B7280; font-size: 14px;">
                                 <strong>How it works:</strong><br>
                                 1. Contact your venue manager<br>
-                                2. They'll send you an invitation link<br>
-                                3. Click the link to join their venue<br>
+                                2. They'll send you an invitation link or join code<br>
+                                3. Click the link or enter the code below to join<br>
                                 4. Your restaurant will inherit the venue's currency automatically
                             </div>
                         </div>
@@ -2177,7 +2444,7 @@
 
         // INITIALIZATION
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🔐 Restaurant Settings with Currency Inheritance initializing...');
+            console.log('🔐 Restaurant Settings with Currency Inheritance & Join Codes initializing...');
             
             try {
                 showLoading('Loading restaurant settings...', 'Initializing Firebase and APIs');
@@ -2233,7 +2500,7 @@
                 setupPhoneFormatting();
                 
                 hideLoading();
-                console.log('✅ Restaurant Settings with Currency Inheritance initialization complete');
+                console.log('✅ Restaurant Settings with Currency Inheritance & Join Codes initialization complete');
                 
             } catch (error) {
                 console.error('❌ Settings initialization error:', error);
@@ -2323,11 +2590,12 @@
             throw new Error('VediAPI functions failed to load within timeout period');
         }
 
-        console.log('🔐 Restaurant Settings with Complete Currency Inheritance System loaded successfully');
+        console.log('🔐 Restaurant Settings with Complete Currency Inheritance & Join Code System loaded successfully');
+        console.log('🔑 NEW: Join code input for existing users to join venues');
         console.log('💰 Currency inheritance: Lock/unlock based on venue association');
         console.log('🏢 Simplified venue association with clear messaging');
         console.log('🔒 Venue-associated restaurants: Currency locked and inherited from venue');
-        console.log('🔓 Independent restaurants: Currency fully customizable');
+        console.log('🔓 Independent restaurants: Currency fully customizable + join code input');
         console.log('⚙️ Complete operating hours management restored');
         console.log('📱 Phone formatting and all original functionality restored');
     </script>
