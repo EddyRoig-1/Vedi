@@ -25,6 +25,7 @@
     <script src="../Api/business/restaurants.js"></script>
     <script src="../Api/business/venues.js"></script>
     <script src="../Api/business/venue-sync.js"></script>
+    <script src="../Api/business/timezone.js"></script>
     
     <style>
         * {
@@ -404,6 +405,35 @@
         .venue-info {
             font-weight: 600;
             color: #1B5E20;
+        }
+
+        /* Timezone Lock Styles */
+        .timezone-locked-notice {
+            background: #E8F5E8;
+            border: 1px solid #C8E6C9;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #2E7D32;
+            display: none;
+        }
+
+        .timezone-locked-notice.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        .form-select.timezone-locked {
+            background-color: #F8F9FA;
+            color: #86868B;
+            cursor: not-allowed;
+            border-color: #E5E5E7;
+        }
+
+        .form-select.timezone-locked:focus {
+            border-color: #E5E5E7;
+            box-shadow: none;
         }
 
         /* Custom Currency Section */
@@ -977,7 +1007,7 @@
         <!-- Step 1: Basic Information & Venue Association -->
         <div class="step active" id="step1">
             <h2 class="step-title">Restaurant Information</h2>
-            <p class="step-description">Update your restaurant's basic information and venue association.</p>
+            <p class="step-description">Update your restaurant's basic information, venue association, currency, and timezone.</p>
 
             <!-- Venue Association -->
             <div class="form-group">
@@ -992,53 +1022,85 @@
                 </div>
             </div>
 
-            <!-- Currency Selection -->
-            <div class="form-group">
-                <label class="form-label" for="currencySelect">Currency</label>
-                <select class="form-select" id="currencySelect">
-                    <option value="USD">$ - US Dollar (USD)</option>
-                    <option value="EUR">€ - Euro (EUR)</option>
-                    <option value="GBP">£ - British Pound (GBP)</option>
-                    <option value="CAD">C$ - Canadian Dollar (CAD)</option>
-                    <option value="AUD">A$ - Australian Dollar (AUD)</option>
-                    <option value="JPY">¥ - Japanese Yen (JPY)</option>
-                    <option value="CHF">₣ - Swiss Franc (CHF)</option>
-                    <option value="CNY">¥ - Chinese Yuan (CNY)</option>
-                    <option value="INR">₹ - Indian Rupee (INR)</option>
-                    <option value="BRL">R$ - Brazilian Real (BRL)</option>
-                    <option value="MXN">$ - Mexican Peso (MXN)</option>
-                    <option value="KRW">₩ - South Korean Won (KRW)</option>
-                    <option value="THB">฿ - Thai Baht (THB)</option>
-                    <option value="SEK">kr - Swedish Krona (SEK)</option>
-                    <option value="NOK">kr - Norwegian Krone (NOK)</option>
-                    <option value="DKK">kr - Danish Krone (DKK)</option>
-                    <option value="CUSTOM">Custom Currency</option>
-                </select>
-                
-                <!-- Currency Lock Notice (shown when associated with venue) -->
-                <div class="currency-locked-notice" id="currencyLockedNotice" style="display: none;">
-                    🔒 Currency inherited from <span class="venue-info" id="venueNameInCurrency">venue</span>.
-                    <div style="font-size: 12px; margin-top: 4px; color: #2E7D32;">
-                        To change currency, you must first leave the venue from the venue association section above.
+            <!-- Currency & Timezone Grid -->
+            <div class="form-grid">
+                <!-- Currency Selection -->
+                <div class="form-group">
+                    <label class="form-label" for="currencySelect">Currency</label>
+                    <select class="form-select" id="currencySelect">
+                        <option value="USD">$ - US Dollar (USD)</option>
+                        <option value="EUR">€ - Euro (EUR)</option>
+                        <option value="GBP">£ - British Pound (GBP)</option>
+                        <option value="CAD">C$ - Canadian Dollar (CAD)</option>
+                        <option value="AUD">A$ - Australian Dollar (AUD)</option>
+                        <option value="JPY">¥ - Japanese Yen (JPY)</option>
+                        <option value="CHF">₣ - Swiss Franc (CHF)</option>
+                        <option value="CNY">¥ - Chinese Yuan (CNY)</option>
+                        <option value="INR">₹ - Indian Rupee (INR)</option>
+                        <option value="BRL">R$ - Brazilian Real (BRL)</option>
+                        <option value="MXN">$ - Mexican Peso (MXN)</option>
+                        <option value="KRW">₩ - South Korean Won (KRW)</option>
+                        <option value="THB">฿ - Thai Baht (THB)</option>
+                        <option value="SEK">kr - Swedish Krona (SEK)</option>
+                        <option value="NOK">kr - Norwegian Krone (NOK)</option>
+                        <option value="DKK">kr - Danish Krone (DKK)</option>
+                        <option value="CUSTOM">Custom Currency</option>
+                    </select>
+                    
+                    <!-- Currency Lock Notice (shown when associated with venue) -->
+                    <div class="currency-locked-notice" id="currencyLockedNotice" style="display: none;">
+                        🔒 Currency inherited from <span class="venue-info" id="venueNameInCurrency">venue</span>.
+                        <div style="font-size: 12px; margin-top: 4px; color: #2E7D32;">
+                            To change currency, you must first leave the venue from the venue association section above.
+                        </div>
                     </div>
                 </div>
+
+                <!-- Timezone Selection -->
+                <div class="form-group">
+                    <label class="form-label" for="timezoneSelect">Timezone</label>
+                    <select class="form-select" id="timezoneSelect">
+                        <option value="America/New_York">🇺🇸 Eastern Time (ET)</option>
+                        <option value="America/Chicago">🇺🇸 Central Time (CT)</option>
+                        <option value="America/Denver">🇺🇸 Mountain Time (MT)</option>
+                        <option value="America/Los_Angeles">🇺🇸 Pacific Time (PT)</option>
+                        <option value="America/Phoenix">🇺🇸 Arizona Time (MST)</option>
+                        <option value="America/Anchorage">🇺🇸 Alaska Time (AKST)</option>
+                        <option value="Pacific/Honolulu">🇺🇸 Hawaii Time (HST)</option>
+                        <option value="America/Toronto">🇨🇦 Eastern Time - Canada</option>
+                        <option value="America/Vancouver">🇨🇦 Pacific Time - Canada</option>
+                        <option value="Europe/London">🇬🇧 London Time (GMT/BST)</option>
+                        <option value="Europe/Paris">🇫🇷 Central European Time</option>
+                        <option value="Asia/Tokyo">🇯🇵 Japan Standard Time</option>
+                        <option value="Australia/Sydney">🇦🇺 Australian Eastern Time</option>
+                        <option value="UTC">🌍 Coordinated Universal Time (UTC)</option>
+                    </select>
+                    
+                    <!-- Timezone Lock Notice (shown when associated with venue) -->
+                    <div class="timezone-locked-notice" id="timezoneLockedNotice" style="display: none;">
+                        🕐 Timezone inherited from <span class="venue-info" id="venueNameInTimezone">venue</span>.
+                        <div style="font-size: 12px; margin-top: 4px; color: #2E7D32;">
+                            To change timezone, you must first leave the venue from the venue association section above.
+                        </div>
+                    </div>
+                </div>
+            </div>
                 
-                <div class="custom-currency-section" id="customCurrencySection">
-                    <div class="custom-currency-title">Custom Currency Setup</div>
-                    <div class="custom-currency-grid">
-                        <div class="form-group">
-                            <label class="form-label">Currency Code</label>
-                            <input type="text" class="form-input" id="customCurrencyCode" placeholder="e.g., ZAR, PLN" maxlength="3">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Currency Symbol</label>
-                            <input type="text" class="form-input" id="customCurrencySymbol" placeholder="e.g., R, zł" maxlength="5">
-                        </div>
+            <div class="custom-currency-section" id="customCurrencySection">
+                <div class="custom-currency-title">Custom Currency Setup</div>
+                <div class="custom-currency-grid">
+                    <div class="form-group">
+                        <label class="form-label">Currency Code</label>
+                        <input type="text" class="form-input" id="customCurrencyCode" placeholder="e.g., ZAR, PLN" maxlength="3">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Currency Name</label>
-                        <input type="text" class="form-input" id="customCurrencyName" placeholder="e.g., South African Rand, Polish Złoty">
+                        <label class="form-label">Currency Symbol</label>
+                        <input type="text" class="form-input" id="customCurrencySymbol" placeholder="e.g., R, zł" maxlength="5">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency Name</label>
+                    <input type="text" class="form-input" id="customCurrencyName" placeholder="e.g., South African Rand, Polish Złoty">
                 </div>
             </div>
 
@@ -1351,11 +1413,13 @@
         let operatingHours = {};
         let currentPeriodCount = 1;
         let selectedCurrency = 'USD';
+        let selectedTimezone = 'UTC';
         let currentUser = null;
         let currentRestaurant = null;
         let restaurantId = null;
         let restaurantSyncStatus = null;
         let isCurrencyLocked = false;
+        let isTimezoneInherited = false;
 
         // Currency data
         const currencyData = {
@@ -1559,8 +1623,9 @@
                 
                 console.log('🏢 Venue data loaded:', venueData.name);
                 console.log('💰 Venue currency:', venueData.currency);
+                console.log('🕐 Venue timezone:', venueData.timezone);
                 
-                // Update restaurant with venue association and currency inheritance
+                // Update restaurant with venue association, currency, and timezone inheritance
                 const updateData = {
                     venueId: joinCodeData.venueId,
                     venueName: joinCodeData.venueName,
@@ -1574,7 +1639,13 @@
                     previousCurrency: currentRestaurant.currency || null,
                     currency: joinCodeData.venueCurrency || venueData.currency || { code: 'USD', symbol: '$', name: 'US Dollar' },
                     currencyInheritedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    currencyInheritedFrom: 'venue_join_code'
+                    currencyInheritedFrom: 'venue_join_code',
+                    // Timezone inheritance
+                    previousTimezone: currentRestaurant.timezone || null,
+                    timezone: venueData.timezone || 'UTC',
+                    venueTimezone: venueData.timezone || 'UTC',
+                    timezoneInheritedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    timezoneInheritedFrom: 'venue_join_code'
                 };
                 
                 console.log('📝 Updating restaurant with venue association:', updateData);
@@ -1602,10 +1673,10 @@
                 
                 // Refresh UI components
                 await setupVenueAssociationUI();
-                applyCurrencyInheritanceUI();
+                applyCurrencyAndTimezoneInheritanceUI();
                 
                 hideLoading();
-                showSuccess(`Successfully joined ${joinCodeData.venueName}! Your currency has been updated to match the venue.`);
+                showSuccess(`Successfully joined ${joinCodeData.venueName}! Your currency and timezone have been updated to match the venue.`);
                 
                 // Hide the join code section since restaurant is now associated
                 hideJoinCodeSection();
@@ -1636,7 +1707,7 @@
         }
 
         // ============================================================================
-        // CURRENCY INHERITANCE SYSTEM
+        // CURRENCY & TIMEZONE INHERITANCE SYSTEM
         // ============================================================================
 
         /**
@@ -1703,28 +1774,88 @@
         }
 
         /**
-         * Check and apply currency inheritance based on venue association
+         * Lock timezone dropdown when restaurant is associated with venue
          */
-        function applyCurrencyInheritanceUI() {
-            console.log('💰 Applying currency inheritance UI logic');
+        function lockTimezoneForVenue(venue) {
+            console.log('🕐 Locking timezone for venue:', venue?.name, 'Timezone:', venue?.timezone);
+            
+            const timezoneSelect = document.getElementById('timezoneSelect');
+            const timezoneNotice = document.getElementById('timezoneLockedNotice');
+            const venueNameElement = document.getElementById('venueNameInTimezone');
+            
+            if (!timezoneSelect || !timezoneNotice) return;
+            
+            // Lock the dropdown
+            timezoneSelect.classList.add('timezone-locked');
+            timezoneSelect.disabled = true;
+            isTimezoneInherited = true;
+            
+            // Set venue timezone if available
+            if (venue && venue.timezone) {
+                timezoneSelect.value = venue.timezone;
+                selectedTimezone = venue.timezone;
+            }
+            
+            // Show lock notice
+            timezoneNotice.classList.add('show');
+            if (venueNameElement && venue?.name) {
+                venueNameElement.textContent = venue.name;
+            }
+            
+            console.log('✅ Timezone locked successfully');
+        }
+
+        /**
+         * Unlock timezone dropdown when restaurant leaves venue
+         */
+        function unlockTimezoneFromVenue() {
+            console.log('🕐 Unlocking timezone - restaurant left venue');
+            
+            const timezoneSelect = document.getElementById('timezoneSelect');
+            const timezoneNotice = document.getElementById('timezoneLockedNotice');
+            
+            if (!timezoneSelect || !timezoneNotice) return;
+            
+            // Unlock the dropdown
+            timezoneSelect.classList.remove('timezone-locked');
+            timezoneSelect.disabled = false;
+            isTimezoneInherited = false;
+            
+            // Hide lock notice
+            timezoneNotice.classList.remove('show');
+            
+            // Re-enable timezone selection functionality
+            setupTimezoneSelection();
+            
+            console.log('✅ Timezone unlocked - restaurant can now choose any timezone');
+        }
+
+        /**
+         * Check and apply currency and timezone inheritance based on venue association
+         */
+        function applyCurrencyAndTimezoneInheritanceUI() {
+            console.log('💰🕐 Applying currency and timezone inheritance UI logic');
             
             if (restaurantSyncStatus && restaurantSyncStatus.isAssociated && currentRestaurant.venueId) {
-                // Restaurant is associated with venue - lock currency and hide join code
+                // Restaurant is associated with venue - lock currency and timezone
                 const venue = {
                     name: restaurantSyncStatus.venueName || currentRestaurant.venueName || 'Unknown Venue',
-                    currency: currentRestaurant.currency || { code: 'USD', symbol: '$' }
+                    currency: currentRestaurant.currency || { code: 'USD', symbol: ' },
+                    timezone: currentRestaurant.venueTimezone || currentRestaurant.timezone || 'UTC'
                 };
                 
                 lockCurrencyForVenue(venue);
+                lockTimezoneForVenue(venue);
                 hideJoinCodeSection();
                 
-                console.log('🔒 Currency locked - restaurant associated with venue:', venue.name);
+                console.log('🔒 Currency and timezone locked - restaurant associated with venue:', venue.name);
             } else {
-                // Restaurant is independent - unlock currency and show join code
+                // Restaurant is independent - unlock currency and timezone
                 unlockCurrencyFromVenue();
+                unlockTimezoneFromVenue();
                 showJoinCodeSection();
                 
-                console.log('🔓 Currency unlocked - restaurant is independent');
+                console.log('🔓 Currency and timezone unlocked - restaurant is independent');
             }
         }
 
@@ -1809,7 +1940,7 @@
         }
 
         /**
-         * Leave venue function with currency unlock
+         * Leave venue function with currency and timezone unlock
          */
         async function leaveVenue() {
             try {
@@ -1826,8 +1957,9 @@
                         leftVenueAt: firebase.firestore.FieldValue.serverTimestamp(),
                         venueStatus: null,
                         unsyncReason: 'Restaurant left venue via settings',
-                        // Note: We keep the inherited currency - restaurant can change it independently now
-                        currencyDetachedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        // Note: We keep the inherited currency and timezone - restaurant can change them independently now
+                        currencyDetachedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        timezoneDetachedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 }
                 
@@ -1838,11 +1970,12 @@
                 // Refresh venue association UI
                 await setupVenueAssociationUI();
                 
-                // IMPORTANT: Unlock currency after leaving venue
+                // IMPORTANT: Unlock currency and timezone after leaving venue
                 unlockCurrencyFromVenue();
+                unlockTimezoneFromVenue();
                 
                 hideLoading();
-                showSuccess('Successfully left venue. You can now change your currency settings.');
+                showSuccess('Successfully left venue. You can now change your currency and timezone settings.');
                 
             } catch (error) {
                 console.error('❌ Error leaving venue:', error);
@@ -1912,6 +2045,11 @@
                                         Currency: ${currentRestaurant.currency.code} (${currentRestaurant.currency.symbol})
                                     </div>
                                 ` : ''}
+                                ${currentRestaurant.timezone || currentRestaurant.venueTimezone ? `
+                                    <div style="color: #2E7D32; font-size: 12px; margin-top: 2px; font-weight: 600;">
+                                        Timezone: ${currentRestaurant.venueTimezone || currentRestaurant.timezone}
+                                    </div>
+                                ` : ''}
                             </div>
                             <div style="position: relative;">
                                 <button class="btn btn-danger btn-small" onclick="showLeaveConfirmation()" id="leaveVenueBtn">
@@ -1973,7 +2111,7 @@
         }
 
         // ============================================================================
-        // CURRENCY SELECTION FUNCTIONS
+        // CURRENCY & TIMEZONE SELECTION FUNCTIONS
         // ============================================================================
 
         function setupCurrencySelection() {
@@ -1993,6 +2131,21 @@
                         customSection.classList.add('show');
                     } else {
                         customSection.classList.remove('show');
+                    }
+                });
+            }
+        }
+
+        function setupTimezoneSelection() {
+            const timezoneSelect = document.getElementById('timezoneSelect');
+            
+            if (timezoneSelect) {
+                timezoneSelect.addEventListener('change', function() {
+                    if (!isTimezoneInherited) {
+                        selectedTimezone = this.value;
+                        console.log('🕐 Timezone changed to:', selectedTimezone);
+                    } else {
+                        console.log('🔒 Timezone change blocked - inherited from venue');
                     }
                 });
             }
@@ -2032,6 +2185,16 @@
                         document.getElementById('customCurrencySymbol').value = restaurant.currency.symbol;
                         document.getElementById('customCurrencyName').value = restaurant.currency.name;
                         document.getElementById('customCurrencySection').classList.add('show');
+                    }
+                }
+
+                // Populate timezone
+                if (restaurant.timezone || restaurant.venueTimezone) {
+                    const timezone = restaurant.venueTimezone || restaurant.timezone;
+                    selectedTimezone = timezone;
+                    const timezoneSelect = document.getElementById('timezoneSelect');
+                    if (timezoneSelect) {
+                        timezoneSelect.value = timezone;
                     }
                 }
 
@@ -2148,6 +2311,11 @@
                     }
                 }
 
+                // Only save timezone if not inherited (independent restaurant)
+                if (!isTimezoneInherited) {
+                    formData.timezone = selectedTimezone;
+                }
+
                 formData.name = document.getElementById('restaurantName').value.trim();
                 formData.cuisineType = document.getElementById('cuisineType').value;
                 formData.description = document.getElementById('restaurantDescription').value.trim();
@@ -2202,10 +2370,15 @@
                 formData.setupCompleted = true;
                 formData.updatedAt = new Date().toISOString();
                 
-                // Don't overwrite currency if locked (venue-inherited)
+                // Don't overwrite currency or timezone if locked (venue-inherited)
                 if (isCurrencyLocked) {
                     delete formData.currency;
                     console.log('🔒 Currency update skipped - locked to venue currency');
+                }
+
+                if (isTimezoneInherited) {
+                    delete formData.timezone;
+                    console.log('🕐 Timezone update skipped - inherited from venue');
                 }
                 
                 console.log('📦 Complete restaurant data to save:', formData);
@@ -2297,6 +2470,12 @@
             if (!isCurrencyLocked && (!formData.currency || !formData.currency.code)) {
                 validation.valid = false;
                 validation.errors.push('Please select a currency');
+            }
+
+            // Timezone validation (only for independent restaurants)
+            if (!isTimezoneInherited && !formData.timezone) {
+                validation.valid = false;
+                validation.errors.push('Please select a timezone');
             }
 
             // Numeric field validation
@@ -2593,7 +2772,7 @@
 
         // INITIALIZATION
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🔐 Restaurant Settings with Currency Inheritance & Join Codes initializing...');
+            console.log('🔐 Restaurant Settings with Currency & Timezone Inheritance initializing...');
             
             try {
                 showLoading('Loading restaurant settings...', 'Initializing Firebase and APIs');
@@ -2631,17 +2810,19 @@
                 restaurantId = currentRestaurant.id;
                 console.log('✅ Restaurant loaded:', currentRestaurant.name, 'ID:', restaurantId);
                 console.log('💰 Restaurant currency:', currentRestaurant.currency?.code || 'USD');
+                console.log('🕐 Restaurant timezone:', currentRestaurant.timezone || currentRestaurant.venueTimezone || 'UTC');
                 console.log('🏢 Venue association:', currentRestaurant.venueId ? currentRestaurant.venueName : 'Independent');
                 
-                showLoading('Setting up interface...', 'Loading venue options and currency settings');
+                showLoading('Setting up interface...', 'Loading venue options, currency, and timezone settings');
                 
                 // Setup all UI components
                 await setupVenueAssociationUI();
                 populateFieldsFromFirebase(currentRestaurant);
                 setupCurrencySelection();
+                setupTimezoneSelection();
                 
-                // IMPORTANT: Apply currency inheritance logic AFTER loading data
-                applyCurrencyInheritanceUI();
+                // IMPORTANT: Apply currency and timezone inheritance logic AFTER loading data
+                applyCurrencyAndTimezoneInheritanceUI();
                 
                 updateProgress();
                 updateButtons();
@@ -2649,7 +2830,7 @@
                 setupPhoneFormatting();
                 
                 hideLoading();
-                console.log('✅ Restaurant Settings with Currency Inheritance & Join Codes initialization complete');
+                console.log('✅ Restaurant Settings with Currency & Timezone Inheritance initialization complete');
                 
             } catch (error) {
                 console.error('❌ Settings initialization error:', error);
@@ -2739,12 +2920,13 @@
             throw new Error('VediAPI functions failed to load within timeout period');
         }
 
-        console.log('🔐 Restaurant Settings with Complete Currency Inheritance & Join Code System loaded successfully');
+        console.log('🔐 Restaurant Settings with Complete Currency & Timezone Inheritance System loaded successfully');
         console.log('🔑 NEW: Join code input for existing users to join venues');
         console.log('💰 Currency inheritance: Lock/unlock based on venue association');
+        console.log('🕐 Timezone inheritance: Lock/unlock based on venue association');
         console.log('🏢 Simplified venue association with clear messaging');
-        console.log('🔒 Venue-associated restaurants: Currency locked and inherited from venue');
-        console.log('🔓 Independent restaurants: Currency fully customizable + join code input');
+        console.log('🔒 Venue-associated restaurants: Currency and timezone locked and inherited from venue');
+        console.log('🔓 Independent restaurants: Currency and timezone fully customizable + join code input');
         console.log('⚙️ Complete operating hours management restored');
         console.log('📱 Phone formatting and all original functionality restored');
     </script>
