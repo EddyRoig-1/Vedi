@@ -621,8 +621,8 @@
                     <label class="filter-label">Time Period</label>
                     <select class="filter-select" id="timePeriod" onchange="applyFilters()">
                         <option value="today">Today</option>
-                        <option value="week">This Week</option>
-                        <option value="month" selected>This Month</option>
+                        <option value="week" selected>This Week</option>
+                        <option value="month">This Month</option>
                         <option value="quarter">This Quarter</option>
                         <option value="year">This Year</option>
                     </select>
@@ -710,8 +710,8 @@
 
             <div class="chart-card">
                 <div class="chart-header">
-                    <h3 class="chart-title">Peak Hours Analysis</h3>
-                    <p class="chart-subtitle">Order volume by hour of day</p>
+                    <h3 class="chart-title">Peak Performance Analysis</h3>
+                    <p class="chart-subtitle">Adaptive breakdown based on selected period</p>
                 </div>
                 <div class="chart-container">
                     <canvas id="peakHoursChart"></canvas>
@@ -815,22 +815,24 @@
         // REVENUE GROWTH CALCULATION
         // ============================================================================
 
-        // Calculate revenue growth percentage
+        // Calculate revenue growth percentage (Updated for calendar periods)
         function calculateRevenueGrowth(currentPeriodOrders, timePeriod) {
             try {
                 // Calculate current period revenue
                 const currentRevenue = currentPeriodOrders.reduce((sum, order) => 
                     sum + (parseFloat(order.total) || 0), 0);
                 
-                // Calculate previous period start and end dates
-                const currentStart = getTimePeriodStart(timePeriod);
-                const previousStart = getPreviousPeriodStart(timePeriod, currentStart);
-                const previousEnd = new Date(currentStart.getTime() - 1); // End of previous period
+                // Get previous calendar period boundaries
+                const previousPeriod = getPreviousCalendarPeriod(timePeriod);
                 
-                // Filter orders for previous period
+                if (!previousPeriod.start || !previousPeriod.end) {
+                    return { percentage: 0, trend: 'neutral' };
+                }
+                
+                // Filter orders for previous calendar period
                 const previousPeriodOrders = venueOrders.filter(order => {
                     const orderDate = timestampToDate(order.createdAt);
-                    return orderDate >= previousStart && orderDate <= previousEnd;
+                    return orderDate >= previousPeriod.start && orderDate <= previousPeriod.end;
                 });
                 
                 // Calculate previous period revenue
@@ -858,44 +860,10 @@
             }
         }
 
-        // Helper function to get previous period start date
+        // Helper function to get previous period start date (Updated for calendar periods)
         function getPreviousPeriodStart(timePeriod, currentStart) {
-            const currentStartDate = new Date(currentStart);
-            
-            switch (timePeriod.toLowerCase()) {
-                case 'today':
-                    // Previous day
-                    const previousDay = new Date(currentStartDate);
-                    previousDay.setDate(previousDay.getDate() - 1);
-                    return previousDay;
-                    
-                case 'week':
-                    // Previous week (7 days before)
-                    const previousWeek = new Date(currentStartDate);
-                    previousWeek.setDate(previousWeek.getDate() - 7);
-                    return previousWeek;
-                    
-                case 'month':
-                    // Previous month
-                    const previousMonth = new Date(currentStartDate);
-                    previousMonth.setMonth(previousMonth.getMonth() - 1);
-                    return previousMonth;
-                    
-                case 'quarter':
-                    // Previous quarter (3 months before)
-                    const previousQuarter = new Date(currentStartDate);
-                    previousQuarter.setMonth(previousQuarter.getMonth() - 3);
-                    return previousQuarter;
-                    
-                case 'year':
-                    // Previous year
-                    const previousYear = new Date(currentStartDate);
-                    previousYear.setFullYear(previousYear.getFullYear() - 1);
-                    return previousYear;
-                    
-                default:
-                    return new Date(currentStartDate.getTime() - (7 * 24 * 60 * 60 * 1000)); // Default to 1 week ago
-            }
+            const previousPeriod = getPreviousCalendarPeriod(timePeriod);
+            return previousPeriod.start;
         }
 
         // Helper function to get period display name
@@ -910,26 +878,117 @@
             return periodNames[timePeriod] || 'period';
         }
 
-        // Helper function for time period start
-        function getTimePeriodStart(timePeriod) {
+        // ============================================================================
+        // CALENDAR-BASED TIME PERIOD LOGIC
+        // ============================================================================
+
+        // Get calendar-based time period boundaries
+        function getCalendarPeriodBoundaries(timePeriod) {
             const now = new Date();
             
             switch (timePeriod.toLowerCase()) {
                 case 'today':
-                    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+                    return { start: todayStart, end: todayEnd };
+                    
                 case 'week':
+                    // Get current week Monday to Sunday
+                    const dayOfWeek = now.getDay();
+                    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Handle Sunday as day 0
                     const weekStart = new Date(now);
-                    weekStart.setDate(now.getDate() - 7);
-                    return weekStart;
+                    weekStart.setDate(now.getDate() + mondayOffset);
+                    weekStart.setHours(0, 0, 0, 0);
+                    
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    weekEnd.setHours(23, 59, 59, 999);
+                    return { start: weekStart, end: weekEnd };
+                    
                 case 'month':
-                    return new Date(now.getFullYear(), now.getMonth(), 1);
+                    // Get current month 1st to last day
+                    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+                    return { start: monthStart, end: monthEnd };
+                    
                 case 'quarter':
-                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-                    return new Date(now.getFullYear(), quarterMonth, 1);
+                    // Get current quarter start to end
+                    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                    const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+                    const quarterEnd = new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+                    return { start: quarterStart, end: quarterEnd };
+                    
                 case 'year':
-                    return new Date(now.getFullYear(), 0, 1);
+                    // Get current year January 1st to December 31st
+                    const yearStart = new Date(now.getFullYear(), 0, 1);
+                    const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+                    return { start: yearStart, end: yearEnd };
+                    
                 default:
-                    return null;
+                    return { start: null, end: null };
+            }
+        }
+
+        // Legacy function for backward compatibility (now uses calendar boundaries)
+        function getTimePeriodStart(timePeriod) {
+            const boundaries = getCalendarPeriodBoundaries(timePeriod);
+            return boundaries.start;
+        }
+
+        // Get previous calendar period boundaries for growth calculations
+        function getPreviousCalendarPeriod(timePeriod) {
+            const now = new Date();
+            
+            switch (timePeriod.toLowerCase()) {
+                case 'today':
+                    const yesterday = new Date(now);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+                    const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+                    return { start: yesterdayStart, end: yesterdayEnd };
+                    
+                case 'week':
+                    // Get previous week Monday to Sunday
+                    const currentWeekBoundaries = getCalendarPeriodBoundaries('week');
+                    const prevWeekStart = new Date(currentWeekBoundaries.start);
+                    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+                    const prevWeekEnd = new Date(currentWeekBoundaries.end);
+                    prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
+                    return { start: prevWeekStart, end: prevWeekEnd };
+                    
+                case 'month':
+                    // Get previous calendar month
+                    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+                    return { start: prevMonth, end: prevMonthEnd };
+                    
+                case 'quarter':
+                    // Get previous quarter
+                    const currentQuarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                    const prevQuarterStartMonth = currentQuarterStartMonth - 3;
+                    let prevQuarterYear = now.getFullYear();
+                    
+                    // Handle year boundary
+                    if (prevQuarterStartMonth < 0) {
+                        prevQuarterYear--;
+                        const adjustedMonth = 12 + prevQuarterStartMonth; // prevQuarterStartMonth is negative
+                        const prevQuarterStart = new Date(prevQuarterYear, adjustedMonth, 1);
+                        const prevQuarterEnd = new Date(prevQuarterYear, adjustedMonth + 3, 0, 23, 59, 59, 999);
+                        return { start: prevQuarterStart, end: prevQuarterEnd };
+                    } else {
+                        const prevQuarterStart = new Date(prevQuarterYear, prevQuarterStartMonth, 1);
+                        const prevQuarterEnd = new Date(prevQuarterYear, prevQuarterStartMonth + 3, 0, 23, 59, 59, 999);
+                        return { start: prevQuarterStart, end: prevQuarterEnd };
+                    }
+                    
+                case 'year':
+                    // Get previous calendar year
+                    const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
+                    const prevYearEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+                    return { start: prevYearStart, end: prevYearEnd };
+                    
+                default:
+                    return { start: null, end: null };
             }
         }
 
@@ -1296,14 +1355,14 @@
             }
         }
 
-        // Filter orders by time period
+        // Filter orders by calendar period (Updated for calendar-based periods)
         function filterOrdersByTimePeriod(orders, timePeriod) {
-            const startDate = getTimePeriodStart(timePeriod);
-            if (!startDate) return orders;
+            const boundaries = getCalendarPeriodBoundaries(timePeriod);
+            if (!boundaries.start || !boundaries.end) return orders;
             
             return orders.filter(order => {
                 const orderDate = timestampToDate(order.createdAt);
-                return orderDate >= startDate;
+                return orderDate >= boundaries.start && orderDate <= boundaries.end;
             });
         }
 
@@ -1318,22 +1377,14 @@
             }
         }
 
-        // Create revenue trend chart
+        // Create revenue trend chart (Updated for calendar-based periods with smart date grouping)
         async function createRevenueChart() {
             const ctx = document.getElementById('revenueChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
             const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
             
-            // Group orders by date
-            const revenueByDate = {};
-            filteredOrders.forEach(order => {
-                const date = timestampToDate(order.createdAt);
-                const dateKey = date.toISOString().split('T')[0];
-                revenueByDate[dateKey] = (revenueByDate[dateKey] || 0) + (parseFloat(order.total) || 0);
-            });
-            
-            const dates = Object.keys(revenueByDate).sort();
-            const revenues = dates.map(date => revenueByDate[date]);
+            // Smart date grouping based on time period
+            const { labels, revenues } = generateChartData(filteredOrders, timePeriod);
             
             if (charts.revenue) {
                 charts.revenue.destroy();
@@ -1342,7 +1393,7 @@
             charts.revenue = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: dates.map(date => new Date(date).toLocaleDateString()),
+                    labels: labels,
                     datasets: [{
                         label: 'Revenue',
                         data: revenues,
@@ -1369,10 +1420,135 @@
                                     return formatCurrency(value);
                                 }
                             }
+                        },
+                        x: {
+                            ticks: {
+                                maxTicksLimit: getMaxTicksForPeriod(timePeriod)
+                            }
                         }
                     }
                 }
             });
+        }
+
+        // Generate smart chart data based on period type
+        function generateChartData(orders, timePeriod) {
+            const boundaries = getCalendarPeriodBoundaries(timePeriod);
+            const labels = [];
+            const revenues = [];
+            
+            switch (timePeriod.toLowerCase()) {
+                case 'today':
+                    // Hourly breakdown for today
+                    for (let hour = 0; hour < 24; hour++) {
+                        const hourRevenue = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate.getHours() === hour;
+                        }).reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                        
+                        labels.push(`${hour}:00`);
+                        revenues.push(hourRevenue);
+                    }
+                    break;
+                    
+                case 'week':
+                    // Daily breakdown for the week (Mon-Sun)
+                    const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                        const currentDay = new Date(boundaries.start);
+                        currentDay.setDate(boundaries.start.getDate() + dayOffset);
+                        
+                        const dayRevenue = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate.toDateString() === currentDay.toDateString();
+                        }).reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                        
+                        labels.push(weekDays[dayOffset]);
+                        revenues.push(dayRevenue);
+                    }
+                    break;
+                    
+                case 'month':
+                    // Daily breakdown for the month
+                    const daysInMonth = new Date(boundaries.end.getFullYear(), boundaries.end.getMonth() + 1, 0).getDate();
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const currentDay = new Date(boundaries.start.getFullYear(), boundaries.start.getMonth(), day);
+                        
+                        const dayRevenue = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate.toDateString() === currentDay.toDateString();
+                        }).reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                        
+                        labels.push(day.toString());
+                        revenues.push(dayRevenue);
+                    }
+                    break;
+                    
+                case 'quarter':
+                    // Monthly breakdown for the quarter
+                    const quarterStartMonth = boundaries.start.getMonth();
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
+                    for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                        const currentMonth = quarterStartMonth + monthOffset;
+                        const monthStart = new Date(boundaries.start.getFullYear(), currentMonth, 1);
+                        const monthEnd = new Date(boundaries.start.getFullYear(), currentMonth + 1, 0, 23, 59, 59, 999);
+                        
+                        const monthRevenue = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate >= monthStart && orderDate <= monthEnd;
+                        }).reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                        
+                        labels.push(monthNames[currentMonth]);
+                        revenues.push(monthRevenue);
+                    }
+                    break;
+                    
+                case 'year':
+                    // Monthly breakdown for the year
+                    const yearMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
+                    for (let month = 0; month < 12; month++) {
+                        const monthStart = new Date(boundaries.start.getFullYear(), month, 1);
+                        const monthEnd = new Date(boundaries.start.getFullYear(), month + 1, 0, 23, 59, 59, 999);
+                        
+                        const monthRevenue = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate >= monthStart && orderDate <= monthEnd;
+                        }).reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                        
+                        labels.push(yearMonthNames[month]);
+                        revenues.push(monthRevenue);
+                    }
+                    break;
+                    
+                default:
+                    // Fallback to daily grouping
+                    const revenueByDate = {};
+                    orders.forEach(order => {
+                        const date = timestampToDate(order.createdAt);
+                        const dateKey = date.toISOString().split('T')[0];
+                        revenueByDate[dateKey] = (revenueByDate[dateKey] || 0) + (parseFloat(order.total) || 0);
+                    });
+                    
+                    const dates = Object.keys(revenueByDate).sort();
+                    labels.push(...dates.map(date => new Date(date).toLocaleDateString()));
+                    revenues.push(...dates.map(date => revenueByDate[date]));
+            }
+            
+            return { labels, revenues };
+        }
+
+        // Get appropriate max ticks for chart based on period
+        function getMaxTicksForPeriod(timePeriod) {
+            switch (timePeriod.toLowerCase()) {
+                case 'today': return 12; // Show every 2 hours
+                case 'week': return 7;   // Show all 7 days
+                case 'month': return 15; // Show every 2 days approximately
+                case 'quarter': return 3; // Show all 3 months
+                case 'year': return 12;  // Show all 12 months
+                default: return 10;
+            }
         }
 
         // Create restaurant performance chart
@@ -1441,33 +1617,32 @@
             });
         }
 
-        // Create peak hours chart
+        // Create peak hours chart (Updated for calendar-based periods)
         async function createPeakHoursChart() {
             const ctx = document.getElementById('peakHoursChart').getContext('2d');
             const timePeriod = document.getElementById('timePeriod').value;
             const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
             
-            // Group orders by hour
-            const ordersByHour = new Array(24).fill(0);
-            filteredOrders.forEach(order => {
-                const date = timestampToDate(order.createdAt);
-                const hour = date.getHours();
-                ordersByHour[hour]++;
-            });
-            
-            const hours = Array.from({length: 24}, (_, i) => `${i}:00`);
+            // Adaptive chart based on time period
+            const { labels, data, chartTitle } = generatePeakHoursData(filteredOrders, timePeriod);
             
             if (charts.peakHours) {
                 charts.peakHours.destroy();
             }
             
+            // Update chart title dynamically
+            const chartTitleElement = document.querySelector('#chartsSection .chart-card:last-child .chart-title');
+            if (chartTitleElement) {
+                chartTitleElement.textContent = chartTitle;
+            }
+            
             charts.peakHours = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: hours,
+                    labels: labels,
                     datasets: [{
                         label: 'Orders',
-                        data: ordersByHour,
+                        data: data,
                         backgroundColor: '#007AFF',
                         borderRadius: 4
                     }]
@@ -1490,6 +1665,120 @@
                     }
                 }
             });
+        }
+
+        // Generate peak hours data adapted to time period
+        function generatePeakHoursData(orders, timePeriod) {
+            const labels = [];
+            const data = [];
+            let chartTitle = 'Peak Hours Analysis';
+            
+            switch (timePeriod.toLowerCase()) {
+                case 'today':
+                    // Hourly breakdown for today
+                    chartTitle = 'Hourly Order Volume - Today';
+                    for (let hour = 0; hour < 24; hour++) {
+                        const hourOrders = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate.getHours() === hour;
+                        }).length;
+                        
+                        labels.push(`${hour}:00`);
+                        data.push(hourOrders);
+                    }
+                    break;
+                    
+                case 'week':
+                    // Daily breakdown for the week
+                    chartTitle = 'Daily Order Volume - This Week';
+                    const boundaries = getCalendarPeriodBoundaries(timePeriod);
+                    const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    
+                    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                        const currentDay = new Date(boundaries.start);
+                        currentDay.setDate(boundaries.start.getDate() + dayOffset);
+                        
+                        const dayOrders = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate.toDateString() === currentDay.toDateString();
+                        }).length;
+                        
+                        labels.push(weekDays[dayOffset]);
+                        data.push(dayOrders);
+                    }
+                    break;
+                    
+                case 'month':
+                    // Hourly patterns aggregated for the month
+                    chartTitle = 'Peak Hours Pattern - This Month';
+                    for (let hour = 0; hour < 24; hour++) {
+                        const hourOrders = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate.getHours() === hour;
+                        }).length;
+                        
+                        labels.push(`${hour}:00`);
+                        data.push(hourOrders);
+                    }
+                    break;
+                    
+                case 'quarter':
+                    // Monthly breakdown for the quarter
+                    chartTitle = 'Monthly Order Volume - This Quarter';
+                    const quarterBoundaries = getCalendarPeriodBoundaries(timePeriod);
+                    const quarterStartMonth = quarterBoundaries.start.getMonth();
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
+                    for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                        const currentMonth = quarterStartMonth + monthOffset;
+                        const monthStart = new Date(quarterBoundaries.start.getFullYear(), currentMonth, 1);
+                        const monthEnd = new Date(quarterBoundaries.start.getFullYear(), currentMonth + 1, 0, 23, 59, 59, 999);
+                        
+                        const monthOrders = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate >= monthStart && orderDate <= monthEnd;
+                        }).length;
+                        
+                        labels.push(monthNames[currentMonth]);
+                        data.push(monthOrders);
+                    }
+                    break;
+                    
+                case 'year':
+                    // Monthly breakdown for the year
+                    chartTitle = 'Monthly Order Volume - This Year';
+                    const yearBoundaries = getCalendarPeriodBoundaries(timePeriod);
+                    const yearMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
+                    for (let month = 0; month < 12; month++) {
+                        const monthStart = new Date(yearBoundaries.start.getFullYear(), month, 1);
+                        const monthEnd = new Date(yearBoundaries.start.getFullYear(), month + 1, 0, 23, 59, 59, 999);
+                        
+                        const monthOrders = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate >= monthStart && orderDate <= monthEnd;
+                        }).length;
+                        
+                        labels.push(yearMonthNames[month]);
+                        data.push(monthOrders);
+                    }
+                    break;
+                    
+                default:
+                    // Default hourly breakdown
+                    chartTitle = 'Peak Hours Analysis';
+                    for (let hour = 0; hour < 24; hour++) {
+                        const hourOrders = orders.filter(order => {
+                            const orderDate = timestampToDate(order.createdAt);
+                            return orderDate.getHours() === hour;
+                        }).length;
+                        
+                        labels.push(`${hour}:00`);
+                        data.push(hourOrders);
+                    }
+            }
+            
+            return { labels, data, chartTitle };
         }
 
         // Update restaurant performance table
