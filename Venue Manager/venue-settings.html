@@ -466,115 +466,6 @@
             accent-color: #007AFF;
         }
 
-        /* Space Management */
-        .space-container {
-            background: #F8F9FA;
-            border-radius: 12px;
-            padding: 24px;
-            margin-top: 16px;
-            border: 1px solid #E5E5E7;
-        }
-
-        .space-list {
-            margin-bottom: 24px;
-        }
-
-        .space-item {
-            background: white;
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
-            border: 1px solid #E5E5E7;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.2s ease;
-        }
-
-        .space-item:hover {
-            border-color: #007AFF;
-        }
-
-        .space-info {
-            flex: 1;
-        }
-
-        .space-name {
-            font-weight: 600;
-            color: #1D1D1F;
-            margin-bottom: 4px;
-            font-size: 17px;
-        }
-
-        .space-details {
-            color: #86868B;
-            font-size: 15px;
-        }
-
-        .space-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .space-btn {
-            background-color: #FF3B30;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            width: 32px;
-            height: 32px;
-            cursor: pointer;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }
-
-        .space-btn:hover {
-            background-color: #E8342A;
-            transform: scale(1.05);
-        }
-
-        .add-space-form {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            border: 1px dashed #D1D5DB;
-        }
-
-        .add-space-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #1D1D1F;
-            margin-bottom: 20px;
-        }
-
-        .space-form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-
-        .add-space-btn {
-            background-color: #007AFF;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            padding: 12px 20px;
-            font-size: 17px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-family: inherit;
-        }
-
-        .add-space-btn:hover {
-            background-color: #0056D6;
-            transform: translateY(-1px);
-        }
-
         /* Messages */
         .message {
             padding: 16px;
@@ -821,10 +712,6 @@
                         <option value="Australia/Sydney">🇦🇺 Australian Eastern Time</option>
                         <option value="UTC">🌍 Coordinated Universal Time (UTC)</option>
                     </select>
-                    <div class="timezone-info" id="timezoneInfo" style="display: none;">
-                        <div>Current time in selected timezone:</div>
-                        <div class="timezone-current-time" id="currentTimeDisplay">--</div>
-                    </div>
                 </div>
             </div>
 
@@ -1012,13 +899,13 @@
     </div>
 
     <script>
-        // Global variables
+        // Global variables with proper initialization
         let currentUser = null;
         let currentVenue = null;
         let venueSpaces = [];
         let selectedVenueType = '';
         let selectedCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' };
-        let selectedTimezone = 'UTC';
+        let selectedTimezone = 'America/New_York'; // Default to Eastern Time
         let originalCurrency = null;
         let originalTimezone = null;
         let timezoneUpdateInterval = null;
@@ -1051,6 +938,9 @@
                 setupTimezoneSelection();
                 setupVenueTypeSelection();
                 setupPhoneFormatting();
+                
+                // Start timezone updates
+                startTimezoneUpdates();
                 
                 console.log('✅ Venue settings initialized successfully');
                 
@@ -1225,18 +1115,21 @@
                     }
                 }
                 
-                // Timezone
+                // Timezone - CRITICAL FIX
                 if (currentVenue.timezone) {
                     selectedTimezone = currentVenue.timezone;
                     originalTimezone = currentVenue.timezone;
-                    document.getElementById('timezoneSelect').value = selectedTimezone;
+                    console.log('🕐 Setting venue timezone to:', selectedTimezone);
                 } else {
-                    selectedTimezone = 'UTC';
-                    originalTimezone = 'UTC';
+                    // Keep default timezone but mark as new
+                    selectedTimezone = 'America/New_York';
+                    originalTimezone = null;
+                    console.log('🕐 Using default timezone:', selectedTimezone);
                 }
                 
-                // Update timezone display
-                updateTimezoneDisplay();
+                // Set dropdown value
+                const timezoneSelect = document.getElementById('timezoneSelect');
+                timezoneSelect.value = selectedTimezone;
                 
                 console.log('✅ Form fields populated');
                 
@@ -1270,6 +1163,7 @@
             
             timezoneSelect.addEventListener('change', function() {
                 selectedTimezone = this.value;
+                console.log('🕐 Timezone changed to:', selectedTimezone);
                 
                 // Show warning if timezone is changing
                 if (originalTimezone && originalTimezone !== selectedTimezone) {
@@ -1278,59 +1172,9 @@
                     document.getElementById('timezoneWarning').classList.remove('show');
                 }
                 
-                // Update timezone display
+                // Update timezone display immediately
                 updateTimezoneDisplay();
-                
-                console.log('Selected timezone:', selectedTimezone);
             });
-            
-            // Initial timezone display update
-            updateTimezoneDisplay();
-            
-            // Update timezone display every 30 seconds
-            if (timezoneUpdateInterval) {
-                clearInterval(timezoneUpdateInterval);
-            }
-            timezoneUpdateInterval = setInterval(updateTimezoneDisplay, 30000);
-        }
-
-        // Update timezone display
-        function updateTimezoneDisplay() {
-            try {
-                const now = new Date();
-                
-                // Update header timezone display
-                const headerTime = now.toLocaleString('en-US', {
-                    timeZone: selectedTimezone,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                });
-                
-                document.getElementById('headerTimezoneDisplay').querySelector('.timezone-time').textContent = headerTime;
-                
-                // Update form timezone display (hidden by default)
-                const formTime = now.toLocaleString('en-US', {
-                    timeZone: selectedTimezone,
-                    weekday: 'short',
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false,
-                    timeZoneName: 'short'
-                });
-                
-                document.getElementById('currentTimeDisplay').textContent = formTime;
-                
-            } catch (error) {
-                console.error('❌ Error updating timezone display:', error);
-                document.getElementById('headerTimezoneDisplay').querySelector('.timezone-time').textContent = '--:--:--';
-                document.getElementById('currentTimeDisplay').textContent = 'Invalid timezone';
-            }
         }
 
         // Setup venue type selection
@@ -1356,6 +1200,54 @@
                     }
                     e.target.value = value;
                 });
+            }
+        }
+
+        // Start timezone updates
+        function startTimezoneUpdates() {
+            // Initial update
+            updateTimezoneDisplay();
+            
+            // Update every 30 seconds
+            if (timezoneUpdateInterval) {
+                clearInterval(timezoneUpdateInterval);
+            }
+            timezoneUpdateInterval = setInterval(updateTimezoneDisplay, 30000);
+        }
+
+        // Update timezone display - FIXED VERSION
+        function updateTimezoneDisplay() {
+            try {
+                console.log('🕐 Updating timezone display for:', selectedTimezone);
+                const now = new Date();
+                
+                // Update header timezone display with proper timezone
+                const headerTime = now.toLocaleString('en-US', {
+                    timeZone: selectedTimezone,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                
+                console.log('⏰ Calculated time:', headerTime, 'for timezone:', selectedTimezone);
+                
+                const headerElement = document.getElementById('headerTimezoneDisplay');
+                const timeElement = headerElement?.querySelector('.timezone-time');
+                if (timeElement) {
+                    timeElement.textContent = headerTime;
+                    console.log('✅ Header updated with:', headerTime);
+                } else {
+                    console.error('❌ Header time element not found');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating timezone display:', error);
+                const headerElement = document.getElementById('headerTimezoneDisplay');
+                const timeElement = headerElement?.querySelector('.timezone-time');
+                if (timeElement) {
+                    timeElement.textContent = '--:--:--';
+                }
             }
         }
 
@@ -1422,7 +1314,7 @@
                 }
                 
                 // Handle timezone changes using TimezoneAPI
-                if (originalTimezone && originalTimezone !== selectedTimezone) {
+                if (originalTimezone !== selectedTimezone) {
                     if (typeof TimezoneAPI !== 'undefined' && typeof TimezoneAPI.updateVenueTimezone === 'function') {
                         await TimezoneAPI.updateVenueTimezone(currentVenue.id, selectedTimezone);
                     } else {
