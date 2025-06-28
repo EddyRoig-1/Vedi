@@ -757,25 +757,40 @@
         let venueOrders = [];
         let lossIncidents = [];
         let charts = {};
-        let venueCurrency = 'USD'; // Single venue currency (same as financials page)
+        let venueCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' }; // Venue currency object
 
-        // Helper function for currency formatting (same as financials page)
-        function formatCurrency(amount, currency = null) {
+        // ============================================================================
+        // CURRENCY MANAGEMENT - Venue-Level Currency Authority
+        // ============================================================================
+
+        function getVenueCurrency() {
+            if (currentVenue && currentVenue.currency) {
+                return {
+                    code: currentVenue.currency.code || 'USD',
+                    symbol: currentVenue.currency.symbol || '$',
+                    name: currentVenue.currency.name || 'US Dollar'
+                };
+            }
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
+        }
+
+        function formatCurrency(amount) {
+            if (!amount && amount !== 0) return `${venueCurrency.symbol}0.00`;
+            const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+            if (isNaN(numAmount)) return `${venueCurrency.symbol}0.00`;
+            return `${venueCurrency.symbol}${numAmount.toFixed(2)}`;
+        }
+
+        function updateCurrencyDisplay() {
             try {
-                const currencyCode = currency || venueCurrency;
-                
-                if (VediAPI && VediAPI.formatCurrency) {
-                    return VediAPI.formatCurrency(amount, currencyCode);
-                } else {
-                    return new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: currencyCode
-                    }).format(amount);
-                }
+                venueCurrency = getVenueCurrency();
+                console.log('💰 Venue currency set to:', venueCurrency);
+                // Refresh any displays that show currency
+                updatePerformanceStats();
+                createCharts();
+                updateRestaurantTable();
             } catch (error) {
-                console.error('❌ Currency formatting error:', error);
-                const symbol = getCurrencySymbol(currency || venueCurrency);
-                return `${symbol}${amount.toFixed(2)}`;
+                console.error('❌ Currency display update error:', error);
             }
         }
 
@@ -855,6 +870,7 @@
                 await waitForFirebase();
                 await checkAuthentication();
                 await loadVenueData();
+                updateCurrencyDisplay();
                 await loadRestaurants();
                 await loadPerformanceData();
                 
@@ -987,18 +1003,15 @@
                 const venueDoc = venueQuery.docs[0];
                 currentVenue = { id: venueDoc.id, ...venueDoc.data() };
                 
-                // Set venue currency (same logic as financials page)
-                if (currentVenue.currency && currentVenue.currency.code) {
-                    venueCurrency = currentVenue.currency.code;
-                } else if (currentVenue.currencyCode) {
-                    venueCurrency = currentVenue.currencyCode;
-                }
+                // Set venue currency using the standardized approach
+                venueCurrency = getVenueCurrency();
+                console.log('💰 Venue currency loaded:', venueCurrency);
                 
                 document.getElementById('venueName').textContent = currentVenue.name;
                 document.getElementById('venueLocation').textContent = 
                     `${currentVenue.city}, ${currentVenue.state}`;
                 
-                console.log('✅ Venue loaded for analytics:', currentVenue.name, 'Currency:', venueCurrency);
+                console.log('✅ Venue loaded for analytics:', currentVenue.name, 'Currency:', venueCurrency.code);
                 
             } catch (error) {
                 console.error('❌ Load venue error:', error);
@@ -1018,17 +1031,6 @@
                     id: doc.id,
                     ...doc.data()
                 }));
-                
-                // Detect venue currency from first restaurant if not set in venue
-                if (venueCurrency === 'USD' && venueRestaurants.length > 0) {
-                    const firstRestaurant = venueRestaurants[0];
-                    if (firstRestaurant.currency && firstRestaurant.currency.code) {
-                        venueCurrency = firstRestaurant.currency.code;
-                    } else if (firstRestaurant.currencyCode) {
-                        venueCurrency = firstRestaurant.currencyCode;
-                    }
-                    console.log('✅ Currency detected from restaurant:', venueCurrency);
-                }
                 
                 // Populate restaurant filter
                 const restaurantFilter = document.getElementById('restaurantFilter');
