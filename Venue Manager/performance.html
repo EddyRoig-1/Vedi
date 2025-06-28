@@ -1392,6 +1392,9 @@
             const restaurantRevenues = [];
             const colors = ['#007AFF', '#FF3B30', '#30D158', '#FF9500', '#AF52DE', '#00C7BE'];
             
+            // Calculate total revenue for percentage calculations
+            const totalRevenue = Object.values(revenueByRestaurant).reduce((sum, revenue) => sum + revenue, 0);
+            
             Object.entries(revenueByRestaurant).forEach(([restaurantId, revenue], index) => {
                 const restaurant = (venueRestaurants || []).find(r => r.id === restaurantId);
                 restaurantLabels.push(restaurant ? restaurant.name : 'Unknown');
@@ -1421,6 +1424,16 @@
                             labels: {
                                 usePointStyle: true,
                                 padding: 15
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const revenue = context.parsed;
+                                    const percentage = totalRevenue > 0 ? ((revenue / totalRevenue) * 100).toFixed(1) : 0;
+                                    const formattedRevenue = formatCurrency(revenue);
+                                    return `${context.label}: ${formattedRevenue} (${percentage}%)`;
+                                }
                             }
                         }
                     }
