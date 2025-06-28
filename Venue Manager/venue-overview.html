@@ -210,10 +210,10 @@
             transform: translateY(-1px);
         }
 
-        /* Stats Grid */
+        /* Stats Grid - Updated to 3 cards */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 24px;
             margin-bottom: 32px;
         }
@@ -253,17 +253,6 @@
         .stat-change {
             font-size: 13px;
             font-weight: 500;
-        }
-
-        .stat-change.positive {
-            color: #30D158;
-        }
-
-        .stat-change.negative {
-            color: #FF3B30;
-        }
-
-        .stat-change.neutral {
             color: #86868B;
         }
 
@@ -407,13 +396,6 @@
             font-size: 15px;
         }
 
-        /* Currency Display */
-        .currency-mixed {
-            font-size: 11px;
-            color: #86868B;
-            margin-left: 4px;
-        }
-
         /* Loading Overlay */
         .loading-overlay {
             position: fixed;
@@ -508,6 +490,7 @@
             <a href="venue-reports.html" class="nav-item" onclick="handleNavigation(event, 'venue-reports.html')">Reports</a>
             <a href="venue-management.html" class="nav-item" onclick="handleNavigation(event, 'venue-management.html')">Management</a>
             <a href="venue-financials.html" class="nav-item" onclick="handleNavigation(event, 'venue-financials.html')">Financials</a>
+            <a href="venue-settings.html" class="nav-item" onclick="handleNavigation(event, 'venue-settings.html')">Settings</a>
         </div>
     </nav>
 
@@ -518,7 +501,7 @@
             <div class="filter-row">
                 <div class="filter-group">
                     <label class="filter-label">Time Range</label>
-                    <select class="filter-select" id="timeRange">
+                    <select class="filter-select" id="timeRange" onchange="applyFilters()">
                         <option value="today">Today</option>
                         <option value="week" selected>This Week</option>
                         <option value="month">This Month</option>
@@ -528,31 +511,21 @@
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">Restaurant</label>
-                    <select class="filter-select" id="restaurantFilter">
+                    <select class="filter-select" id="restaurantFilter" onchange="applyFilters()">
                         <option value="all">All Restaurants</option>
                     </select>
                 </div>
-                <div class="filter-group">
-                    <label class="filter-label">Status</label>
-                    <select class="filter-select" id="statusFilter">
-                        <option value="all">All Status</option>
-                        <option value="online">Online</option>
-                        <option value="offline">Offline</option>
-                        <option value="pending">Pending</option>
-                    </select>
-                </div>
-                <button class="apply-filters-btn" onclick="applyFilters()">Apply</button>
             </div>
         </section>
 
-        <!-- Stats Grid -->
+        <!-- Stats Grid - Reduced to 3 cards -->
         <section class="stats-grid">
             <div class="stat-card">
                 <div class="stat-header">
                     <span class="stat-title">Total Revenue</span>
                 </div>
                 <div class="stat-value" id="totalRevenue">$0.00</div>
-                <div class="stat-change neutral" id="revenueChange">Loading...</div>
+                <div class="stat-change" id="revenueChange">Loading...</div>
             </div>
 
             <div class="stat-card">
@@ -560,15 +533,7 @@
                     <span class="stat-title">Total Orders</span>
                 </div>
                 <div class="stat-value" id="totalOrders">0</div>
-                <div class="stat-change neutral" id="ordersChange">Loading...</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-title">Active Restaurants</span>
-                </div>
-                <div class="stat-value" id="activeRestaurants">0</div>
-                <div class="stat-change neutral" id="restaurantsChange">Loading...</div>
+                <div class="stat-change" id="ordersChange">Loading...</div>
             </div>
 
             <div class="stat-card">
@@ -576,7 +541,7 @@
                     <span class="stat-title">Average Order Value</span>
                 </div>
                 <div class="stat-value" id="averageOrderValue">$0.00</div>
-                <div class="stat-change neutral" id="aovChange">Loading...</div>
+                <div class="stat-change" id="aovChange">Loading...</div>
             </div>
         </section>
 
@@ -606,7 +571,83 @@
         let currentVenue = null;
         let venueRestaurants = [];
         let venueOrders = [];
-        let currencySymbols = new Map();
+        let venueCurrency = 'USD'; // Single venue currency
+
+        // Helper function for currency formatting (same as financials page)
+        function formatCurrency(amount, currency = null) {
+            try {
+                const currencyCode = currency || venueCurrency;
+                
+                if (VediAPI && VediAPI.formatCurrency) {
+                    return VediAPI.formatCurrency(amount, currencyCode);
+                } else {
+                    return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: currencyCode
+                    }).format(amount);
+                }
+            } catch (error) {
+                console.error('❌ Currency formatting error:', error);
+                const symbol = getCurrencySymbol(currency || venueCurrency);
+                return `${symbol}${amount.toFixed(2)}`;
+            }
+        }
+
+        // Get currency symbol for fallback formatting
+        function getCurrencySymbol(currencyCode) {
+            const symbols = {
+                'USD': '$',
+                'EUR': '€',
+                'GBP': '£',
+                'CAD': 'C$',
+                'AUD': 'A$',
+                'JPY': '¥',
+                'CHF': 'CHF',
+                'SEK': 'kr',
+                'NOK': 'kr',
+                'DKK': 'kr'
+            };
+            return symbols[currencyCode] || currencyCode + ' ';
+        }
+
+        // Helper function for time period start
+        function getTimePeriodStart(timePeriod) {
+            const now = new Date();
+            
+            switch (timePeriod.toLowerCase()) {
+                case 'today':
+                    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                case 'week':
+                    const weekStart = new Date(now);
+                    weekStart.setDate(now.getDate() - 7);
+                    return weekStart;
+                case 'month':
+                    return new Date(now.getFullYear(), now.getMonth(), 1);
+                case 'quarter':
+                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+                    return new Date(now.getFullYear(), quarterMonth, 1);
+                case 'year':
+                    return new Date(now.getFullYear(), 0, 1);
+                default:
+                    return null;
+            }
+        }
+
+        // Helper function for timestamp conversion
+        function timestampToDate(timestamp) {
+            try {
+                if (timestamp && timestamp.toDate) {
+                    return timestamp.toDate();
+                }
+                if (timestamp && timestamp.seconds) {
+                    return new Date(timestamp.seconds * 1000);
+                }
+                return new Date(timestamp);
+            } catch (error) {
+                console.error('❌ Timestamp conversion error:', error);
+                return new Date();
+            }
+        }
 
         // Firebase utility functions
         function getFirebaseAuth() {
@@ -617,47 +658,16 @@
             return window.firebaseDb || firebase.firestore();
         }
 
-        // VediAPI Mock (simplified version)
-        if (!window.VediAPI) {
-            window.VediAPI = {
-                formatCurrency: function(amount, currency = 'USD') {
-                    const symbols = { USD: '$', EUR: '€', GBP: '£', CAD: 'C$' };
-                    const symbol = symbols[currency] || '$';
-                    return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                },
-                
-                sanitizeInput: function(input) {
-                    return input ? input.toString().trim() : '';
-                },
-                
-                trackUserActivity: async function(activity, data) {
-                    console.log('Track:', activity, data);
-                },
-                
-                trackError: async function(error, context, data) {
-                    console.error('Error tracked:', error, context, data);
-                }
-            };
-        }
-
         // Initialize dashboard
         async function initializeDashboard() {
             try {
-                console.log('🚀 Initializing venue dashboard...');
+                console.log('🚀 Initializing venue overview dashboard...');
                 
-                // Wait for Firebase to be ready
                 await waitForFirebase();
-                
-                // Check authentication
                 await checkAuthentication();
-                
-                // Load venue data
                 await loadVenueData();
-                
-                // Load restaurants
                 await loadRestaurants();
-                
-                // Load and display stats
+                await loadOrders();
                 await loadDashboardStats();
                 
                 console.log('✅ Dashboard initialized successfully');
@@ -672,7 +682,7 @@
         function waitForFirebase() {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
-                const maxAttempts = 50; // 5 seconds max
+                const maxAttempts = 50;
                 
                 const checkFirebase = () => {
                     attempts++;
@@ -699,7 +709,6 @@
                 auth.onAuthStateChanged(async (user) => {
                     if (user) {
                         try {
-                            // Get user profile
                             const db = getFirebaseDb();
                             const userDoc = await db.collection('users').doc(user.uid).get();
                             
@@ -709,7 +718,6 @@
                             
                             const userData = userDoc.data();
                             
-                            // Check if user is venue type
                             if (userData.accountType !== 'venue') {
                                 throw new Error('Access denied. Venue manager account required.');
                             }
@@ -734,7 +742,6 @@
             try {
                 const db = getFirebaseDb();
                 
-                // Get venue by manager user ID
                 const venueQuery = await db.collection('venues')
                     .where('managerUserId', '==', currentUser.uid)
                     .limit(1)
@@ -747,12 +754,18 @@
                 const venueDoc = venueQuery.docs[0];
                 currentVenue = { id: venueDoc.id, ...venueDoc.data() };
                 
-                // Update venue display
+                // Set venue currency (same logic as financials page)
+                if (currentVenue.currency && currentVenue.currency.code) {
+                    venueCurrency = currentVenue.currency.code;
+                } else if (currentVenue.currencyCode) {
+                    venueCurrency = currentVenue.currencyCode;
+                }
+                
                 document.getElementById('venueName').textContent = currentVenue.name;
                 document.getElementById('venueLocation').textContent = 
                     `${currentVenue.city}, ${currentVenue.state}`;
                 
-                console.log('✅ Venue loaded:', currentVenue.name);
+                console.log('✅ Venue loaded:', currentVenue.name, 'Currency:', venueCurrency);
                 
             } catch (error) {
                 console.error('❌ Load venue error:', error);
@@ -765,7 +778,6 @@
             try {
                 const db = getFirebaseDb();
                 
-                // Get restaurants for this venue
                 const restaurantsQuery = await db.collection('restaurants')
                     .where('venueId', '==', currentVenue.id)
                     .orderBy('name', 'asc')
@@ -775,6 +787,17 @@
                     id: doc.id,
                     ...doc.data()
                 }));
+                
+                // Detect venue currency from first restaurant if not set in venue
+                if (venueCurrency === 'USD' && venueRestaurants.length > 0) {
+                    const firstRestaurant = venueRestaurants[0];
+                    if (firstRestaurant.currency && firstRestaurant.currency.code) {
+                        venueCurrency = firstRestaurant.currency.code;
+                    } else if (firstRestaurant.currencyCode) {
+                        venueCurrency = firstRestaurant.currencyCode;
+                    }
+                    console.log('✅ Currency detected from restaurant:', venueCurrency);
+                }
                 
                 // Populate restaurant filter
                 const restaurantFilter = document.getElementById('restaurantFilter');
@@ -789,7 +812,6 @@
                 
                 console.log('✅ Restaurants loaded:', venueRestaurants.length);
                 
-                // Display restaurants
                 displayRestaurants();
                 
             } catch (error) {
@@ -801,62 +823,54 @@
         // Load orders for statistics
         async function loadOrders() {
             try {
-                const db = getFirebaseDb();
+                venueOrders = [];
                 
-                if (venueRestaurants.length === 0) {
-                    venueOrders = [];
+                if (!venueRestaurants || venueRestaurants.length === 0) {
+                    console.log('⚠️ No restaurants found, skipping order loading');
                     return;
                 }
                 
-                // Get restaurant IDs
                 const restaurantIds = venueRestaurants.map(r => r.id);
                 
-                // Firestore 'in' query limit is 10, so we might need multiple queries
-                const orderPromises = [];
-                for (let i = 0; i < restaurantIds.length; i += 10) {
-                    const batch = restaurantIds.slice(i, i + 10);
-                    const query = db.collection('orders')
-                        .where('restaurantId', 'in', batch)
-                        .orderBy('createdAt', 'desc');
-                    
-                    orderPromises.push(query.get());
+                for (const restaurantId of restaurantIds) {
+                    try {
+                        const db = getFirebaseDb();
+                        const ordersQuery = await db.collection('orders')
+                            .where('restaurantId', '==', restaurantId)
+                            .orderBy('createdAt', 'desc')
+                            .limit(1000)
+                            .get();
+                        
+                        const orders = ordersQuery.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        
+                        venueOrders.push(...orders);
+                    } catch (error) {
+                        console.warn('Could not load orders for restaurant:', restaurantId);
+                    }
                 }
-                
-                const querySnapshots = await Promise.all(orderPromises);
-                
-                venueOrders = [];
-                querySnapshots.forEach(snapshot => {
-                    snapshot.docs.forEach(doc => {
-                        venueOrders.push({ id: doc.id, ...doc.data() });
-                    });
-                });
                 
                 console.log('✅ Orders loaded:', venueOrders.length);
                 
             } catch (error) {
                 console.error('❌ Load orders error:', error);
-                venueOrders = []; // Continue with empty orders
+                venueOrders = [];
             }
         }
 
         // Load and display dashboard statistics
         async function loadDashboardStats() {
             try {
-                await loadOrders();
-                
-                // Calculate stats
                 const stats = calculateStats();
                 
-                // Display stats
                 document.getElementById('totalRevenue').textContent = stats.totalRevenue;
                 document.getElementById('totalOrders').textContent = stats.totalOrders;
-                document.getElementById('activeRestaurants').textContent = stats.activeRestaurants;
                 document.getElementById('averageOrderValue').textContent = stats.averageOrderValue;
                 
-                // Update change indicators (simplified)
                 document.getElementById('revenueChange').textContent = 'vs last period';
                 document.getElementById('ordersChange').textContent = 'vs last period';
-                document.getElementById('restaurantsChange').textContent = `of ${venueRestaurants.length} total`;
                 document.getElementById('aovChange').textContent = 'average value';
                 
             } catch (error) {
@@ -865,98 +879,47 @@
             }
         }
 
-        // Calculate venue statistics
+        // Calculate venue statistics (improved calculations)
         function calculateStats() {
             const timeRange = document.getElementById('timeRange').value;
             const restaurantFilter = document.getElementById('restaurantFilter').value;
-            const statusFilter = document.getElementById('statusFilter').value;
             
             // Filter orders based on current filters
-            let filteredOrders = venueOrders;
-            
-            // Time range filter
-            const now = new Date();
-            let startDate;
-            
-            switch(timeRange) {
-                case 'today':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    break;
-                case 'week':
-                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    break;
-                case 'month':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    break;
-                case 'quarter':
-                    const quarter = Math.floor(now.getMonth() / 3);
-                    startDate = new Date(now.getFullYear(), quarter * 3, 1);
-                    break;
-                case 'year':
-                    startDate = new Date(now.getFullYear(), 0, 1);
-                    break;
-                default:
-                    startDate = new Date(0);
-            }
-            
-            filteredOrders = filteredOrders.filter(order => {
-                const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
-                return orderDate >= startDate;
-            });
+            let filteredOrders = filterOrdersByTimePeriod(venueOrders, timeRange);
             
             // Restaurant filter
             if (restaurantFilter !== 'all') {
                 filteredOrders = filteredOrders.filter(order => order.restaurantId === restaurantFilter);
             }
             
-            // Calculate revenue with multi-currency support
+            // Calculate revenue (single currency, same as financials page)
             let totalRevenue = 0;
-            const currencyTotals = new Map();
             
             filteredOrders.forEach(order => {
                 const amount = parseFloat(order.total) || 0;
-                const restaurant = venueRestaurants.find(r => r.id === order.restaurantId);
-                const currency = restaurant?.currency?.code || 'USD';
-                
-                currencyTotals.set(currency, (currencyTotals.get(currency) || 0) + amount);
-                
-                // For total calculation, convert everything to USD (simplified)
                 totalRevenue += amount;
             });
-            
-            // Format revenue display
-            let revenueDisplay;
-            if (currencyTotals.size === 1) {
-                const [currency, amount] = currencyTotals.entries().next().value;
-                revenueDisplay = VediAPI.formatCurrency(amount, currency);
-            } else {
-                revenueDisplay = VediAPI.formatCurrency(totalRevenue, 'USD') + ' (multi-currency)';
-            }
             
             // Calculate other stats
             const totalOrders = filteredOrders.length;
             const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
             
-            // Filter restaurants by status
-            let filteredRestaurants = venueRestaurants;
-            if (statusFilter === 'online') {
-                filteredRestaurants = venueRestaurants.filter(r => r.isOnline === true);
-            } else if (statusFilter === 'offline') {
-                filteredRestaurants = venueRestaurants.filter(r => r.isOnline === false);
-            } else if (statusFilter === 'pending') {
-                filteredRestaurants = venueRestaurants.filter(r => r.verified === false);
-            }
-            
-            const activeRestaurants = filteredRestaurants.filter(r => 
-                r.status === 'active' && r.isOnline === true
-            ).length;
-            
             return {
-                totalRevenue: revenueDisplay,
+                totalRevenue: formatCurrency(totalRevenue),
                 totalOrders: totalOrders.toLocaleString(),
-                activeRestaurants: activeRestaurants.toString(),
-                averageOrderValue: VediAPI.formatCurrency(averageOrderValue, 'USD')
+                averageOrderValue: formatCurrency(averageOrderValue)
             };
+        }
+
+        // Filter orders by time period
+        function filterOrdersByTimePeriod(orders, timePeriod) {
+            const startDate = getTimePeriodStart(timePeriod);
+            if (!startDate) return orders;
+            
+            return orders.filter(order => {
+                const orderDate = timestampToDate(order.createdAt);
+                return orderDate >= startDate;
+            });
         }
 
         // Display restaurants grid
@@ -973,18 +936,7 @@
                 return;
             }
             
-            const statusFilter = document.getElementById('statusFilter').value;
-            let filteredRestaurants = venueRestaurants;
-            
-            if (statusFilter === 'online') {
-                filteredRestaurants = venueRestaurants.filter(r => r.isOnline === true);
-            } else if (statusFilter === 'offline') {
-                filteredRestaurants = venueRestaurants.filter(r => r.isOnline === false);
-            } else if (statusFilter === 'pending') {
-                filteredRestaurants = venueRestaurants.filter(r => r.verified === false);
-            }
-            
-            grid.innerHTML = filteredRestaurants.map(restaurant => {
+            grid.innerHTML = venueRestaurants.map(restaurant => {
                 const status = getRestaurantStatus(restaurant);
                 const stats = getRestaurantStats(restaurant);
                 
@@ -1012,7 +964,6 @@
                         <div style="margin-top: 16px; font-size: 13px; color: #86868B;">
                             <div>Tables: ${restaurant.tableCount || 'N/A'}</div>
                             <div>Capacity: ${restaurant.seatingCapacity || 'N/A'}</div>
-                            <div>Currency: ${restaurant.currency?.code || 'USD'}</div>
                         </div>
                     </div>
                 `;
@@ -1030,16 +981,16 @@
             return { text: 'Online', class: 'status-online' };
         }
 
-        // Get restaurant statistics
+        // Get restaurant statistics (using venue currency)
         function getRestaurantStats(restaurant) {
-            const restaurantOrders = venueOrders.filter(order => order.restaurantId === restaurant.id);
+            const timeRange = document.getElementById('timeRange').value;
+            const filteredOrders = filterOrdersByTimePeriod(venueOrders, timeRange);
+            const restaurantOrders = filteredOrders.filter(order => order.restaurantId === restaurant.id);
             const totalRevenue = restaurantOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
-            
-            const currency = restaurant.currency?.code || 'USD';
             
             return {
                 orders: restaurantOrders.length.toString(),
-                revenue: VediAPI.formatCurrency(totalRevenue, currency)
+                revenue: formatCurrency(totalRevenue)
             };
         }
 
@@ -1065,31 +1016,13 @@
         function handleNavigation(event, url) {
             event.preventDefault();
             
-            // Show loading overlay
             const loadingOverlay = document.getElementById('loadingOverlay');
             loadingOverlay.classList.add('active');
             
-            // Simulate brief loading time for smooth UX, then navigate
             setTimeout(() => {
                 window.location.href = url;
             }, 300);
         }
-
-        // Hide loading overlay when page loads
-        window.addEventListener('load', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.remove('active');
-            }
-        });
-
-        // Show loading overlay on page unload
-        window.addEventListener('beforeunload', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (loadingOverlay) {
-                loadingOverlay.classList.add('active');
-            }
-        });
 
         // Handle logout
         async function handleLogout() {
@@ -1117,11 +1050,25 @@
             }, 5000);
         }
 
+        // Hide loading overlay when page loads
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.remove('active');
+            }
+        });
+
+        // Show loading overlay on page unload
+        window.addEventListener('beforeunload', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('active');
+            }
+        });
+
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🍽️ Venue Admin Dashboard starting...');
-            
-            // Initialize dashboard (Firebase config will be loaded via script tags)
+            console.log('🍽️ Venue Overview Dashboard starting...');
             initializeDashboard();
         });
     </script>
