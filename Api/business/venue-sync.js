@@ -898,7 +898,7 @@ async function createVenueInvitation(venueId, invitationData, personalMessage = 
         }
         
         // Generate unique invitation code
-        const invitationCode = generateInvitationCode();
+        const invitationCode = invitationData.invitationCode;
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         
         // Create full invitation data with currency info
