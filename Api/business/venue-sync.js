@@ -908,7 +908,6 @@ async function createVenueInvitation(venueId, invitationData, personalMessage = 
             venueCity: venue.city || 'Not specified',
             venueState: venue.state || 'Not specified',
             venueCurrency: venue.currency || { code: 'USD', symbol: '$', name: 'US Dollar' },
-            restaurantName: sanitizeInput(invitationData.restaurantName || invitationData.name),
             contactEmail: sanitizeInput(invitationData.contactEmail || invitationData.email),
             personalMessage: sanitizeInput(personalMessage),
             invitationCode: invitationCode,
