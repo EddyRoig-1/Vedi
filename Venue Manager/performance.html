@@ -608,7 +608,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        <!-- Loading State -->
+        <!-- Loading State (Standardized with Overview) -->
         <div id="mainLoadingState" class="loading" style="min-height: 400px; display: flex;">
             <div class="spinner"></div>
             Loading performance data...
@@ -639,13 +639,13 @@
                         <option value="revenue">Revenue</option>
                         <option value="orders">Order Volume</option>
                         <option value="avg_order">Average Order Value</option>
-                        <option value="losses">Loss Analysis</option>
+                        <option value="growth">Revenue Growth</option>
                     </select>
                 </div>
             </div>
         </section>
 
-        <!-- Key Performance Stats -->
+        <!-- Key Performance Stats (Updated with Revenue Growth) -->
         <section class="stats-grid" id="statsGrid" style="display: none;">
             <div class="stat-card">
                 <div class="stat-header">
@@ -654,6 +654,15 @@
                 </div>
                 <div class="stat-value" id="totalRevenue">$0.00</div>
                 <div class="stat-change" id="revenueChange">vs previous period</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">Revenue Growth</span>
+                    <span class="stat-trend trend-neutral" id="revenueGrowthTrend">--</span>
+                </div>
+                <div class="stat-value" id="revenueGrowth">0.0%</div>
+                <div class="stat-change" id="revenueGrowthChange">vs previous period</div>
             </div>
 
             <div class="stat-card">
@@ -672,15 +681,6 @@
                 </div>
                 <div class="stat-value" id="averageOrderValue">$0.00</div>
                 <div class="stat-change" id="aovChange">vs previous period</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-title">Total Losses</span>
-                    <span class="stat-trend trend-neutral" id="lossesTrend">--</span>
-                </div>
-                <div class="stat-value" id="totalLosses">$0.00</div>
-                <div class="stat-change" id="lossesChange">vs previous period</div>
             </div>
         </section>
 
@@ -811,6 +811,105 @@
             return symbols[currencyCode] || currencyCode + ' ';
         }
 
+        // ============================================================================
+        // REVENUE GROWTH CALCULATION
+        // ============================================================================
+
+        // Calculate revenue growth percentage
+        function calculateRevenueGrowth(currentPeriodOrders, timePeriod) {
+            try {
+                // Calculate current period revenue
+                const currentRevenue = currentPeriodOrders.reduce((sum, order) => 
+                    sum + (parseFloat(order.total) || 0), 0);
+                
+                // Calculate previous period start and end dates
+                const currentStart = getTimePeriodStart(timePeriod);
+                const previousStart = getPreviousPeriodStart(timePeriod, currentStart);
+                const previousEnd = new Date(currentStart.getTime() - 1); // End of previous period
+                
+                // Filter orders for previous period
+                const previousPeriodOrders = venueOrders.filter(order => {
+                    const orderDate = timestampToDate(order.createdAt);
+                    return orderDate >= previousStart && orderDate <= previousEnd;
+                });
+                
+                // Calculate previous period revenue
+                const previousRevenue = previousPeriodOrders.reduce((sum, order) => 
+                    sum + (parseFloat(order.total) || 0), 0);
+                
+                // Calculate growth percentage
+                if (previousRevenue === 0) {
+                    return currentRevenue > 0 ? { percentage: 100, trend: 'positive' } : { percentage: 0, trend: 'neutral' };
+                }
+                
+                const growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
+                const trend = growthPercentage > 0 ? 'positive' : growthPercentage < 0 ? 'negative' : 'neutral';
+                
+                return {
+                    percentage: Math.round(growthPercentage * 10) / 10, // Round to 1 decimal
+                    trend: trend,
+                    currentRevenue: currentRevenue,
+                    previousRevenue: previousRevenue
+                };
+                
+            } catch (error) {
+                console.error('❌ Revenue growth calculation error:', error);
+                return { percentage: 0, trend: 'neutral' };
+            }
+        }
+
+        // Helper function to get previous period start date
+        function getPreviousPeriodStart(timePeriod, currentStart) {
+            const currentStartDate = new Date(currentStart);
+            
+            switch (timePeriod.toLowerCase()) {
+                case 'today':
+                    // Previous day
+                    const previousDay = new Date(currentStartDate);
+                    previousDay.setDate(previousDay.getDate() - 1);
+                    return previousDay;
+                    
+                case 'week':
+                    // Previous week (7 days before)
+                    const previousWeek = new Date(currentStartDate);
+                    previousWeek.setDate(previousWeek.getDate() - 7);
+                    return previousWeek;
+                    
+                case 'month':
+                    // Previous month
+                    const previousMonth = new Date(currentStartDate);
+                    previousMonth.setMonth(previousMonth.getMonth() - 1);
+                    return previousMonth;
+                    
+                case 'quarter':
+                    // Previous quarter (3 months before)
+                    const previousQuarter = new Date(currentStartDate);
+                    previousQuarter.setMonth(previousQuarter.getMonth() - 3);
+                    return previousQuarter;
+                    
+                case 'year':
+                    // Previous year
+                    const previousYear = new Date(currentStartDate);
+                    previousYear.setFullYear(previousYear.getFullYear() - 1);
+                    return previousYear;
+                    
+                default:
+                    return new Date(currentStartDate.getTime() - (7 * 24 * 60 * 60 * 1000)); // Default to 1 week ago
+            }
+        }
+
+        // Helper function to get period display name
+        function getPeriodDisplayName(timePeriod) {
+            const periodNames = {
+                'today': 'day',
+                'week': 'week', 
+                'month': 'month',
+                'quarter': 'quarter',
+                'year': 'year'
+            };
+            return periodNames[timePeriod] || 'period';
+        }
+
         // Helper function for time period start
         function getTimePeriodStart(timePeriod) {
             const now = new Date();
@@ -859,7 +958,7 @@
             return window.firebaseDb || firebase.firestore();
         }
 
-        // Initialize dashboard
+        // Initialize dashboard (Standardized with Overview)
         async function initializeDashboard() {
             try {
                 console.log('🚀 Initializing performance analytics...');
@@ -895,7 +994,7 @@
             }
         }
 
-        // Show main loading state
+        // Show main loading state (Standardized with Overview)
         function showMainLoadingState() {
             const loadingState = document.getElementById('mainLoadingState');
             if (loadingState) {
@@ -903,7 +1002,7 @@
             }
         }
 
-        // Hide main loading state
+        // Hide main loading state (Standardized with Overview)
         function hideMainLoadingState() {
             const loadingState = document.getElementById('mainLoadingState');
             if (loadingState) {
@@ -911,7 +1010,7 @@
             }
         }
 
-        // Show dashboard content
+        // Show dashboard content (Standardized with Overview)
         function showDashboardContent() {
             const headerSection = document.getElementById('headerSection');
             const navigationSection = document.getElementById('navigationSection');
@@ -1143,38 +1242,53 @@
             }
         }
 
-        // Update performance statistics
+        // Update performance statistics (Updated with Revenue Growth)
         async function updatePerformanceStats() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
                 const filteredOrders = filterOrdersByTimePeriod(venueOrders || [], timePeriod);
-                const filteredLosses = filterLossesByTimePeriod(lossIncidents || [], timePeriod);
                 
                 // Calculate revenue stats (using venue currency)
                 const totalRevenue = filteredOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
                 const totalOrders = filteredOrders.length;
                 const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
                 
-                // Calculate loss stats
-                const totalLosses = filteredLosses.reduce((sum, incident) => sum + (parseFloat(incident.amount) || 0), 0);
+                // Calculate revenue growth
+                const revenueGrowth = calculateRevenueGrowth(filteredOrders, timePeriod);
                 
                 // Update displays with venue currency
                 document.getElementById('totalRevenue').textContent = formatCurrency(totalRevenue);
                 document.getElementById('totalOrders').textContent = totalOrders.toLocaleString();
                 document.getElementById('averageOrderValue').textContent = formatCurrency(averageOrderValue);
-                document.getElementById('totalLosses').textContent = formatCurrency(totalLosses);
+                
+                // Update revenue growth display
+                const revenueGrowthElement = document.getElementById('revenueGrowth');
+                const revenueGrowthTrend = document.getElementById('revenueGrowthTrend');
+                const revenueGrowthChange = document.getElementById('revenueGrowthChange');
+                
+                if (revenueGrowthElement && revenueGrowthTrend && revenueGrowthChange) {
+                    const sign = revenueGrowth.percentage >= 0 ? '+' : '';
+                    revenueGrowthElement.textContent = `${sign}${revenueGrowth.percentage}%`;
+                    
+                    // Update trend indicator
+                    revenueGrowthTrend.className = `stat-trend trend-${revenueGrowth.trend}`;
+                    revenueGrowthTrend.textContent = revenueGrowth.trend === 'positive' ? '↗' : 
+                                                   revenueGrowth.trend === 'negative' ? '↘' : '→';
+                    
+                    // Update change text
+                    const periodName = getPeriodDisplayName(timePeriod);
+                    revenueGrowthChange.textContent = `vs previous ${periodName}`;
+                }
                 
                 // Update change indicators
                 document.getElementById('revenueChange').textContent = `${totalOrders} orders this period`;
                 document.getElementById('ordersChange').textContent = `Total value: ${formatCurrency(totalRevenue)}`;
                 document.getElementById('aovChange').textContent = 'across all restaurants';
-                document.getElementById('lossesChange').textContent = `${filteredLosses.length} incidents reported`;
                 
                 // Update trend indicators
                 document.getElementById('revenueTrend').textContent = totalRevenue > 0 ? '+' : '--';
                 document.getElementById('ordersTrend').textContent = totalOrders > 0 ? '+' : '--';
                 document.getElementById('aovTrend').textContent = averageOrderValue > 0 ? '+' : '--';
-                document.getElementById('lossesTrend').textContent = totalLosses > 0 ? '+' : '--';
                 
             } catch (error) {
                 console.error('❌ Update performance stats error:', error);
@@ -1190,17 +1304,6 @@
             return orders.filter(order => {
                 const orderDate = timestampToDate(order.createdAt);
                 return orderDate >= startDate;
-            });
-        }
-
-        // Filter losses by time period
-        function filterLossesByTimePeriod(incidents, timePeriod) {
-            const startDate = getTimePeriodStart(timePeriod);
-            if (!startDate) return incidents;
-            
-            return incidents.filter(incident => {
-                const incidentDate = timestampToDate(incident.createdAt);
-                return incidentDate >= startDate;
             });
         }
 
