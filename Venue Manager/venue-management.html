@@ -1353,6 +1353,21 @@
             
             const contactEmail = document.getElementById('inviteContactEmail').value.trim();
             
+            // Validate that this email belongs to an existing restaurant user
+            console.log('🔍 Checking if restaurant user exists with email:', contactEmail);
+            const db = getFirebaseDb();
+            const userQuery = await db.collection('users')
+                .where('email', '==', contactEmail)
+                .where('accountType', '==', 'restaurant')
+                .get();
+            
+            if (userQuery.empty) {
+                showMessage('No restaurant account found with this email address. Please use "New User" invitation instead.', 'error');
+                return;
+            }
+            
+            console.log('✅ Restaurant user found, proceeding with join code...');
+            
             const joinCode = generateJoinCode();
             const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
             
@@ -1378,7 +1393,6 @@
             };
             
             // Create join code in database
-            const db = getFirebaseDb();
             const docRef = await db.collection('venueJoinCodes').add(joinCodeData);
             
             // Send email via Firebase Functions
