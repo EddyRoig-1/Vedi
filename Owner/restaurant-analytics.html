@@ -780,6 +780,7 @@
                     };
                     
                     const mappedPeriod = periodMapping[timePeriod.toLowerCase()] || timePeriod;
+                    console.log('🔄 Period mapping:', timePeriod, '→', mappedPeriod);
                     return TimezoneAPI.getCalendarPeriodBoundaries(mappedPeriod, currentRestaurant);
                 }
                 
@@ -873,8 +874,20 @@
          */
         function filterOrdersByTimePeriod(orders, timePeriod) {
             try {
+                // Use the same period mapping as getCalendarPeriodBoundaries
+                const periodMapping = {
+                    'today': 'today',
+                    'week': 'thisweek', 
+                    'month': 'thismonth',
+                    'quarter': 'thisquarter',
+                    'year': 'thisyear'
+                };
+                
+                const mappedPeriod = periodMapping[timePeriod.toLowerCase()] || timePeriod;
+                console.log('🔍 Filtering orders with period mapping:', timePeriod, '→', mappedPeriod);
+                
                 if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.filterOrdersByTimePeriod) {
-                    return TimezoneAPI.filterOrdersByTimePeriod(orders, timePeriod, currentRestaurant);
+                    return TimezoneAPI.filterOrdersByTimePeriod(orders, mappedPeriod, currentRestaurant);
                 }
                 
                 // Fallback filtering
@@ -906,6 +919,7 @@
                     };
                     
                     const mappedPeriod = periodMapping[timePeriod.toLowerCase()] || timePeriod;
+                    console.log('📅 Previous period mapping:', timePeriod, '→', mappedPeriod);
                     return TimezoneAPI.getPreviousCalendarPeriod(mappedPeriod, currentRestaurant);
                 }
                 
