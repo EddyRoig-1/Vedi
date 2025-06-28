@@ -658,7 +658,7 @@
             return window.firebaseDb || firebase.firestore();
         }
 
-        // Initialize dashboard (conservative optimizations)
+        // Initialize dashboard
         async function initializeDashboard() {
             try {
                 console.log('🚀 Initializing venue overview dashboard...');
@@ -676,9 +676,17 @@
                 // Re-display restaurants after orders are loaded to show correct stats
                 displayRestaurants();
                 
-                // Hide loading state and show all content
-                hideMainLoadingState();
+                // Wait a moment for DOM to update, THEN hide loading and show content
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Show all content first
                 showDashboardContent();
+                
+                // Small delay to ensure content is visible, then hide loading
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                // Hide loading state after content is displayed
+                hideMainLoadingState();
                 
                 console.log('✅ Dashboard initialized successfully');
                 
