@@ -5,8 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analytics Dashboard - Restaurant Management</title>
     
-    <!-- SECURE INITIALIZATION - ONLY THIS SCRIPT NEEDED -->
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+
+    <!-- Secure Iframe Initialization -->
     <script src="../Api/core/secure-iframe-init.js"></script>
+    
+    <!-- Restaurant Timezone Support -->
+    <script src="../Api/business/timezone.js"></script>
 
     <!-- Chart.js for visualizations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
@@ -71,8 +80,6 @@
             font-weight: 500;
         }
 
-        /* Page Header - Remove separate header styles */
-        
         /* Controls Section */
         .controls-section {
             background: #FFFFFF;
@@ -353,13 +360,13 @@
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 0 auto 16px auto; /* Center the table */
+            margin: 0 auto 16px auto;
         }
 
         .data-table th,
         .data-table td {
             padding: 12px 16px;
-            text-align: center; /* Center all table content */
+            text-align: center;
             border-bottom: 1px solid #F2F2F7;
         }
 
@@ -612,7 +619,7 @@
                 <!-- Revenue Trends Chart -->
                 <div class="chart-section">
                     <div class="section-header">
-                        <h3 class="section-title">Revenue & Order Trends</h3>
+                        <h3 class="section-title" id="chartTitle">Revenue & Order Trends</h3>
                         <select class="filter-select" id="revenueChartType">
                             <option value="revenue">Revenue</option>
                             <option value="orders">Order Count</option>
@@ -708,10 +715,465 @@
         let currentTimePeriod = 'month';
         let analyticsData = {};
         let charts = {};
+        
+        // Restaurant timezone and currency
+        let restaurantTimezone = 'UTC';
+        let restaurantCurrency = { code: 'USD', symbol: '$' };
 
-        // Initialize analytics dashboard using secure initialization
+        // ============================================================================
+        // RESTAURANT TIMEZONE & CURRENCY MANAGEMENT (FROM INCIDENT REPORTS)
+        // ============================================================================
+
+        /**
+         * Get restaurant's effective timezone (venue timezone if associated, own timezone if independent)
+         */
+        function getRestaurantEffectiveTimezone() {
+            if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getRestaurantEffectiveTimezone) {
+                return TimezoneAPI.getRestaurantEffectiveTimezone(currentRestaurant);
+            }
+            
+            // Fallback logic
+            if (currentRestaurant.venueId && currentRestaurant.venueTimezone) {
+                return currentRestaurant.venueTimezone;
+            }
+            
+            return currentRestaurant.timezone || 'UTC';
+        }
+
+        /**
+         * Get restaurant's effective currency
+         */
+        function getRestaurantCurrency() {
+            if (currentRestaurant.currency) {
+                return currentRestaurant.currency;
+            }
+            
+            // Fallback
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
+        }
+
+        /**
+         * Format currency using restaurant's currency
+         */
+        function formatCurrency(amount) {
+            if (!amount && amount !== 0) return `${restaurantCurrency.symbol}0.00`;
+            return `${restaurantCurrency.symbol}${Number(amount).toFixed(2)}`;
+        }
+
+        // ============================================================================
+        // CALENDAR-BASED TIME PERIOD LOGIC (FROM INCIDENT REPORTS)
+        // ============================================================================
+
+        /**
+         * Get calendar-based time period boundaries in restaurant's timezone
+         */
+        function getCalendarPeriodBoundaries(timePeriod) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getCalendarPeriodBoundaries) {
+                    // Convert analytics format to TimezoneAPI format
+                    const periodMapping = {
+                        'today': 'today',
+                        'week': 'thisweek', 
+                        'month': 'thismonth',
+                        'quarter': 'thisquarter',
+                        'year': 'thisyear'
+                    };
+                    
+                    const mappedPeriod = periodMapping[timePeriod.toLowerCase()] || timePeriod;
+                    return TimezoneAPI.getCalendarPeriodBoundaries(mappedPeriod, currentRestaurant);
+                }
+                
+                // Fallback calendar logic
+                const now = new Date();
+                const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: restaurantTimezone }));
+                
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        const todayStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate());
+                        const todayEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59, 999);
+                        return { start: todayStart, end: todayEnd };
+                        
+                    case 'week':
+                        // Get current week Monday to Sunday
+                        const dayOfWeek = nowInTimezone.getDay();
+                        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                        const weekStart = new Date(nowInTimezone);
+                        weekStart.setDate(nowInTimezone.getDate() + mondayOffset);
+                        weekStart.setHours(0, 0, 0, 0);
+                        
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        weekEnd.setHours(23, 59, 59, 999);
+                        return { start: weekStart, end: weekEnd };
+                        
+                    case 'month':
+                        // Get current month 1st to last day
+                        const monthStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 1);
+                        const monthEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() + 1, 0, 23, 59, 59, 999);
+                        return { start: monthStart, end: monthEnd };
+                        
+                    case 'quarter':
+                        // Get current quarter start to end
+                        const quarterStartMonth = Math.floor(nowInTimezone.getMonth() / 3) * 3;
+                        const quarterStart = new Date(nowInTimezone.getFullYear(), quarterStartMonth, 1);
+                        const quarterEnd = new Date(nowInTimezone.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+                        return { start: quarterStart, end: quarterEnd };
+                        
+                    case 'year':
+                        // Get current year January 1st to December 31st
+                        const yearStart = new Date(nowInTimezone.getFullYear(), 0, 1);
+                        const yearEnd = new Date(nowInTimezone.getFullYear(), 11, 31, 23, 59, 59, 999);
+                        return { start: yearStart, end: yearEnd };
+                        
+                    default:
+                        console.warn('⚠️ Unknown time period, defaulting to today:', timePeriod);
+                        const defaultStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate());
+                        const defaultEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59, 999);
+                        return { start: defaultStart, end: defaultEnd };
+                }
+            } catch (error) {
+                console.error('❌ Error getting calendar period boundaries:', error);
+                const fallbackStart = new Date();
+                fallbackStart.setHours(0, 0, 0, 0);
+                const fallbackEnd = new Date();
+                fallbackEnd.setHours(23, 59, 59, 999);
+                return { start: fallbackStart, end: fallbackEnd };
+            }
+        }
+
+        /**
+         * Convert timestamp to date in restaurant's timezone
+         */
+        function timestampToDate(timestamp) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.timestampToDateInTimezone) {
+                    return TimezoneAPI.timestampToDateInTimezone(timestamp, currentRestaurant);
+                }
+                
+                // Fallback conversion
+                let date;
+                if (timestamp && timestamp.toDate) {
+                    date = timestamp.toDate();
+                } else if (timestamp && timestamp.seconds) {
+                    date = new Date(timestamp.seconds * 1000);
+                } else {
+                    date = new Date(timestamp);
+                }
+                
+                // Convert to restaurant timezone
+                return new Date(date.toLocaleString('en-US', { timeZone: restaurantTimezone }));
+            } catch (error) {
+                console.error('❌ Timestamp conversion error:', error);
+                return new Date();
+            }
+        }
+
+        /**
+         * Filter orders by calendar time period in restaurant's timezone
+         */
+        function filterOrdersByTimePeriod(orders, timePeriod) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.filterOrdersByTimePeriod) {
+                    return TimezoneAPI.filterOrdersByTimePeriod(orders, timePeriod, currentRestaurant);
+                }
+                
+                // Fallback filtering
+                const boundaries = getCalendarPeriodBoundaries(timePeriod);
+                if (!boundaries.start || !boundaries.end) return orders;
+                
+                return orders.filter(order => {
+                    const orderDate = timestampToDate(order.createdAt);
+                    return orderDate >= boundaries.start && orderDate <= boundaries.end;
+                });
+            } catch (error) {
+                console.error('❌ Error filtering orders by time period:', error);
+                return orders;
+            }
+        }
+
+        /**
+         * Get previous calendar period for comparison (using TimezoneAPI)
+         */
+        function getPreviousCalendarPeriod(timePeriod) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getPreviousCalendarPeriod) {
+                    const periodMapping = {
+                        'today': 'today',
+                        'week': 'thisweek', 
+                        'month': 'thismonth',
+                        'quarter': 'thisquarter',
+                        'year': 'thisyear'
+                    };
+                    
+                    const mappedPeriod = periodMapping[timePeriod.toLowerCase()] || timePeriod;
+                    return TimezoneAPI.getPreviousCalendarPeriod(mappedPeriod, currentRestaurant);
+                }
+                
+                // Fallback to previous period calculation
+                const now = new Date();
+                const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: restaurantTimezone }));
+                let start, end;
+                
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        // Yesterday
+                        start = new Date(nowInTimezone);
+                        start.setDate(nowInTimezone.getDate() - 1);
+                        start.setHours(0, 0, 0, 0);
+                        
+                        end = new Date(start);
+                        end.setHours(23, 59, 59, 999);
+                        break;
+                        
+                    case 'week':
+                        // Last week (same Monday-Sunday)
+                        const dayOfWeek = nowInTimezone.getDay();
+                        const lastMondayOffset = dayOfWeek === 0 ? -13 : -6 - dayOfWeek;
+                        start = new Date(nowInTimezone);
+                        start.setDate(nowInTimezone.getDate() + lastMondayOffset);
+                        start.setHours(0, 0, 0, 0);
+                        
+                        end = new Date(start);
+                        end.setDate(start.getDate() + 6);
+                        end.setHours(23, 59, 59, 999);
+                        break;
+                        
+                    case 'month':
+                        // Last month (1st to end)
+                        start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() - 1, 1, 0, 0, 0);
+                        end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 0, 23, 59, 59);
+                        break;
+                        
+                    case 'quarter':
+                        // Previous quarter
+                        const currentQuarter = Math.floor(nowInTimezone.getMonth() / 3);
+                        const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
+                        const prevYear = currentQuarter === 0 ? nowInTimezone.getFullYear() - 1 : nowInTimezone.getFullYear();
+                        
+                        start = new Date(prevYear, prevQuarter * 3, 1, 0, 0, 0);
+                        end = new Date(prevYear, prevQuarter * 3 + 3, 0, 23, 59, 59);
+                        break;
+                        
+                    case 'year':
+                        // Last year
+                        start = new Date(nowInTimezone.getFullYear() - 1, 0, 1, 0, 0, 0);
+                        end = new Date(nowInTimezone.getFullYear() - 1, 11, 31, 23, 59, 59);
+                        break;
+                        
+                    default:
+                        // Default to yesterday
+                        start = new Date(nowInTimezone);
+                        start.setDate(nowInTimezone.getDate() - 1);
+                        start.setHours(0, 0, 0, 0);
+                        
+                        end = new Date(start);
+                        end.setHours(23, 59, 59, 999);
+                }
+                
+                return { start, end, timezone: restaurantTimezone };
+                
+            } catch (error) {
+                console.error('❌ Get previous calendar period error:', error);
+                const fallbackStart = new Date();
+                fallbackStart.setDate(fallbackStart.getDate() - 1);
+                fallbackStart.setHours(0, 0, 0, 0);
+                
+                const fallbackEnd = new Date(fallbackStart);
+                fallbackEnd.setHours(23, 59, 59, 999);
+                
+                return { 
+                    start: fallbackStart, 
+                    end: fallbackEnd, 
+                    timezone: restaurantTimezone 
+                };
+            }
+        }
+
+        // ============================================================================
+        // SMART CHART ADAPTATIONS (FROM INCIDENT REPORTS)
+        // ============================================================================
+
+        /**
+         * Generate smart chart data based on period type and restaurant timezone
+         */
+        function generateTimeSeriesData(orders, timePeriod) {
+            const boundaries = getCalendarPeriodBoundaries(timePeriod);
+            const labels = [];
+            const revenueData = [];
+            const ordersData = [];
+            
+            try {
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        // Hourly breakdown for today
+                        for (let hour = 0; hour < 24; hour++) {
+                            const hourData = { revenue: 0, orders: 0 };
+                            
+                            orders.forEach(order => {
+                                const orderDate = timestampToDate(order.createdAt);
+                                if (orderDate.getHours() === hour) {
+                                    hourData.revenue += order.total || 0;
+                                    hourData.orders += 1;
+                                }
+                            });
+                            
+                            labels.push(`${hour}:00`);
+                            revenueData.push(hourData.revenue);
+                            ordersData.push(hourData.orders);
+                        }
+                        break;
+                        
+                    case 'week':
+                        // Daily breakdown for the week (Mon-Sun)
+                        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                            const currentDay = new Date(boundaries.start);
+                            currentDay.setDate(boundaries.start.getDate() + dayOffset);
+                            
+                            const dayData = { revenue: 0, orders: 0 };
+                            
+                            orders.forEach(order => {
+                                const orderDate = timestampToDate(order.createdAt);
+                                if (orderDate.toDateString() === currentDay.toDateString()) {
+                                    dayData.revenue += order.total || 0;
+                                    dayData.orders += 1;
+                                }
+                            });
+                            
+                            labels.push(weekDays[dayOffset]);
+                            revenueData.push(dayData.revenue);
+                            ordersData.push(dayData.orders);
+                        }
+                        break;
+                        
+                    case 'month':
+                        // Daily breakdown for the month
+                        const daysInMonth = new Date(boundaries.end.getFullYear(), boundaries.end.getMonth() + 1, 0).getDate();
+                        for (let day = 1; day <= daysInMonth; day++) {
+                            const currentDay = new Date(boundaries.start.getFullYear(), boundaries.start.getMonth(), day);
+                            
+                            const dayData = { revenue: 0, orders: 0 };
+                            
+                            orders.forEach(order => {
+                                const orderDate = timestampToDate(order.createdAt);
+                                if (orderDate.toDateString() === currentDay.toDateString()) {
+                                    dayData.revenue += order.total || 0;
+                                    dayData.orders += 1;
+                                }
+                            });
+                            
+                            labels.push(day.toString());
+                            revenueData.push(dayData.revenue);
+                            ordersData.push(dayData.orders);
+                        }
+                        break;
+                        
+                    case 'quarter':
+                        // Monthly breakdown for the quarter
+                        const quarterStartMonth = boundaries.start.getMonth();
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        
+                        for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                            const currentMonth = quarterStartMonth + monthOffset;
+                            const monthStart = new Date(boundaries.start.getFullYear(), currentMonth, 1);
+                            const monthEnd = new Date(boundaries.start.getFullYear(), currentMonth + 1, 0, 23, 59, 59, 999);
+                            
+                            const monthData = { revenue: 0, orders: 0 };
+                            
+                            orders.forEach(order => {
+                                const orderDate = timestampToDate(order.createdAt);
+                                if (orderDate >= monthStart && orderDate <= monthEnd) {
+                                    monthData.revenue += order.total || 0;
+                                    monthData.orders += 1;
+                                }
+                            });
+                            
+                            labels.push(monthNames[currentMonth]);
+                            revenueData.push(monthData.revenue);
+                            ordersData.push(monthData.orders);
+                        }
+                        break;
+                        
+                    case 'year':
+                        // Monthly breakdown for the year
+                        const yearMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        
+                        for (let month = 0; month < 12; month++) {
+                            const monthStart = new Date(boundaries.start.getFullYear(), month, 1);
+                            const monthEnd = new Date(boundaries.start.getFullYear(), month + 1, 0, 23, 59, 59, 999);
+                            
+                            const monthData = { revenue: 0, orders: 0 };
+                            
+                            orders.forEach(order => {
+                                const orderDate = timestampToDate(order.createdAt);
+                                if (orderDate >= monthStart && orderDate <= monthEnd) {
+                                    monthData.revenue += order.total || 0;
+                                    monthData.orders += 1;
+                                }
+                            });
+                            
+                            labels.push(yearMonthNames[month]);
+                            revenueData.push(monthData.revenue);
+                            ordersData.push(monthData.orders);
+                        }
+                        break;
+                        
+                    default:
+                        // Fallback to daily grouping
+                        const dailyData = {};
+                        orders.forEach(order => {
+                            const date = timestampToDate(order.createdAt);
+                            const dateKey = date.toISOString().split('T')[0];
+                            if (!dailyData[dateKey]) {
+                                dailyData[dateKey] = { revenue: 0, orders: 0 };
+                            }
+                            dailyData[dateKey].revenue += order.total || 0;
+                            dailyData[dateKey].orders += 1;
+                        });
+                        
+                        const dates = Object.keys(dailyData).sort();
+                        labels.push(...dates.map(date => new Date(date).toLocaleDateString()));
+                        revenueData.push(...dates.map(date => dailyData[date].revenue));
+                        ordersData.push(...dates.map(date => dailyData[date].orders));
+                }
+                
+                return { labels, revenue: revenueData, orders: ordersData };
+                
+            } catch (error) {
+                console.error('❌ Error generating chart data:', error);
+                return { 
+                    labels: [], 
+                    revenue: [], 
+                    orders: [] 
+                };
+            }
+        }
+
+        /**
+         * Update chart title based on selected period and restaurant timezone
+         */
+        function updateChartTitle(timePeriod) {
+            const titleMap = {
+                'today': 'Today\'s Revenue & Orders (Hourly)',
+                'week': 'This Week\'s Revenue & Orders (Daily)', 
+                'month': 'This Month\'s Revenue & Orders (Daily)',
+                'quarter': 'This Quarter\'s Revenue & Orders (Monthly)',
+                'year': 'This Year\'s Revenue & Orders (Monthly)'
+            };
+            
+            const title = titleMap[timePeriod] || 'Revenue & Order Trends';
+            const chartTitleElement = document.getElementById('chartTitle');
+            if (chartTitleElement) {
+                chartTitleElement.textContent = title;
+            }
+        }
+
+        // ============================================================================
+        // SECURE INITIALIZATION
+        // ============================================================================
+
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('📊 Analytics Dashboard initializing...');
+            console.log('📊 Restaurant Analytics with Calendar Logic & Timezone Support initializing...');
             
             try {
                 await initializeAnalytics();
@@ -725,24 +1187,34 @@
             try {
                 showLoading(true);
                 
-                // Use the secure initialization function
+                // Step 1: Secure Firebase inheritance and authentication
+                console.log('🔐 Starting secure initialization...');
                 const { user, restaurant } = await initializeRestaurantPage('Analytics');
                 
+                // Step 2: Set global variables
                 currentUser = user;
                 currentRestaurant = restaurant;
 
-                console.log('✅ Secure initialization complete');
-                console.log('✅ User authenticated:', currentUser.name);
+                console.log('✅ User authenticated:', currentUser.email);
                 console.log('✅ Restaurant loaded:', currentRestaurant.name);
                 
-                // Setup event listeners
+                // Step 3: Setup restaurant timezone and currency
+                restaurantTimezone = getRestaurantEffectiveTimezone();
+                restaurantCurrency = getRestaurantCurrency();
+                
+                console.log('🕐 Restaurant timezone:', restaurantTimezone);
+                console.log('💰 Restaurant currency:', restaurantCurrency);
+                
+                // Step 4: Setup event listeners
                 setupEventListeners();
                 
-                // Load analytics data
+                // Step 5: Load analytics data with calendar-based filtering
                 await loadAnalyticsData();
                 
                 showLoading(false);
                 showMainContent(true);
+
+                console.log('✅ Restaurant Analytics with Calendar Logic & Timezone Support initialized successfully');
 
             } catch (error) {
                 console.error('❌ Analytics initialization error:', error);
@@ -754,6 +1226,7 @@
         function setupEventListeners() {
             document.getElementById('timePeriodSelect').addEventListener('change', function(e) {
                 currentTimePeriod = e.target.value;
+                console.log('📅 Time period changed to:', currentTimePeriod);
                 loadAnalyticsData();
             });
             
@@ -762,16 +1235,14 @@
                 if (analyticsData.orders) {
                     const timeData = generateTimeSeriesData(analyticsData.orders, currentTimePeriod);
                     updateRevenueChart(timeData);
+                    updateChartTitle(currentTimePeriod);
                 }
             });
         }
 
         async function loadAnalyticsData() {
             try {
-                console.log('📊 Loading analytics data for period:', currentTimePeriod);
-                
-                // Don't show loading spinner or hide content for filter changes
-                // Only show minimal loading indicator
+                console.log('📊 Loading analytics data with calendar-based filtering for period:', currentTimePeriod);
                 
                 // Load all data in parallel
                 const [orders, lossIncidents, menuItems, customerProfiles] = await Promise.all([
@@ -789,10 +1260,10 @@
                     timePeriod: currentTimePeriod
                 };
 
-                // Calculate analytics
+                // Calculate analytics with timezone-aware filtering
                 const analytics = calculateAnalytics(analyticsData);
                 
-                // Update UI smoothly without hiding content
+                // Update UI with calendar-based data
                 updateKPIs(analytics);
                 updateCharts(analytics);
                 updateInsights(analytics);
@@ -806,56 +1277,43 @@
 
         async function loadOrdersData() {
             try {
-                console.log('📦 Loading orders data...');
+                console.log('📦 Loading orders data with calendar-based filtering...');
                 
-                // Debug: Check what VediAPI functions are available
-                console.log('🔍 Available VediAPI functions in iframe:', Object.keys(window.VediAPI || {}));
-                console.log('🔍 VediAPI.getOrders available:', typeof window.VediAPI?.getOrders);
-                
-                // Try multiple ways to get orders
-                let orders = [];
+                // Get ALL orders first (we'll filter them with calendar logic)
+                let allOrders = [];
                 
                 if (typeof VediAPI?.getOrders === 'function') {
                     console.log('✅ Using iframe VediAPI.getOrders');
-                    orders = await VediAPI.getOrders(currentRestaurant.id, {
-                        limit: 1000,
+                    allOrders = await VediAPI.getOrders(currentRestaurant.id, {
+                        limit: 2000,
                         orderBy: 'createdAt',
                         orderDirection: 'desc'
                     });
                 } else if (window.parent?.VediAPI?.getOrders) {
                     console.log('🔧 Using parent window VediAPI.getOrders');
-                    orders = await window.parent.VediAPI.getOrders(currentRestaurant.id, {
-                        limit: 1000,
+                    allOrders = await window.parent.VediAPI.getOrders(currentRestaurant.id, {
+                        limit: 2000,
                         orderBy: 'createdAt',
                         orderDirection: 'desc'
                     });
                 } else if (window.parent?.getOrders) {
                     console.log('🔧 Using parent window getOrders');
-                    orders = await window.parent.getOrders(currentRestaurant.id, {
-                        limit: 1000,
+                    allOrders = await window.parent.getOrders(currentRestaurant.id, {
+                        limit: 2000,
                         orderBy: 'createdAt',
                         orderDirection: 'desc'
                     });
                 } else {
                     console.warn('⚠️ No getOrders function available');
-                    console.log('🔍 Parent VediAPI keys:', Object.keys(window.parent?.VediAPI || {}));
                     return [];
                 }
                 
-                console.log('📦 Raw orders from Firebase:', orders);
+                console.log('📦 Raw orders from Firebase:', allOrders.length);
                 
-                // Debug: Check structure of first order
-                if (orders.length > 0) {
-                    console.log('🔍 First order structure:', orders[0]);
-                    console.log('🔍 Order keys:', Object.keys(orders[0]));
-                    if (orders[0].items) {
-                        console.log('🔍 First order items:', orders[0].items);
-                    }
-                }
-                
-                // Filter by time period
-                const filteredOrders = filterByTimePeriod(orders, currentTimePeriod);
+                // Filter by current time period using calendar logic and restaurant timezone
+                const filteredOrders = filterOrdersByTimePeriod(allOrders, currentTimePeriod);
                 console.log('📦 Filtered orders for', currentTimePeriod, ':', filteredOrders.length);
+                console.log('🕐 Using restaurant timezone:', restaurantTimezone);
                 
                 return filteredOrders;
             } catch (error) {
@@ -866,13 +1324,31 @@
 
         async function loadLossData() {
             try {
-                const incidents = await VediAPI.getLossIncidents(currentRestaurant.id, {
-                    timePeriod: currentTimePeriod,
-                    limit: 500
+                console.log('📉 Loading loss incidents with calendar-based filtering...');
+                
+                // Get ALL incidents first, then filter with calendar logic
+                let allIncidents = [];
+                
+                if (typeof VediAPI?.getLossIncidents === 'function') {
+                    allIncidents = await VediAPI.getLossIncidents(currentRestaurant.id, {
+                        limit: 1000
+                    });
+                } else {
+                    console.warn('⚠️ No getLossIncidents function available');
+                    return [];
+                }
+                
+                // Filter by current time period using same logic as orders
+                const filteredIncidents = allIncidents.filter(incident => {
+                    const boundaries = getCalendarPeriodBoundaries(currentTimePeriod);
+                    if (!boundaries.start || !boundaries.end) return true;
+                    
+                    const incidentDate = timestampToDate(incident.createdAt);
+                    return incidentDate >= boundaries.start && incidentDate <= boundaries.end;
                 });
                 
-                console.log('📉 Loaded loss incidents:', incidents.length);
-                return incidents;
+                console.log('📉 Filtered loss incidents for', currentTimePeriod, ':', filteredIncidents.length);
+                return filteredIncidents;
             } catch (error) {
                 console.error('❌ Error loading loss data:', error);
                 return [];
@@ -894,7 +1370,6 @@
             try {
                 console.log('👥 Loading customer profiles...');
                 
-                // Try multiple ways to get customer profiles
                 let customerProfiles = [];
                 
                 if (typeof VediAPI?.getCustomerProfiles === 'function') {
@@ -919,34 +1394,8 @@
                         orderDirection: 'desc'
                     });
                 } else {
-                    console.warn('⚠️ No getCustomerProfiles function available, trying to fetch collection directly');
-                    
-                    // Fallback: try to access Firebase collection directly through parent
-                    if (window.parent?.firebase && window.parent?.firebase.firestore) {
-                        const db = window.parent.firebase.firestore();
-                        const snapshot = await db.collection('customerProfiles')
-                            .where('restaurantId', '==', currentRestaurant.id)
-                            .orderBy('createdAt', 'desc')
-                            .limit(1000)
-                            .get();
-                        
-                        customerProfiles = snapshot.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data()
-                        }));
-                        console.log('🔧 Used direct Firebase access for customer profiles');
-                    } else {
-                        console.warn('⚠️ No customer profile access method available');
-                        return [];
-                    }
-                }
-                
-                console.log('👥 Raw customer profiles from Firebase:', customerProfiles);
-                
-                // Debug: Check structure of first customer profile
-                if (customerProfiles.length > 0) {
-                    console.log('🔍 First customer profile structure:', customerProfiles[0]);
-                    console.log('🔍 Customer profile keys:', Object.keys(customerProfiles[0]));
+                    console.warn('⚠️ No getCustomerProfiles function available');
+                    return [];
                 }
                 
                 console.log('👥 Total customer profiles loaded:', customerProfiles.length);
@@ -958,50 +1407,18 @@
             }
         }
 
-        function filterByTimePeriod(data, period) {
-            const now = new Date();
-            let startDate;
-
-            switch (period) {
-                case 'today':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    break;
-                case 'week':
-                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    break;
-                case 'month':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    break;
-                case 'quarter':
-                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-                    startDate = new Date(now.getFullYear(), quarterMonth, 1);
-                    break;
-                case 'year':
-                    startDate = new Date(now.getFullYear(), 0, 1);
-                    break;
-                default:
-                    return data;
-            }
-
-            return data.filter(item => {
-                const itemDate = VediAPI.timestampToDate(item.createdAt);
-                return itemDate >= startDate;
-            });
-        }
-
         function calculateAnalytics(data) {
-            console.log('🔢 Calculating analytics with data:', data);
+            console.log('🔢 Calculating analytics with calendar-based data:', data);
             const { orders, lossIncidents, menuItems, customerProfiles } = data;
             
-            console.log('📊 Processing orders:', orders.length);
-            console.log('📉 Processing loss incidents:', lossIncidents.length);
+            console.log('📊 Processing orders (calendar-filtered):', orders.length);
+            console.log('📉 Processing loss incidents (calendar-filtered):', lossIncidents.length);
             console.log('🍽️ Processing menu items:', menuItems.length);
             console.log('👥 Processing customer profiles:', customerProfiles.length);
             
-            // Basic KPIs
+            // Basic KPIs with timezone-aware data
             const totalRevenue = orders.reduce((sum, order) => {
                 const orderTotal = order.total || 0;
-                console.log(`Order ${order.orderNumber || 'unknown'}: ${orderTotal}`);
                 return sum + orderTotal;
             }, 0);
             
@@ -1009,19 +1426,19 @@
             const completedOrders = orders.filter(order => order.status === 'completed');
             const totalLosses = lossIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
             
-            console.log('💰 Total revenue calculated:', totalRevenue);
-            console.log('📦 Total orders:', totalOrders);
+            console.log('💰 Total revenue (calendar period):', totalRevenue);
+            console.log('📦 Total orders (calendar period):', totalOrders);
             console.log('✅ Completed orders:', completedOrders.length);
-            console.log('📉 Total losses:', totalLosses);
+            console.log('📉 Total losses (calendar period):', totalLosses);
             
-            // Customer analytics - now using actual customer profiles
+            // Customer analytics using customer profiles
             const uniqueCustomers = customerProfiles.length;
             const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
             
             console.log('👥 Unique customers (from profiles):', uniqueCustomers);
             console.log('🎯 Average order value:', avgOrderValue);
             
-            // Popular items analysis
+            // Popular items analysis (calendar-filtered orders)
             const itemStats = {};
             orders.forEach(order => {
                 if (order.items && Array.isArray(order.items)) {
@@ -1032,8 +1449,6 @@
                         itemStats[item.name].count += item.quantity || 1;
                         itemStats[item.name].revenue += (item.price || 0) * (item.quantity || 1);
                     });
-                } else {
-                    console.warn('⚠️ Order missing items:', order.orderNumber);
                 }
             });
             
@@ -1042,15 +1457,15 @@
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 10);
                 
-            console.log('🍽️ Popular items calculated:', popularItems);
+            console.log('🍽️ Popular items (calendar period):', popularItems);
 
-            // Time-based data for charts
+            // Time-based data for charts using calendar logic
             const timeData = generateTimeSeriesData(orders, data.timePeriod);
-            console.log('📈 Time series data:', timeData);
+            console.log('📈 Time series data (calendar-based):', timeData);
 
-            // Calculate customer metrics using actual profiles and orders
+            // Calculate customer metrics using timezone-aware data
             const customerMetrics = calculateRealCustomerMetrics(orders, customerProfiles);
-            console.log('👥 Customer metrics:', customerMetrics);
+            console.log('👥 Customer metrics (calendar period):', customerMetrics);
 
             const analytics = {
                 kpis: {
@@ -1067,101 +1482,20 @@
                 insights: generateInsights({ orders, lossIncidents, menuItems, customerProfiles })
             };
             
-            console.log('✅ Final analytics calculated:', analytics);
+            console.log('✅ Final analytics calculated (calendar-based):', analytics);
             return analytics;
         }
 
-        function generateTimeSeriesData(orders, period) {
-            const data = {};
-            const now = new Date();
-            
-            // Generate labels based on period
-            let labels = [];
-            let groupBy = 'day';
-            
-            switch (period) {
-                case 'today':
-                    // Hourly data for today
-                    for (let i = 0; i < 24; i++) {
-                        labels.push(`${i}:00`);
-                        data[`${i}:00`] = { revenue: 0, orders: 0 };
-                    }
-                    groupBy = 'hour';
-                    break;
-                case 'week':
-                    // Daily data for the week
-                    for (let i = 6; i >= 0; i--) {
-                        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-                        const label = date.toLocaleDateString('en-US', { weekday: 'short' });
-                        labels.push(label);
-                        data[label] = { revenue: 0, orders: 0 };
-                    }
-                    break;
-                case 'month':
-                    // Daily data for the month
-                    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-                    for (let i = 1; i <= daysInMonth; i++) {
-                        labels.push(i.toString());
-                        data[i.toString()] = { revenue: 0, orders: 0 };
-                    }
-                    break;
-                case 'quarter':
-                case 'year':
-                    // Monthly data
-                    const months = period === 'quarter' ? 3 : 12;
-                    for (let i = months - 1; i >= 0; i--) {
-                        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                        const label = date.toLocaleDateString('en-US', { month: 'short' });
-                        labels.push(label);
-                        data[label] = { revenue: 0, orders: 0 };
-                    }
-                    break;
-            }
-
-            // Group orders by time period
-            orders.forEach(order => {
-                const orderDate = VediAPI.timestampToDate(order.createdAt);
-                let key;
-
-                switch (period) {
-                    case 'today':
-                        key = `${orderDate.getHours()}:00`;
-                        break;
-                    case 'week':
-                        key = orderDate.toLocaleDateString('en-US', { weekday: 'short' });
-                        break;
-                    case 'month':
-                        key = orderDate.getDate().toString();
-                        break;
-                    case 'quarter':
-                    case 'year':
-                        key = orderDate.toLocaleDateString('en-US', { month: 'short' });
-                        break;
-                }
-
-                if (data[key]) {
-                    data[key].revenue += order.total || 0;
-                    data[key].orders += 1;
-                }
-            });
-
-            return {
-                labels,
-                revenue: labels.map(label => data[label].revenue),
-                orders: labels.map(label => data[label].orders)
-            };
-        }
-
         function calculateRealCustomerMetrics(orders, customerProfiles = []) {
-            // Calculate actual average preparation time
+            // Calculate actual average preparation time using timezone-aware dates
             const completedOrders = orders.filter(order => order.status === 'completed');
             let totalPrepTime = 0;
             let ordersWithPrepTime = 0;
             
             completedOrders.forEach(order => {
                 if (order.createdAt && order.updatedAt) {
-                    const created = VediAPI.timestampToDate(order.createdAt);
-                    const updated = VediAPI.timestampToDate(order.updatedAt);
+                    const created = timestampToDate(order.createdAt);
+                    const updated = timestampToDate(order.updatedAt);
                     const prepTime = (updated - created) / (1000 * 60); // minutes
                     
                     if (prepTime > 0 && prepTime < 180) { // Reasonable prep time (under 3 hours)
@@ -1178,11 +1512,9 @@
             // Calculate real customer data using actual customer profiles
             const customerOrderData = {};
             
-            // Only proceed if we have customer profiles
             if (customerProfiles && customerProfiles.length > 0) {
                 // Map orders to customer profiles
                 customerProfiles.forEach(customer => {
-                    // Try to match by phone or email
                     const customerPhone = customer.phone || customer.phoneNumber;
                     const customerEmail = customer.email;
                     
@@ -1196,7 +1528,7 @@
                     };
                 });
                 
-                // Associate orders with customer profiles
+                // Associate calendar-filtered orders with customer profiles
                 orders.forEach(order => {
                     let matchedCustomerId = null;
                     
@@ -1239,10 +1571,10 @@
             const avgOrdersPerCustomer = customersWithOrders.length > 0 ? 
                 customersWithOrders.reduce((sum, customer) => sum + customer.orderCount, 0) / customersWithOrders.length : 0;
 
-            // Calculate actual peak hour from real data
+            // Calculate actual peak hour from calendar-filtered orders using restaurant timezone
             const hourlyOrders = {};
             orders.forEach(order => {
-                const hour = VediAPI.timestampToDate(order.createdAt).getHours();
+                const hour = timestampToDate(order.createdAt).getHours();
                 hourlyOrders[hour] = (hourlyOrders[hour] || 0) + 1;
             });
             
@@ -1261,12 +1593,6 @@
                                     peakHour === 12 ? '12 PM' :
                                     `${peakHour - 12} PM`;
 
-            console.log('👥 Customer metrics calculated:');
-            console.log('- Total customer profiles:', totalCustomers);
-            console.log('- Customers with orders:', customersWithOrders.length);
-            console.log('- Repeat customers:', repeatCustomers);
-            console.log('- Repeat rate:', repeatRate);
-
             return {
                 repeatRate,
                 avgOrdersPerCustomer,
@@ -1281,13 +1607,13 @@
             const insights = [];
             const { orders, lossIncidents, customerProfiles } = data;
 
-            // Revenue insights
+            // Revenue insights (calendar period)
             const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
             if (totalRevenue > 0) {
                 insights.push({
                     type: 'positive',
                     title: 'Revenue Performance',
-                    description: `Generated ${formatCurrency(totalRevenue)} in revenue with ${orders.length} orders.`
+                    description: `Generated ${formatCurrency(totalRevenue)} in revenue with ${orders.length} orders for the selected period.`
                 });
             }
 
@@ -1307,29 +1633,29 @@
                     insights.push({
                         type: 'positive',
                         title: 'High Customer Engagement',
-                        description: `${engagementRate.toFixed(1)}% of registered customers have placed orders.`
+                        description: `${engagementRate.toFixed(1)}% of registered customers have placed orders in this period.`
                     });
                 } else if (engagementRate < 50) {
                     insights.push({
                         type: 'warning',
                         title: 'Customer Engagement Opportunity',
-                        description: `Only ${engagementRate.toFixed(1)}% of registered customers have placed orders. Consider engagement campaigns.`
+                        description: `Only ${engagementRate.toFixed(1)}% of registered customers have placed orders in this period. Consider engagement campaigns.`
                     });
                 }
             }
 
-            // Loss insights
+            // Loss insights (calendar period)
             const totalLoss = lossIncidents.reduce((sum, incident) => sum + (incident.amount || 0), 0);
             if (totalLoss > 0) {
                 const lossPercentage = totalRevenue > 0 ? (totalLoss / totalRevenue) * 100 : 0;
                 insights.push({
                     type: lossPercentage > 5 ? 'negative' : 'warning',
                     title: 'Loss Management',
-                    description: `${lossIncidents.length} incidents resulted in ${formatCurrency(totalLoss)} in losses (${lossPercentage.toFixed(1)}% of revenue).`
+                    description: `${lossIncidents.length} incidents resulted in ${formatCurrency(totalLoss)} in losses (${lossPercentage.toFixed(1)}% of revenue) during this period.`
                 });
             }
 
-            // Performance insights
+            // Performance insights (calendar period)
             const completedOrders = orders.filter(order => order.status === 'completed').length;
             const completionRate = orders.length > 0 ? (completedOrders / orders.length) * 100 : 0;
             
@@ -1337,13 +1663,13 @@
                 insights.push({
                     type: 'positive',
                     title: 'Excellent Order Completion',
-                    description: `${completionRate.toFixed(1)}% order completion rate shows excellent operational efficiency.`
+                    description: `${completionRate.toFixed(1)}% order completion rate shows excellent operational efficiency for this period.`
                 });
             } else if (completionRate < 85) {
                 insights.push({
                     type: 'warning',
                     title: 'Order Completion Needs Attention',
-                    description: `${completionRate.toFixed(1)}% completion rate is below optimal. Consider reviewing processes.`
+                    description: `${completionRate.toFixed(1)}% completion rate is below optimal for this period. Consider reviewing processes.`
                 });
             }
 
@@ -1352,7 +1678,6 @@
 
         function updateKPIs(analytics) {
             const { kpis } = analytics;
-            const currency = currentRestaurant.currency || { symbol: '$' };
 
             document.getElementById('totalRevenue').textContent = formatCurrency(kpis.totalRevenue);
             document.getElementById('totalOrders').textContent = kpis.totalOrders.toLocaleString();
@@ -1360,13 +1685,13 @@
             document.getElementById('avgOrderValue').textContent = formatCurrency(kpis.avgOrderValue);
             document.getElementById('totalLosses').textContent = formatCurrency(kpis.totalLosses);
 
-            // Calculate real period-over-period changes
+            // Calculate real period-over-period changes using calendar periods
             calculateAndUpdateChanges(analytics);
         }
 
         async function calculateAndUpdateChanges(analytics) {
             try {
-                // Get previous period data for comparison
+                // Get previous calendar period data for comparison
                 const previousPeriodData = await getPreviousPeriodData();
                 
                 if (previousPeriodData.orders.length > 0) {
@@ -1414,38 +1739,10 @@
 
         async function getPreviousPeriodData() {
             try {
-                const now = new Date();
-                let startDate, endDate;
+                // Get previous calendar period boundaries using TimezoneAPI
+                const previousPeriod = getPreviousCalendarPeriod(currentTimePeriod);
                 
-                // Calculate previous period dates
-                switch (currentTimePeriod) {
-                    case 'today':
-                        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                        break;
-                    case 'week':
-                        startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-                        endDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                        break;
-                    case 'month':
-                        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-                        startDate = lastMonth;
-                        endDate = lastMonthEnd;
-                        break;
-                    case 'quarter':
-                        const lastQuarter = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-                        const currentQuarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-                        startDate = lastQuarter;
-                        endDate = currentQuarterStart;
-                        break;
-                    case 'year':
-                        startDate = new Date(now.getFullYear() - 1, 0, 1);
-                        endDate = new Date(now.getFullYear() - 1, 11, 31);
-                        break;
-                    default:
-                        return { orders: [], revenue: 0 };
-                }
+                console.log('📅 Getting previous period data:', currentTimePeriod, '→', previousPeriod);
                 
                 // Get orders from previous period using multiple fallback options
                 let allOrders = [];
@@ -1473,12 +1770,15 @@
                     return { orders: [], revenue: 0 };
                 }
                 
+                // Filter orders to previous calendar period using timezone-aware logic
                 const previousOrders = allOrders.filter(order => {
-                    const orderDate = VediAPI.timestampToDate(order.createdAt);
-                    return orderDate >= startDate && orderDate <= endDate;
+                    const orderDate = timestampToDate(order.createdAt);
+                    return orderDate >= previousPeriod.start && orderDate <= previousPeriod.end;
                 });
                 
                 const previousRevenue = previousOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+                
+                console.log('📊 Previous period orders:', previousOrders.length, 'Revenue:', previousRevenue);
                 
                 return { orders: previousOrders, revenue: previousRevenue };
                 
@@ -1518,6 +1818,7 @@
 
         function updateCharts(analytics) {
             updateRevenueChart(analytics.timeData);
+            updateChartTitle(currentTimePeriod);
         }
 
         function updateRevenueChart(timeData) {
@@ -1546,7 +1847,7 @@
                     data: {
                         labels: timeData.labels,
                         datasets: [{
-                            label: 'Revenue',
+                            label: `Revenue (${restaurantCurrency.code})`,
                             data: timeData.revenue,
                             borderColor: '#34C759',
                             backgroundColor: 'rgba(52, 199, 89, 0.1)',
@@ -1562,10 +1863,15 @@
                                 beginAtZero: true,
                                 title: {
                                     display: true,
-                                    text: 'Revenue ($)'
+                                    text: `Revenue (${restaurantCurrency.code})`
                                 },
                                 grid: {
                                     display: false
+                                },
+                                ticks: {
+                                    callback: function(value) {
+                                        return formatCurrency(value);
+                                    }
                                 }
                             },
                             x: {
@@ -1670,7 +1976,7 @@
 
                 if (chartType === 'revenue') {
                     datasets.push({
-                        label: 'Revenue',
+                        label: `Revenue (${restaurantCurrency.code})`,
                         data: timeData.revenue,
                         borderColor: '#34C759',
                         backgroundColor: 'rgba(52, 199, 89, 0.1)',
@@ -1695,7 +2001,7 @@
                         position: 'left',
                         title: {
                             display: true,
-                            text: chartType === 'orders' ? 'Number of Orders' : 'Revenue ($)'
+                            text: chartType === 'orders' ? 'Number of Orders' : `Revenue (${restaurantCurrency.code})`
                         },
                         beginAtZero: true,
                         grid: {
@@ -1716,6 +2022,12 @@
                             if (Number.isInteger(value)) {
                                 return value;
                             }
+                        }
+                    };
+                } else {
+                    scales.y.ticks = {
+                        callback: function(value) {
+                            return formatCurrency(value);
                         }
                     };
                 }
@@ -1740,7 +2052,7 @@
                                         const label = context.dataset.label || '';
                                         const value = context.parsed.y;
                                         
-                                        if (label === 'Revenue') {
+                                        if (label.includes('Revenue')) {
                                             return `${label}: ${formatCurrency(value)}`;
                                         } else {
                                             return `${label}: ${value}`;
@@ -1761,7 +2073,7 @@
                 container.innerHTML = `
                     <div class="insight-item">
                         <div class="insight-title">No insights available</div>
-                        <div class="insight-description">More data is needed to generate insights.</div>
+                        <div class="insight-description">More data is needed to generate insights for this period.</div>
                     </div>
                 `;
                 return;
@@ -1776,7 +2088,7 @@
         }
 
         function updateTables(analytics, orders) {
-            // Popular Items Table
+            // Popular Items Table (calendar-filtered data)
             const popularItemsTable = document.getElementById('popularItemsTable');
             
             if (analytics.popularItems.length === 0) {
@@ -1800,7 +2112,7 @@
                 `).join('');
             }
 
-            // Use the customer metrics from analytics instead of recalculating
+            // Use the customer metrics from analytics (timezone-aware)
             const customerMetrics = analytics.customerMetrics;
             
             document.getElementById('repeatCustomers').textContent = `${customerMetrics.repeatRate.toFixed(1)}%`;
@@ -1809,18 +2121,26 @@
             document.getElementById('avgPrepTime').textContent = customerMetrics.avgPrepTime;
         }
 
-        function formatCurrency(amount) {
-            const currency = currentRestaurant?.currency || { symbol: '$' };
-            return `${currency.symbol}${Number(amount).toFixed(2)}`;
-        }
-
         function exportAnalytics() {
             try {
+                console.log('📄 Exporting analytics report as CSV...');
+                
+                // Enhanced export with timezone and currency awareness
                 const exportData = {
                     restaurant: currentRestaurant.name,
                     period: currentTimePeriod,
-                    exportDate: new Date().toISOString(),
-                    analytics: analyticsData
+                    timezone: restaurantTimezone,
+                    currency: restaurantCurrency,
+                    exportDate: new Date().toLocaleString('en-US', { timeZone: restaurantTimezone }),
+                    analytics: {
+                        kpis: analyticsData,
+                        summary: {
+                            totalRevenue: analyticsData.orders?.reduce((sum, order) => sum + (order.total || 0), 0) || 0,
+                            totalOrders: analyticsData.orders?.length || 0,
+                            totalLosses: analyticsData.lossIncidents?.reduce((sum, incident) => sum + (incident.amount || 0), 0) || 0,
+                            uniqueCustomers: analyticsData.customerProfiles?.length || 0
+                        }
+                    }
                 };
 
                 const dataStr = JSON.stringify(exportData, null, 2);
@@ -1828,7 +2148,7 @@
                 
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(dataBlob);
-                link.download = `${currentRestaurant.name}-analytics-${currentTimePeriod}-${new Date().toISOString().split('T')[0]}.json`;
+                link.download = `${currentRestaurant.name.replace(/[^a-zA-Z0-9]/g, '-')}-analytics-${currentTimePeriod}-${new Date().toISOString().split('T')[0]}.json`;
                 link.click();
 
             } catch (error) {
@@ -1854,7 +2174,14 @@
             showError('Authentication failed. Please refresh the page.');
         }
 
-        console.log('📊 iOS-Style Analytics Dashboard loaded successfully');
+        console.log('📊 Restaurant Analytics with Calendar Logic & Timezone Support loaded successfully');
+        console.log('🕐 NEW: Restaurant timezone awareness with calendar-based time periods');
+        console.log('📅 NEW: Calendar-based time periods (Mon-Sun weeks, 1st-last day months, Q1-Q4 quarters)');
+        console.log('📊 NEW: Smart chart adaptations based on selected period and restaurant timezone');
+        console.log('💰 NEW: Restaurant currency inheritance and proper formatting');
+        console.log('🔄 Enhanced: All dates and times use restaurant\'s effective timezone');
+        console.log('📁 Enhanced: Exports include timezone and currency information');
+        console.log('📈 Enhanced: Period-over-period comparisons using previous calendar periods');
     </script>
 </body>
 </html>
