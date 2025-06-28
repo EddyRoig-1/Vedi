@@ -658,7 +658,7 @@
             return window.firebaseDb || firebase.firestore();
         }
 
-        // Initialize dashboard
+        // Initialize dashboard with parallel loading
         async function initializeDashboard() {
             try {
                 console.log('🚀 Initializing venue overview dashboard...');
@@ -668,12 +668,18 @@
                 
                 await waitForFirebase();
                 await checkAuthentication();
-                await loadVenueData();
-                await loadRestaurants();
-                await loadOrders();
-                await loadDashboardStats();
                 
-                // Re-display restaurants after orders are loaded to show correct stats
+                // Load venue data first (needed for other operations)
+                await loadVenueData();
+                
+                // Load restaurants and orders in parallel for faster loading
+                const [restaurants, orders] = await Promise.all([
+                    loadRestaurants(),
+                    loadOrdersOptimized() // Use optimized order loading
+                ]);
+                
+                // Calculate stats and display
+                await loadDashboardStats();
                 displayRestaurants();
                 
                 // Hide loading state and show all content
@@ -720,11 +726,11 @@
             if (restaurantsSection) restaurantsSection.style.display = 'block';
         }
 
-        // Wait for Firebase to be initialized
+        // Wait for Firebase to be initialized (faster check)
         function waitForFirebase() {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
-                const maxAttempts = 50;
+                const maxAttempts = 30; // Reduced from 50
                 
                 const checkFirebase = () => {
                     attempts++;
@@ -735,7 +741,7 @@
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Firebase initialization timeout'));
                     } else {
-                        setTimeout(checkFirebase, 100);
+                        setTimeout(checkFirebase, 50); // Reduced from 100ms
                     }
                 };
                 
@@ -815,14 +821,15 @@
             }
         }
 
-        // Load restaurants for this venue
+        // Load restaurants for this venue (optimized)
         async function loadRestaurants() {
             try {
                 const db = getFirebaseDb();
                 
+                // Optimize: Only fetch essential fields for faster loading
                 const restaurantsQuery = await db.collection('restaurants')
                     .where('venueId', '==', currentVenue.id)
-                    .orderBy('name', 'asc')
+                    .select('name', 'cuisineType', 'isOnline', 'verified', 'tableCount', 'seatingCapacity', 'currency', 'currencyCode') // Only needed fields
                     .get();
                 
                 venueRestaurants = restaurantsQuery.docs.map(doc => ({
@@ -852,18 +859,17 @@
                     restaurantFilter.appendChild(option);
                 });
                 
-                console.log('✅ Restaurants loaded:', venueRestaurants.length);
-                
-                // Don't display restaurants here - wait until orders are loaded
+                console.log('✅ Restaurants loaded (optimized):', venueRestaurants.length);
                 
             } catch (error) {
                 console.error('❌ Load restaurants error:', error);
                 showError('Failed to load restaurants');
+                throw error; // Re-throw to handle in Promise.all
             }
         }
 
-        // Load orders for statistics
-        async function loadOrders() {
+        // Optimized order loading with better performance
+        async function loadOrdersOptimized() {
             try {
                 venueOrders = [];
                 
@@ -872,29 +878,40 @@
                     return;
                 }
                 
+                const db = getFirebaseDb();
                 const restaurantIds = venueRestaurants.map(r => r.id);
                 
-                for (const restaurantId of restaurantIds) {
+                // Optimize: Load only recent orders for better performance
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                
+                // Use Promise.all for parallel loading (much faster)
+                const orderPromises = restaurantIds.map(async (restaurantId) => {
                     try {
-                        const db = getFirebaseDb();
                         const ordersQuery = await db.collection('orders')
                             .where('restaurantId', '==', restaurantId)
+                            .where('createdAt', '>=', thirtyDaysAgo) // Only last 30 days
                             .orderBy('createdAt', 'desc')
-                            .limit(1000)
+                            .limit(500) // Reduce limit for faster loading
                             .get();
                         
-                        const orders = ordersQuery.docs.map(doc => ({
+                        return ordersQuery.docs.map(doc => ({
                             id: doc.id,
                             ...doc.data()
                         }));
-                        
-                        venueOrders.push(...orders);
                     } catch (error) {
                         console.warn('Could not load orders for restaurant:', restaurantId);
+                        return [];
                     }
-                }
+                });
                 
-                console.log('✅ Orders loaded:', venueOrders.length);
+                // Wait for all restaurant order queries to complete in parallel
+                const orderArrays = await Promise.all(orderPromises);
+                
+                // Flatten all orders into single array
+                venueOrders = orderArrays.flat();
+                
+                console.log('✅ Orders loaded (optimized):', venueOrders.length);
                 
             } catch (error) {
                 console.error('❌ Load orders error:', error);
