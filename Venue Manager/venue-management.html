@@ -1006,81 +1006,62 @@
                            placeholder="restaurant.owner@example.com" required>
                 </div>
                 
-                <div class="setting-item">
-                    <label class="setting-label">Personal Message (Optional)</label>
-                    <textarea class="setting-textarea" id="invitePersonalMessage" 
-                              placeholder="Welcome to our venue! We'd love to have you join us..."></textarea>
-                </div>
-
-                <div class="info-box blue">
-                    <strong id="currencyInheritanceInfo">Currency Inheritance:</strong>
-                    <span id="currencyInheritanceText">Restaurant will inherit venue currency when they join</span>
-                </div>
-                
                 <div class="modal-actions">
                     <button class="modal-btn secondary" onclick="backToStep1()">Back</button>
-                    <button class="modal-btn primary" onclick="proceedToStep3()" id="createInviteBtn">Create Invitation</button>
+                    <button class="modal-btn primary" onclick="proceedToStep3()" id="createInviteBtn">Send Invitation</button>
                 </div>
             </div>
 
-            <!-- Step 3: Invitation Created -->
+            <!-- Step 3: Email Sent Confirmation -->
             <div class="form-section" id="inviteStep3">
                 <div class="modal-header">
-                    <h2 class="modal-title" id="step3Title">Invitation Created!</h2>
-                    <p class="modal-subtitle" id="step3Subtitle">Share this information with the restaurant owner</p>
+                    <h2 class="modal-title" id="step3Title">Email Sent Successfully!</h2>
+                    <p class="modal-subtitle" id="step3Subtitle">The invitation has been sent to the restaurant owner</p>
                 </div>
 
-                <!-- For New Users: Signup Link -->
+                <!-- For New Users: Email Sent -->
                 <div id="newUserInvitation" style="display: none;">
                     <div class="info-box green">
-                        <strong>✅ Signup Invitation Created</strong><br>
-                        Send this link to the restaurant owner so they can create an account and join your venue.
+                        <strong>✅ Signup Invitation Email Sent</strong><br>
+                        The restaurant owner will receive an email with a signup link to create their account and join your venue.
                     </div>
 
                     <div class="setting-item">
-                        <label class="setting-label">Signup Link</label>
-                        <input type="text" class="setting-input" id="signupLinkDisplay" readonly>
-                        <button class="copy-button" onclick="copySignupLink()">Copy Link</button>
+                        <label class="setting-label">Email Sent To</label>
+                        <input type="text" class="setting-input" id="emailSentToDisplay" readonly>
                     </div>
 
                     <div class="setting-item">
-                        <label class="setting-label">Invitation Code (Backup)</label>
+                        <label class="setting-label">Invitation Code (For Reference)</label>
                         <input type="text" class="setting-input" id="invitationCodeDisplay" readonly>
-                        <button class="copy-button" onclick="copyInvitationCode()">Copy Code</button>
                     </div>
                 </div>
 
-                <!-- For Existing Users: Join Code -->
+                <!-- For Existing Users: Email Sent -->
                 <div id="existingUserInvitation" style="display: none;">
                     <div class="info-box green">
-                        <strong>🔑 Join Code Generated</strong><br>
-                        Send this code to the restaurant owner. They can enter it in their restaurant settings to join your venue.
+                        <strong>🔑 Join Code Email Sent</strong><br>
+                        The restaurant owner will receive an email with the join code and instructions to join your venue.
+                    </div>
+
+                    <div class="setting-item">
+                        <label class="setting-label">Email Sent To</label>
+                        <input type="text" class="setting-input" id="emailSentToDisplay2" readonly>
                     </div>
 
                     <div class="join-code-display">
-                        <div class="join-code-label">JOIN CODE</div>
+                        <div class="join-code-label">JOIN CODE SENT</div>
                         <div class="join-code-value" id="joinCodeDisplay">ABC123</div>
-                        <div class="join-code-info">Valid for 7 days • Single use</div>
-                        <button class="copy-button" onclick="copyJoinCode()">Copy Code</button>
-                    </div>
-
-                    <div class="setting-item">
-                        <label class="setting-label">Instructions for Restaurant Owner</label>
-                        <textarea class="setting-textarea" id="joinInstructions" readonly>
-1. Log into your restaurant dashboard
-2. Go to Settings > Venue Association  
-3. Enter the join code above
-4. Click "Join Venue" to complete the process</textarea>
-                        <button class="copy-button" onclick="copyInstructions()">Copy Instructions</button>
+                        <div class="join-code-info">Valid for 7 days • Single use • Sent via email</div>
                     </div>
                 </div>
 
                 <div class="info-box blue">
-                    <strong>Currency Inheritance:</strong> When the restaurant joins, their currency will automatically change to <span id="finalCurrencyDisplay"></span> to match your venue.
+                    <strong>What happens next:</strong> When the restaurant owner joins, their currency will automatically change to <span id="finalCurrencyDisplay"></span> to match your venue.
                 </div>
                 
                 <div class="modal-actions">
-                    <button class="modal-btn secondary" onclick="createAnotherInvitation()">Create Another</button>
+                    <button class="modal-btn secondary" onclick="createAnotherInvitation()">Send Another</button>
                     <button class="modal-btn primary" onclick="closeInviteModal()">Done</button>
                 </div>
             </div>
@@ -1262,7 +1243,7 @@
             try {
                 const createBtn = document.getElementById('createInviteBtn');
                 createBtn.disabled = true;
-                createBtn.textContent = 'Creating...';
+                createBtn.textContent = 'Sending Email...';
                 
                 if (selectedInvitationType === 'new-user') {
                     await createNewUserInvitation();
@@ -1274,12 +1255,12 @@
                 updateStepIndicator(3);
                 
             } catch (error) {
-                console.error('❌ Create invitation error:', error);
-                showMessage('Failed to create invitation: ' + error.message, 'error');
+                console.error('❌ Send invitation email error:', error);
+                showMessage('Failed to send invitation email: ' + error.message, 'error');
             } finally {
                 const createBtn = document.getElementById('createInviteBtn');
                 createBtn.disabled = false;
-                createBtn.textContent = 'Create Invitation';
+                createBtn.textContent = 'Send Invitation';
             }
         }
 
@@ -1295,10 +1276,9 @@
         }
 
         async function createNewUserInvitation() {
-            console.log('📧 Creating new user invitation...');
+            console.log('📧 Creating and sending new user invitation email...');
             
             const contactEmail = document.getElementById('inviteContactEmail').value.trim();
-            const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
             
             const invitationCode = generateInvitationCode();
             const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -1310,7 +1290,6 @@
                 venueState: currentVenue.state,
                 venueCurrency: venueCurrency,
                 contactEmail: contactEmail,
-                personalMessage: personalMessage,
                 invitationCode: invitationCode,
                 type: 'new-user',
                 status: 'pending',
@@ -1323,17 +1302,33 @@
                 }
             };
             
+            // Create invitation in database
             let docRef;
             if (typeof VediAPI.createVenueInvitation === 'function') {
-                const invitation = await VediAPI.createVenueInvitation(currentVenue.id, invitationData, personalMessage);
+                const invitation = await VediAPI.createVenueInvitation(currentVenue.id, invitationData);
                 docRef = { id: invitation.id };
             } else {
                 const db = getFirebaseDb();
                 docRef = await db.collection('venueInvitations').add(invitationData);
             }
             
+            // Generate signup URL
             const baseUrl = window.location.origin;
             const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?invitation=${docRef.id}&code=${invitationCode}`;
+            
+            // Send email via Firebase Functions
+            const sendEmail = firebase.functions().httpsCallable('sendEmail');
+            await sendEmail({
+                template: 'invitation',
+                to: contactEmail,
+                subject: `🍽️ You're invited to join ${currentVenue.name}!`,
+                templateData: {
+                    invitationLink: signupUrl,
+                    venueName: currentVenue.name,
+                    senderName: currentUser.name || 'Venue Manager'
+                },
+                requireAuth: false
+            });
             
             currentInvitationData = {
                 ...invitationData,
@@ -1341,22 +1336,22 @@
                 signupUrl: signupUrl
             };
             
-            document.getElementById('step3Title').textContent = 'Signup Invitation Created!';
-            document.getElementById('step3Subtitle').textContent = 'Send this signup link to the restaurant owner';
+            // Update UI to show email sent
+            document.getElementById('step3Title').textContent = 'Signup Invitation Email Sent!';
+            document.getElementById('step3Subtitle').textContent = 'The restaurant owner will receive the invitation email shortly';
             document.getElementById('newUserInvitation').style.display = 'block';
             document.getElementById('existingUserInvitation').style.display = 'none';
-            document.getElementById('signupLinkDisplay').value = signupUrl;
+            document.getElementById('emailSentToDisplay').value = contactEmail;
             document.getElementById('invitationCodeDisplay').value = invitationCode;
             document.getElementById('finalCurrencyDisplay').textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
             
-            console.log('✅ New user invitation created:', docRef.id);
+            console.log('✅ New user invitation email sent to:', contactEmail);
         }
 
         async function createExistingUserJoinCode() {
-            console.log('🔑 Creating existing user join code...');
+            console.log('🔑 Creating and sending existing user join code email...');
             
             const contactEmail = document.getElementById('inviteContactEmail').value.trim();
-            const personalMessage = document.getElementById('invitePersonalMessage').value.trim();
             
             const joinCode = generateJoinCode();
             const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -1368,7 +1363,6 @@
                 venueState: currentVenue.state,
                 venueCurrency: venueCurrency,
                 contactEmail: contactEmail,
-                personalMessage: personalMessage,
                 joinCode: joinCode,
                 type: 'existing-user',
                 status: 'pending',
@@ -1383,22 +1377,39 @@
                 }
             };
             
+            // Create join code in database
             const db = getFirebaseDb();
             const docRef = await db.collection('venueJoinCodes').add(joinCodeData);
+            
+            // Send email via Firebase Functions
+            const sendEmail = firebase.functions().httpsCallable('sendEmail');
+            await sendEmail({
+                template: 'join-code',
+                to: contactEmail,
+                subject: `🤝 Join ${currentVenue.name} with code ${joinCode}`,
+                templateData: {
+                    joinCode: joinCode,
+                    venueName: currentVenue.name,
+                    senderName: currentUser.name || 'Venue Manager'
+                },
+                requireAuth: false
+            });
             
             currentInvitationData = {
                 ...joinCodeData,
                 id: docRef.id
             };
             
-            document.getElementById('step3Title').textContent = 'Join Code Generated!';
-            document.getElementById('step3Subtitle').textContent = 'Send this code to the restaurant owner';
+            // Update UI to show email sent
+            document.getElementById('step3Title').textContent = 'Join Code Email Sent!';
+            document.getElementById('step3Subtitle').textContent = 'The restaurant owner will receive the join code email shortly';
             document.getElementById('newUserInvitation').style.display = 'none';
             document.getElementById('existingUserInvitation').style.display = 'block';
+            document.getElementById('emailSentToDisplay2').value = contactEmail;
             document.getElementById('joinCodeDisplay').textContent = joinCode;
             document.getElementById('finalCurrencyDisplay').textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
             
-            console.log('✅ Join code created:', docRef.id);
+            console.log('✅ Join code email sent to:', contactEmail);
         }
 
         function generateJoinCode() {
@@ -1484,7 +1495,6 @@
 
         function clearFormInputs() {
             document.getElementById('inviteContactEmail').value = '';
-            document.getElementById('invitePersonalMessage').value = '';
         }
 
         // ============================================================================
