@@ -562,297 +562,6 @@ TimezoneAPI.getTimePeriodStartInTimezone = function(timePeriod, entity = null) {
 };
 
 /**
- * Enhanced format currency with entity timezone context
- * @param {number} amount - Amount to format
- * @param {Object} entity - Entity with currency and timezone
- * @returns {string} Formatted currency string
- */
-TimezoneAPI.formatCurrencyForEntity = function(amount, entity) {
-    try {
-        const currency = entity?.currency?.code || 'USD';
-        const symbol = entity?.currency?.symbol || '
-
-/**
- * Get Firebase database instance
- * @returns {Object} Firestore database instance
- */
-function getFirebaseDb() {
-    if (typeof window !== 'undefined' && window.firebaseDb) {
-        return window.firebaseDb;
-    }
-    if (typeof firebase !== 'undefined' && firebase.firestore) {
-        return firebase.firestore();
-    }
-    throw new Error('Firebase not available');
-}
-
-// ============================================================================
-// EXPORT/INITIALIZATION
-// ============================================================================
-
-// Make TimezoneAPI available globally
-if (typeof window !== 'undefined') {
-    window.TimezoneAPI = TimezoneAPI;
-}
-
-// Export for Node.js environments
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = TimezoneAPI;
-}
-
-console.log('🕐 TimezoneAPI initialized');
-
-// ============================================================================
-// UTILITIES.JS INTEGRATION FUNCTIONS
-// ============================================================================
-
-/**
- * Get calendar period boundaries in entity's timezone
- * Updated version of getTimePeriodStart to support calendar-based periods and timezones
- * @param {string} period - Period type ('today', 'thisWeek', 'thisMonth', 'thisQuarter', 'thisYear')
- * @param {Object} entity - Entity (venue or restaurant) with timezone
- * @returns {Object} Object with start and end dates in entity's timezone
- */
-TimezoneAPI.getCalendarPeriodBoundaries = function(period, entity) {
-    try {
-        const timezone = TimezoneAPI.getEntityTimezone(entity);
-        const now = new Date();
-        
-        // Get current time in entity's timezone
-        const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-        
-        let start, end;
-        
-        switch (period.toLowerCase()) {
-            case 'today':
-                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 0, 0, 0);
-                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59);
-                break;
-                
-            case 'thisweek':
-                // Monday to Sunday
-                const dayOfWeek = nowInTimezone.getDay();
-                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Sunday = 0, Monday = 1
-                start = new Date(nowInTimezone);
-                start.setDate(nowInTimezone.getDate() + mondayOffset);
-                start.setHours(0, 0, 0, 0);
-                
-                end = new Date(start);
-                end.setDate(start.getDate() + 6);
-                end.setHours(23, 59, 59, 999);
-                break;
-                
-            case 'thismonth':
-                // 1st to end of month
-                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 1, 0, 0, 0);
-                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() + 1, 0, 23, 59, 59);
-                break;
-                
-            case 'thisquarter':
-                // Q1/Q2/Q3/Q4
-                const quarterMonth = Math.floor(nowInTimezone.getMonth() / 3) * 3;
-                start = new Date(nowInTimezone.getFullYear(), quarterMonth, 1, 0, 0, 0);
-                end = new Date(nowInTimezone.getFullYear(), quarterMonth + 3, 0, 23, 59, 59);
-                break;
-                
-            case 'thisyear':
-                // January 1st to December 31st
-                start = new Date(nowInTimezone.getFullYear(), 0, 1, 0, 0, 0);
-                end = new Date(nowInTimezone.getFullYear(), 11, 31, 23, 59, 59);
-                break;
-                
-            default:
-                console.warn('⚠️ Invalid calendar period:', period);
-                // Default to today
-                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 0, 0, 0);
-                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59);
-        }
-        
-        return { start, end, timezone };
-        
-    } catch (error) {
-        console.error('❌ Get calendar period boundaries error:', error);
-        // Fallback to current date
-        const fallbackStart = new Date();
-        fallbackStart.setHours(0, 0, 0, 0);
-        const fallbackEnd = new Date();
-        fallbackEnd.setHours(23, 59, 59, 999);
-        
-        return { 
-            start: fallbackStart, 
-            end: fallbackEnd, 
-            timezone: TimezoneAPI.DEFAULT_TIMEZONE 
-        };
-    }
-};
-
-/**
- * Get previous calendar period for comparison
- * @param {string} period - Period type
- * @param {Object} entity - Entity with timezone
- * @returns {Object} Previous period boundaries
- */
-TimezoneAPI.getPreviousCalendarPeriod = function(period, entity) {
-    try {
-        const timezone = TimezoneAPI.getEntityTimezone(entity);
-        const now = new Date();
-        const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-        
-        let start, end;
-        
-        switch (period.toLowerCase()) {
-            case 'today':
-                // Yesterday
-                start = new Date(nowInTimezone);
-                start.setDate(nowInTimezone.getDate() - 1);
-                start.setHours(0, 0, 0, 0);
-                
-                end = new Date(start);
-                end.setHours(23, 59, 59, 999);
-                break;
-                
-            case 'thisweek':
-                // Last week (same Monday-Sunday)
-                const dayOfWeek = nowInTimezone.getDay();
-                const lastMondayOffset = dayOfWeek === 0 ? -13 : -6 - dayOfWeek; // Previous Monday
-                start = new Date(nowInTimezone);
-                start.setDate(nowInTimezone.getDate() + lastMondayOffset);
-                start.setHours(0, 0, 0, 0);
-                
-                end = new Date(start);
-                end.setDate(start.getDate() + 6);
-                end.setHours(23, 59, 59, 999);
-                break;
-                
-            case 'thismonth':
-                // Last month (1st to end)
-                start = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() - 1, 1, 0, 0, 0);
-                end = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 0, 23, 59, 59);
-                break;
-                
-            case 'thisquarter':
-                // Previous quarter
-                const currentQuarter = Math.floor(nowInTimezone.getMonth() / 3);
-                const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
-                const prevYear = currentQuarter === 0 ? nowInTimezone.getFullYear() - 1 : nowInTimezone.getFullYear();
-                
-                start = new Date(prevYear, prevQuarter * 3, 1, 0, 0, 0);
-                end = new Date(prevYear, prevQuarter * 3 + 3, 0, 23, 59, 59);
-                break;
-                
-            case 'thisyear':
-                // Last year
-                start = new Date(nowInTimezone.getFullYear() - 1, 0, 1, 0, 0, 0);
-                end = new Date(nowInTimezone.getFullYear() - 1, 11, 31, 23, 59, 59);
-                break;
-                
-            default:
-                console.warn('⚠️ Invalid calendar period for previous:', period);
-                // Default to yesterday
-                start = new Date(nowInTimezone);
-                start.setDate(nowInTimezone.getDate() - 1);
-                start.setHours(0, 0, 0, 0);
-                
-                end = new Date(start);
-                end.setHours(23, 59, 59, 999);
-        }
-        
-        return { start, end, timezone };
-        
-    } catch (error) {
-        console.error('❌ Get previous calendar period error:', error);
-        // Fallback to yesterday
-        const fallbackStart = new Date();
-        fallbackStart.setDate(fallbackStart.getDate() - 1);
-        fallbackStart.setHours(0, 0, 0, 0);
-        
-        const fallbackEnd = new Date(fallbackStart);
-        fallbackEnd.setHours(23, 59, 59, 999);
-        
-        return { 
-            start: fallbackStart, 
-            end: fallbackEnd, 
-            timezone: TimezoneAPI.DEFAULT_TIMEZONE 
-        };
-    }
-};
-
-/**
- * Convert timestamp to date in entity's timezone
- * Updated version of timestampToDate with timezone support
- * @param {Object|number|string} timestamp - Firebase timestamp or regular timestamp
- * @param {Object} entity - Entity with timezone (optional)
- * @returns {Date} Date object in entity's timezone
- */
-TimezoneAPI.timestampToDateInTimezone = function(timestamp, entity = null) {
-    try {
-        let date;
-        
-        if (timestamp && timestamp.toDate) {
-            // Firebase Timestamp object
-            date = timestamp.toDate();
-        } else if (timestamp && timestamp.seconds) {
-            // Firebase Timestamp-like object with seconds
-            date = new Date(timestamp.seconds * 1000);
-        } else {
-            // Regular timestamp or date string
-            date = new Date(timestamp);
-        }
-        
-        // If entity provided, convert to entity's timezone
-        if (entity) {
-            const timezone = TimezoneAPI.getEntityTimezone(entity);
-            return new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-        }
-        
-        return date;
-        
-    } catch (error) {
-        console.error('❌ Error converting timestamp to timezone:', error);
-        return new Date(); // Return current date as fallback
-    }
-};
-
-/**
- * Filter orders by calendar time period in entity's timezone
- * @param {Array} orders - Array of order objects
- * @param {string} period - Time period
- * @param {Object} entity - Entity with timezone
- * @returns {Array} Filtered orders
- */
-TimezoneAPI.filterOrdersByTimePeriod = function(orders, period, entity) {
-    try {
-        const { start, end } = TimezoneAPI.getCalendarPeriodBoundaries(period, entity);
-        
-        return orders.filter(order => {
-            const orderDate = TimezoneAPI.timestampToDateInTimezone(order.timestamp || order.createdAt, entity);
-            return orderDate >= start && orderDate <= end;
-        });
-        
-    } catch (error) {
-        console.error('❌ Filter orders by time period error:', error);
-        return orders; // Return all orders as fallback
-    }
-};
-;
-        
-        // Use Intl.NumberFormat with proper currency
-        try {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: currency
-            }).format(amount);
-        } catch (intlError) {
-            // Fallback to symbol if currency code is invalid
-            return `${symbol}${amount.toFixed(2)}`;
-        }
-    } catch (error) {
-        console.error('❌ Format currency for entity error:', error);
-        return `${amount.toFixed(2)}`;
-    }
-};
-
-/**
  * Get week key in entity's timezone
  * @param {Date} date - Date to get week key for
  * @param {Object} entity - Entity with timezone
@@ -910,36 +619,6 @@ TimezoneAPI.getRelativeTimeInTimezone = function(timestamp, entity = null) {
     }
 };
 
-/**
- * Get Firebase database instance
- * @returns {Object} Firestore database instance
- */
-function getFirebaseDb() {
-    if (typeof window !== 'undefined' && window.firebaseDb) {
-        return window.firebaseDb;
-    }
-    if (typeof firebase !== 'undefined' && firebase.firestore) {
-        return firebase.firestore();
-    }
-    throw new Error('Firebase not available');
-}
-
-// ============================================================================
-// EXPORT/INITIALIZATION
-// ============================================================================
-
-// Make TimezoneAPI available globally
-if (typeof window !== 'undefined') {
-    window.TimezoneAPI = TimezoneAPI;
-}
-
-// Export for Node.js environments
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = TimezoneAPI;
-}
-
-console.log('🕐 TimezoneAPI initialized');
-
 // ============================================================================
 // UTILITIES.JS INTEGRATION FUNCTIONS
 // ============================================================================
@@ -1172,3 +851,33 @@ TimezoneAPI.filterOrdersByTimePeriod = function(orders, period, entity) {
         return orders; // Return all orders as fallback
     }
 };
+
+/**
+ * Get Firebase database instance
+ * @returns {Object} Firestore database instance
+ */
+function getFirebaseDb() {
+    if (typeof window !== 'undefined' && window.firebaseDb) {
+        return window.firebaseDb;
+    }
+    if (typeof firebase !== 'undefined' && firebase.firestore) {
+        return firebase.firestore();
+    }
+    throw new Error('Firebase not available');
+}
+
+// ============================================================================
+// EXPORT/INITIALIZATION
+// ============================================================================
+
+// Make TimezoneAPI available globally
+if (typeof window !== 'undefined') {
+    window.TimezoneAPI = TimezoneAPI;
+}
+
+// Export for Node.js environments
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = TimezoneAPI;
+}
+
+console.log('🕐 TimezoneAPI initialized - Time functions only');
