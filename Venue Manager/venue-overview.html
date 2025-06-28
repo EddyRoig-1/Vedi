@@ -497,7 +497,7 @@
     <!-- Main Content -->
     <main class="main-content">
         <!-- Filter Controls -->
-        <section class="filter-controls">
+        <section class="filter-controls" id="filterControls" style="display: none;">
             <div class="filter-row">
                 <div class="filter-group">
                     <label class="filter-label">Time Range</label>
@@ -519,7 +519,7 @@
         </section>
 
         <!-- Stats Grid - Reduced to 3 cards -->
-        <section class="stats-grid">
+        <section class="stats-grid" id="statsGrid" style="display: none;">
             <div class="stat-card">
                 <div class="stat-header">
                     <span class="stat-title">Total Revenue</span>
@@ -546,7 +546,7 @@
         </section>
 
         <!-- Restaurant Performance -->
-        <section class="restaurants-section">
+        <section class="restaurants-section" id="restaurantsSection" style="display: none;">
             <div class="section-header">
                 <h2 class="section-title">Restaurant Performance</h2>
             </div>
@@ -663,6 +663,9 @@
             try {
                 console.log('🚀 Initializing venue overview dashboard...');
                 
+                // Keep main loading state visible
+                showMainLoadingState();
+                
                 await waitForFirebase();
                 await checkAuthentication();
                 await loadVenueData();
@@ -670,12 +673,47 @@
                 await loadOrders();
                 await loadDashboardStats();
                 
+                // Re-display restaurants after orders are loaded to show correct stats
+                displayRestaurants();
+                
+                // Hide loading state and show all content
+                hideMainLoadingState();
+                showDashboardContent();
+                
                 console.log('✅ Dashboard initialized successfully');
                 
             } catch (error) {
                 console.error('❌ Dashboard initialization error:', error);
+                hideMainLoadingState();
                 showError('Failed to load dashboard. Please refresh the page.');
             }
+        }
+
+        // Show main loading state
+        function showMainLoadingState() {
+            const loadingState = document.getElementById('mainLoadingState');
+            if (loadingState) {
+                loadingState.style.display = 'flex';
+            }
+        }
+
+        // Hide main loading state
+        function hideMainLoadingState() {
+            const loadingState = document.getElementById('mainLoadingState');
+            if (loadingState) {
+                loadingState.style.display = 'none';
+            }
+        }
+
+        // Show dashboard content
+        function showDashboardContent() {
+            const filterControls = document.getElementById('filterControls');
+            const statsGrid = document.getElementById('statsGrid');
+            const restaurantsSection = document.getElementById('restaurantsSection');
+            
+            if (filterControls) filterControls.style.display = 'block';
+            if (statsGrid) statsGrid.style.display = 'grid';
+            if (restaurantsSection) restaurantsSection.style.display = 'block';
         }
 
         // Wait for Firebase to be initialized
@@ -812,7 +850,7 @@
                 
                 console.log('✅ Restaurants loaded:', venueRestaurants.length);
                 
-                displayRestaurants();
+                // Don't display restaurants here - wait until orders are loaded
                 
             } catch (error) {
                 console.error('❌ Load restaurants error:', error);
