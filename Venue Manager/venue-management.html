@@ -609,23 +609,6 @@
             color: #15803D;
         }
 
-        .copy-button {
-            background: #007AFF;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 8px 16px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-top: 8px;
-        }
-
-        .copy-button:hover {
-            background: #0056CC;
-        }
-
         .modal-actions {
             display: flex;
             gap: 12px;
@@ -691,24 +674,6 @@
         }
 
         .setting-input:focus {
-            outline: none;
-            border-color: #007AFF;
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-        }
-
-        .setting-textarea {
-            width: 100%;
-            min-height: 80px;
-            border: 1px solid #E5E5E7;
-            border-radius: 8px;
-            padding: 12px 16px;
-            font-size: 15px;
-            background-color: #FFFFFF;
-            resize: vertical;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .setting-textarea:focus {
             outline: none;
             border-color: #007AFF;
             box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
@@ -1187,24 +1152,32 @@
             updateStepIndicator(1);
             clearFormInputs();
             
-            document.getElementById('newUserOption').classList.remove('selected');
-            document.getElementById('existingUserOption').classList.remove('selected');
-            document.getElementById('proceedBtn').disabled = true;
+            const newUserOption = document.getElementById('newUserOption');
+            const existingUserOption = document.getElementById('existingUserOption');
+            const proceedBtn = document.getElementById('proceedBtn');
+            
+            if (newUserOption) newUserOption.classList.remove('selected');
+            if (existingUserOption) existingUserOption.classList.remove('selected');
+            if (proceedBtn) proceedBtn.disabled = true;
         }
 
         function selectInvitationType(type) {
             selectedInvitationType = type;
             
-            document.getElementById('newUserOption').classList.remove('selected');
-            document.getElementById('existingUserOption').classList.remove('selected');
+            const newUserOption = document.getElementById('newUserOption');
+            const existingUserOption = document.getElementById('existingUserOption');
+            const proceedBtn = document.getElementById('proceedBtn');
             
-            if (type === 'new-user') {
-                document.getElementById('newUserOption').classList.add('selected');
-            } else {
-                document.getElementById('existingUserOption').classList.add('selected');
+            if (newUserOption) newUserOption.classList.remove('selected');
+            if (existingUserOption) existingUserOption.classList.remove('selected');
+            
+            if (type === 'new-user' && newUserOption) {
+                newUserOption.classList.add('selected');
+            } else if (type === 'existing-user' && existingUserOption) {
+                existingUserOption.classList.add('selected');
             }
             
-            document.getElementById('proceedBtn').disabled = false;
+            if (proceedBtn) proceedBtn.disabled = false;
             console.log('🎯 Selected invitation type:', type);
         }
 
@@ -1214,16 +1187,18 @@
                 return;
             }
             
-            if (selectedInvitationType === 'new-user') {
-                document.getElementById('step2Title').textContent = 'New User Invitation';
-                document.getElementById('step2Subtitle').textContent = 'Enter restaurant owner email to send a signup invitation';
-                document.getElementById('currencyInheritanceInfo').textContent = 'Signup Process:';
-                document.getElementById('currencyInheritanceText').textContent = 'Restaurant owner will create account → inherit venue currency during setup';
-            } else {
-                document.getElementById('step2Title').textContent = 'Existing User Join Code';
-                document.getElementById('step2Subtitle').textContent = 'Enter restaurant owner email to generate a join code';
-                document.getElementById('currencyInheritanceInfo').textContent = 'Join Process:';
-                document.getElementById('currencyInheritanceText').textContent = 'Restaurant owner will enter code → currency changes to match venue';
+            // Update step 2 title and subtitle based on invitation type
+            const step2Title = document.getElementById('step2Title');
+            const step2Subtitle = document.getElementById('step2Subtitle');
+            
+            if (step2Title && step2Subtitle) {
+                if (selectedInvitationType === 'new-user') {
+                    step2Title.textContent = 'New User Invitation';
+                    step2Subtitle.textContent = 'Enter restaurant owner email to send a signup invitation';
+                } else {
+                    step2Title.textContent = 'Existing User Join Code';
+                    step2Subtitle.textContent = 'Enter restaurant owner email to send a join code';
+                }
             }
             
             showStep(2);
@@ -1242,8 +1217,10 @@
             
             try {
                 const createBtn = document.getElementById('createInviteBtn');
-                createBtn.disabled = true;
-                createBtn.textContent = 'Sending Email...';
+                if (createBtn) {
+                    createBtn.disabled = true;
+                    createBtn.textContent = 'Sending Email...';
+                }
                 
                 if (selectedInvitationType === 'new-user') {
                     await createNewUserInvitation();
@@ -1259,13 +1236,21 @@
                 showMessage('Failed to send invitation email: ' + error.message, 'error');
             } finally {
                 const createBtn = document.getElementById('createInviteBtn');
-                createBtn.disabled = false;
-                createBtn.textContent = 'Send Invitation';
+                if (createBtn) {
+                    createBtn.disabled = false;
+                    createBtn.textContent = 'Send Invitation';
+                }
             }
         }
 
         function validateStep2Form() {
-            const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+            const contactEmailInput = document.getElementById('inviteContactEmail');
+            if (!contactEmailInput) {
+                showMessage('Form input not found. Please refresh the page.', 'error');
+                return false;
+            }
+            
+            const contactEmail = contactEmailInput.value.trim();
             
             if (!contactEmail || !VediAPI.validateEmail(contactEmail)) {
                 showMessage('Please enter a valid email address', 'error');
@@ -1278,7 +1263,10 @@
         async function createNewUserInvitation() {
             console.log('📧 Creating and sending new user invitation email...');
             
-            const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+            const contactEmailInput = document.getElementById('inviteContactEmail');
+            if (!contactEmailInput) throw new Error('Contact email input not found');
+            
+            const contactEmail = contactEmailInput.value.trim();
             
             const invitationCode = generateInvitationCode();
             const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -1337,13 +1325,21 @@
             };
             
             // Update UI to show email sent
-            document.getElementById('step3Title').textContent = 'Signup Invitation Email Sent!';
-            document.getElementById('step3Subtitle').textContent = 'The restaurant owner will receive the invitation email shortly';
-            document.getElementById('newUserInvitation').style.display = 'block';
-            document.getElementById('existingUserInvitation').style.display = 'none';
-            document.getElementById('emailSentToDisplay').value = contactEmail;
-            document.getElementById('invitationCodeDisplay').value = invitationCode;
-            document.getElementById('finalCurrencyDisplay').textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
+            const step3Title = document.getElementById('step3Title');
+            const step3Subtitle = document.getElementById('step3Subtitle');
+            const newUserInvitation = document.getElementById('newUserInvitation');
+            const existingUserInvitation = document.getElementById('existingUserInvitation');
+            const emailSentToDisplay = document.getElementById('emailSentToDisplay');
+            const invitationCodeDisplay = document.getElementById('invitationCodeDisplay');
+            const finalCurrencyDisplay = document.getElementById('finalCurrencyDisplay');
+            
+            if (step3Title) step3Title.textContent = 'Signup Invitation Email Sent!';
+            if (step3Subtitle) step3Subtitle.textContent = 'The restaurant owner will receive the invitation email shortly';
+            if (newUserInvitation) newUserInvitation.style.display = 'block';
+            if (existingUserInvitation) existingUserInvitation.style.display = 'none';
+            if (emailSentToDisplay) emailSentToDisplay.value = contactEmail;
+            if (invitationCodeDisplay) invitationCodeDisplay.value = invitationCode;
+            if (finalCurrencyDisplay) finalCurrencyDisplay.textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
             
             console.log('✅ New user invitation email sent to:', contactEmail);
         }
@@ -1351,7 +1347,10 @@
         async function createExistingUserJoinCode() {
             console.log('🔑 Creating and sending existing user join code email...');
             
-            const contactEmail = document.getElementById('inviteContactEmail').value.trim();
+            const contactEmailInput = document.getElementById('inviteContactEmail');
+            if (!contactEmailInput) throw new Error('Contact email input not found');
+            
+            const contactEmail = contactEmailInput.value.trim();
             
             // Validate that this email belongs to an existing restaurant user
             console.log('🔍 Checking if restaurant user exists with email:', contactEmail);
@@ -1415,13 +1414,21 @@
             };
             
             // Update UI to show email sent
-            document.getElementById('step3Title').textContent = 'Join Code Email Sent!';
-            document.getElementById('step3Subtitle').textContent = 'The restaurant owner will receive the join code email shortly';
-            document.getElementById('newUserInvitation').style.display = 'none';
-            document.getElementById('existingUserInvitation').style.display = 'block';
-            document.getElementById('emailSentToDisplay2').value = contactEmail;
-            document.getElementById('joinCodeDisplay').textContent = joinCode;
-            document.getElementById('finalCurrencyDisplay').textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
+            const step3Title = document.getElementById('step3Title');
+            const step3Subtitle = document.getElementById('step3Subtitle');
+            const newUserInvitation = document.getElementById('newUserInvitation');
+            const existingUserInvitation = document.getElementById('existingUserInvitation');
+            const emailSentToDisplay2 = document.getElementById('emailSentToDisplay2');
+            const joinCodeDisplay = document.getElementById('joinCodeDisplay');
+            const finalCurrencyDisplay = document.getElementById('finalCurrencyDisplay');
+            
+            if (step3Title) step3Title.textContent = 'Join Code Email Sent!';
+            if (step3Subtitle) step3Subtitle.textContent = 'The restaurant owner will receive the join code email shortly';
+            if (newUserInvitation) newUserInvitation.style.display = 'none';
+            if (existingUserInvitation) existingUserInvitation.style.display = 'block';
+            if (emailSentToDisplay2) emailSentToDisplay2.value = contactEmail;
+            if (joinCodeDisplay) joinCodeDisplay.textContent = joinCode;
+            if (finalCurrencyDisplay) finalCurrencyDisplay.textContent = `${venueCurrency.name} (${venueCurrency.symbol})`;
             
             console.log('✅ Join code email sent to:', contactEmail);
         }
@@ -1444,71 +1451,42 @@
             return code;
         }
 
-        async function copySignupLink() {
-            const link = document.getElementById('signupLinkDisplay').value;
-            await copyToClipboard(link, 'Signup link copied to clipboard!');
-        }
-
-        async function copyInvitationCode() {
-            const code = document.getElementById('invitationCodeDisplay').value;
-            await copyToClipboard(code, 'Invitation code copied to clipboard!');
-        }
-
-        async function copyJoinCode() {
-            const code = document.getElementById('joinCodeDisplay').textContent;
-            await copyToClipboard(code, 'Join code copied to clipboard!');
-        }
-
-        async function copyInstructions() {
-            const instructions = document.getElementById('joinInstructions').value;
-            await copyToClipboard(instructions, 'Instructions copied to clipboard!');
-        }
-
-        async function copyToClipboard(text, successMessage) {
-            try {
-                if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(text);
-                } else {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                }
-                showMessage(successMessage, 'success');
-            } catch (error) {
-                console.error('❌ Copy error:', error);
-                showMessage('Failed to copy to clipboard', 'error');
-            }
-        }
-
         function createAnotherInvitation() {
             resetInvitationModal();
         }
 
         function showStep(stepNumber) {
-            document.querySelectorAll('.form-section').forEach(section => {
+            const allSections = document.querySelectorAll('.form-section');
+            allSections.forEach(section => {
                 section.classList.remove('active');
             });
-            document.getElementById(`inviteStep${stepNumber}`).classList.add('active');
+            
+            const targetSection = document.getElementById(`inviteStep${stepNumber}`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
         }
 
         function updateStepIndicator(currentStep) {
             for (let i = 1; i <= 3; i++) {
                 const step = document.getElementById(`step${i}`);
-                step.classList.remove('active', 'completed');
-                
-                if (i < currentStep) {
-                    step.classList.add('completed');
-                } else if (i === currentStep) {
-                    step.classList.add('active');
+                if (step) {
+                    step.classList.remove('active', 'completed');
+                    
+                    if (i < currentStep) {
+                        step.classList.add('completed');
+                    } else if (i === currentStep) {
+                        step.classList.add('active');
+                    }
                 }
             }
         }
 
         function clearFormInputs() {
-            document.getElementById('inviteContactEmail').value = '';
+            const contactEmailInput = document.getElementById('inviteContactEmail');
+            if (contactEmailInput) {
+                contactEmailInput.value = '';
+            }
         }
 
         // ============================================================================
@@ -1617,9 +1595,13 @@
                 venueCurrency = getVenueCurrency();
                 console.log('💰 Venue currency loaded:', venueCurrency);
                 
-                document.getElementById('venueName').textContent = currentVenue.name;
-                document.getElementById('venueLocation').textContent = 
-                    `${currentVenue.city}, ${currentVenue.state}`;
+                const venueNameElement = document.getElementById('venueName');
+                const venueLocationElement = document.getElementById('venueLocation');
+                
+                if (venueNameElement) venueNameElement.textContent = currentVenue.name;
+                if (venueLocationElement) {
+                    venueLocationElement.textContent = `${currentVenue.city}, ${currentVenue.state}`;
+                }
                 
                 console.log('✅ Venue loaded for management:', currentVenue.name);
                 
@@ -1669,6 +1651,7 @@
 
         function updateRestaurantGrid() {
             const grid = document.getElementById('restaurantGrid');
+            if (!grid) return;
             
             if (venueRestaurants.length === 0) {
                 grid.innerHTML = `
@@ -1804,8 +1787,9 @@
         }
 
         function updateUserDisplay() {
-            if (currentUser) {
-                document.getElementById('userName').textContent = currentUser.name || 'Venue Manager';
+            const userNameElement = document.getElementById('userName');
+            if (currentUser && userNameElement) {
+                userNameElement.textContent = currentUser.name || 'Venue Manager';
             }
         }
 
@@ -1813,7 +1797,9 @@
             event.preventDefault();
             
             const loadingOverlay = document.getElementById('loadingOverlay');
-            loadingOverlay.classList.add('active');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('active');
+            }
             
             setTimeout(() => {
                 window.location.href = url;
@@ -1874,9 +1860,7 @@
             if (e.target.classList.contains('modal')) {
                 e.target.classList.remove('active');
                 setTimeout(() => {
-                    if (e.target.parentNode) {
-                        e.target.remove();
-                    }
+                    resetInvitationModal();
                 }, 300);
             }
         });
