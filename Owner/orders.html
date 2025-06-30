@@ -1845,23 +1845,17 @@
             }
         }
 
-        // Enhanced order timestamp display - FIXED for restaurant timezone only
+        // Enhanced order timestamp display - FIXED for proper timezone handling
         function formatOrderTimestamp(timestamp, entity = null) {
             try {
                 // Convert order timestamp to restaurant timezone
                 const orderDate = timestampToDate(timestamp, entity);
                 
-                // Get current time in restaurant timezone
-                let nowInRestaurantTZ;
-                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getCurrentTimeInTimezone) {
-                    nowInRestaurantTZ = TimezoneAPI.getCurrentTimeInTimezone(entity);
-                } else {
-                    // Fallback: use current time (this may still have timezone issues without TimezoneAPI)
-                    nowInRestaurantTZ = new Date();
-                }
+                // Get the actual current time (not timezone-shifted)
+                const nowUTC = new Date();
                 
-                // Calculate difference using restaurant timezone times only
-                const diff = nowInRestaurantTZ.getTime() - orderDate.getTime();
+                // Calculate difference using the actual current time vs order time
+                const diff = nowUTC.getTime() - orderDate.getTime();
                 const minutes = Math.floor(diff / 60000);
                 const hours = Math.floor(diff / 3600000);
                 
@@ -1881,13 +1875,15 @@
                 const timezoneAbb = getTimezoneAbbreviation(restaurantTimezone);
                 
                 // Debug logging for timezone issues
-                console.log('🕐 Time calculation debug:', {
+                console.log('🕐 FIXED Time calculation debug:', {
                     orderDate: orderDate.toISOString(),
-                    nowInRestaurantTZ: nowInRestaurantTZ.toISOString(),
+                    nowUTC: nowUTC.toISOString(),
                     diffMs: diff,
                     diffMinutes: minutes,
                     timeAgo: timeAgo,
-                    restaurantTimezone: restaurantTimezone
+                    restaurantTimezone: restaurantTimezone,
+                    orderInRestaurantTZ: orderDate.toLocaleString('en-US', { timeZone: restaurantTimezone }),
+                    nowInRestaurantTZ: nowUTC.toLocaleString('en-US', { timeZone: restaurantTimezone })
                 });
                 
                 return {
@@ -3138,17 +3134,11 @@
         }
 
         function getOrderDuration(orderTime) {
-            // Get current time in restaurant timezone
-            let nowInRestaurantTZ;
-            if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getCurrentTimeInTimezone) {
-                nowInRestaurantTZ = TimezoneAPI.getCurrentTimeInTimezone(currentRestaurant);
-            } else {
-                // Fallback: use current time
-                nowInRestaurantTZ = new Date();
-            }
+            // Use actual current time for duration calculation
+            const nowUTC = new Date();
             
-            // Calculate difference using restaurant timezone times only
-            const diff = nowInRestaurantTZ.getTime() - orderTime.getTime();
+            // Calculate difference using consistent UTC timestamps
+            const diff = nowUTC.getTime() - orderTime.getTime();
             const minutes = Math.floor(diff / 60000);
             const hours = Math.floor(diff / 3600000);
             
