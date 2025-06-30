@@ -607,6 +607,7 @@
                             <th>Order ID</th>
                             <th>Restaurant</th>
                             <th>Date</th>
+                            <th>Items Ordered</th>
                             <th>Status</th>
                             <th>Total</th>
                         </tr>
@@ -1346,11 +1347,31 @@
                     day: 'numeric'
                 });
                 
+                // Extract order items details
+                let itemsOrdered = 'No items';
+                if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+                    const itemSummary = order.items.map(item => {
+                        const quantity = item.quantity || 1;
+                        const name = item.name || item.itemName || 'Unknown Item';
+                        return quantity > 1 ? `${quantity}x ${name}` : name;
+                    }).slice(0, 3); // Show max 3 items
+                    
+                    itemsOrdered = itemSummary.join(', ');
+                    if (order.items.length > 3) {
+                        itemsOrdered += ` +${order.items.length - 3} more`;
+                    }
+                } else if (order.orderSummary) {
+                    itemsOrdered = order.orderSummary.substring(0, 50) + (order.orderSummary.length > 50 ? '...' : '');
+                } else if (order.description) {
+                    itemsOrdered = order.description.substring(0, 50) + (order.description.length > 50 ? '...' : '');
+                }
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td style="font-family: monospace; font-size: 13px;">${order.id.substring(0, 8)}...</td>
                     <td>${order.restaurantName || 'Unknown'}</td>
                     <td>${orderDate}</td>
+                    <td style="max-width: 200px; font-size: 13px; color: #86868B;">${itemsOrdered}</td>
                     <td><span class="status-indicator status-${order.status || 'pending'}"></span>${order.status || 'Pending'}</td>
                     <td>${formatCurrency(order.total || 0)}</td>
                 `;
@@ -2011,13 +2032,32 @@
                 filteredOrders = filteredOrders.filter(order => order.restaurantId === restaurantFilter);
             }
             
-            let csv = 'Order ID,Restaurant,Date,Status,Total\n';
+            let csv = 'Order ID,Restaurant,Date,Items Ordered,Status,Total\n';
             
             filteredOrders.slice(0, 1000).forEach(order => {
                 const orderDate = timestampToDate(order.createdAt).toLocaleDateString('en-US', {
                     timeZone: venueTimezone
                 });
-                csv += `"${order.id}","${order.restaurantName || 'Unknown'}","${orderDate}","${order.status || 'Pending'}",${(order.total || 0).toFixed(2)}\n`;
+                
+                // Extract order items for CSV
+                let itemsOrdered = 'No items';
+                if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+                    const itemSummary = order.items.map(item => {
+                        const quantity = item.quantity || 1;
+                        const name = item.name || item.itemName || 'Unknown Item';
+                        return quantity > 1 ? `${quantity}x ${name}` : name;
+                    });
+                    itemsOrdered = itemSummary.join('; ');
+                } else if (order.orderSummary) {
+                    itemsOrdered = order.orderSummary;
+                } else if (order.description) {
+                    itemsOrdered = order.description;
+                }
+                
+                // Clean up items for CSV (remove quotes and commas)
+                itemsOrdered = itemsOrdered.replace(/"/g, '""');
+                
+                csv += `"${order.id}","${order.restaurantName || 'Unknown'}","${orderDate}","${itemsOrdered}","${order.status || 'Pending'}",${(order.total || 0).toFixed(2)}\n`;
             });
             
             return csv;
