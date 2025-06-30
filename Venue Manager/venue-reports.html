@@ -506,7 +506,7 @@
                     <div class="control-group">
                         <label class="control-label">Report Type</label>
                         <select class="control-input" id="reportType">
-                            <option value="financial">Financial Summary</option>
+                            <option value="financial" selected>Financial Summary</option>
                             <option value="orders">Order Analysis</option>
                             <option value="performance">Restaurant Performance</option>
                             <option value="loss">Loss Incidents</option>
@@ -541,10 +541,6 @@
                         <select class="control-input" id="restaurantFilter">
                             <option value="all">All Restaurants</option>
                         </select>
-                    </div>
-                    
-                    <div class="control-group">
-                        <button class="generate-btn" onclick="generateReport()">Generate Report</button>
                     </div>
                 </div>
             </section>
@@ -853,6 +849,9 @@
                     await loadAllData();
                     setupEventListeners();
                     
+                    // Auto-generate initial financial summary report
+                    await generateReport();
+                    
                     showLoading(false);
                     showMainContent(true);
                     
@@ -1097,15 +1096,17 @@
         }
 
         function setupEventListeners() {
-            document.getElementById('timePeriod').addEventListener('change', handleTimePeriodChange);
-            document.getElementById('reportType').addEventListener('change', handleReportTypeChange);
+            document.getElementById('timePeriod').addEventListener('change', handleFilterChange);
+            document.getElementById('reportType').addEventListener('change', handleFilterChange);
+            document.getElementById('restaurantFilter').addEventListener('change', handleFilterChange);
         }
 
-        function handleTimePeriodChange() {
+        async function handleFilterChange() {
             const timePeriod = document.getElementById('timePeriod').value;
             const customDateGroup = document.getElementById('customDateGroup');
             const customDateGroup2 = document.getElementById('customDateGroup2');
             
+            // Handle custom date visibility
             if (timePeriod === 'custom') {
                 customDateGroup.style.display = 'block';
                 customDateGroup2.style.display = 'block';
@@ -1113,10 +1114,9 @@
                 customDateGroup.style.display = 'none';
                 customDateGroup2.style.display = 'none';
             }
-        }
-
-        function handleReportTypeChange() {
-            hideAllReportSections();
+            
+            // Auto-generate report when any filter changes
+            await generateReport();
         }
 
         // ============================================================================
