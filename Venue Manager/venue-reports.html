@@ -722,7 +722,7 @@
         let lossIncidents = [];
         let reportData = null;
         let activeCharts = [];
-        let venueCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' };
+        let venueCurrency = 'USD'; // Single venue currency like overview page
         let venueTimezone = 'UTC';
 
         // ============================================================================
@@ -817,25 +817,44 @@
         }
 
         // ============================================================================
-        // CURRENCY MANAGEMENT
+        // CURRENCY MANAGEMENT (SAME AS VENUE OVERVIEW)
         // ============================================================================
 
-        function getVenueCurrency() {
-            if (currentVenue && currentVenue.currency) {
-                return {
-                    code: currentVenue.currency.code || 'USD',
-                    symbol: currentVenue.currency.symbol || '$',
-                    name: currentVenue.currency.name || 'US Dollar'
-                };
+        // Helper function for currency formatting (same as venue overview page)
+        function formatCurrency(amount, currency = null) {
+            try {
+                const currencyCode = currency || venueCurrency;
+                
+                if (VediAPI && VediAPI.formatCurrency) {
+                    return VediAPI.formatCurrency(amount, currencyCode);
+                } else {
+                    return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: currencyCode
+                    }).format(amount);
+                }
+            } catch (error) {
+                console.error('❌ Currency formatting error:', error);
+                const symbol = getCurrencySymbol(currency || venueCurrency);
+                return `${symbol}${amount.toFixed(2)}`;
             }
-            return { code: 'USD', symbol: '$', name: 'US Dollar' };
         }
 
-        function formatCurrency(amount) {
-            if (!amount && amount !== 0) return `${venueCurrency.symbol}0.00`;
-            const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-            if (isNaN(numAmount)) return `${venueCurrency.symbol}0.00`;
-            return `${venueCurrency.symbol}${numAmount.toFixed(2)}`;
+        // Get currency symbol for fallback formatting
+        function getCurrencySymbol(currencyCode) {
+            const symbols = {
+                'USD': '$',
+                'EUR': '€',
+                'GBP': '£',
+                'CAD': 'C$',
+                'AUD': 'A$',
+                'JPY': '¥',
+                'CHF': 'CHF',
+                'SEK': 'kr',
+                'NOK': 'kr',
+                'DKK': 'kr'
+            };
+            return symbols[currencyCode] || currencyCode + ' ';
         }
 
         // ============================================================================
@@ -941,7 +960,13 @@
                 const venueDoc = venueQuery.docs[0];
                 currentVenue = { id: venueDoc.id, ...venueDoc.data() };
                 
-                venueCurrency = getVenueCurrency();
+                // Set venue currency (same logic as venue overview page)
+                if (currentVenue.currency && currentVenue.currency.code) {
+                    venueCurrency = currentVenue.currency.code;
+                } else if (currentVenue.currencyCode) {
+                    venueCurrency = currentVenue.currencyCode;
+                }
+                
                 if (currentVenue.timezone) {
                     venueTimezone = currentVenue.timezone;
                 }
@@ -969,6 +994,17 @@
                     id: doc.id,
                     ...doc.data()
                 }));
+                
+                // Detect venue currency from first restaurant if not set in venue (same as overview)
+                if (venueCurrency === 'USD' && venueRestaurants.length > 0) {
+                    const firstRestaurant = venueRestaurants[0];
+                    if (firstRestaurant.currency && firstRestaurant.currency.code) {
+                        venueCurrency = firstRestaurant.currency.code;
+                    } else if (firstRestaurant.currencyCode) {
+                        venueCurrency = firstRestaurant.currencyCode;
+                    }
+                    console.log('✅ Currency detected from restaurant:', venueCurrency);
+                }
                 
                 const restaurantFilter = document.getElementById('restaurantFilter');
                 restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
@@ -1244,7 +1280,7 @@
                     <td>${data.orders}</td>
                     <td>${formatCurrency(data.revenue)}</td>
                     <td>${formatCurrency(avgOrderValue)}</td>
-                    <td>+12.5%</td>
+                    <td>--</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -1431,7 +1467,7 @@
                     <td>${restaurant.orderCount}</td>
                     <td>${formatCurrency(restaurant.revenue)}</td>
                     <td>${formatCurrency(restaurant.avgOrder)}</td>
-                    <td class="summary-change positive">+12%</td>
+                    <td>--</td>
                     <td><span class="status-indicator ${restaurant.status === 'Online' ? 'status-completed' : 'status-cancelled'}"></span>${restaurant.status}</td>
                 `;
                 tableBody.appendChild(row);
@@ -1878,7 +1914,7 @@
             Object.entries(data.revenueByRestaurant || {}).forEach(([restaurantId, restaurantData]) => {
                 const restaurant = venueRestaurants.find(r => r.id === restaurantId);
                 const avgOrderValue = restaurantData.orders > 0 ? restaurantData.revenue / restaurantData.orders : 0;
-                csv += `"${restaurant ? restaurant.name : 'Unknown'}",${restaurantData.orders},${restaurantData.revenue.toFixed(2)},${avgOrderValue.toFixed(2)},+12.5%\n`;
+                csv += `"${restaurant ? restaurant.name : 'Unknown'}",${restaurantData.orders},${restaurantData.revenue.toFixed(2)},${avgOrderValue.toFixed(2)},--\n`;
             });
             
             return csv;
@@ -1910,7 +1946,7 @@
             let csv = 'Restaurant,Orders,Revenue,Average Order Value,Growth,Status\n';
             
             data.forEach(restaurant => {
-                csv += `"${restaurant.name}",${restaurant.orderCount},${restaurant.revenue.toFixed(2)},${restaurant.avgOrder.toFixed(2)},+12%,"${restaurant.status}"\n`;
+                csv += `"${restaurant.name}",${restaurant.orderCount},${restaurant.revenue.toFixed(2)},${restaurant.avgOrder.toFixed(2)},--,"${restaurant.status}"\n`;
             });
             
             return csv;
