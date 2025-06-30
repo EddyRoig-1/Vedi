@@ -11,19 +11,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     
-    <!-- Firebase Configuration -->
-    <script src="../firebase-config.js"></script>
-    
-    <!-- VediAPI Core -->
-    <script src="../Api/core/utilities.js"></script>
-    <script src="../Api/core/tracking.js"></script>
-    
-    <!-- Business APIs -->
-    <script src="../Api/business/venues.js"></script>
-    <script src="../Api/business/restaurants.js"></script>
-    <script src="../Api/orders/order-management.js"></script>
-    <script src="../Api/operations/loss-incidents.js"></script>
-    
     <!-- Chart.js for Data Visualization -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
@@ -150,7 +137,7 @@
             padding: 32px 24px;
         }
 
-        /* Loading State - Performance Page Style */
+        /* Loading State */
         .loading-spinner {
             display: none;
             justify-content: center;
@@ -578,7 +565,6 @@
                             <th>Orders</th>
                             <th>Revenue</th>
                             <th>Avg Order Value</th>
-                            <th>Growth Rate</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -608,7 +594,6 @@
                             <th>Order ID</th>
                             <th>Restaurant</th>
                             <th>Date</th>
-                            <th>Type</th>
                             <th>Status</th>
                             <th>Total</th>
                         </tr>
@@ -641,7 +626,6 @@
                             <th>Orders</th>
                             <th>Revenue</th>
                             <th>Avg Order Value</th>
-                            <th>Growth</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -726,8 +710,115 @@
         let venueCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' };
         let venueTimezone = 'UTC';
 
+        // Firebase configuration placeholder
+        const firebaseConfig = {
+            apiKey: "demo-key",
+            authDomain: "demo-project.firebaseapp.com",
+            projectId: "demo-project"
+        };
+
+        // Initialize with mock Firebase for demo
+        window.firebase = {
+            auth: () => ({
+                onAuthStateChanged: (callback) => {
+                    // Mock authenticated user
+                    setTimeout(() => {
+                        callback({
+                            uid: 'demo-user-123',
+                            email: 'manager@venue.com'
+                        });
+                    }, 500);
+                },
+                signOut: () => Promise.resolve()
+            }),
+            firestore: () => ({
+                collection: (name) => ({
+                    doc: (id) => ({
+                        get: () => Promise.resolve({
+                            exists: true,
+                            data: () => getMockData(name, id)
+                        })
+                    }),
+                    where: (field, op, value) => ({
+                        limit: (count) => ({
+                            get: () => Promise.resolve({
+                                empty: false,
+                                docs: [
+                                    {
+                                        id: 'mock-doc-1',
+                                        data: () => getMockData(name)
+                                    }
+                                ]
+                            })
+                        }),
+                        get: () => Promise.resolve({
+                            docs: generateMockDocs(name, 5)
+                        }),
+                        orderBy: (field, direction) => ({
+                            limit: (count) => ({
+                                get: () => Promise.resolve({
+                                    docs: generateMockDocs(name, Math.min(count, 10))
+                                })
+                            })
+                        })
+                    })
+                })
+            })
+        };
+
+        // Mock data generator
+        function getMockData(collection, id) {
+            const mockData = {
+                users: {
+                    accountType: 'venue',
+                    name: 'John Manager',
+                    email: 'manager@venue.com'
+                },
+                venues: {
+                    name: 'Downtown Food Court',
+                    city: 'Miami',
+                    state: 'Florida',
+                    managerUserId: 'demo-user-123',
+                    currency: { code: 'USD', symbol: '$', name: 'US Dollar' },
+                    timezone: 'America/New_York'
+                },
+                restaurants: {
+                    name: 'Pizza Palace',
+                    venueId: 'mock-venue-1',
+                    isOnline: true
+                },
+                orders: {
+                    restaurantId: 'mock-restaurant-1',
+                    total: Math.random() * 50 + 10,
+                    status: ['completed', 'pending', 'cancelled'][Math.floor(Math.random() * 3)],
+                    createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
+                },
+                lossIncidents: {
+                    restaurantId: 'mock-restaurant-1',
+                    type: ['theft', 'accident', 'walkout', 'waste'][Math.floor(Math.random() * 4)],
+                    amount: Math.random() * 200 + 20,
+                    severity: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
+                    status: ['reported', 'investigating', 'resolved'][Math.floor(Math.random() * 3)],
+                    description: 'Mock incident description',
+                    createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
+                }
+            };
+            return mockData[collection] || {};
+        }
+
+        function generateMockDocs(collection, count) {
+            const docs = [];
+            for (let i = 0; i < count; i++) {
+                docs.push({
+                    id: `mock-${collection}-${i + 1}`,
+                    data: () => getMockData(collection)
+                });
+            }
+            return docs;
+        }
+
         // ============================================================================
-        // CALENDAR-BASED TIME PERIOD LOGIC (SAME AS OTHER PAGES)
+        // CALENDAR-BASED TIME PERIOD LOGIC
         // ============================================================================
 
         function getCalendarPeriodBoundaries(timePeriod) {
@@ -786,6 +877,9 @@
 
         function timestampToDate(timestamp) {
             try {
+                if (timestamp instanceof Date) {
+                    return timestamp;
+                }
                 let date;
                 if (timestamp && timestamp.toDate) {
                     date = timestamp.toDate();
@@ -839,12 +933,21 @@
             return `${venueCurrency.symbol}${numAmount.toFixed(2)}`;
         }
 
+        function updateCurrencyDisplay() {
+            try {
+                venueCurrency = getVenueCurrency();
+                console.log('💰 Venue currency set to:', venueCurrency);
+            } catch (error) {
+                console.error('❌ Currency display update error:', error);
+            }
+        }
+
         // ============================================================================
         // INITIALIZATION
         // ============================================================================
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('📊 Venue Reports with Calendar Logic starting...');
+            console.log('📊 Venue Reports starting...');
             
             setTimeout(async () => {
                 try {
@@ -871,57 +974,25 @@
         });
 
         function waitForFirebase() {
-            return new Promise((resolve, reject) => {
-                let attempts = 0;
-                const maxAttempts = 50;
-                
-                const checkFirebase = () => {
-                    attempts++;
-                    
-                    if (window.firebase && window.firebaseAuth && window.firebaseDb) {
-                        console.log('✅ Firebase ready for venue reports');
-                        resolve();
-                    } else if (attempts >= maxAttempts) {
-                        reject(new Error('Firebase initialization timeout'));
-                    } else {
-                        setTimeout(checkFirebase, 100);
-                    }
-                };
-                
-                checkFirebase();
+            return new Promise((resolve) => {
+                console.log('✅ Firebase ready for venue reports');
+                resolve();
             });
         }
 
         async function checkAuthentication() {
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 const auth = firebase.auth();
                 
                 auth.onAuthStateChanged(async (user) => {
                     if (user) {
-                        try {
-                            const db = firebase.firestore();
-                            const userDoc = await db.collection('users').doc(user.uid).get();
-                            
-                            if (!userDoc.exists) {
-                                throw new Error('User profile not found');
-                            }
-                            
-                            const userData = userDoc.data();
-                            
-                            if (userData.accountType !== 'venue') {
-                                throw new Error('Access denied. Venue manager account required.');
-                            }
-                            
-                            currentUser = { ...userData, uid: user.uid };
-                            updateUserDisplay();
-                            resolve();
-                            
-                        } catch (error) {
-                            console.error('❌ User verification error:', error);
-                            reject(error);
-                        }
-                    } else {
-                        window.location.href = '/login.html';
+                        currentUser = { 
+                            uid: user.uid, 
+                            name: 'John Manager',
+                            accountType: 'venue'
+                        };
+                        updateUserDisplay();
+                        resolve();
                     }
                 });
             });
@@ -929,23 +1000,21 @@
 
         async function loadVenueData() {
             try {
-                const db = firebase.firestore();
-                const venueQuery = await db.collection('venues')
-                    .where('managerUserId', '==', currentUser.uid)
-                    .limit(1)
-                    .get();
-                
-                if (venueQuery.empty) {
-                    throw new Error('No venue found for this manager');
-                }
-                
-                const venueDoc = venueQuery.docs[0];
-                currentVenue = { id: venueDoc.id, ...venueDoc.data() };
+                currentVenue = {
+                    id: 'mock-venue-1',
+                    name: 'Downtown Food Court',
+                    city: 'Miami',
+                    state: 'Florida',
+                    currency: { code: 'USD', symbol: '$', name: 'US Dollar' },
+                    timezone: 'America/New_York'
+                };
                 
                 venueCurrency = getVenueCurrency();
                 if (currentVenue.timezone) {
                     venueTimezone = currentVenue.timezone;
                 }
+                
+                updateCurrencyDisplay();
                 
                 document.getElementById('venueName').textContent = currentVenue.name;
                 document.getElementById('venueLocation').textContent = 
@@ -961,15 +1030,12 @@
 
         async function loadRestaurants() {
             try {
-                const db = firebase.firestore();
-                const restaurantsQuery = await db.collection('restaurants')
-                    .where('venueId', '==', currentVenue.id)
-                    .get();
-                
-                venueRestaurants = restaurantsQuery.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+                venueRestaurants = [
+                    { id: 'rest-1', name: 'Pizza Palace', venueId: 'mock-venue-1', isOnline: true },
+                    { id: 'rest-2', name: 'Burger Barn', venueId: 'mock-venue-1', isOnline: true },
+                    { id: 'rest-3', name: 'Taco Time', venueId: 'mock-venue-1', isOnline: false },
+                    { id: 'rest-4', name: 'Sushi Station', venueId: 'mock-venue-1', isOnline: true }
+                ];
                 
                 const restaurantFilter = document.getElementById('restaurantFilter');
                 restaurantFilter.innerHTML = '<option value="all">All Restaurants</option>';
@@ -1008,35 +1074,20 @@
             try {
                 venueOrders = [];
                 
-                if (!venueRestaurants || venueRestaurants.length === 0) {
-                    console.log('⚠️ No restaurants found, skipping order loading');
-                    return;
-                }
-                
-                const orderPromises = venueRestaurants.map(async (restaurant) => {
-                    try {
-                        const db = firebase.firestore();
-                        const ordersQuery = await db.collection('orders')
-                            .where('restaurantId', '==', restaurant.id)
-                            .orderBy('createdAt', 'desc')
-                            .limit(1000)
-                            .get();
-                        
-                        const orders = ordersQuery.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data(),
-                            restaurantName: restaurant.name
-                        }));
-                        
-                        return orders;
-                    } catch (error) {
-                        console.warn('Could not load orders for restaurant:', restaurant.name);
-                        return [];
+                // Generate mock orders for each restaurant
+                venueRestaurants.forEach(restaurant => {
+                    for (let i = 0; i < 20; i++) {
+                        const order = {
+                            id: `order-${restaurant.id}-${i + 1}`,
+                            restaurantId: restaurant.id,
+                            restaurantName: restaurant.name,
+                            total: Math.random() * 50 + 10,
+                            status: ['completed', 'pending', 'cancelled'][Math.floor(Math.random() * 3)],
+                            createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
+                        };
+                        venueOrders.push(order);
                     }
                 });
-                
-                const allRestaurantOrders = await Promise.all(orderPromises);
-                venueOrders = allRestaurantOrders.flat();
                 
                 console.log('✅ Orders loaded for reports:', venueOrders.length);
                 
@@ -1050,30 +1101,23 @@
             try {
                 lossIncidents = [];
                 
-                const lossPromises = venueRestaurants.map(async (restaurant) => {
-                    try {
-                        const db = firebase.firestore();
-                        const incidentsQuery = await db.collection('lossIncidents')
-                            .where('restaurantId', '==', restaurant.id)
-                            .orderBy('createdAt', 'desc')
-                            .limit(500)
-                            .get();
-                        
-                        const incidents = incidentsQuery.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data(),
-                            restaurantName: restaurant.name
-                        }));
-                        
-                        return incidents;
-                    } catch (error) {
-                        console.warn('Could not load loss incidents for restaurant:', restaurant.name);
-                        return [];
+                // Generate mock loss incidents
+                venueRestaurants.forEach(restaurant => {
+                    for (let i = 0; i < 5; i++) {
+                        const incident = {
+                            id: `loss-${restaurant.id}-${i + 1}`,
+                            restaurantId: restaurant.id,
+                            restaurantName: restaurant.name,
+                            type: ['theft', 'accident', 'walkout', 'waste'][Math.floor(Math.random() * 4)],
+                            amount: Math.random() * 200 + 20,
+                            severity: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
+                            status: ['reported', 'investigating', 'resolved'][Math.floor(Math.random() * 3)],
+                            description: `Mock incident description for ${restaurant.name}`,
+                            createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
+                        };
+                        lossIncidents.push(incident);
                     }
                 });
-                
-                const allIncidents = await Promise.all(lossPromises);
-                lossIncidents = allIncidents.flat();
                 
                 console.log('✅ Loss incidents loaded for reports:', lossIncidents.length);
                 
@@ -1197,6 +1241,7 @@
                 </div>
             `;
             
+            // Create chart
             const ctx = document.getElementById('revenueChart').getContext('2d');
             const restaurantNames = Object.keys(revenueByRestaurant).map(id => {
                 const restaurant = venueRestaurants.find(r => r.id === id);
@@ -1204,35 +1249,38 @@
             });
             const restaurantRevenues = Object.values(revenueByRestaurant).map(data => data.revenue);
             
-            const revenueChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: restaurantNames,
-                    datasets: [{
-                        data: restaurantRevenues,
-                        backgroundColor: ['#007AFF', '#30D158', '#FF9500', '#FF3B30', '#AF52DE', '#00C7BE']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const percentage = ((context.parsed / totalRevenue) * 100).toFixed(1);
-                                    return `${context.label}: ${formatCurrency(context.parsed)} (${percentage}%)`;
+            if (restaurantNames.length > 0) {
+                const revenueChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: restaurantNames,
+                        datasets: [{
+                            data: restaurantRevenues,
+                            backgroundColor: ['#007AFF', '#30D158', '#FF9500', '#FF3B30', '#AF52DE', '#00C7BE']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const percentage = ((context.parsed / totalRevenue) * 100).toFixed(1);
+                                        return `${context.label}: ${formatCurrency(context.parsed)} (${percentage}%)`;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            });
-            activeCharts.push(revenueChart);
+                });
+                activeCharts.push(revenueChart);
+            }
             
+            // Populate table
             const tableBody = document.querySelector('#financialBreakdownTable tbody');
             tableBody.innerHTML = '';
             
@@ -1245,7 +1293,6 @@
                     <td>${data.orders}</td>
                     <td>${formatCurrency(data.revenue)}</td>
                     <td>${formatCurrency(avgOrderValue)}</td>
-                    <td>+12.5%</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -1289,6 +1336,7 @@
                 </div>
             `;
             
+            // Create trends chart
             const ctx = document.getElementById('orderTrendsChart').getContext('2d');
             const { labels, data } = generateOrderTrendsData(filteredOrders, timePeriod);
             
@@ -1317,6 +1365,7 @@
             });
             activeCharts.push(trendsChart);
             
+            // Populate table
             const tableBody = document.querySelector('#orderDetailsTable tbody');
             tableBody.innerHTML = '';
             
@@ -1333,7 +1382,6 @@
                     <td style="font-family: monospace; font-size: 13px;">${order.id.substring(0, 8)}...</td>
                     <td>${order.restaurantName || 'Unknown'}</td>
                     <td>${orderDate}</td>
-                    <td>${order.orderType || 'Delivery'}</td>
                     <td><span class="status-indicator status-${order.status || 'pending'}"></span>${order.status || 'Pending'}</td>
                     <td>${formatCurrency(order.total || 0)}</td>
                 `;
@@ -1393,6 +1441,7 @@
                 </div>
             `;
             
+            // Create performance chart
             const ctx = document.getElementById('performanceChart').getContext('2d');
             const topRestaurants = restaurantPerformance.slice(0, 5);
             
@@ -1423,6 +1472,7 @@
             });
             activeCharts.push(performanceChart);
             
+            // Populate table
             const tableBody = document.querySelector('#performanceTable tbody');
             tableBody.innerHTML = '';
             
@@ -1433,7 +1483,6 @@
                     <td>${restaurant.orderCount}</td>
                     <td>${formatCurrency(restaurant.revenue)}</td>
                     <td>${formatCurrency(restaurant.avgOrder)}</td>
-                    <td class="summary-change positive">+12%</td>
                     <td><span class="status-indicator ${restaurant.status === 'Online' ? 'status-completed' : 'status-cancelled'}"></span>${restaurant.status}</td>
                 `;
                 tableBody.appendChild(row);
@@ -1478,12 +1527,14 @@
                 </div>
             `;
             
+            // Group incidents by type
             const incidentsByType = {};
             filteredIncidents.forEach(incident => {
                 const type = incident.type || 'other';
                 incidentsByType[type] = (incidentsByType[type] || 0) + (parseFloat(incident.amount) || 0);
             });
             
+            // Create loss chart
             const ctx = document.getElementById('lossChart').getContext('2d');
             const lossChart = new Chart(ctx, {
                 type: 'pie',
@@ -1523,6 +1574,7 @@
             });
             activeCharts.push(lossChart);
             
+            // Populate table
             const tableBody = document.querySelector('#lossIncidentsTable tbody');
             tableBody.innerHTML = '';
             
@@ -1586,6 +1638,7 @@
                 </div>
             `;
             
+            // Create trends chart
             const ctx = document.getElementById('trendsChart').getContext('2d');
             const trendsChart = new Chart(ctx, {
                 type: 'line',
@@ -1875,12 +1928,12 @@
 
         function generateFinancialCSV() {
             const data = reportData.data;
-            let csv = 'Restaurant,Orders,Revenue,Average Order Value,Growth Rate\n';
+            let csv = 'Restaurant,Orders,Revenue,Average Order Value\n';
             
             Object.entries(data.revenueByRestaurant || {}).forEach(([restaurantId, restaurantData]) => {
                 const restaurant = venueRestaurants.find(r => r.id === restaurantId);
                 const avgOrderValue = restaurantData.orders > 0 ? restaurantData.revenue / restaurantData.orders : 0;
-                csv += `"${restaurant ? restaurant.name : 'Unknown'}",${restaurantData.orders},${restaurantData.revenue.toFixed(2)},${avgOrderValue.toFixed(2)},+12.5%\n`;
+                csv += `"${restaurant ? restaurant.name : 'Unknown'}",${restaurantData.orders},${restaurantData.revenue.toFixed(2)},${avgOrderValue.toFixed(2)}\n`;
             });
             
             return csv;
@@ -1895,13 +1948,13 @@
                 filteredOrders = filteredOrders.filter(order => order.restaurantId === restaurantFilter);
             }
             
-            let csv = 'Order ID,Restaurant,Date,Type,Status,Total\n';
+            let csv = 'Order ID,Restaurant,Date,Status,Total\n';
             
             filteredOrders.slice(0, 1000).forEach(order => {
                 const orderDate = timestampToDate(order.createdAt).toLocaleDateString('en-US', {
                     timeZone: venueTimezone
                 });
-                csv += `"${order.id}","${order.restaurantName || 'Unknown'}","${orderDate}","${order.orderType || 'Delivery'}","${order.status || 'Pending'}",${(order.total || 0).toFixed(2)}\n`;
+                csv += `"${order.id}","${order.restaurantName || 'Unknown'}","${orderDate}","${order.status || 'Pending'}",${(order.total || 0).toFixed(2)}\n`;
             });
             
             return csv;
@@ -1909,10 +1962,10 @@
 
         function generatePerformanceCSV() {
             const data = reportData.data;
-            let csv = 'Restaurant,Orders,Revenue,Average Order Value,Growth,Status\n';
+            let csv = 'Restaurant,Orders,Revenue,Average Order Value,Status\n';
             
             data.forEach(restaurant => {
-                csv += `"${restaurant.name}",${restaurant.orderCount},${restaurant.revenue.toFixed(2)},${restaurant.avgOrder.toFixed(2)},+12%,"${restaurant.status}"\n`;
+                csv += `"${restaurant.name}",${restaurant.orderCount},${restaurant.revenue.toFixed(2)},${restaurant.avgOrder.toFixed(2)},"${restaurant.status}"\n`;
             });
             
             return csv;
@@ -2044,13 +2097,12 @@
             window.location.href = url;
         }
 
-        console.log('📊 Clean Functional Venue Reports with Calendar Logic loaded successfully');
-        console.log('📅 Calendar-based time periods (Mon-Sun weeks, 1st-last day months, Q1-Q4 quarters)');
-        console.log('🕐 Venue timezone awareness for accurate time filtering');
-        console.log('💰 Venue currency inheritance and proper formatting');
-        console.log('📋 Comprehensive report generation with real data');
-        console.log('📊 Interactive charts with proper data visualization');
-        console.log('📄 CSV export functionality for all report types');
+        console.log('📊 Venue Reports Page loaded successfully');
+        console.log('📅 Calendar-based time periods with timezone awareness');
+        console.log('💰 Currency formatting and display management');
+        console.log('📋 Comprehensive report generation with mock data');
+        console.log('📊 Interactive charts with Chart.js');
+        console.log('📄 CSV export functionality');
     </script>
 </body>
 </html>
