@@ -1135,6 +1135,16 @@
         <div class="loading-card">
             <div class="loading-spinner"></div>
             <p id="loadingText">Initializing...</p>
+            
+            <!-- Debug Info Panel -->
+            <div id="debugInfo" style="margin-top: 20px; max-height: 200px; overflow-y: auto; font-size: 12px; text-align: left; background: #f8f9fa; padding: 10px; border-radius: 8px; display: none;">
+                <strong>Debug Log:</strong><br>
+            </div>
+            
+            <!-- Show Debug Button -->
+            <button onclick="toggleDebugInfo()" style="margin-top: 10px; padding: 5px 10px; font-size: 12px; background: #007AFF; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Show Debug Log
+            </button>
         </div>
     </div>
 
@@ -1393,10 +1403,48 @@
     </div>
 
     <script>
-        // Debug logging
+        // Enhanced debug logging with error catching
         function debugLog(message, data = null) {
-            const timestamp = new Date().toLocaleTimeString();
-            console.log(`[${timestamp}] ${message}`, data || '');
+            try {
+                const timestamp = new Date().toLocaleTimeString();
+                console.log(`[${timestamp}] ${message}`, data || '');
+                
+                // Also log to page if console isn't working
+                const debugDiv = document.getElementById('debugInfo');
+                if (debugDiv) {
+                    debugDiv.innerHTML += `<div>[${timestamp}] ${message} ${data ? JSON.stringify(data) : ''}</div>`;
+                    debugDiv.scrollTop = debugDiv.scrollHeight;
+                }
+            } catch (error) {
+                // Fallback logging
+                console.error('Debug logging failed:', error);
+            }
+        }
+
+        // Emergency error handler
+        window.addEventListener('error', function(event) {
+            console.error('Global error:', event.error);
+            const loadingText = document.getElementById('loadingText');
+            if (loadingText) {
+                loadingText.textContent = `Error: ${event.error?.message || 'Unknown error'}`;
+            }
+        });
+
+        // Promise rejection handler
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+            const loadingText = document.getElementById('loadingText');
+            if (loadingText) {
+                loadingText.textContent = `Promise Error: ${event.reason?.message || 'Unknown promise error'}`;
+            }
+        });
+
+        // Debug info toggle
+        function toggleDebugInfo() {
+            const debugDiv = document.getElementById('debugInfo');
+            if (debugDiv) {
+                debugDiv.style.display = debugDiv.style.display === 'none' ? 'block' : 'none';
+            }
         }
 
         // Performance monitoring
