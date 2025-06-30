@@ -89,40 +89,7 @@
             flex-wrap: wrap;
         }
 
-        /* Time Period Selector - NEW! */
-        .time-period-selector {
-            display: flex;
-            gap: 4px;
-            background: #F1F3F4;
-            border-radius: 8px;
-            padding: 4px;
-            border: 1px solid #E5E5E7;
-        }
-
-        .time-period-btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: #1D1D1F;
-            background: transparent;
-            white-space: nowrap;
-        }
-
-        .time-period-btn:hover:not(.active) {
-            background: rgba(0, 122, 255, 0.1);
-        }
-
-        .time-period-btn.active {
-            background: #007AFF;
-            color: #FFFFFF;
-            box-shadow: 0 2px 4px rgba(0, 122, 255, 0.2);
-        }
-
-        /* Timezone Display - NEW! */
+        /* Timezone Display */
         .timezone-display {
             display: flex;
             align-items: center;
@@ -310,12 +277,20 @@
             color: #1D1D1F;
         }
 
-        /* Stats Grid */
+        /* Stats Grid - ONLY SHOW ON HISTORY TAB */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
             margin-bottom: 12px;
+        }
+
+        .stats-grid.history-only {
+            display: none;
+        }
+
+        .stats-grid.history-only.show {
+            display: grid;
         }
 
         .stat-card {
@@ -344,13 +319,18 @@
         .completed-orders .stat-number { color: #34C759; }
         .revenue-today .stat-number { color: #AF52DE; }
 
-        /* Period Insights - NEW! */
+        /* Period Insights - ONLY SHOW ON HISTORY TAB */
         .period-insights {
             background: #FFFFFF;
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 12px;
             border: 1px solid #E5E5E7;
+            display: none;
+        }
+
+        .period-insights.show {
+            display: block;
         }
 
         .insights-header {
@@ -503,6 +483,28 @@
         .action-group {
             display: flex;
             gap: 12px;
+        }
+
+        /* Time Period Dropdown - ONLY FOR HISTORY TAB */
+        .time-period-dropdown {
+            position: relative;
+        }
+
+        .time-period-select {
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 15px;
+            background: #FFFFFF;
+            min-height: 44px;
+            min-width: 150px;
+            cursor: pointer;
+        }
+
+        .time-period-select:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
         }
 
         /* Buttons */
@@ -762,7 +764,7 @@
             margin-top: 8px;
         }
 
-        /* Timezone-aware timestamps - NEW! */
+        /* Timezone-aware timestamps */
         .order-timestamp {
             color: #86868B;
             font-size: 13px;
@@ -1104,19 +1106,6 @@
                 width: 100%;
             }
 
-            /* Time period selector mobile */
-            .time-period-selector {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-
-            .time-period-btn {
-                flex: 1;
-                min-width: 80px;
-                font-size: 13px;
-                padding: 8px 12px;
-            }
-
             /* Period insights mobile */
             .insights-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -1144,17 +1133,10 @@
             <div class="header-content">
                 <div class="header-left">
                     <h1 class="header-title">Orders</h1>
-                    
-                    <!-- Time Period Selector - NEW! -->
-                    <div class="time-period-selector">
-                        <button class="time-period-btn active" data-period="today" onclick="switchTimePeriod('today')">Today</button>
-                        <button class="time-period-btn" data-period="thisweek" onclick="switchTimePeriod('thisweek')">This Week</button>
-                        <button class="time-period-btn" data-period="thismonth" onclick="switchTimePeriod('thismonth')">This Month</button>
-                    </div>
                 </div>
                 
                 <div class="header-controls">
-                    <!-- Timezone Display - NEW! -->
+                    <!-- Timezone Display -->
                     <div class="timezone-display" id="timezoneDisplay">
                         <span class="timezone-icon">🕐</span>
                         <span id="currentTimezone">Loading...</span>
@@ -1210,8 +1192,8 @@
             </div>
         </div>
 
-        <!-- Stats Overview -->
-        <div class="stats-grid">
+        <!-- Stats Overview - ONLY SHOW ON HISTORY TAB -->
+        <div class="stats-grid history-only" id="statsGrid">
             <div class="stat-card pending-orders">
                 <div class="stat-number" id="pendingCount">0</div>
                 <div class="stat-label">Pending Orders</div>
@@ -1230,7 +1212,7 @@
             </div>
         </div>
 
-        <!-- Period Insights - NEW! -->
+        <!-- Period Insights - ONLY SHOW ON HISTORY TAB -->
         <div class="period-insights" id="periodInsights">
             <div class="insights-header">
                 <h3 class="insights-title" id="insightsTitle">Today's Performance</h3>
@@ -1296,7 +1278,13 @@
             <div class="controls-section">
                 <div class="controls-row">
                     <div class="filter-group">
-                        <input type="date" class="filter-select" id="dateFilter" onchange="loadHistoryOrders()">
+                        <!-- Time Period Dropdown - NEW DESIGN -->
+                        <select class="time-period-select" id="timePeriodSelect" onchange="switchTimePeriod()">
+                            <option value="today">Today</option>
+                            <option value="thisweek">This Week</option>
+                            <option value="thismonth">This Month</option>
+                        </select>
+                        
                         <select class="filter-select" id="historyTableFilter" onchange="filterHistory()">
                             <option value="all">All Tables</option>
                         </select>
@@ -1409,7 +1397,7 @@
         };
 
         // ============================================================================
-        // TIMEZONE & CALENDAR PERIOD MANAGEMENT - NEW!
+        // TIMEZONE & CALENDAR PERIOD MANAGEMENT
         // ============================================================================
 
         // Current time period state
@@ -1577,19 +1565,12 @@
             });
         }
 
-        // Switch time period
-        function switchTimePeriod(newPeriod) {
+        // Switch time period - NEW DROPDOWN APPROACH
+        function switchTimePeriod() {
+            const selectElement = document.getElementById('timePeriodSelect');
+            const newPeriod = selectElement.value;
+            
             console.log(`🕐 Switching to time period: ${newPeriod}`);
-            
-            // Update UI
-            document.querySelectorAll('.time-period-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            const selectedBtn = document.querySelector(`[data-period="${newPeriod}"]`);
-            if (selectedBtn) {
-                selectedBtn.classList.add('active');
-            }
             
             currentTimePeriod = newPeriod;
             
@@ -1601,6 +1582,9 @@
             
             // Update stats for current period
             updateStatsForCurrentPeriod();
+            
+            // Reload history orders with new period
+            loadHistoryOrders();
             
             debugLog(`📅 Time period switched to: ${newPeriod}`);
         }
@@ -1913,7 +1897,7 @@
         // Cache for menu items and settings
         const appCache = {
             menuItems: new Map(),
-            currency: { code: 'USD', symbol: '$' },
+            currency: { code: 'USD', symbol: ' },
             tableCount: 20,
             lastRefresh: 0,
             refreshCooldown: 2000
@@ -2151,7 +2135,7 @@
                         return;
                     }
                     
-                    appCache.currency = restaurant.currency || { code: 'USD', symbol: '$' };
+                    appCache.currency = restaurant.currency || { code: 'USD', symbol: ' };
                     appCache.tableCount = parseInt(restaurant.tableCount) || 20;
                     
                     resolve(restaurant);
@@ -2460,7 +2444,6 @@
         function setupUIComponents() {
             try {
                 populateTableFilters();
-                setTodayDate();
                 updateConnectionStatus(true, 'Connected');
                 renderEmptyState();
                 debugLog('✅ UI components set up');
@@ -2887,58 +2870,29 @@
                 showLoading('Loading order history...');
                 debugLog('🔍 Loading history orders with timezone awareness...');
                 
-                const dateFilterValue = document.getElementById('dateFilter').value;
-                
-                let historySnapshot;
-                let isDateFiltered = false;
-                let selectedDateStr = '';
-                
-                if (dateFilterValue) {
-                    isDateFiltered = true;
-                    const [year, month, day] = dateFilterValue.split('-');
-                    const targetDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                    selectedDateStr = targetDate.toLocaleDateString();
-                    
-                    // Use timezone-aware boundaries for the selected date
-                    const startOfDay = new Date(targetDate);
-                    startOfDay.setHours(0, 0, 0, 0);
-                    
-                    const endOfDay = new Date(targetDate);
-                    endOfDay.setHours(23, 59, 59, 999);
-                    
-                    historySnapshot = await firebase.firestore()
-                        .collection('orders')
-                        .where('restaurantId', '==', currentRestaurant.id)
-                        .where('createdAt', '>=', startOfDay)
-                        .where('createdAt', '<=', endOfDay)
-                        .orderBy('createdAt', 'desc')
-                        .get();
-                } else {
-                    historySnapshot = await firebase.firestore()
-                        .collection('orders')
-                        .where('restaurantId', '==', currentRestaurant.id)
-                        .orderBy('createdAt', 'desc')
-                        .limit(100)
-                        .get();
-                }
+                // Get all orders for the current period
+                const ordersSnapshot = await firebase.firestore()
+                    .collection('orders')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .orderBy('createdAt', 'desc')
+                    .limit(500)
+                    .get();
                 
                 historyOrders.clear();
-                let completedFound = 0;
                 
-                historySnapshot.docs.forEach(doc => {
-                    const order = { id: doc.id, ...doc.data() };
-                    
+                // Filter orders by current time period and completed/cancelled status
+                const allOrders = ordersSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                const filteredByPeriod = filterOrdersByTimePeriod(allOrders, currentTimePeriod, currentRestaurant);
+                
+                filteredByPeriod.forEach(order => {
                     if (['completed', 'cancelled'].includes(order.status)) {
-                        completedFound++;
-                        historyOrders.set(doc.id, order);
+                        historyOrders.set(order.id, order);
                     }
                 });
-                
-                window.currentHistoryFilter = {
-                    isDateFiltered,
-                    selectedDateStr,
-                    hasOrders: historyOrders.size > 0
-                };
                 
                 renderHistoryOrders();
                 hideLoading();
@@ -2957,45 +2911,15 @@
             
             const ordersArray = Array.from(historyOrders.values());
             
-            const filterContext = window.currentHistoryFilter || {
-                isDateFiltered: false,
-                selectedDateStr: '',
-                hasOrders: ordersArray.length > 0
-            };
-            
             if (ordersArray.length === 0) {
-                let emptyMessage, emptyDescription, actionButtons;
-                
-                if (filterContext.isDateFiltered) {
-                    emptyMessage = `No orders found for ${filterContext.selectedDateStr}`;
-                    emptyDescription = 'No orders were completed on this date';
-                    actionButtons = `
-                        <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                            <button class="btn btn-secondary" onclick="clearDateFilter()">
-                                Show All Recent Orders
-                            </button>
-                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
-                                Debug History
-                            </button>
-                        </div>
-                    `;
-                } else {
-                    emptyMessage = 'No order history found';
-                    emptyDescription = 'Complete some orders to see them appear here';
-                    actionButtons = `
-                        <div style="margin-top: 15px;">
-                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
-                                Debug History
-                            </button>
-                        </div>
-                    `;
-                }
+                const periodName = currentTimePeriod === 'today' ? 'today' :
+                                currentTimePeriod === 'thisweek' ? 'this week' :
+                                currentTimePeriod === 'thismonth' ? 'this month' : 'this period';
                 
                 grid.innerHTML = `
                     <div class="empty-state">
-                        <h3>${emptyMessage}</h3>
-                        <p>${emptyDescription}</p>
-                        ${actionButtons}
+                        <h3>No orders found for ${periodName}</h3>
+                        <p>Completed orders for the selected period will appear here</p>
                     </div>
                 `;
                 return;
@@ -3068,8 +2992,17 @@
             
             currentTab = tab;
             
+            // Show/hide stats and insights based on current tab
+            const statsGrid = document.getElementById('statsGrid');
+            const periodInsights = document.getElementById('periodInsights');
+            
             if (tab === 'history') {
+                if (statsGrid) statsGrid.classList.add('show');
+                if (periodInsights) periodInsights.classList.add('show');
                 loadHistoryOrders();
+            } else {
+                if (statsGrid) statsGrid.classList.remove('show');
+                if (periodInsights) periodInsights.classList.remove('show');
             }
         }
 
@@ -3150,14 +3083,6 @@
                 option.textContent = `Table ${i}`;
                 liveTableFilter.appendChild(option.cloneNode(true));
                 historyTableFilter.appendChild(option.cloneNode(true));
-            }
-        }
-
-        function setTodayDate() {
-            const today = new Date().toISOString().split('T')[0];
-            const dateFilter = document.getElementById('dateFilter');
-            if (dateFilter) {
-                dateFilter.value = today;
             }
         }
 
@@ -3375,14 +3300,6 @@
         document.addEventListener('touchstart', initializeAudioContext, { once: true });
 
         // Helper functions for history
-        function clearDateFilter() {
-            const dateFilter = document.getElementById('dateFilter');
-            if (dateFilter) {
-                dateFilter.value = '';
-                loadHistoryOrders();
-            }
-        }
-
         function clearHistoryFilters() {
             const historyTableFilter = document.getElementById('historyTableFilter');
             const historySearchInput = document.getElementById('historySearchInput');
@@ -3391,44 +3308,6 @@
             if (historySearchInput) historySearchInput.value = '';
             
             renderHistoryOrders();
-        }
-
-        function debugHistoryOrders() {
-            debugLog('🔍 History Debug Info', {
-                historyOrdersCount: historyOrders.size,
-                dateFilter: document.getElementById('dateFilter')?.value,
-                tableFilter: document.getElementById('historyTableFilter')?.value,
-                searchFilter: document.getElementById('historySearchInput')?.value,
-                restaurantId: currentRestaurant?.id,
-                timezone: restaurantTimezone
-            });
-            
-            firebase.firestore()
-                .collection('orders')
-                .where('restaurantId', '==', currentRestaurant.id)
-                .orderBy('createdAt', 'desc')
-                .limit(10)
-                .get()
-                .then(snapshot => {
-                    debugLog('🔍 Direct query result', {
-                        totalDocs: snapshot.docs.length,
-                        orders: snapshot.docs.map(doc => ({
-                            id: doc.id,
-                            orderNumber: doc.data().orderNumber,
-                            status: doc.data().status,
-                            customerName: doc.data().customerName,
-                            createdAt: timestampToDate(doc.data().createdAt, currentRestaurant)
-                        }))
-                    });
-                })
-                .catch(error => {
-                    debugLog('🔍 Direct query failed', error.message);
-                });
-            
-            setTimeout(() => {
-                debugLog('🔍 Force reloading history...');
-                loadHistoryOrders();
-            }, 1000);
         }
 
         // Error handling
