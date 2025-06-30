@@ -27,6 +27,12 @@
     <!-- Chart.js for Data Visualization -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- html2canvas for capturing page elements -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
     <style>
         /* iOS Design System */
         * {
@@ -550,7 +556,10 @@
             <section class="report-section" id="financialSummarySection" style="display: none;">
                 <div class="section-header">
                     <h2 class="section-title">Financial Summary</h2>
-                    <button class="export-btn" onclick="exportReport('financial')">Export CSV</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="export-btn" onclick="exportReport('financial', 'csv')">Export CSV</button>
+                        <button class="export-btn" onclick="exportReport('financial', 'pdf')">Export PDF</button>
+                    </div>
                 </div>
                 
                 <div class="summary-grid" id="financialSummaryCards">
@@ -581,7 +590,10 @@
             <section class="report-section" id="orderAnalysisSection" style="display: none;">
                 <div class="section-header">
                     <h2 class="section-title">Order Analysis</h2>
-                    <button class="export-btn" onclick="exportReport('orders')">Export CSV</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="export-btn" onclick="exportReport('orders', 'csv')">Export CSV</button>
+                        <button class="export-btn" onclick="exportReport('orders', 'pdf')">Export PDF</button>
+                    </div>
                 </div>
                 
                 <div class="summary-grid" id="orderSummaryCards">
@@ -613,7 +625,10 @@
             <section class="report-section" id="performanceSection" style="display: none;">
                 <div class="section-header">
                     <h2 class="section-title">Restaurant Performance</h2>
-                    <button class="export-btn" onclick="exportReport('performance')">Export CSV</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="export-btn" onclick="exportReport('performance', 'csv')">Export CSV</button>
+                        <button class="export-btn" onclick="exportReport('performance', 'pdf')">Export PDF</button>
+                    </div>
                 </div>
                 
                 <div class="summary-grid" id="performanceSummaryCards">
@@ -645,7 +660,10 @@
             <section class="report-section" id="lossIncidentsSection" style="display: none;">
                 <div class="section-header">
                     <h2 class="section-title">Loss Incidents</h2>
-                    <button class="export-btn" onclick="exportReport('loss')">Export CSV</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="export-btn" onclick="exportReport('loss', 'csv')">Export CSV</button>
+                        <button class="export-btn" onclick="exportReport('loss', 'pdf')">Export PDF</button>
+                    </div>
                 </div>
                 
                 <div class="summary-grid" id="lossSummaryCards">
@@ -678,7 +696,10 @@
             <section class="report-section" id="comprehensiveSection" style="display: none;">
                 <div class="section-header">
                     <h2 class="section-title">Comprehensive Venue Report</h2>
-                    <button class="export-btn" onclick="exportReport('comprehensive')">Export PDF</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="export-btn" onclick="exportReport('comprehensive', 'csv')">Export CSV</button>
+                        <button class="export-btn" onclick="exportReport('comprehensive', 'pdf')">Export PDF</button>
+                    </div>
                 </div>
                 
                 <div id="comprehensiveReportContent">
@@ -2085,6 +2106,18 @@
                 const description = (incident.description || 'No description').replace(/"/g, '""');
                 csv += `"${incidentDate}","${incident.restaurantName || 'Unknown'}","${incident.type || 'Other'}","${incident.severity || 'Medium'}",${(incident.amount || 0).toFixed(2)},"${incident.status || 'Reported'}","${description}"\n`;
             });
+            
+            return csv;
+        }
+
+        function generateComprehensiveCSV() {
+            const data = reportData.data;
+            let csv = 'Metric,Value\n';
+            csv += `"Total Revenue",${data.totalRevenue.toFixed(2)}\n`;
+            csv += `"Total Orders",${data.totalOrders}\n`;
+            csv += `"Total Losses",${data.totalLoss.toFixed(2)}\n`;
+            csv += `"Net Revenue",${data.netRevenue.toFixed(2)}\n`;
+            csv += `"Active Restaurants",${venueRestaurants.length}\n`;
             
             return csv;
         }
