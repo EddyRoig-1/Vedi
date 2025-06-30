@@ -351,6 +351,33 @@
             border-color: #007AFF;
         }
 
+        /* Chart Section - Updated to match incident reports */
+        .chart-section {
+            background: #FFFFFF;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #000000;
+        }
+
+        .chart-container {
+            height: 400px;
+            position: relative;
+        }
+
         /* Incidents List */
         .incidents-section {
             background-color: #FFFFFF;
@@ -516,45 +543,6 @@
             font-weight: 500;
             background-color: #F1F3F4;
             color: #1D1D1F;
-        }
-
-        /* Charts Section */
-        .charts-section {
-            margin-bottom: 32px;
-        }
-
-        .charts-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
-
-        .chart-card {
-            background-color: #FFFFFF;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .chart-header {
-            margin-bottom: 24px;
-        }
-
-        .chart-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #000000;
-            margin-bottom: 4px;
-        }
-
-        .chart-subtitle {
-            font-size: 13px;
-            color: #86868B;
-        }
-
-        .chart-container {
-            position: relative;
-            height: 250px;
         }
 
         /* Modal Styles */
@@ -735,10 +723,6 @@
                 grid-template-columns: 1fr;
             }
 
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
-
             .incident-main {
                 flex-direction: column;
                 gap: 12px;
@@ -798,8 +782,6 @@
 
         <!-- Main Content -->
         <main class="main-content">
-
-
             <!-- Loss Analytics Overview -->
             <section class="loss-overview">
                 <div class="loss-card danger">
@@ -839,17 +821,17 @@
                 </div>
             </section>
 
-            <!-- Filter and Search Controls -->
+            <!-- Filter and Search Controls - Updated to match incident reports -->
             <section class="controls-section">
                 <div class="controls-row">
                     <div class="control-group">
                         <label class="control-label">Time Period</label>
                         <select class="control-select" id="timePeriod">
+                            <option value="today">Today</option>
                             <option value="week">This Week</option>
                             <option value="month" selected>This Month</option>
                             <option value="quarter">This Quarter</option>
                             <option value="year">This Year</option>
-                            <option value="all">All Time</option>
                         </select>
                     </div>
                     <div class="control-group">
@@ -859,22 +841,33 @@
                         </select>
                     </div>
                     <div class="control-group">
+                        <label class="control-label">Incident Type</label>
+                        <select class="control-select" id="incidentType">
+                            <option value="all">All Types</option>
+                            <option value="theft">Theft</option>
+                            <option value="accident">Accident</option>
+                            <option value="walkout">Walkout</option>
+                            <option value="recall">Recall</option>
+                            <option value="waste">Food Waste</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Severity Level</label>
+                        <select class="control-select" id="severityFilter">
+                            <option value="all">All Levels</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
                         <label class="control-label">Status</label>
                         <select class="control-select" id="statusFilter">
                             <option value="all">All Status</option>
                             <option value="reported">Reported</option>
                             <option value="investigating">Investigating</option>
                             <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label class="control-label">Severity</label>
-                        <select class="control-select" id="severityFilter">
-                            <option value="all">All Severity</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
                         </select>
                     </div>
                 </div>
@@ -884,28 +877,13 @@
                 </div>
             </section>
 
-            <!-- Loss Analytics Charts -->
-            <section class="charts-section">
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Losses by Category</h3>
-                            <p class="chart-subtitle">Breakdown by incident type</p>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="categoryChart"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Loss Trend</h3>
-                            <p class="chart-subtitle">Monthly loss amounts</p>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="trendChart"></canvas>
-                        </div>
-                    </div>
+            <!-- Combined Chart Section - Matching incident reports exactly -->
+            <section class="chart-section">
+                <div class="chart-header">
+                    <h2 class="section-title" id="chartTitle">Loss Analytics</h2>
+                </div>
+                <div class="chart-container">
+                    <canvas id="combinedChart"></canvas>
                 </div>
             </section>
 
@@ -1008,14 +986,15 @@
         let venueRestaurants = [];
         let allLossIncidents = [];
         let filteredIncidents = [];
-        let charts = {};
+        let combinedChart = null;
         let realTimeUnsubscribe = null;
         let selectedIncident = null;
         let currentFilters = {
             timePeriod: 'month',
             restaurant: 'all',
-            status: 'all',
-            severity: 'all'
+            incidentType: 'all',
+            severity: 'all',
+            status: 'all'
         };
 
         // Currency cache for formatting
@@ -1024,12 +1003,348 @@
             lastRefresh: 0
         };
 
+        // Venue timezone (default to UTC, will be updated when venue loads)
+        let venueTimezone = 'UTC';
+
+        // Define consistent color scheme for incident types (matching incident reports)
+        const INCIDENT_TYPE_COLORS = {
+            'theft': '#ef4444',      // Red - for theft/security issues
+            'accident': '#8b5cf6',   // Purple - for accidents
+            'walkout': '#f59e0b',    // Orange - for customer walkouts
+            'recall': '#06b6d4',     // Cyan - for product recalls
+            'waste': '#10b981',      // Green - for food waste
+            'other': '#6b7280'       // Gray - for other incidents
+        };
+
+        function getIncidentTypeColor(type) {
+            return INCIDENT_TYPE_COLORS[type] || INCIDENT_TYPE_COLORS['other'];
+        }
+
+        function formatIncidentTypeClean(type) {
+            const typeMap = {
+                'theft': 'Theft',
+                'accident': 'Accident',
+                'walkout': 'Walkout',
+                'recall': 'Recall',
+                'waste': 'Food Waste',
+                'other': 'Other'
+            };
+            return typeMap[type] || (type || 'Unknown');
+        }
+
+        // ============================================================================
+        // CALENDAR-BASED TIME PERIOD LOGIC (FROM INCIDENT REPORTS)
+        // ============================================================================
+
+        /**
+         * Get calendar-based time period boundaries in venue's timezone
+         */
+        function getCalendarPeriodBoundaries(timePeriod) {
+            try {
+                // Fallback calendar logic
+                const now = new Date();
+                const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: venueTimezone }));
+                
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        const todayStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate());
+                        const todayEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59, 999);
+                        return { start: todayStart, end: todayEnd };
+                        
+                    case 'week':
+                        // Get current week Monday to Sunday
+                        const dayOfWeek = nowInTimezone.getDay();
+                        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                        const weekStart = new Date(nowInTimezone);
+                        weekStart.setDate(nowInTimezone.getDate() + mondayOffset);
+                        weekStart.setHours(0, 0, 0, 0);
+                        
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        weekEnd.setHours(23, 59, 59, 999);
+                        return { start: weekStart, end: weekEnd };
+                        
+                    case 'month':
+                        // Get current month 1st to last day
+                        const monthStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 1);
+                        const monthEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() + 1, 0, 23, 59, 59, 999);
+                        return { start: monthStart, end: monthEnd };
+                        
+                    case 'quarter':
+                        // Get current quarter start to end
+                        const quarterStartMonth = Math.floor(nowInTimezone.getMonth() / 3) * 3;
+                        const quarterStart = new Date(nowInTimezone.getFullYear(), quarterStartMonth, 1);
+                        const quarterEnd = new Date(nowInTimezone.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+                        return { start: quarterStart, end: quarterEnd };
+                        
+                    case 'year':
+                        // Get current year January 1st to December 31st
+                        const yearStart = new Date(nowInTimezone.getFullYear(), 0, 1);
+                        const yearEnd = new Date(nowInTimezone.getFullYear(), 11, 31, 23, 59, 59, 999);
+                        return { start: yearStart, end: yearEnd };
+                        
+                    default:
+                        console.warn('⚠️ Unknown time period, defaulting to today:', timePeriod);
+                        const defaultStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate());
+                        const defaultEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate(), 23, 59, 59, 999);
+                        return { start: defaultStart, end: defaultEnd };
+                }
+            } catch (error) {
+                console.error('❌ Error getting calendar period boundaries:', error);
+                const fallbackStart = new Date();
+                fallbackStart.setHours(0, 0, 0, 0);
+                const fallbackEnd = new Date();
+                fallbackEnd.setHours(23, 59, 59, 999);
+                return { start: fallbackStart, end: fallbackEnd };
+            }
+        }
+
+        /**
+         * Convert timestamp to date in venue's timezone
+         */
+        function timestampToDate(timestamp) {
+            try {
+                let date;
+                if (timestamp && timestamp.toDate) {
+                    date = timestamp.toDate();
+                } else if (timestamp && timestamp.seconds) {
+                    date = new Date(timestamp.seconds * 1000);
+                } else {
+                    date = new Date(timestamp);
+                }
+                
+                // Convert to venue timezone
+                return new Date(date.toLocaleString('en-US', { timeZone: venueTimezone }));
+            } catch (error) {
+                console.error('❌ Timestamp conversion error:', error);
+                return new Date();
+            }
+        }
+
+        /**
+         * Filter incidents by calendar time period in venue's timezone
+         */
+        function filterIncidentsByTimePeriod(incidents, timePeriod) {
+            try {
+                const boundaries = getCalendarPeriodBoundaries(timePeriod);
+                if (!boundaries.start || !boundaries.end) return incidents;
+                
+                return incidents.filter(incident => {
+                    const incidentDate = timestampToDate(incident.createdAt);
+                    return incidentDate >= boundaries.start && incidentDate <= boundaries.end;
+                });
+            } catch (error) {
+                console.error('❌ Error filtering incidents by time period:', error);
+                return incidents;
+            }
+        }
+
+        // ============================================================================
+        // SMART CHART GENERATION (FROM INCIDENT REPORTS)
+        // ============================================================================
+
+        /**
+         * Generate smart chart data based on period type and venue timezone
+         */
+        function generateChartData(incidents, timePeriod) {
+            const boundaries = getCalendarPeriodBoundaries(timePeriod);
+            const labels = [];
+            const incidentsByType = {
+                theft: [], accident: [], walkout: [], 
+                recall: [], waste: [], other: []
+            };
+            const totalLoss = [];
+            
+            try {
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        // Hourly breakdown for today
+                        for (let hour = 0; hour < 24; hour++) {
+                            const hourData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate.getHours() === hour) {
+                                    const type = incident.type || 'other';
+                                    hourData[type] += 1;
+                                    hourData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(`${hour}:00`);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(hourData[type]);
+                            });
+                            totalLoss.push(hourData.loss);
+                        }
+                        break;
+                        
+                    case 'week':
+                        // Daily breakdown for the week (Mon-Sun)
+                        const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                            const currentDay = new Date(boundaries.start);
+                            currentDay.setDate(boundaries.start.getDate() + dayOffset);
+                            
+                            const dayData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate.toDateString() === currentDay.toDateString()) {
+                                    const type = incident.type || 'other';
+                                    dayData[type] += 1;
+                                    dayData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(weekDays[dayOffset]);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(dayData[type]);
+                            });
+                            totalLoss.push(dayData.loss);
+                        }
+                        break;
+                        
+                    case 'month':
+                        // Daily breakdown for the month
+                        const daysInMonth = new Date(boundaries.end.getFullYear(), boundaries.end.getMonth() + 1, 0).getDate();
+                        for (let day = 1; day <= daysInMonth; day++) {
+                            const currentDay = new Date(boundaries.start.getFullYear(), boundaries.start.getMonth(), day);
+                            
+                            const dayData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate.toDateString() === currentDay.toDateString()) {
+                                    const type = incident.type || 'other';
+                                    dayData[type] += 1;
+                                    dayData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(day.toString());
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(dayData[type]);
+                            });
+                            totalLoss.push(dayData.loss);
+                        }
+                        break;
+                        
+                    case 'quarter':
+                        // Monthly breakdown for the quarter
+                        const quarterStartMonth = boundaries.start.getMonth();
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        
+                        for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                            const currentMonth = quarterStartMonth + monthOffset;
+                            const monthStart = new Date(boundaries.start.getFullYear(), currentMonth, 1);
+                            const monthEnd = new Date(boundaries.start.getFullYear(), currentMonth + 1, 0, 23, 59, 59, 999);
+                            
+                            const monthData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate >= monthStart && incidentDate <= monthEnd) {
+                                    const type = incident.type || 'other';
+                                    monthData[type] += 1;
+                                    monthData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(monthNames[currentMonth]);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(monthData[type]);
+                            });
+                            totalLoss.push(monthData.loss);
+                        }
+                        break;
+                        
+                    case 'year':
+                        // Monthly breakdown for the year
+                        const yearMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        
+                        for (let month = 0; month < 12; month++) {
+                            const monthStart = new Date(boundaries.start.getFullYear(), month, 1);
+                            const monthEnd = new Date(boundaries.start.getFullYear(), month + 1, 0, 23, 59, 59, 999);
+                            
+                            const monthData = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            
+                            incidents.forEach(incident => {
+                                const incidentDate = timestampToDate(incident.createdAt);
+                                if (incidentDate >= monthStart && incidentDate <= monthEnd) {
+                                    const type = incident.type || 'other';
+                                    monthData[type] += 1;
+                                    monthData.loss += incident.amount || 0;
+                                }
+                            });
+                            
+                            labels.push(yearMonthNames[month]);
+                            Object.keys(incidentsByType).forEach(type => {
+                                incidentsByType[type].push(monthData[type]);
+                            });
+                            totalLoss.push(monthData.loss);
+                        }
+                        break;
+                        
+                    default:
+                        // Fallback to daily grouping
+                        const lossData = {};
+                        incidents.forEach(incident => {
+                            const date = timestampToDate(incident.createdAt);
+                            const dateKey = date.toISOString().split('T')[0];
+                            if (!lossData[dateKey]) {
+                                lossData[dateKey] = { theft: 0, accident: 0, walkout: 0, recall: 0, waste: 0, other: 0, loss: 0 };
+                            }
+                            const type = incident.type || 'other';
+                            lossData[dateKey][type] += 1;
+                            lossData[dateKey].loss += incident.amount || 0;
+                        });
+                        
+                        const dates = Object.keys(lossData).sort();
+                        labels.push(...dates.map(date => new Date(date).toLocaleDateString()));
+                        Object.keys(incidentsByType).forEach(type => {
+                            incidentsByType[type].push(...dates.map(date => lossData[date][type]));
+                        });
+                        totalLoss.push(...dates.map(date => lossData[date].loss));
+                }
+                
+                return { labels, incidentsByType, totalLoss };
+                
+            } catch (error) {
+                console.error('❌ Error generating chart data:', error);
+                return { 
+                    labels: [], 
+                    incidentsByType: { theft: [], accident: [], walkout: [], recall: [], waste: [], other: [] }, 
+                    totalLoss: [] 
+                };
+            }
+        }
+
+        /**
+         * Update chart title based on selected period and venue timezone
+         */
+        function updateChartTitle(timePeriod) {
+            const titleMap = {
+                'today': 'Today\'s Incidents & Losses (Hourly)',
+                'week': 'This Week\'s Incidents & Losses (Daily)', 
+                'month': 'This Month\'s Incidents & Losses (Daily)',
+                'quarter': 'This Quarter\'s Incidents & Losses (Monthly)',
+                'year': 'This Year\'s Incidents & Losses (Monthly)'
+            };
+            
+            const title = titleMap[timePeriod] || 'Incident Count & Loss Trends';
+            const chartTitleElement = document.getElementById('chartTitle');
+            if (chartTitleElement) {
+                chartTitleElement.textContent = title;
+            }
+        }
+
         // ============================================================================
         // INITIALIZATION
         // ============================================================================
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🍽️ Venue Loss Tracking starting...');
+            console.log('🍽️ Enhanced Venue Loss Tracking starting...');
             
             setTimeout(async () => {
                 try {
@@ -1062,7 +1377,7 @@
                     showLoading(false);
                     showMainContent(true);
                     
-                    console.log('✅ Venue Loss Tracking initialized successfully');
+                    console.log('✅ Enhanced Venue Loss Tracking initialized successfully');
                     
                 } catch (error) {
                     console.error('❌ Initialization error:', error);
@@ -1151,7 +1466,13 @@
                     appCache.currency = venue.currency;
                 }
                 
+                // Set venue timezone if available
+                if (venue.timezone) {
+                    venueTimezone = venue.timezone;
+                }
+                
                 console.log('✅ Venue loaded for loss tracking:', venue.name);
+                console.log('🕐 Venue timezone:', venueTimezone);
                 
             } catch (error) {
                 console.error('❌ Load venue error:', error);
@@ -1175,7 +1496,7 @@
             }
         }
 
-        // FIXED: Load loss incidents from ALL restaurants in the venue
+        // Load loss incidents from ALL restaurants in the venue
         async function loadLossIncidents() {
             try {
                 console.log('🔄 Loading incident data from all restaurants...');
@@ -1183,7 +1504,7 @@
                 // Clear existing incidents
                 allLossIncidents = [];
                 
-                // Use Promise.all for parallel loading instead of sequential
+                // Use Promise.all for parallel loading
                 const incidentPromises = venueRestaurants.map(async (restaurant) => {
                     console.log('📋 Loading incidents from:', restaurant.name);
                     
@@ -1221,7 +1542,7 @@
         }
 
         // ============================================================================
-        // FIXED: REAL-TIME UPDATES - No more duplicates or multiple reloads
+        // REAL-TIME UPDATES
         // ============================================================================
 
         function setupRealTimeUpdates() {
@@ -1277,15 +1598,16 @@
         }
 
         // ============================================================================
-        // EVENT LISTENERS AND FILTERS
+        // EVENT LISTENERS AND FILTERS - Updated with new calendar logic
         // ============================================================================
 
         function setupEventListeners() {
-            // Filter change listeners
+            // Filter change listeners - Updated to include incidentType
             document.getElementById('timePeriod').addEventListener('change', applyFilters);
             document.getElementById('restaurantFilter').addEventListener('change', applyFilters);
-            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+            document.getElementById('incidentType').addEventListener('change', applyFilters);
             document.getElementById('severityFilter').addEventListener('change', applyFilters);
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
             
             // Search listener with debounce
             document.getElementById('searchInput').addEventListener('input', debounce(applyFilters, 300));
@@ -1316,35 +1638,30 @@
             };
         }
 
-        // FIXED: Apply filters - Now properly updates time-sensitive charts
+        // ENHANCED: Apply filters with calendar-based logic
         function applyFilters() {
             try {
                 const timePeriod = document.getElementById('timePeriod').value;
                 const restaurantId = document.getElementById('restaurantFilter').value;
-                const status = document.getElementById('statusFilter').value;
+                const incidentType = document.getElementById('incidentType').value;
                 const severity = document.getElementById('severityFilter').value;
+                const status = document.getElementById('statusFilter').value;
                 const searchTerm = document.getElementById('searchInput').value.toLowerCase();
                 
                 // Update current filters
-                currentFilters = { timePeriod, restaurant: restaurantId, status, severity };
+                currentFilters = { timePeriod, restaurant: restaurantId, incidentType, severity, status };
                 
-                // Start with a clean copy of all incidents (prevent reference issues)
+                // Start with a clean copy of all incidents
                 filteredIncidents = [...allLossIncidents];
                 
-                console.log('🔍 Applying filters to', filteredIncidents.length, 'total incidents');
+                console.log('🔍 Applying calendar-based filters to', filteredIncidents.length, 'total incidents');
                 console.log('📅 Time period filter:', timePeriod);
                 
-                // Apply time filter
+                // Apply time filter using calendar boundaries
                 if (timePeriod !== 'all') {
-                    const startDate = getTimePeriodStart(timePeriod);
-                    if (startDate) {
-                        const beforeFilter = filteredIncidents.length;
-                        filteredIncidents = filteredIncidents.filter(incident => {
-                            const incidentDate = VediAPI.timestampToDate(incident.createdAt);
-                            return incidentDate >= startDate;
-                        });
-                        console.log(`📅 Time filter: ${beforeFilter} → ${filteredIncidents.length} incidents`);
-                    }
+                    const beforeFilter = filteredIncidents.length;
+                    filteredIncidents = filterIncidentsByTimePeriod(filteredIncidents, timePeriod);
+                    console.log(`📅 Calendar time filter: ${beforeFilter} → ${filteredIncidents.length} incidents`);
                 }
                 
                 // Apply restaurant filter
@@ -1354,6 +1671,15 @@
                         incident.restaurantId === restaurantId
                     );
                     console.log(`🏪 Restaurant filter: ${beforeFilter} → ${filteredIncidents.length} incidents`);
+                }
+                
+                // Apply incident type filter
+                if (incidentType !== 'all') {
+                    const beforeFilter = filteredIncidents.length;
+                    filteredIncidents = filteredIncidents.filter(incident => 
+                        incident.type === incidentType
+                    );
+                    console.log(`🏷️ Incident type filter: ${beforeFilter} → ${filteredIncidents.length} incidents`);
                 }
                 
                 // Apply status filter
@@ -1391,7 +1717,7 @@
                 // Update displays
                 updateLossOverview();
                 updateIncidentsList();
-                updateChartsWithTimeRange(); // Use the enhanced chart update function
+                updateCombinedChart(); // Use the new combined chart update function
                 
             } catch (error) {
                 console.error('❌ Apply filters error:', error);
@@ -1403,7 +1729,7 @@
         // UI UPDATES
         // ============================================================================
 
-        // FIXED: Update loss overview - Use unique incidents for calculations
+        // Update loss overview with filtered data
         function updateLossOverview() {
             try {
                 // Remove duplicates for calculations
@@ -1444,7 +1770,7 @@
             }
         }
 
-        // FIXED: Update incidents list - Remove duplicates by ID
+        // Update incidents list with filtered data
         function updateIncidentsList() {
             try {
                 const container = document.getElementById('incidentsList');
@@ -1471,10 +1797,11 @@
                 }
                 
                 container.innerHTML = uniqueIncidents
-                    .sort((a, b) => VediAPI.timestampToDate(b.createdAt) - VediAPI.timestampToDate(a.createdAt))
+                    .sort((a, b) => timestampToDate(b.createdAt) - timestampToDate(a.createdAt))
                     .map(incident => {
-                        const createdDate = VediAPI.timestampToDate(incident.createdAt);
-                        const relativeTime = VediAPI.getRelativeTime(incident.createdAt);
+                        const createdDate = timestampToDate(incident.createdAt);
+                        const relativeTime = VediAPI.getRelativeTime ? VediAPI.getRelativeTime(incident.createdAt) : 
+                            createdDate.toLocaleDateString();
                         
                         return `
                             <div class="incident-item" onclick="openIncidentDetail('${incident.id}')">
@@ -1524,309 +1851,128 @@
         }
 
         // ============================================================================
-        // CHARTS
+        // CHARTS - Updated to use the exact combined chart from incident reports
         // ============================================================================
 
         function initializeCharts() {
-            updateChartsWithTimeRange();
-        }
-
-        function updateCharts() {
-            try {
-                updateCategoryChart();
-                updateTrendChart();
-            } catch (error) {
-                console.error('❌ Update charts error:', error);
-            }
-        }
-
-        // FIXED: Category chart - Now time-range sensitive
-        function updateCategoryChart() {
-            const ctx = document.getElementById('categoryChart').getContext('2d');
-            
-            // Remove duplicates for chart data and use FILTERED incidents (time-sensitive)
-            const uniqueIncidents = filteredIncidents.filter((incident, index, self) => 
-                index === self.findIndex(i => i.id === incident.id)
-            );
-            
-            // Group by category/type
-            const categoryTotals = {};
-            uniqueIncidents.forEach(incident => {
-                const category = incident.type || incident.category || 'other';
-                categoryTotals[category] = (categoryTotals[category] || 0) + (parseFloat(incident.amount) || 0);
-            });
-            
-            const labels = Object.keys(categoryTotals);
-            const data = Object.values(categoryTotals);
-            const colors = ['#007AFF', '#FF3B30', '#30D158', '#FF9500', '#AF52DE', '#00C7BE'];
-            
-            if (charts.category) {
-                charts.category.destroy();
-            }
-            
-            // Handle empty data
-            if (labels.length === 0 || data.every(val => val === 0)) {
-                charts.category = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['No Data'],
-                        datasets: [{
-                            data: [1],
-                            backgroundColor: ['#F1F3F4'],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    usePointStyle: true,
-                                    padding: 15,
-                                    color: '#86868B'
-                                }
-                            },
-                            tooltip: {
-                                enabled: false
-                            }
-                        }
-                    }
-                });
-                return;
-            }
-            
-            charts.category = new Chart(ctx, {
-                type: 'doughnut',
+            // Combined Chart showing incident types (stacked bar) with loss amounts (line)
+            const combinedCtx = document.getElementById('combinedChart').getContext('2d');
+            combinedChart = new Chart(combinedCtx, {
+                type: 'bar',
                 data: {
-                    labels: labels.map(label => formatIncidentType(label)),
-                    datasets: [{
-                        data: data,
-                        backgroundColor: colors.slice(0, labels.length),
-                        borderWidth: 0,
-                        hoverBorderWidth: 2,
-                        hoverBorderColor: '#FFFFFF'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                usePointStyle: true,
-                                padding: 15,
-                                color: '#1D1D1F',
-                                font: {
-                                    size: 12,
-                                    family: '-apple-system, BlinkMacSystemFont, SF Pro Display, sans-serif'
-                                }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleColor: '#FFFFFF',
-                            bodyColor: '#FFFFFF',
-                            borderColor: '#E5E5E7',
+                    labels: [],
+                    datasets: [
+                        // Stacked bar datasets for each incident type
+                        {
+                            type: 'bar',
+                            label: 'Theft',
+                            data: [],
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderColor: '#ef4444',
                             borderWidth: 1,
-                            cornerRadius: 8,
-                            callbacks: {
-                                label: function(context) {
-                                    const percentage = ((context.parsed / data.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
-                                    return `${context.label}: ${formatCurrency(context.parsed)} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    },
-                    cutout: '60%',
-                    animation: {
-                        animateScale: true,
-                        duration: 800
-                    }
-                }
-            });
-        }
-
-        // FIXED: Trend chart - Now properly time-sensitive with better data handling
-        function updateTrendChart() {
-            const ctx = document.getElementById('trendChart').getContext('2d');
-            
-            // Remove duplicates for chart data and use FILTERED incidents (time-sensitive)
-            const uniqueIncidents = filteredIncidents.filter((incident, index, self) => 
-                index === self.findIndex(i => i.id === incident.id)
-            );
-            
-            // Get the current time period to determine appropriate grouping
-            const timePeriod = document.getElementById('timePeriod').value;
-            let groupingFormat, dateFormat, stepSize;
-            
-            switch (timePeriod) {
-                case 'week':
-                    groupingFormat = 'daily';
-                    dateFormat = { day: 'numeric', month: 'short' };
-                    stepSize = 1;
-                    break;
-                case 'month':
-                    groupingFormat = 'daily';
-                    dateFormat = { day: 'numeric', month: 'short' };
-                    stepSize = 3;
-                    break;
-                case 'quarter':
-                    groupingFormat = 'weekly';
-                    dateFormat = { month: 'short', day: 'numeric' };
-                    stepSize = 1;
-                    break;
-                case 'year':
-                    groupingFormat = 'monthly';
-                    dateFormat = { month: 'short', year: 'numeric' };
-                    stepSize = 1;
-                    break;
-                default:
-                    groupingFormat = 'monthly';
-                    dateFormat = { month: 'short', year: 'numeric' };
-                    stepSize = 2;
-            }
-            
-            // Group incidents by appropriate time period
-            const timeGroups = {};
-            
-            uniqueIncidents.forEach(incident => {
-                const date = VediAPI.timestampToDate(incident.createdAt);
-                let timeKey;
-                
-                if (groupingFormat === 'daily') {
-                    timeKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                } else if (groupingFormat === 'weekly') {
-                    const weekStart = new Date(date);
-                    weekStart.setDate(date.getDate() - date.getDay());
-                    timeKey = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
-                } else {
-                    timeKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                }
-                
-                timeGroups[timeKey] = (timeGroups[timeKey] || 0) + (parseFloat(incident.amount) || 0);
-            });
-            
-            // Generate complete time range for selected period
-            const startDate = getTimePeriodStart(timePeriod) || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); // Default to 1 year ago
-            const endDate = new Date();
-            const completeTimeRange = generateTimeRange(startDate, endDate, groupingFormat);
-            
-            // Fill in missing dates with 0 values
-            const labels = [];
-            const amounts = [];
-            
-            completeTimeRange.forEach(timeKey => {
-                const amount = timeGroups[timeKey] || 0;
-                amounts.push(amount);
-                
-                // Format label based on grouping
-                if (groupingFormat === 'daily') {
-                    const [year, month, day] = timeKey.split('-');
-                    const date = new Date(year, month - 1, day);
-                    labels.push(date.toLocaleDateString('en-US', dateFormat));
-                } else if (groupingFormat === 'weekly') {
-                    const [year, month, day] = timeKey.split('-');
-                    const date = new Date(year, month - 1, day);
-                    labels.push(`Week of ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`);
-                } else {
-                    const [year, month] = timeKey.split('-');
-                    const date = new Date(year, month - 1);
-                    labels.push(date.toLocaleDateString('en-US', dateFormat));
-                }
-            });
-            
-            if (charts.trend) {
-                charts.trend.destroy();
-            }
-            
-            // Handle empty data
-            if (amounts.length === 0 || amounts.every(val => val === 0)) {
-                charts.trend = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: ['No Data'],
-                        datasets: [{
-                            label: 'No incidents in selected period',
-                            data: [0],
-                            borderColor: '#F1F3F4',
-                            backgroundColor: 'rgba(241, 243, 244, 0.1)',
-                            borderWidth: 2,
-                            pointRadius: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: true,
-                                labels: {
-                                    color: '#86868B',
-                                    font: {
-                                        size: 12,
-                                        family: '-apple-system, BlinkMacSystemFont, SF Pro Display, sans-serif'
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                enabled: false
-                            }
+                            stack: 'incidents',
+                            yAxisID: 'y'
                         },
-                        scales: {
-                            x: {
-                                display: false
-                            },
-                            y: {
-                                beginAtZero: true,
-                                display: false
-                            }
+                        {
+                            type: 'bar',
+                            label: 'Accident',
+                            data: [],
+                            backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                            borderColor: '#8b5cf6',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Walkout',
+                            data: [],
+                            backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                            borderColor: '#f59e0b',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Recall',
+                            data: [],
+                            backgroundColor: 'rgba(6, 182, 212, 0.8)',
+                            borderColor: '#06b6d4',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Food Waste',
+                            data: [],
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                            borderColor: '#10b981',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Other',
+                            data: [],
+                            backgroundColor: 'rgba(107, 114, 128, 0.8)',
+                            borderColor: '#6b7280',
+                            borderWidth: 1,
+                            stack: 'incidents',
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'line',
+                            label: `Total Loss (${appCache.currency.code})`,
+                            data: [],
+                            borderColor: '#FF3B30',
+                            backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                            borderWidth: 3,
+                            fill: false,
+                            tension: 0.3,
+                            pointBackgroundColor: '#FF3B30',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            yAxisID: 'y1'
                         }
-                    }
-                });
-                return;
-            }
-            
-            charts.trend = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Loss Amount',
-                        data: amounts,
-                        borderColor: '#FF3B30',
-                        backgroundColor: 'rgba(255, 59, 48, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
-                        pointBackgroundColor: '#FF3B30',
-                        pointBorderColor: '#FFFFFF',
-                        pointBorderWidth: 2,
-                        pointHoverBackgroundColor: '#FF3B30',
-                        pointHoverBorderColor: '#FFFFFF',
-                        pointHoverBorderWidth: 3
-                    }]
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: {
+                        mode: 'index',
                         intersect: false,
-                        mode: 'index'
                     },
                     plugins: {
+                        title: {
+                            display: true,
+                            text: 'Incident Count & Loss Trends',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            padding: 20
+                        },
                         legend: {
-                            display: false
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15,
+                                filter: function(item, chart) {
+                                    return true;
+                                }
+                            }
                         },
                         tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleColor: '#FFFFFF',
-                            bodyColor: '#FFFFFF',
-                            borderColor: '#E5E5E7',
+                            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: 'rgba(255, 255, 255, 0.2)',
                             borderWidth: 1,
                             cornerRadius: 8,
                             padding: 12,
@@ -1835,7 +1981,25 @@
                                     return context[0].label;
                                 },
                                 label: function(context) {
-                                    return `Loss: ${formatCurrency(context.parsed.y)}`;
+                                    if (context.datasetIndex === 6) { // Loss line
+                                        return `Total Loss: ${formatCurrency(context.parsed.y)}`;
+                                    } else { // Incident bars
+                                        const count = context.parsed.y;
+                                        if (count > 0) {
+                                            return `${context.dataset.label}: ${count} incident${count > 1 ? 's' : ''}`;
+                                        }
+                                        return null;
+                                    }
+                                },
+                                footer: function(context) {
+                                    let totalIncidents = 0;
+                                    for (let i = 0; i < 6; i++) {
+                                        totalIncidents += context[0].chart.data.datasets[i].data[context[0].dataIndex] || 0;
+                                    }
+                                    if (totalIncidents > 0) {
+                                        return `Total Incidents: ${totalIncidents}`;
+                                    }
+                                    return '';
                                 }
                             }
                         }
@@ -1846,82 +2010,85 @@
                                 display: false
                             },
                             ticks: {
-                                color: '#86868B',
-                                font: {
-                                    size: 11,
-                                    family: '-apple-system, BlinkMacSystemFont, SF Pro Display, sans-serif'
-                                },
-                                maxTicksLimit: 8,
-                                maxRotation: 45
-                            },
-                            border: {
-                                display: false
+                                maxRotation: 45,
+                                minRotation: 0
                             }
                         },
                         y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
                             beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Incidents'
+                            },
                             grid: {
-                                color: '#F1F3F4',
-                                borderDash: [3, 3]
+                                color: 'rgba(0, 0, 0, 0.1)'
                             },
                             ticks: {
-                                color: '#86868B',
-                                font: {
-                                    size: 11,
-                                    family: '-apple-system, BlinkMacSystemFont, SF Pro Display, sans-serif'
-                                },
+                                stepSize: 1,
+                                callback: function(value) {
+                                    if (Number.isInteger(value)) {
+                                        return value;
+                                    }
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: `Loss Amount (${appCache.currency.code})`,
+                                color: '#333'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                            ticks: {
                                 callback: function(value) {
                                     return formatCurrency(value);
-                                },
-                                stepSize: stepSize
-                            },
-                            border: {
-                                display: false
+                                }
                             }
                         }
-                    },
-                    animation: {
-                        duration: 800,
-                        easing: 'easeInOutQuart'
                     }
                 }
             });
+
+            updateCombinedChart();
         }
 
-        // Helper function to generate complete time range
-        function generateTimeRange(startDate, endDate, groupingFormat) {
-            const timeRange = [];
-            const current = new Date(startDate);
-            
-            while (current <= endDate) {
-                let timeKey;
-                
-                if (groupingFormat === 'daily') {
-                    timeKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
-                    current.setDate(current.getDate() + 1);
-                } else if (groupingFormat === 'weekly') {
-                    const weekStart = new Date(current);
-                    weekStart.setDate(current.getDate() - current.getDay());
-                    timeKey = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
-                    current.setDate(current.getDate() + 7);
-                } else {
-                    timeKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
-                    current.setMonth(current.getMonth() + 1);
-                }
-                
-                timeRange.push(timeKey);
-                
-                // Safety check to prevent infinite loops
-                if (timeRange.length > 400) break;
-            }
-            
-            return timeRange;
-        }
+        function updateCombinedChart() {
+            if (!combinedChart) return;
 
-        // Enhanced chart update function that's called when filters change
-        function updateChartsWithTimeRange() {
-            console.log('📊 Updating charts for time period:', currentFilters.timePeriod);
-            updateCharts();
+            // Get time-based data with incident type breakdown using venue timezone
+            const { labels, incidentsByType, totalLoss } = generateChartData(filteredIncidents, currentFilters.timePeriod);
+
+            // Update chart data
+            combinedChart.data.labels = labels;
+            
+            // Update each incident type dataset
+            const incidentTypes = ['theft', 'accident', 'walkout', 'recall', 'waste', 'other'];
+            incidentTypes.forEach((type, index) => {
+                combinedChart.data.datasets[index].data = incidentsByType[type] || [];
+            });
+            
+            // Update loss line dataset
+            combinedChart.data.datasets[6].data = totalLoss;
+            
+            // Update chart title based on filter and timezone
+            updateChartTitle(currentFilters.timePeriod);
+            
+            // Update loss line label with current currency
+            combinedChart.data.datasets[6].label = `Total Loss (${appCache.currency.code})`;
+            
+            // Update y1 axis title with current currency
+            combinedChart.options.scales.y1.title.text = `Loss Amount (${appCache.currency.code})`;
+            
+            combinedChart.update();
         }
 
         // ============================================================================
@@ -1982,7 +2149,7 @@
             if (!incident) return;
             
             selectedIncident = incident;
-            const createdDate = VediAPI.timestampToDate(incident.createdAt);
+            const createdDate = timestampToDate(incident.createdAt);
             
             document.getElementById('incidentDetailTitle').textContent = incident.title || 'Incident Details';
             
@@ -2098,25 +2265,6 @@
             });
         }
 
-        function getTimePeriodStart(timePeriod) {
-            const now = new Date();
-            switch (timePeriod.toLowerCase()) {
-                case 'week':
-                    const weekStart = new Date(now);
-                    weekStart.setDate(now.getDate() - 7);
-                    return weekStart;
-                case 'month':
-                    return new Date(now.getFullYear(), now.getMonth(), 1);
-                case 'quarter':
-                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-                    return new Date(now.getFullYear(), quarterMonth, 1);
-                case 'year':
-                    return new Date(now.getFullYear(), 0, 1);
-                default:
-                    return null;
-            }
-        }
-
         function getIncidentCategory(type) {
             const categoryMap = {
                 'theft': 'external',
@@ -2220,7 +2368,12 @@
             }
         });
 
-        console.log('🍽️ Venue Loss Tracking script loaded successfully');
+        console.log('🍽️ Enhanced Venue Loss Tracking with Calendar Logic & Combined Charts loaded successfully');
+        console.log('📅 NEW: Calendar-based time periods (Mon-Sun weeks, 1st-last day months, Q1-Q4 quarters)');
+        console.log('📊 NEW: Combined chart matching incident reports exactly (stacked bars + loss line)');
+        console.log('🏷️ NEW: Incident type filter selector added');
+        console.log('🕐 NEW: Venue timezone awareness for accurate time filtering');
+        console.log('🔄 Enhanced: All filters now match incident reports interface');
     </script>
 </body>
 </html>
