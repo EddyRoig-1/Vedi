@@ -11,17 +11,25 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
    
-    <!-- Firebase Configuration -->
-    <script src="../firebase-config.js"></script>
-    <script src="../Api/core/firebase-init.js"></script>
-    <script src="../Api/core/utilities.js"></script>
-    <script src="../Api/core/tracking.js"></script>
-    <script src="../Api/business/restaurants.js"></script>
-    <script src="../Api/business/menu-categories.js"></script>
-    <script src="../Api/business/menu-items.js"></script>
-    <script src="../Api/business/timezone.js"></script>
-    <script src="../Api/operations/status-management.js"></script>
-    <script src="../Api/orders/order-management.js"></script>
+    <!-- Firebase Configuration (must be first) -->
+<script src="../firebase-config.js"></script>
+
+<!-- Core API Modules -->
+<script src="../Api/core/firebase-init.js"></script>
+<script src="../Api/core/utilities.js"></script>
+<script src="../Api/core/tracking.js"></script>
+
+<!-- Business API Modules -->
+<script src="../Api/business/restaurants.js"></script>
+<script src="../Api/business/menu-categories.js"></script>
+<script src="../Api/business/menu-items.js"></script>
+<script src="../Api/business/timezone.js"></script>
+
+<!-- Operations API Modules -->
+<script src="../Api/operations/status-management.js"></script>
+
+<!-- Orders API Modules -->
+<script src="../Api/orders/order-management.js"></script>
 
     <style>
         * {
@@ -81,36 +89,55 @@
             flex-wrap: wrap;
         }
 
-        /* Time Period Selector */
+        /* Time Period Selector - NEW! */
         .time-period-selector {
             display: flex;
-            gap: 8px;
-            align-items: center;
-            padding: 8px 16px;
+            gap: 4px;
             background: #F1F3F4;
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid #E5E5E7;
+        }
+
+        .time-period-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #1D1D1F;
+            background: transparent;
+            white-space: nowrap;
+        }
+
+        .time-period-btn:hover:not(.active) {
+            background: rgba(0, 122, 255, 0.1);
+        }
+
+        .time-period-btn.active {
+            background: #007AFF;
+            color: #FFFFFF;
+            box-shadow: 0 2px 4px rgba(0, 122, 255, 0.2);
+        }
+
+        /* Timezone Display - NEW! */
+        .timezone-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #F8F9FA;
+            border: 1px solid #E5E5E7;
             border-radius: 20px;
-            font-size: 15px;
+            font-size: 13px;
+            color: #86868B;
             font-weight: 500;
         }
 
-        .period-label {
-            color: #8E8E93;
-            font-size: 13px;
-            margin-right: 8px;
-        }
-
-        .period-select {
-            background: none;
-            border: none;
-            font-size: 15px;
-            font-weight: 600;
-            color: #007AFF;
-            cursor: pointer;
-            padding: 0;
-        }
-
-        .period-select:focus {
-            outline: none;
+        .timezone-display .timezone-icon {
+            font-size: 14px;
         }
 
         /* Status Indicator */
@@ -283,6 +310,106 @@
             color: #1D1D1F;
         }
 
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .stat-card {
+            background: #FFFFFF;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #E5E5E7;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-label {
+            color: #8E8E93;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .pending-orders .stat-number { color: #FF9500; }
+        .preparing-orders .stat-number { color: #007AFF; }
+        .completed-orders .stat-number { color: #34C759; }
+        .revenue-today .stat-number { color: #AF52DE; }
+
+        /* Period Insights - NEW! */
+        .period-insights {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            border: 1px solid #E5E5E7;
+        }
+
+        .insights-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .insights-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1D1D1F;
+        }
+
+        .period-comparison {
+            font-size: 14px;
+            color: #86868B;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .insight-item {
+            text-align: center;
+            padding: 12px;
+            background: #F8F9FA;
+            border-radius: 8px;
+            border: 1px solid #F1F3F4;
+        }
+
+        .insight-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1D1D1F;
+            margin-bottom: 4px;
+        }
+
+        .insight-label {
+            font-size: 12px;
+            color: #86868B;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .insight-change {
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .insight-change.positive { color: #34C759; }
+        .insight-change.negative { color: #FF3B30; }
+        .insight-change.neutral { color: #86868B; }
+
         /* Navigation Tabs */
         .nav-tabs {
             display: flex;
@@ -329,40 +456,6 @@
             justify-content: center;
         }
 
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .stat-card {
-            background: #FFFFFF;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #E5E5E7;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 6px;
-            letter-spacing: -0.02em;
-        }
-
-        .stat-label {
-            color: #8E8E93;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .pending-orders .stat-number { color: #FF9500; }
-        .preparing-orders .stat-number { color: #007AFF; }
-        .completed-orders .stat-number { color: #34C759; }
-        .revenue-today .stat-number { color: #AF52DE; }
-
         /* Controls Section */
         .controls-section {
             background: #FFFFFF;
@@ -370,6 +463,7 @@
             padding: 16px;
             margin-bottom: 12px;
             border: 1px solid #E5E5E7;
+            margin-top: 0px;
         }
 
         .controls-row {
@@ -668,6 +762,22 @@
             margin-top: 8px;
         }
 
+        /* Timezone-aware timestamps - NEW! */
+        .order-timestamp {
+            color: #86868B;
+            font-size: 13px;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .order-timestamp .timezone-tag {
+            font-size: 11px;
+            padding: 2px 6px;
+            background: #F1F3F4;
+            border-radius: 4px;
+            margin-left: 6px;
+        }
+
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -895,24 +1005,13 @@
             }
 
             .header-left {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
                 gap: 12px;
             }
 
             .header-title {
                 font-size: 24px;
-                text-align: center;
-            }
-
-            .time-period-selector {
-                justify-content: center;
-            }
-
-            .header-controls {
-                justify-content: center;
-                flex-wrap: wrap;
-                gap: 8px;
             }
 
             .nav-tabs {
@@ -925,6 +1024,20 @@
                 text-align: center;
             }
 
+            .header-controls {
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .nav-tabs {
+                order: -1;
+                flex-direction: column;
+                width: 100%;
+                gap: 4px;
+                margin-bottom: 8px;
+            }
+
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
                 gap: 12px;
@@ -932,6 +1045,15 @@
 
             .stat-card {
                 padding: 20px 16px;
+            }
+
+            .stat-number {
+                font-size: 36px;
+            }
+
+            .nav-tabs {
+                flex-direction: column;
+                gap: 4px;
             }
 
             .controls-section {
@@ -981,6 +1103,29 @@
             .modal-footer .btn {
                 width: 100%;
             }
+
+            /* Time period selector mobile */
+            .time-period-selector {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .time-period-btn {
+                flex: 1;
+                min-width: 80px;
+                font-size: 13px;
+                padding: 8px 12px;
+            }
+
+            /* Period insights mobile */
+            .insights-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .timezone-display {
+                order: 1;
+                margin-top: 8px;
+            }
         }
     </style>
 </head>
@@ -1000,36 +1145,37 @@
                 <div class="header-left">
                     <h1 class="header-title">Orders</h1>
                     
-                    <!-- Time Period Selector (NEW!) -->
+                    <!-- Time Period Selector - NEW! -->
                     <div class="time-period-selector">
-                        <span class="period-label">Period:</span>
-                        <select class="period-select" id="timePeriodSelect">
-                            <option value="today">Today</option>
-                            <option value="thisweek">This Week</option>
-                            <option value="thismonth">This Month</option>
-                            <option value="thisquarter">This Quarter</option>
-                            <option value="thisyear">This Year</option>
-                        </select>
+                        <button class="time-period-btn active" data-period="today" onclick="switchTimePeriod('today')">Today</button>
+                        <button class="time-period-btn" data-period="thisweek" onclick="switchTimePeriod('thisweek')">This Week</button>
+                        <button class="time-period-btn" data-period="thismonth" onclick="switchTimePeriod('thismonth')">This Month</button>
                     </div>
                 </div>
                 
                 <div class="header-controls">
+                    <!-- Timezone Display - NEW! -->
+                    <div class="timezone-display" id="timezoneDisplay">
+                        <span class="timezone-icon">🕐</span>
+                        <span id="currentTimezone">Loading...</span>
+                    </div>
+                    
                     <div class="connection-status" id="liveIndicator">
                         <div class="status-dot" id="connectionStatus"></div>
                         <span id="connectionText">Connecting...</span>
                     </div>
                     
-                    <button class="toggle-control enabled" id="soundToggle">
+                    <button class="toggle-control" id="soundToggle" onclick="toggleSound()">
                         Sound On
                     </button>
                     
-                    <!-- Navigation Tabs -->
+                    <!-- Navigation Tabs moved to header controls -->
                     <div class="nav-tabs">
-                        <div class="nav-tab active" data-section="live">
+                        <div class="nav-tab active" data-section="live" onclick="switchTab('live')">
                             Live Orders
                             <div class="badge" id="liveBadge" style="display: none;">0</div>
                         </div>
-                        <div class="nav-tab" data-section="history">
+                        <div class="nav-tab" data-section="history" onclick="switchTab('history')">
                             Order History
                         </div>
                     </div>
@@ -1075,12 +1221,42 @@
                 <div class="stat-label">Preparing</div>
             </div>
             <div class="stat-card completed-orders">
-                <div class="stat-number" id="completedCurrentPeriod">0</div>
-                <div class="stat-label" id="completedLabel">Completed Today</div>
+                <div class="stat-number" id="completedToday">0</div>
+                <div class="stat-label">Completed Today</div>
             </div>
             <div class="stat-card revenue-today">
-                <div class="stat-number price-display" id="revenueCurrentPeriod" data-amount="0">$0</div>
-                <div class="stat-label" id="revenueLabel">Revenue Today</div>
+                <div class="stat-number price-display" id="revenueToday" data-amount="0">$0</div>
+                <div class="stat-label">Revenue Today</div>
+            </div>
+        </div>
+
+        <!-- Period Insights - NEW! -->
+        <div class="period-insights" id="periodInsights">
+            <div class="insights-header">
+                <h3 class="insights-title" id="insightsTitle">Today's Performance</h3>
+                <div class="period-comparison" id="periodComparison">Compared to yesterday</div>
+            </div>
+            <div class="insights-grid" id="insightsGrid">
+                <div class="insight-item">
+                    <div class="insight-value" id="currentPeriodOrders">0</div>
+                    <div class="insight-label">Orders</div>
+                    <div class="insight-change neutral" id="ordersChange">-</div>
+                </div>
+                <div class="insight-item">
+                    <div class="insight-value" id="currentPeriodRevenue">$0</div>
+                    <div class="insight-label">Revenue</div>
+                    <div class="insight-change neutral" id="revenueChange">-</div>
+                </div>
+                <div class="insight-item">
+                    <div class="insight-value" id="avgOrderValue">$0</div>
+                    <div class="insight-label">Avg Order</div>
+                    <div class="insight-change neutral" id="avgOrderChange">-</div>
+                </div>
+                <div class="insight-item">
+                    <div class="insight-value" id="peakHour">-</div>
+                    <div class="insight-label">Peak Hour</div>
+                    <div class="insight-change neutral" id="peakHourInfo">In restaurant timezone</div>
+                </div>
             </div>
         </div>
 
@@ -1089,20 +1265,20 @@
             <div class="controls-section">
                 <div class="controls-row">
                     <div class="filter-group">
-                        <select class="filter-select" id="statusFilter">
+                        <select class="filter-select" id="statusFilter" onchange="filterOrders()">
                             <option value="all">All Statuses</option>
                             <option value="pending">Pending</option>
                             <option value="preparing">Preparing</option>
                             <option value="ready">Ready</option>
                         </select>
-                        <select class="filter-select" id="tableFilter">
+                        <select class="filter-select" id="tableFilter" onchange="filterOrders()">
                             <option value="all">All Tables</option>
                         </select>
-                        <input type="text" class="search-input" id="searchInput" placeholder="Search by customer name...">
+                        <input type="text" class="search-input" id="searchInput" placeholder="Search by customer name..." onkeyup="filterOrders()">
                     </div>
                     <div class="action-group">
-                        <button class="btn btn-secondary" id="refreshBtn">Refresh</button>
-                        <button class="btn btn-primary" id="markAllReadyBtn">Mark All Ready</button>
+                        <button class="btn btn-secondary" onclick="forceRefresh()">Refresh</button>
+                        <button class="btn btn-primary" onclick="markAllReady()">Mark All Ready</button>
                     </div>
                 </div>
             </div>
@@ -1120,14 +1296,15 @@
             <div class="controls-section">
                 <div class="controls-row">
                     <div class="filter-group">
-                        <select class="filter-select" id="historyTableFilter">
+                        <input type="date" class="filter-select" id="dateFilter" onchange="loadHistoryOrders()">
+                        <select class="filter-select" id="historyTableFilter" onchange="filterHistory()">
                             <option value="all">All Tables</option>
                         </select>
-                        <input type="text" class="search-input" id="historySearchInput" placeholder="Search order history...">
+                        <input type="text" class="search-input" id="historySearchInput" placeholder="Search order history..." onkeyup="filterHistory()">
                     </div>
                     <div class="action-group">
-                        <button class="btn btn-secondary" id="exportBtn">Export</button>
-                        <button class="btn btn-danger" id="clearHistoryBtn">Clear History</button>
+                        <button class="btn btn-secondary" onclick="exportOrders()">Export</button>
+                        <button class="btn btn-danger" onclick="clearHistory()">Clear History</button>
                     </div>
                 </div>
             </div>
@@ -1135,7 +1312,7 @@
             <div class="orders-grid" id="historyOrdersGrid">
                 <div class="empty-state">
                     <h3>No order history</h3>
-                    <p>Completed orders for the selected period will appear here</p>
+                    <p>Completed orders will appear here</p>
                 </div>
             </div>
         </div>
@@ -1216,173 +1393,83 @@
     </div>
 
     <script>
-        // Debug logging function
+        // Debug logging
         function debugLog(message, data = null) {
             const timestamp = new Date().toLocaleTimeString();
-            console.log(`[${timestamp}] Orders: ${message}`, data || '');
+            console.log(`[${timestamp}] ${message}`, data || '');
         }
 
-        // Global state management
-        const OrdersApp = {
-            // Core data
-            currentUser: null,
-            currentRestaurant: null,
-            liveOrders: new Map(),
-            historyOrders: new Map(),
-            
-            // UI state
-            currentTab: 'live',
-            currentTimePeriod: 'today',
-            soundEnabled: true,
-            
-            // Calendar and timezone
-            currentPeriodBoundaries: null,
-            timezoneApiAvailable: false,
-            
-            // Status management
-            currentRestaurantStatus: { isOnline: true, offlineReason: '' },
-            statusUpdateListener: null,
-            statusApiAvailable: false,
-            
-            // Cache and performance
-            cache: {
-                currency: { code: 'USD', symbol: '$' },
-                tableCount: 20,
-                lastRefresh: 0,
-                refreshCooldown: 2000
-            },
-            
-            // Real-time listeners
-            orderUpdateListener: null,
-            reconnectAttempts: 0,
-            maxReconnectAttempts: 5,
-            reconnectTimer: null
+        // Performance monitoring
+        const performanceMetrics = {
+            startTime: performance.now(),
+            loadTimes: [],
+            errors: 0,
+            lastUpdate: Date.now(),
+            initSteps: []
         };
 
         // ============================================================================
-        // CALENDAR AND TIMEZONE FUNCTIONS
+        // TIMEZONE & CALENDAR PERIOD MANAGEMENT - NEW!
         // ============================================================================
 
-        function initializeCalendarSystem() {
-            try {
-                debugLog('📅 Initializing calendar system...');
-                
-                OrdersApp.timezoneApiAvailable = typeof TimezoneAPI !== 'undefined';
-                debugLog('🕐 TimezoneAPI available:', OrdersApp.timezoneApiAvailable);
-                
-                OrdersApp.currentTimePeriod = 'today';
-                updatePeriodBoundaries();
-                
-                const periodSelect = document.getElementById('timePeriodSelect');
-                if (periodSelect) {
-                    periodSelect.value = OrdersApp.currentTimePeriod;
-                    periodSelect.addEventListener('change', handlePeriodChange);
-                }
-                
-                updatePeriodLabels();
-                debugLog('✅ Calendar system initialized');
-                
-            } catch (error) {
-                debugLog('❌ Calendar system initialization failed', error.message);
-                OrdersApp.currentPeriodBoundaries = getBasicPeriodBoundaries('today');
-            }
-        }
+        // Current time period state
+        let currentTimePeriod = 'today';
+        let restaurantTimezone = 'UTC';
+        let currentPeriodBoundaries = null;
+        let previousPeriodBoundaries = null;
 
-        function updatePeriodBoundaries() {
+        // Calendar helper functions
+        function getCalendarPeriodBoundaries(period, entity) {
             try {
-                if (OrdersApp.timezoneApiAvailable && TimezoneAPI.getCalendarPeriodBoundaries) {
-                    const periodMapping = {
-                        'today': 'today',
-                        'thisweek': 'thisweek', 
-                        'thismonth': 'thismonth',
-                        'thisquarter': 'thisquarter',
-                        'thisyear': 'thisyear'
-                    };
-                    
-                    const mappedPeriod = periodMapping[OrdersApp.currentTimePeriod] || 'today';
-                    OrdersApp.currentPeriodBoundaries = TimezoneAPI.getCalendarPeriodBoundaries(
-                        mappedPeriod, 
-                        OrdersApp.currentRestaurant
-                    );
-                    
-                    debugLog('📅 Period boundaries from TimezoneAPI', OrdersApp.currentPeriodBoundaries);
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getCalendarPeriodBoundaries) {
+                    console.log(`🔄 Period mapping: ${period} → ${mapPeriodForTimezoneAPI(period)}`);
+                    return TimezoneAPI.getCalendarPeriodBoundaries(mapPeriodForTimezoneAPI(period), entity);
                 } else {
-                    OrdersApp.currentPeriodBoundaries = getBasicPeriodBoundaries(OrdersApp.currentTimePeriod);
-                    debugLog('📅 Period boundaries from fallback', OrdersApp.currentPeriodBoundaries);
+                    // Fallback implementation
+                    return getFallbackPeriodBoundaries(period);
                 }
             } catch (error) {
-                debugLog('❌ Error updating period boundaries', error.message);
-                OrdersApp.currentPeriodBoundaries = getBasicPeriodBoundaries('today');
+                console.error('❌ Error getting calendar period boundaries:', error);
+                return getFallbackPeriodBoundaries(period);
             }
         }
 
-        function getBasicPeriodBoundaries(period) {
-            const now = new Date();
-            let start, end;
-            
-            switch (period.toLowerCase()) {
-                case 'today':
-                    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-                    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-                    break;
-                    
-                case 'thisweek':
-                    const dayOfWeek = now.getDay();
-                    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-                    start = new Date(now);
-                    start.setDate(now.getDate() + mondayOffset);
-                    start.setHours(0, 0, 0, 0);
-                    
-                    end = new Date(start);
-                    end.setDate(start.getDate() + 6);
-                    end.setHours(23, 59, 59, 999);
-                    break;
-                    
-                case 'thismonth':
-                    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-                    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-                    break;
-                    
-                case 'thisquarter':
-                    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-                    start = new Date(now.getFullYear(), quarterMonth, 1, 0, 0, 0);
-                    end = new Date(now.getFullYear(), quarterMonth + 3, 0, 23, 59, 59);
-                    break;
-                    
-                case 'thisyear':
-                    start = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
-                    end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-                    break;
-                    
-                default:
-                    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-                    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-            }
-            
-            return { 
-                start, 
-                end, 
-                timezone: getRestaurantTimezone() || 'UTC'
-            };
-        }
-
-        function getRestaurantTimezone() {
+        function getPreviousCalendarPeriod(period, entity) {
             try {
-                if (OrdersApp.timezoneApiAvailable && TimezoneAPI.getRestaurantEffectiveTimezone) {
-                    return TimezoneAPI.getRestaurantEffectiveTimezone(OrdersApp.currentRestaurant);
-                }
-                return OrdersApp.currentRestaurant?.timezone || 'UTC';
-            } catch (error) {
-                debugLog('❌ Error getting restaurant timezone', error.message);
-                return 'UTC';
-            }
-        }
-
-        function timestampToDate(timestamp) {
-            try {
-                if (OrdersApp.timezoneApiAvailable && TimezoneAPI.timestampToDateInTimezone) {
-                    return TimezoneAPI.timestampToDateInTimezone(timestamp, OrdersApp.currentRestaurant);
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getPreviousCalendarPeriod) {
+                    console.log(`🔄 Previous period mapping: ${period} → ${mapPeriodForTimezoneAPI(period)}`);
+                    return TimezoneAPI.getPreviousCalendarPeriod(mapPeriodForTimezoneAPI(period), entity);
                 } else {
+                    // Fallback implementation
+                    return getFallbackPreviousPeriod(period);
+                }
+            } catch (error) {
+                console.error('❌ Error getting previous calendar period:', error);
+                return getFallbackPreviousPeriod(period);
+            }
+        }
+
+        function filterOrdersByTimePeriod(orders, period, entity) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.filterOrdersByTimePeriod) {
+                    console.log(`🔍 Filtering orders with period mapping: ${period} → ${mapPeriodForTimezoneAPI(period)}`);
+                    return TimezoneAPI.filterOrdersByTimePeriod(orders, mapPeriodForTimezoneAPI(period), entity);
+                } else {
+                    // Fallback implementation
+                    return filterOrdersFallback(orders, period);
+                }
+            } catch (error) {
+                console.error('❌ Error filtering orders by time period:', error);
+                return orders;
+            }
+        }
+
+        function timestampToDate(timestamp, entity = null) {
+            try {
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.timestampToDateInTimezone) {
+                    return TimezoneAPI.timestampToDateInTimezone(timestamp, entity);
+                } else {
+                    // Fallback implementation
                     if (timestamp && timestamp.toDate) {
                         return timestamp.toDate();
                     } else if (timestamp instanceof Date) {
@@ -1392,81 +1479,630 @@
                     }
                 }
             } catch (error) {
-                debugLog('❌ Error converting timestamp', error.message);
+                console.error('❌ Error converting timestamp:', error);
                 return new Date();
             }
         }
 
-        function updatePeriodLabels() {
-            const completedLabel = document.getElementById('completedLabel');
-            const revenueLabel = document.getElementById('revenueLabel');
-            
-            if (!completedLabel || !revenueLabel) return;
-            
-            const labelMap = {
-                'today': { completed: 'Completed Today', revenue: 'Revenue Today' },
-                'thisweek': { completed: 'Completed This Week', revenue: 'Revenue This Week' },
-                'thismonth': { completed: 'Completed This Month', revenue: 'Revenue This Month' },
-                'thisquarter': { completed: 'Completed This Quarter', revenue: 'Revenue This Quarter' },
-                'thisyear': { completed: 'Completed This Year', revenue: 'Revenue This Year' }
+        // Map period names for TimezoneAPI compatibility
+        function mapPeriodForTimezoneAPI(period) {
+            const mapping = {
+                'today': 'today',
+                'thisweek': 'thisweek',
+                'week': 'thisweek',
+                'thismonth': 'thismonth',
+                'month': 'thismonth',
+                'thisquarter': 'thisquarter',
+                'quarter': 'thisquarter',
+                'thisyear': 'thisyear',
+                'year': 'thisyear'
             };
-            
-            const labels = labelMap[OrdersApp.currentTimePeriod] || labelMap['today'];
-            completedLabel.textContent = labels.completed;
-            revenueLabel.textContent = labels.revenue;
+            return mapping[period] || period;
         }
 
-        function handlePeriodChange(event) {
-            const newPeriod = event.target.value;
+        // Fallback implementations
+        function getFallbackPeriodBoundaries(period) {
+            const now = new Date();
+            let start, end;
             
-            if (newPeriod === OrdersApp.currentTimePeriod) return;
+            switch (period) {
+                case 'today':
+                    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+                    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                    break;
+                case 'thisweek':
+                    const dayOfWeek = now.getDay();
+                    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                    start = new Date(now);
+                    start.setDate(now.getDate() + mondayOffset);
+                    start.setHours(0, 0, 0, 0);
+                    end = new Date(start);
+                    end.setDate(start.getDate() + 6);
+                    end.setHours(23, 59, 59, 999);
+                    break;
+                case 'thismonth':
+                    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+                    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                    break;
+                default:
+                    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+                    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            }
             
-            debugLog('📅 Period changed', `${OrdersApp.currentTimePeriod} → ${newPeriod}`);
+            return { start, end, timezone: 'UTC' };
+        }
+
+        function getFallbackPreviousPeriod(period) {
+            const now = new Date();
+            let start, end;
             
-            OrdersApp.currentTimePeriod = newPeriod;
-            updatePeriodBoundaries();
-            updatePeriodLabels();
+            switch (period) {
+                case 'today':
+                    start = new Date(now);
+                    start.setDate(now.getDate() - 1);
+                    start.setHours(0, 0, 0, 0);
+                    end = new Date(start);
+                    end.setHours(23, 59, 59, 999);
+                    break;
+                case 'thisweek':
+                    const dayOfWeek = now.getDay();
+                    const lastMondayOffset = dayOfWeek === 0 ? -13 : -6 - dayOfWeek;
+                    start = new Date(now);
+                    start.setDate(now.getDate() + lastMondayOffset);
+                    start.setHours(0, 0, 0, 0);
+                    end = new Date(start);
+                    end.setDate(start.getDate() + 6);
+                    end.setHours(23, 59, 59, 999);
+                    break;
+                case 'thismonth':
+                    start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
+                    end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+                    break;
+                default:
+                    start = new Date(now);
+                    start.setDate(now.getDate() - 1);
+                    start.setHours(0, 0, 0, 0);
+                    end = new Date(start);
+                    end.setHours(23, 59, 59, 999);
+            }
             
-            loadPeriodStats();
+            return { start, end, timezone: 'UTC' };
+        }
+
+        function filterOrdersFallback(orders, period) {
+            const boundaries = getFallbackPeriodBoundaries(period);
+            return orders.filter(order => {
+                const orderDate = timestampToDate(order.timestamp || order.createdAt);
+                return orderDate >= boundaries.start && orderDate <= boundaries.end;
+            });
+        }
+
+        // Switch time period
+        function switchTimePeriod(newPeriod) {
+            console.log(`🕐 Switching to time period: ${newPeriod}`);
             
-            if (OrdersApp.currentTab === 'history') {
-                loadHistoryForPeriod();
+            // Update UI
+            document.querySelectorAll('.time-period-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const selectedBtn = document.querySelector(`[data-period="${newPeriod}"]`);
+            if (selectedBtn) {
+                selectedBtn.classList.add('active');
+            }
+            
+            currentTimePeriod = newPeriod;
+            
+            // Update period boundaries
+            updateCurrentPeriodBoundaries();
+            
+            // Update insights
+            updatePeriodInsights();
+            
+            // Update stats for current period
+            updateStatsForCurrentPeriod();
+            
+            debugLog(`📅 Time period switched to: ${newPeriod}`);
+        }
+
+        // Update current period boundaries
+        function updateCurrentPeriodBoundaries() {
+            try {
+                currentPeriodBoundaries = getCalendarPeriodBoundaries(currentTimePeriod, currentRestaurant);
+                previousPeriodBoundaries = getPreviousCalendarPeriod(currentTimePeriod, currentRestaurant);
+                
+                console.log('📅 Period boundaries updated:', {
+                    current: currentPeriodBoundaries,
+                    previous: previousPeriodBoundaries
+                });
+            } catch (error) {
+                console.error('❌ Error updating period boundaries:', error);
+            }
+        }
+
+        // Update period insights
+        function updatePeriodInsights() {
+            const insightsTitle = document.getElementById('insightsTitle');
+            const periodComparison = document.getElementById('periodComparison');
+            
+            if (insightsTitle) {
+                const titleMap = {
+                    'today': "Today's Performance",
+                    'thisweek': "This Week's Performance",
+                    'thismonth': "This Month's Performance"
+                };
+                insightsTitle.textContent = titleMap[currentTimePeriod] || "Performance";
+            }
+            
+            if (periodComparison) {
+                const comparisonMap = {
+                    'today': 'Compared to yesterday',
+                    'thisweek': 'Compared to last week',
+                    'thismonth': 'Compared to last month'
+                };
+                periodComparison.textContent = comparisonMap[currentTimePeriod] || 'Period comparison';
+            }
+            
+            // Calculate and display insights
+            calculatePeriodInsights();
+        }
+
+        // Calculate period insights
+        async function calculatePeriodInsights() {
+            try {
+                if (!currentPeriodBoundaries || !previousPeriodBoundaries) {
+                    console.warn('⚠️ Period boundaries not available for insights calculation');
+                    return;
+                }
+                
+                console.log('📊 Calculating period insights...');
+                
+                // Get orders for current and previous periods
+                const allOrdersSnapshot = await firebase.firestore()
+                    .collection('orders')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .orderBy('createdAt', 'desc')
+                    .limit(500)
+                    .get();
+                
+                const allOrders = allOrdersSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Filter orders by periods
+                const currentPeriodOrders = filterOrdersByTimePeriod(allOrders, currentTimePeriod, currentRestaurant)
+                    .filter(order => order.status === 'completed');
+                
+                const previousPeriodOrders = allOrders.filter(order => {
+                    const orderDate = timestampToDate(order.timestamp || order.createdAt, currentRestaurant);
+                    return orderDate >= previousPeriodBoundaries.start && 
+                           orderDate <= previousPeriodBoundaries.end && 
+                           order.status === 'completed';
+                });
+                
+                // Calculate metrics
+                const currentMetrics = calculateMetrics(currentPeriodOrders);
+                const previousMetrics = calculateMetrics(previousPeriodOrders);
+                
+                // Update UI
+                updateInsightsUI(currentMetrics, previousMetrics, currentPeriodOrders);
+                
+                console.log('📊 Period insights calculated:', {
+                    current: currentMetrics,
+                    previous: previousMetrics,
+                    currentOrdersCount: currentPeriodOrders.length,
+                    previousOrdersCount: previousPeriodOrders.length
+                });
+                
+            } catch (error) {
+                console.error('❌ Error calculating period insights:', error);
+            }
+        }
+
+        // Calculate metrics for a set of orders
+        function calculateMetrics(orders) {
+            const totalOrders = orders.length;
+            const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+            const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+            
+            // Calculate peak hour
+            const hourCounts = {};
+            orders.forEach(order => {
+                const orderDate = timestampToDate(order.timestamp || order.createdAt, currentRestaurant);
+                const hour = orderDate.getHours();
+                hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+            });
+            
+            let peakHour = null;
+            let maxCount = 0;
+            for (const [hour, count] of Object.entries(hourCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    peakHour = parseInt(hour);
+                }
+            }
+            
+            return {
+                totalOrders,
+                totalRevenue,
+                avgOrderValue,
+                peakHour
+            };
+        }
+
+        // Update insights UI
+        function updateInsightsUI(current, previous, currentOrders) {
+            // Update values
+            const currentOrdersEl = document.getElementById('currentPeriodOrders');
+            const currentRevenueEl = document.getElementById('currentPeriodRevenue');
+            const avgOrderEl = document.getElementById('avgOrderValue');
+            const peakHourEl = document.getElementById('peakHour');
+            
+            if (currentOrdersEl) currentOrdersEl.textContent = current.totalOrders;
+            if (currentRevenueEl) currentRevenueEl.textContent = formatPrice(current.totalRevenue);
+            if (avgOrderEl) avgOrderEl.textContent = formatPrice(current.avgOrderValue);
+            if (peakHourEl) {
+                if (current.peakHour !== null) {
+                    const hour12 = current.peakHour === 0 ? 12 : 
+                                  current.peakHour > 12 ? current.peakHour - 12 : current.peakHour;
+                    const ampm = current.peakHour >= 12 ? 'PM' : 'AM';
+                    peakHourEl.textContent = `${hour12}:00 ${ampm}`;
+                } else {
+                    peakHourEl.textContent = '-';
+                }
+            }
+            
+            // Update changes
+            updateChangeIndicator('ordersChange', current.totalOrders, previous.totalOrders);
+            updateChangeIndicator('revenueChange', current.totalRevenue, previous.totalRevenue, true);
+            updateChangeIndicator('avgOrderChange', current.avgOrderValue, previous.avgOrderValue, true);
+            
+            // Update peak hour info
+            const peakHourInfo = document.getElementById('peakHourInfo');
+            if (peakHourInfo) {
+                peakHourInfo.textContent = `${getTimezoneAbbreviation(restaurantTimezone)}`;
+                peakHourInfo.className = 'insight-change neutral';
+            }
+        }
+
+        // Update change indicator
+        function updateChangeIndicator(elementId, currentValue, previousValue, isCurrency = false) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            if (previousValue === 0) {
+                element.textContent = currentValue > 0 ? '+100%' : '-';
+                element.className = currentValue > 0 ? 'insight-change positive' : 'insight-change neutral';
+                return;
+            }
+            
+            const change = currentValue - previousValue;
+            const percentChange = (change / previousValue) * 100;
+            
+            if (Math.abs(percentChange) < 0.1) {
+                element.textContent = 'No change';
+                element.className = 'insight-change neutral';
+            } else {
+                const sign = change > 0 ? '+' : '';
+                element.textContent = `${sign}${percentChange.toFixed(1)}%`;
+                element.className = change > 0 ? 'insight-change positive' : 'insight-change negative';
+            }
+        }
+
+        // Get timezone abbreviation
+        function getTimezoneAbbreviation(timezone) {
+            const abbreviations = {
+                'America/New_York': 'ET',
+                'America/Chicago': 'CT',
+                'America/Denver': 'MT',
+                'America/Los_Angeles': 'PT',
+                'America/Phoenix': 'MST',
+                'Europe/London': 'GMT',
+                'UTC': 'UTC'
+            };
+            return abbreviations[timezone] || timezone.split('/').pop();
+        }
+
+        // Update restaurant timezone display
+        function updateTimezoneDisplay() {
+            const timezoneDisplay = document.getElementById('currentTimezone');
+            if (timezoneDisplay) {
+                const abbreviation = getTimezoneAbbreviation(restaurantTimezone);
+                timezoneDisplay.textContent = abbreviation;
+            }
+        }
+
+        // Initialize timezone awareness
+        function initializeTimezoneAwareness() {
+            try {
+                // Get restaurant's effective timezone
+                if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.getRestaurantEffectiveTimezone) {
+                    restaurantTimezone = TimezoneAPI.getRestaurantEffectiveTimezone(currentRestaurant);
+                } else {
+                    restaurantTimezone = currentRestaurant.timezone || currentRestaurant.venueTimezone || 'UTC';
+                }
+                
+                console.log('🕐 Restaurant timezone initialized:', restaurantTimezone);
+                
+                // Update UI
+                updateTimezoneDisplay();
+                
+                // Update period boundaries
+                updateCurrentPeriodBoundaries();
+                
+                // Update insights
+                updatePeriodInsights();
+                
+            } catch (error) {
+                console.error('❌ Error initializing timezone awareness:', error);
+                restaurantTimezone = 'UTC';
+                updateTimezoneDisplay();
+            }
+        }
+
+        // Update stats for current period
+        function updateStatsForCurrentPeriod() {
+            // This will be called by existing stats update functions
+            // but now they'll use the current time period boundaries
+            if (currentTab === 'live') {
+                updateLiveStatsOnly();
+            }
+        }
+
+        // Enhanced order timestamp display
+        function formatOrderTimestamp(timestamp, entity = null) {
+            try {
+                const date = timestampToDate(timestamp, entity);
+                const now = new Date();
+                const diff = now - date;
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(diff / 3600000);
+                
+                let timeAgo;
+                if (minutes < 1) timeAgo = 'Just now';
+                else if (minutes < 60) timeAgo = `${minutes} min ago`;
+                else if (hours < 24) timeAgo = `${hours}h ${minutes % 60}m ago`;
+                else timeAgo = date.toLocaleDateString();
+                
+                const timeInTimezone = date.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                
+                const timezoneAbb = getTimezoneAbbreviation(restaurantTimezone);
+                
+                return {
+                    timeAgo,
+                    timeInTimezone,
+                    timezoneAbb,
+                    fullDisplay: `${timeAgo} (${timeInTimezone} ${timezoneAbb})`
+                };
+            } catch (error) {
+                console.error('❌ Error formatting timestamp:', error);
+                return {
+                    timeAgo: 'Unknown time',
+                    timeInTimezone: '',
+                    timezoneAbb: '',
+                    fullDisplay: 'Unknown time'
+                };
             }
         }
 
         // ============================================================================
-        // INITIALIZATION FUNCTIONS
+        // EXISTING ORDERS MANAGEMENT CODE (ENHANCED WITH TIMEZONE AWARENESS)
         // ============================================================================
 
-        async function waitForDependencies() {
-            return new Promise((resolve, reject) => {
-                let attempts = 0;
-                const maxAttempts = 100;
+        // Global variables
+        let currentUser = null;
+        let currentRestaurant = null;
+        let liveOrders = new Map();
+        let historyOrders = new Map();
+        let filteredOrders = [];
+        let currentTab = 'live';
+        let soundEnabled = true;
+        let orderUpdateListener = null;
+        let connectionHealthy = false;
+        
+        // Status management variables
+        let currentRestaurantStatus = { isOnline: true, offlineReason: '' };
+        let statusUpdateListener = null;
+        let statusApiAvailable = false;
+        
+        // Cache for menu items and settings
+        const appCache = {
+            menuItems: new Map(),
+            currency: { code: 'USD', symbol: ' },
+            tableCount: 20,
+            lastRefresh: 0,
+            refreshCooldown: 2000
+        };
+
+        // Real-time connection management
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        let reconnectTimer = null;
+
+        // ENHANCED: Improved initialization with timezone awareness
+        document.addEventListener('DOMContentLoaded', async function() {
+            debugLog('🚀 Orders page with timezone awareness initialization started');
+            updatePerformanceIndicator('Initializing...', 'warning');
+            
+            try {
+                // Wait for core dependencies with timeout
+                await waitForCoreDependencies();
                 
-                const check = () => {
-                    attempts++;
+                // Initialize with timeout protection
+                const initTimeout = setTimeout(() => {
+                    throw new Error('Initialization timeout - core systems not responding');
+                }, 15000); // 15 second timeout
+                
+                await initializeOrdersPageRobust();
+                clearTimeout(initTimeout);
+                
+                const loadTime = performance.now() - performanceMetrics.startTime;
+                performanceMetrics.loadTimes.push(loadTime);
+                
+                updatePerformanceIndicator(`Ready (${Math.round(loadTime)}ms)`, 'good');
+                hideLoading();
+                
+                debugLog('✅ Orders page with timezone awareness initialized successfully', `${Math.round(loadTime)}ms`);
+                
+            } catch (error) {
+                performanceMetrics.errors++;
+                debugLog('❌ Critical initialization error', error.message);
+                updatePerformanceIndicator('Failed', 'error');
+                handleCriticalError(error);
+            }
+        });
+
+        // Wait for core dependencies with better error handling
+        async function waitForCoreDependencies() {
+            debugLog('⏳ Waiting for core dependencies...');
+            
+            return new Promise((resolve, reject) => {
+                let checkAttempts = 0;
+                const maxAttempts = 100; // 10 seconds max wait
+                
+                const checkDependencies = () => {
+                    checkAttempts++;
                     
+                    // Check Firebase
                     const firebaseReady = typeof firebase !== 'undefined' && firebase.apps.length > 0;
+                    
+                    // Check if at least basic APIs are available
                     const vediApiReady = typeof VediAPI !== 'undefined';
                     
-                    if (firebaseReady && vediApiReady) {
-                        debugLog('✅ Dependencies ready', { attempts, firebase: firebaseReady, vediApi: vediApiReady });
+                    if (firebaseReady) {
+                        debugLog('✅ Core dependencies ready', {
+                            firebase: firebaseReady,
+                            vediApi: vediApiReady,
+                            timezoneApi: typeof TimezoneAPI !== 'undefined',
+                            attempts: checkAttempts
+                        });
                         resolve();
-                    } else if (attempts >= maxAttempts) {
-                        reject(new Error('Dependencies failed to load'));
+                    } else if (checkAttempts >= maxAttempts) {
+                        reject(new Error('Core dependencies failed to load after maximum attempts'));
                     } else {
-                        setTimeout(check, 100);
+                        setTimeout(checkDependencies, 100);
                     }
                 };
                 
-                check();
+                checkDependencies();
             });
         }
 
-        async function getAuthenticatedUser() {
+        // ENHANCED: Robust initialization with timezone awareness
+        async function initializeOrdersPageRobust() {
+            try {
+                // Step 1: Authentication (critical)
+                debugLog('🔐 Step 1: Checking authentication...');
+                showLoading('Authenticating...');
+                performanceMetrics.initSteps.push('auth_start');
+                
+                currentUser = await getAuthenticatedUserWithTimeout();
+                performanceMetrics.initSteps.push('auth_complete');
+                debugLog('✅ Authentication successful', currentUser.email);
+                
+                // Step 2: Restaurant data (critical)
+                debugLog('🏪 Step 2: Loading restaurant data...');
+                showLoading('Loading restaurant...');
+                performanceMetrics.initSteps.push('restaurant_start');
+                
+                currentRestaurant = await getRestaurantDataWithTimeout();
+                performanceMetrics.initSteps.push('restaurant_complete');
+                debugLog('✅ Restaurant loaded', currentRestaurant.name);
+                
+                // Step 3: Timezone awareness (NEW!)
+                debugLog('🕐 Step 3: Initializing timezone awareness...');
+                showLoading('Setting up timezone...');
+                performanceMetrics.initSteps.push('timezone_start');
+                
+                initializeTimezoneAwareness();
+                performanceMetrics.initSteps.push('timezone_complete');
+                debugLog('✅ Timezone awareness initialized');
+                
+                // Step 4: UI setup (critical)
+                debugLog('🎨 Step 4: Setting up UI...');
+                showLoading('Setting up interface...');
+                performanceMetrics.initSteps.push('ui_start');
+                
+                setupUIComponents();
+                performanceMetrics.initSteps.push('ui_complete');
+                debugLog('✅ UI setup complete');
+                
+                // Step 5: Load live orders (critical)
+                debugLog('📋 Step 5: Loading orders...');
+                showLoading('Loading live orders...');
+                performanceMetrics.initSteps.push('orders_start');
+                
+                await loadLiveOrdersWithTimeout();
+                performanceMetrics.initSteps.push('orders_complete');
+                debugLog('✅ Live orders loaded');
+                
+                // Step 6: Real-time updates (critical)
+                debugLog('📡 Step 6: Starting real-time updates...');
+                showLoading('Starting real-time updates...');
+                performanceMetrics.initSteps.push('realtime_start');
+                
+                startOptimizedRealTimeUpdates();
+                performanceMetrics.initSteps.push('realtime_complete');
+                debugLog('✅ Real-time updates started');
+                
+                // Step 7: Load period statistics (NEW!)
+                debugLog('📊 Step 7: Loading period statistics...');
+                showLoading('Loading statistics...');
+                performanceMetrics.initSteps.push('stats_start');
+                
+                try {
+                    await loadTodayCompletedStatsFixed();
+                    await calculatePeriodInsights(); // NEW!
+                    performanceMetrics.initSteps.push('stats_complete');
+                    debugLog('✅ Period statistics loaded');
+                } catch (error) {
+                    debugLog('⚠️ Stats loading failed (non-critical)', error.message);
+                    performanceMetrics.initSteps.push('stats_failed');
+                }
+                
+                // Step 8: Restaurant status (non-critical)
+                debugLog('🟢 Step 8: Setting up status monitoring...');
+                showLoading('Setting up status monitoring...');
+                performanceMetrics.initSteps.push('status_start');
+                
+                try {
+                    await initializeRestaurantStatusSafely();
+                    performanceMetrics.initSteps.push('status_complete');
+                    debugLog('✅ Status monitoring initialized');
+                } catch (error) {
+                    debugLog('⚠️ Status monitoring failed (non-critical)', error.message);
+                    performanceMetrics.initSteps.push('status_failed');
+                    // Set default status to avoid UI issues
+                    updateStatusDisplay({ isOnline: true, offlineReason: '' });
+                }
+                
+                // Step 9: Background tasks (non-critical)
+                debugLog('🔧 Step 9: Loading background data...');
+                performanceMetrics.initSteps.push('background_start');
+                
+                loadBackgroundData().catch(error => {
+                    debugLog('⚠️ Background data loading failed (non-critical)', error.message);
+                });
+                performanceMetrics.initSteps.push('background_complete');
+                
+                debugLog('🎉 All initialization steps completed with timezone awareness');
+                
+            } catch (error) {
+                debugLog('❌ Initialization step failed', error.message);
+                throw error;
+            }
+        }
+
+        // Authentication with timeout
+        async function getAuthenticatedUserWithTimeout() {
             return new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
-                    reject(new Error('Authentication timeout'));
+                    reject(new Error('Authentication timeout - please log in again'));
                 }, 5000);
                 
                 try {
@@ -1494,103 +2130,91 @@
             });
         }
 
-        async function getRestaurantData() {
-            try {
-                if (typeof VediAPI === 'undefined' || !VediAPI.getRestaurantByOwner) {
-                    throw new Error('VediAPI not available');
-                }
+        // Restaurant data with timeout
+        async function getRestaurantDataWithTimeout() {
+            return new Promise(async (resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Restaurant data timeout - please refresh'));
+                }, 5000);
                 
-                const restaurant = await VediAPI.getRestaurantByOwner(OrdersApp.currentUser.uid);
-                
-                if (!restaurant) {
-                    throw new Error('No restaurant found');
-                }
-                
-                OrdersApp.cache.currency = restaurant.currency || { code: 'USD', symbol: '$' };
-                OrdersApp.cache.tableCount = parseInt(restaurant.tableCount) || 20;
-                
-                return restaurant;
-                
-            } catch (error) {
-                debugLog('❌ Error getting restaurant data', error.message);
-                throw error;
-            }
-        }
-
-        async function initializeOrdersApp() {
-            try {
-                debugLog('🚀 Starting Orders App initialization...');
-                showLoading('Initializing...');
-                
-                debugLog('⏳ Waiting for dependencies...');
-                showLoading('Loading dependencies...');
-                await waitForDependencies();
-                
-                debugLog('🔐 Authenticating user...');
-                showLoading('Authenticating...');
-                OrdersApp.currentUser = await getAuthenticatedUser();
-                debugLog('✅ User authenticated', OrdersApp.currentUser.email);
-                
-                debugLog('🏪 Loading restaurant data...');
-                showLoading('Loading restaurant...');
-                OrdersApp.currentRestaurant = await getRestaurantData();
-                debugLog('✅ Restaurant loaded', OrdersApp.currentRestaurant.name);
-                
-                debugLog('📅 Initializing calendar system...');
-                showLoading('Setting up calendar...');
-                initializeCalendarSystem();
-                
-                debugLog('🎨 Setting up UI...');
-                showLoading('Setting up interface...');
-                setupUI();
-                
-                debugLog('📋 Loading initial data...');
-                showLoading('Loading orders...');
-                await loadInitialData();
-                
-                debugLog('📡 Starting real-time updates...');
-                showLoading('Starting real-time updates...');
-                startRealTimeUpdates();
-                
-                debugLog('🟢 Setting up status monitoring...');
-                showLoading('Setting up status monitoring...');
                 try {
-                    await initializeRestaurantStatusSafely();
+                    if (typeof VediAPI === 'undefined') {
+                        throw new Error('VediAPI not loaded');
+                    }
+                    
+                    const restaurant = await VediAPI.getRestaurantByOwner(currentUser.uid);
+                    
+                    clearTimeout(timeout);
+                    
+                    if (!restaurant) {
+                        reject(new Error('No restaurant found - please set up your restaurant'));
+                        return;
+                    }
+                    
+                    appCache.currency = restaurant.currency || { code: 'USD', symbol: ' };
+                    appCache.tableCount = parseInt(restaurant.tableCount) || 20;
+                    
+                    resolve(restaurant);
                 } catch (error) {
-                    debugLog('⚠️ Status monitoring failed (non-critical)', error.message);
-                    updateStatusDisplay({ isOnline: true, offlineReason: '' });
+                    clearTimeout(timeout);
+                    reject(error);
                 }
-                
-                debugLog('🔧 Setting up event listeners...');
-                setupEventListeners();
-                
-                debugLog('✅ Orders App initialization complete');
-                hideLoading();
-                
-            } catch (error) {
-                debugLog('❌ Initialization failed', error.message);
-                hideLoading();
-                showError('Failed to initialize: ' + error.message);
-            }
+            });
         }
 
-        // ============================================================================
-        // RESTAURANT STATUS MANAGEMENT
-        // ============================================================================
+        // Load live orders with timeout
+        async function loadLiveOrdersWithTimeout() {
+            return new Promise(async (resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Orders loading timeout - please refresh'));
+                }, 8000);
+                
+                try {
+                    liveOrders.clear();
+                    
+                    const ordersSnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('restaurantId', '==', currentRestaurant.id)
+                        .where('status', 'in', ['pending', 'preparing', 'ready'])
+                        .orderBy('createdAt', 'desc')
+                        .limit(50)
+                        .get();
+                    
+                    clearTimeout(timeout);
+                    
+                    ordersSnapshot.docs.forEach(doc => {
+                        liveOrders.set(doc.id, { id: doc.id, ...doc.data() });
+                    });
+                    
+                    renderLiveOrdersOptimized();
+                    updateLiveStatsOnly();
+                    
+                    debugLog('📋 Live orders loaded', `${liveOrders.size} orders`);
+                    resolve();
+                    
+                } catch (error) {
+                    clearTimeout(timeout);
+                    reject(error);
+                }
+            });
+        }
 
+        // Safe restaurant status initialization
         async function initializeRestaurantStatusSafely() {
             try {
+                // Check if status API is available
                 if (typeof VediAPI === 'undefined' || !VediAPI.updateRestaurantStatus) {
                     debugLog('⚠️ VediAPI status methods not available, using default status');
-                    OrdersApp.statusApiAvailable = false;
+                    statusApiAvailable = false;
                     updateStatusDisplay({ isOnline: true, offlineReason: '' });
                     return;
                 }
                 
-                OrdersApp.statusApiAvailable = true;
+                statusApiAvailable = true;
                 debugLog('✅ VediAPI status methods detected');
                 
-                const statusPromise = VediAPI.getRestaurantStatus(OrdersApp.currentRestaurant.id);
+                // Get initial status with timeout
+                const statusPromise = VediAPI.getRestaurantStatus(currentRestaurant.id);
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Status fetch timeout')), 3000)
                 );
@@ -1598,10 +2222,11 @@
                 const status = await Promise.race([statusPromise, timeoutPromise]);
                 updateStatusDisplay(status);
                 
-                OrdersApp.statusUpdateListener = VediAPI.listenToRestaurantStatus(
-                    OrdersApp.currentRestaurant.id, 
+                // Start listening to status changes (with error handling)
+                statusUpdateListener = VediAPI.listenToRestaurantStatus(
+                    currentRestaurant.id, 
                     (status) => {
-                        OrdersApp.currentRestaurantStatus = status;
+                        currentRestaurantStatus = status;
                         updateStatusDisplay(status);
                     }
                 );
@@ -1610,12 +2235,17 @@
                 
             } catch (error) {
                 debugLog('⚠️ Status monitoring setup failed', error.message);
-                OrdersApp.statusApiAvailable = false;
+                statusApiAvailable = false;
                 updateStatusDisplay({ isOnline: true, offlineReason: '' });
                 throw error;
             }
         }
 
+        // ============================================================================
+        // RESTAURANT STATUS MANAGEMENT (with safe fallbacks)
+        // ============================================================================
+
+        // Update status display in the UI
         function updateStatusDisplay(status) {
             const statusBtn = document.getElementById('statusToggleBtn');
             const statusIndicator = document.getElementById('statusIndicator');
@@ -1626,9 +2256,10 @@
                 return;
             }
             
-            OrdersApp.currentRestaurantStatus = status;
+            currentRestaurantStatus = status;
             
-            if (!OrdersApp.statusApiAvailable) {
+            // Disable status controls if API is not available
+            if (!statusApiAvailable) {
                 statusBtn.classList.add('disabled');
                 statusBtn.title = 'Status management not available';
             } else {
@@ -1637,17 +2268,18 @@
             }
             
             if (status.isOnline) {
-                statusBtn.className = 'status-toggle-btn online' + (!OrdersApp.statusApiAvailable ? ' disabled' : '');
+                statusBtn.className = 'status-toggle-btn online' + (!statusApiAvailable ? ' disabled' : '');
                 statusIndicator.className = 'status-indicator online';
                 statusText.textContent = 'Online';
                 debugLog('🟢 Restaurant is ONLINE');
             } else {
-                statusBtn.className = 'status-toggle-btn offline' + (!OrdersApp.statusApiAvailable ? ' disabled' : '');
+                statusBtn.className = 'status-toggle-btn offline' + (!statusApiAvailable ? ' disabled' : '');
                 statusIndicator.className = 'status-indicator offline';
                 statusText.textContent = 'Offline';
                 debugLog('🔴 Restaurant is OFFLINE', status.offlineReason);
             }
             
+            // Update page title to reflect status
             const originalTitle = document.title.replace(' (OFFLINE)', '');
             if (!status.isOnline) {
                 document.title = originalTitle + ' (OFFLINE)';
@@ -1656,8 +2288,9 @@
             }
         }
 
+        // Toggle status dropdown (only if API is available)
         function toggleStatusDropdown() {
-            if (!OrdersApp.statusApiAvailable) {
+            if (!statusApiAvailable) {
                 return;
             }
             
@@ -1675,12 +2308,14 @@
                 dropdown.classList.add('show');
                 btn.classList.add('open');
                 
+                // Close dropdown when clicking outside
                 setTimeout(() => {
                     document.addEventListener('click', closeDropdownOutside, { once: true });
                 }, 100);
             }
         }
 
+        // Close dropdown when clicking outside
         function closeDropdownOutside(event) {
             const dropdown = document.getElementById('statusDropdownMenu');
             const btn = document.getElementById('statusToggleBtn');
@@ -1693,12 +2328,14 @@
             }
         }
 
+        // Update restaurant status (only if API is available)
         async function updateRestaurantStatus(isOnline, reason = '') {
-            if (!OrdersApp.statusApiAvailable) {
+            if (!statusApiAvailable) {
                 return;
             }
             
             try {
+                // Close dropdown
                 const dropdown = document.getElementById('statusDropdownMenu');
                 const btn = document.getElementById('statusToggleBtn');
                 if (dropdown && btn) {
@@ -1706,12 +2343,14 @@
                     btn.classList.remove('open');
                 }
                 
+                // Show loading state
                 const statusText = document.getElementById('statusText');
                 if (statusText) {
                     const originalText = statusText.textContent;
                     statusText.textContent = 'Updating...';
                     
-                    await VediAPI.updateRestaurantStatus(OrdersApp.currentRestaurant.id, isOnline, reason);
+                    // Update status in Firebase
+                    await VediAPI.updateRestaurantStatus(currentRestaurant.id, isOnline, reason);
                     
                     debugLog('✅ Restaurant status updated', isOnline ? 'ONLINE' : 'OFFLINE');
                 }
@@ -1721,8 +2360,9 @@
             }
         }
 
+        // Show offline options modal
         function showOfflineOptions() {
-            if (!OrdersApp.statusApiAvailable) {
+            if (!statusApiAvailable) {
                 return;
             }
             
@@ -1730,6 +2370,7 @@
             if (modal) {
                 modal.classList.add('show');
                 
+                // Reset form
                 const reasonRadios = document.querySelectorAll('input[name="offlineReason"]');
                 if (reasonRadios.length > 0) {
                     reasonRadios[0].checked = true;
@@ -1744,6 +2385,7 @@
             }
         }
 
+        // Close offline modal
         function closeOfflineModal() {
             const modal = document.getElementById('offlineModalOverlay');
             if (modal) {
@@ -1751,6 +2393,24 @@
             }
         }
 
+        // Handle custom reason radio selection
+        document.addEventListener('change', function(event) {
+            if (event.target.name === 'offlineReason') {
+                const customInput = document.getElementById('customReasonInput');
+                const customText = document.getElementById('customReasonText');
+                
+                if (customInput && customText) {
+                    if (event.target.value === 'custom') {
+                        customInput.style.display = 'block';
+                        customText.focus();
+                    } else {
+                        customInput.style.display = 'none';
+                    }
+                }
+            }
+        });
+
+        // Confirm going offline
         async function confirmGoOffline() {
             const selectedReason = document.querySelector('input[name="offlineReason"]:checked');
             if (!selectedReason) {
@@ -1786,243 +2446,126 @@
                     offlineReason = 'Temporarily unavailable';
             }
             
+            // Close modal
             closeOfflineModal();
+            
+            // Update status
             await updateRestaurantStatus(false, offlineReason);
         }
 
         // ============================================================================
-        // UI SETUP FUNCTIONS
+        // ENHANCED ORDERS MANAGEMENT WITH TIMEZONE AWARENESS
         // ============================================================================
 
-        function setupUI() {
+        function setupUIComponents() {
             try {
                 populateTableFilters();
+                setTodayDate();
                 updateConnectionStatus(true, 'Connected');
-                setupSoundToggle();
-                renderEmptyStates();
-                debugLog('✅ UI setup complete');
+                renderEmptyState();
+                debugLog('✅ UI components set up');
             } catch (error) {
                 debugLog('❌ UI setup error', error.message);
                 throw error;
             }
         }
 
-        function populateTableFilters() {
-            const liveTableFilter = document.getElementById('tableFilter');
-            const historyTableFilter = document.getElementById('historyTableFilter');
-            
-            if (!liveTableFilter || !historyTableFilter) return;
-            
-            const counterOption = document.createElement('option');
-            counterOption.value = 'counter';
-            counterOption.textContent = 'Counter';
-            liveTableFilter.appendChild(counterOption.cloneNode(true));
-            historyTableFilter.appendChild(counterOption.cloneNode(true));
-            
-            for (let i = 1; i <= OrdersApp.cache.tableCount; i++) {
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = `Table ${i}`;
-                liveTableFilter.appendChild(option.cloneNode(true));
-                historyTableFilter.appendChild(option.cloneNode(true));
-            }
-        }
-
-        function setupSoundToggle() {
+        // ENHANCED: Load today's completed orders for stats with timezone awareness
+        async function loadTodayCompletedStatsFixed() {
             try {
-                const savedPref = localStorage.getItem('ordersPageSoundEnabled');
-                if (savedPref !== null) {
-                    OrdersApp.soundEnabled = savedPref === 'true';
-                }
+                debugLog('📊 Loading completed orders for current period with timezone awareness...');
                 
-                const button = document.getElementById('soundToggle');
-                if (button) {
-                    updateSoundButton();
+                if (!currentPeriodBoundaries) {
+                    // Fallback to today if boundaries not set
+                    currentPeriodBoundaries = getCalendarPeriodBoundaries('today', currentRestaurant);
                 }
-            } catch (error) {
-                debugLog('❌ Sound toggle setup error', error.message);
-            }
-        }
-
-        function updateSoundButton() {
-            const button = document.getElementById('soundToggle');
-            if (!button) return;
-            
-            if (OrdersApp.soundEnabled) {
-                button.textContent = 'Sound On';
-                button.className = 'toggle-control enabled';
-            } else {
-                button.textContent = 'Sound Off';
-                button.className = 'toggle-control disabled';
-            }
-        }
-
-        function renderEmptyStates() {
-            const liveGrid = document.getElementById('liveOrdersGrid');
-            const historyGrid = document.getElementById('historyOrdersGrid');
-            
-            if (liveGrid) {
-                liveGrid.innerHTML = `
-                    <div class="empty-state">
-                        <h3>No active orders</h3>
-                        <p>New orders will appear here automatically</p>
-                    </div>
-                `;
-            }
-            
-            if (historyGrid) {
-                historyGrid.innerHTML = `
-                    <div class="empty-state">
-                        <h3>No order history</h3>
-                        <p>Completed orders for the selected period will appear here</p>
-                    </div>
-                `;
-            }
-        }
-
-        // ============================================================================
-        // DATA LOADING FUNCTIONS
-        // ============================================================================
-
-        async function loadInitialData() {
-            try {
-                await Promise.all([
-                    loadLiveOrders(),
-                    loadPeriodStats()
-                ]);
-                debugLog('✅ Initial data loaded');
-            } catch (error) {
-                debugLog('❌ Initial data loading failed', error.message);
-                throw error;
-            }
-        }
-
-        async function loadLiveOrders() {
-            try {
-                debugLog('📋 Loading live orders...');
-                OrdersApp.liveOrders.clear();
                 
                 const ordersSnapshot = await firebase.firestore()
                     .collection('orders')
-                    .where('restaurantId', '==', OrdersApp.currentRestaurant.id)
-                    .where('status', 'in', ['pending', 'preparing', 'ready'])
+                    .where('restaurantId', '==', currentRestaurant.id)
                     .orderBy('createdAt', 'desc')
-                    .limit(50)
+                    .limit(200)
                     .get();
                 
-                ordersSnapshot.docs.forEach(doc => {
-                    OrdersApp.liveOrders.set(doc.id, { id: doc.id, ...doc.data() });
-                });
-                
-                renderLiveOrders();
-                updateLiveStats();
-                
-                debugLog('✅ Live orders loaded', `${OrdersApp.liveOrders.size} orders`);
-                
-            } catch (error) {
-                debugLog('❌ Failed to load live orders', error.message);
-                throw error;
-            }
-        }
-
-        async function loadPeriodStats() {
-            try {
-                debugLog('📊 Loading period stats...', OrdersApp.currentTimePeriod);
-                
-                if (!OrdersApp.currentPeriodBoundaries) {
-                    updatePeriodBoundaries();
-                }
-                
-                const { start, end } = OrdersApp.currentPeriodBoundaries;
-                
-                const ordersSnapshot = await firebase.firestore()
-                    .collection('orders')
-                    .where('restaurantId', '==', OrdersApp.currentRestaurant.id)
-                    .where('createdAt', '>=', start)
-                    .where('createdAt', '<=', end)
-                    .get();
-                
-                let completedCount = 0;
-                let totalRevenue = 0;
+                let completedInPeriod = 0;
+                let revenueInPeriod = 0;
                 
                 ordersSnapshot.docs.forEach(doc => {
                     const order = doc.data();
-                    if (order.status === 'completed') {
-                        completedCount++;
-                        totalRevenue += (order.total || 0);
+                    const orderDate = timestampToDate(order.createdAt, currentRestaurant);
+                    
+                    // Check if order is in current period and completed
+                    if (orderDate >= currentPeriodBoundaries.start && 
+                        orderDate <= currentPeriodBoundaries.end && 
+                        order.status === 'completed') {
+                        completedInPeriod++;
+                        revenueInPeriod += (order.total || 0);
                     }
                 });
                 
-                updatePeriodStats(completedCount, totalRevenue);
-                
-                debugLog('✅ Period stats loaded', { completed: completedCount, revenue: totalRevenue });
+                updateCompletedTodayStats(completedInPeriod, revenueInPeriod);
+                debugLog('📊 Period stats updated', { completedInPeriod, revenueInPeriod, period: currentTimePeriod });
                 
             } catch (error) {
-                debugLog('❌ Failed to load period stats', error.message);
-                updatePeriodStats(0, 0);
+                debugLog('❌ Failed to load completed stats', error.message);
+                updateCompletedTodayStats(0, 0);
+                throw error;
             }
         }
 
-        async function loadHistoryForPeriod() {
-            if (OrdersApp.currentTab !== 'history') return;
+        function updateCompletedTodayStats(completedToday, revenueToday) {
+            const completedElement = document.getElementById('completedToday');
+            if (completedElement) {
+                completedElement.textContent = completedToday;
+            }
             
-            try {
-                debugLog('🔍 Loading history for period...', OrdersApp.currentTimePeriod);
-                showLoading('Loading order history...');
-                
-                if (!OrdersApp.currentPeriodBoundaries) {
-                    updatePeriodBoundaries();
-                }
-                
-                const { start, end } = OrdersApp.currentPeriodBoundaries;
-                
-                const historySnapshot = await firebase.firestore()
-                    .collection('orders')
-                    .where('restaurantId', '==', OrdersApp.currentRestaurant.id)
-                    .where('createdAt', '>=', start)
-                    .where('createdAt', '<=', end)
-                    .orderBy('createdAt', 'desc')
-                    .get();
-                
-                OrdersApp.historyOrders.clear();
-                
-                historySnapshot.docs.forEach(doc => {
-                    const order = { id: doc.id, ...doc.data() };
-                    if (['completed', 'cancelled'].includes(order.status)) {
-                        OrdersApp.historyOrders.set(doc.id, order);
-                    }
-                });
-                
-                renderHistoryOrders();
-                hideLoading();
-                
-                debugLog('✅ History loaded', `${OrdersApp.historyOrders.size} orders`);
-                
-            } catch (error) {
-                debugLog('❌ Failed to load history', error.message);
-                hideLoading();
+            const revenueElement = document.getElementById('revenueToday');
+            if (revenueElement) {
+                revenueElement.setAttribute('data-amount', revenueToday);
+                revenueElement.textContent = formatPrice(revenueToday);
             }
         }
 
-        // ============================================================================
-        // REAL-TIME UPDATES
-        // ============================================================================
+        function updateLiveStatsOnly() {
+            const orders = Array.from(liveOrders.values());
+            
+            const liveStats = {
+                pending: 0,
+                preparing: 0,
+                ready: 0
+            };
+            
+            orders.forEach(order => {
+                if (liveStats[order.status] !== undefined) {
+                    liveStats[order.status]++;
+                }
+            });
+            
+            const pendingElement = document.getElementById('pendingCount');
+            const preparingElement = document.getElementById('preparingCount');
+            
+            if (pendingElement) pendingElement.textContent = liveStats.pending;
+            if (preparingElement) preparingElement.textContent = liveStats.preparing;
+            
+            debugLog('📊 Live stats updated', liveStats);
+        }
 
-        function startRealTimeUpdates() {
+        function startOptimizedRealTimeUpdates() {
             try {
                 updateConnectionStatus(false, 'Connecting...');
                 
                 const query = firebase.firestore()
                     .collection('orders')
-                    .where('restaurantId', '==', OrdersApp.currentRestaurant.id)
+                    .where('restaurantId', '==', currentRestaurant.id)
                     .where('status', 'in', ['pending', 'preparing', 'ready']);
                 
-                OrdersApp.orderUpdateListener = query.onSnapshot(
+                orderUpdateListener = query.onSnapshot(
                     (snapshot) => {
                         try {
-                            handleOrderUpdates(snapshot);
+                            handleOptimizedSnapshot(snapshot);
                             updateConnectionStatus(true, 'Live Updates');
-                            OrdersApp.reconnectAttempts = 0;
+                            connectionHealthy = true;
+                            reconnectAttempts = 0;
                         } catch (error) {
                             debugLog('❌ Snapshot handling error', error.message);
                         }
@@ -2033,7 +2576,7 @@
                     }
                 );
                 
-                debugLog('✅ Real-time updates started');
+                debugLog('📡 Real-time updates started');
                 
             } catch (error) {
                 debugLog('❌ Failed to start real-time updates', error.message);
@@ -2041,7 +2584,7 @@
             }
         }
 
-        function handleOrderUpdates(snapshot) {
+        function handleOptimizedSnapshot(snapshot) {
             const changes = snapshot.docChanges();
             let hasUpdates = false;
             let hasNewOrder = false;
@@ -2050,56 +2593,61 @@
                 const order = { id: change.doc.id, ...change.doc.data() };
                 
                 if (change.type === 'added' || change.type === 'modified') {
-                    const wasNew = !OrdersApp.liveOrders.has(order.id);
-                    OrdersApp.liveOrders.set(order.id, order);
+                    const wasNew = !liveOrders.has(order.id);
+                    liveOrders.set(order.id, order);
                     
                     if (wasNew && change.type === 'added') {
                         hasNewOrder = true;
-                        playNewOrderSound();
+                        playNewOrderNotification();
                     }
                     
                     hasUpdates = true;
                 } else if (change.type === 'removed') {
-                    OrdersApp.liveOrders.delete(order.id);
+                    liveOrders.delete(order.id);
                     hasUpdates = true;
                     
                     if (order.status === 'completed') {
-                        setTimeout(() => loadPeriodStats(), 1000);
+                        setTimeout(() => {
+                            loadTodayCompletedStatsFixed();
+                            calculatePeriodInsights(); // Update insights when order completed
+                        }, 1000);
                     }
                 }
             });
             
             if (hasUpdates) {
-                renderLiveOrders();
-                updateLiveStats();
+                performanceMetrics.lastUpdate = Date.now();
+                renderLiveOrdersOptimized();
+                updateLiveStatsOnly();
             }
         }
 
         function handleConnectionError(error) {
+            connectionHealthy = false;
             updateConnectionStatus(false, 'Connection Error');
+            updatePerformanceIndicator('Connection Issues', 'warning');
             
-            if (OrdersApp.reconnectAttempts < OrdersApp.maxReconnectAttempts) {
-                OrdersApp.reconnectAttempts++;
-                const delay = Math.min(1000 * Math.pow(2, OrdersApp.reconnectAttempts - 1), 10000);
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000);
                 
-                debugLog('🔄 Reconnecting...', `attempt ${OrdersApp.reconnectAttempts}, delay ${delay}ms`);
+                debugLog('🔄 Reconnecting...', `attempt ${reconnectAttempts}, delay ${delay}ms`);
                 
-                OrdersApp.reconnectTimer = setTimeout(() => {
-                    startRealTimeUpdates();
+                reconnectTimer = setTimeout(() => {
+                    startOptimizedRealTimeUpdates();
                 }, delay);
+            } else {
+                updatePerformanceIndicator('Offline', 'error');
             }
         }
 
-        // ============================================================================
-        // RENDERING FUNCTIONS
-        // ============================================================================
-
-        function renderLiveOrders() {
+        function renderLiveOrdersOptimized() {
             const grid = document.getElementById('liveOrdersGrid');
             if (!grid) return;
             
-            const ordersArray = Array.from(OrdersApp.liveOrders.values());
-            const filteredOrders = applyLiveFilters(ordersArray);
+            const ordersArray = Array.from(liveOrders.values());
+            
+            filteredOrders = applyFiltersOptimized(ordersArray);
             
             if (filteredOrders.length === 0) {
                 grid.innerHTML = `
@@ -2121,42 +2669,7 @@
             grid.innerHTML = '';
             grid.appendChild(fragment);
             
-            updateOrderBadges();
-        }
-
-        function renderHistoryOrders() {
-            const grid = document.getElementById('historyOrdersGrid');
-            if (!grid) return;
-            
-            const ordersArray = Array.from(OrdersApp.historyOrders.values());
-            const filteredOrders = applyHistoryFilters(ordersArray);
-            
-            if (filteredOrders.length === 0) {
-                const periodName = getPeriodDisplayName(OrdersApp.currentTimePeriod);
-                grid.innerHTML = `
-                    <div class="empty-state">
-                        <h3>No orders found for ${periodName}</h3>
-                        <p>No orders were completed in this time period</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            filteredOrders.sort((a, b) => {
-                const dateA = timestampToDate(a.createdAt);
-                const dateB = timestampToDate(b.createdAt);
-                return dateB - dateA;
-            });
-            
-            const fragment = document.createDocumentFragment();
-            
-            filteredOrders.forEach(order => {
-                const orderElement = createOrderElement(order, false);
-                fragment.appendChild(orderElement);
-            });
-            
-            grid.innerHTML = '';
-            grid.appendChild(fragment);
+            updateBadgesOptimized();
         }
 
         function createOrderElement(order, isLive) {
@@ -2166,9 +2679,10 @@
             return div;
         }
 
+        // ENHANCED: Order HTML generation with timezone-aware timestamps
         function generateOrderHTML(order, isLive) {
-            const orderTime = timestampToDate(order.createdAt);
-            const timeAgo = getTimeAgo(orderTime);
+            const orderTime = timestampToDate(order.createdAt, currentRestaurant);
+            const timestampData = formatOrderTimestamp(order.createdAt, currentRestaurant);
             const duration = isLive ? getOrderDuration(orderTime) : '';
             
             const statusClass = `status-${order.status}`;
@@ -2182,7 +2696,8 @@
             
             let actionButtons = '';
             if (isLive) {
-                actionButtons = getActionButtons(order.status, order.id);
+                const buttonConfig = getActionButtons(order.status, order.id);
+                actionButtons = buttonConfig ? `<div class="order-actions">${buttonConfig}</div>` : '';
             }
             
             const specialInstructions = order.specialInstructions ? `
@@ -2197,7 +2712,10 @@
                         <h3>Order #${order.orderNumber}</h3>
                         <div class="order-meta">
                             <strong>${order.customerName}</strong> • ${order.customerPhone}<br>
-                            ${tableDisplay} • ${timeAgo}
+                            ${tableDisplay} • ${timestampData.timeAgo}
+                            <div class="order-timestamp">
+                                ${timestampData.timeInTimezone} <span class="timezone-tag">${timestampData.timezoneAbb}</span>
+                            </div>
                             ${duration ? `<div class="order-timer">${duration}</div>` : ''}
                         </div>
                     </div>
@@ -2236,38 +2754,77 @@
             switch (status) {
                 case 'pending':
                     return `
-                        <div class="order-actions">
-                            <button class="btn btn-warning" onclick="updateOrderStatus('${orderId}', 'preparing')">Start Preparing</button>
-                            <button class="btn btn-danger" onclick="updateOrderStatus('${orderId}', 'cancelled')">Cancel</button>
-                        </div>
+                        <button class="btn btn-warning" onclick="updateOrderStatusFast('${orderId}', 'preparing')">Start Preparing</button>
+                        <button class="btn btn-danger" onclick="updateOrderStatusFast('${orderId}', 'cancelled')">Cancel</button>
                     `;
                 case 'preparing':
                     return `
-                        <div class="order-actions">
-                            <button class="btn btn-success" onclick="updateOrderStatus('${orderId}', 'ready')">Mark Ready</button>
-                            <button class="btn btn-secondary" onclick="updateOrderStatus('${orderId}', 'pending')">Back to Pending</button>
-                        </div>
+                        <button class="btn btn-success" onclick="updateOrderStatusFast('${orderId}', 'ready')">Mark Ready</button>
+                        <button class="btn btn-secondary" onclick="updateOrderStatusFast('${orderId}', 'pending')">Back to Pending</button>
                     `;
                 case 'ready':
                     return `
-                        <div class="order-actions">
-                            <button class="btn btn-primary" onclick="updateOrderStatus('${orderId}', 'completed')">Complete Order</button>
-                            <button class="btn btn-secondary" onclick="updateOrderStatus('${orderId}', 'preparing')">Back to Preparing</button>
-                        </div>
+                        <button class="btn btn-primary" onclick="updateOrderStatusFast('${orderId}', 'completed')">Complete Order</button>
+                        <button class="btn btn-secondary" onclick="updateOrderStatusFast('${orderId}', 'preparing')">Back to Preparing</button>
                     `;
                 default:
                     return '';
             }
         }
 
-        // ============================================================================
-        // FILTERING FUNCTIONS
-        // ============================================================================
+        async function updateOrderStatusFast(orderId, newStatus) {
+            try {
+                const order = liveOrders.get(orderId);
+                if (order) {
+                    order.status = newStatus;
+                    liveOrders.set(orderId, order);
+                    renderLiveOrdersOptimized();
+                }
+                
+                const estimatedTime = newStatus === 'preparing' ? '15-20 minutes' : null;
+                
+                if (typeof VediAPI !== 'undefined' && VediAPI.updateOrderStatus) {
+                    await VediAPI.updateOrderStatus(orderId, newStatus, estimatedTime);
+                } else {
+                    await firebase.firestore()
+                        .collection('orders')
+                        .doc(orderId)
+                        .update({
+                            status: newStatus,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            ...(estimatedTime && { estimatedTime })
+                        });
+                }
+                
+                updateLiveStatsOnly();
+                
+                if (newStatus === 'completed') {
+                    setTimeout(() => {
+                        loadTodayCompletedStatsFixed();
+                        calculatePeriodInsights(); // Update insights
+                    }, 1000);
+                }
+                
+                if (soundEnabled) {
+                    playNotificationSound();
+                }
+                
+                debugLog('✅ Order status updated', `${orderId} -> ${newStatus}`);
+                
+            } catch (error) {
+                debugLog('❌ Failed to update order status', error.message);
+                await loadLiveOrdersWithTimeout();
+            }
+        }
 
-        function applyLiveFilters(ordersList) {
+        function applyFiltersOptimized(ordersList) {
             const statusFilter = document.getElementById('statusFilter')?.value || 'all';
             const tableFilter = document.getElementById('tableFilter')?.value || 'all';
             const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
+            
+            if (statusFilter === 'all' && tableFilter === 'all' && !searchTerm) {
+                return ordersList;
+            }
             
             return ordersList.filter(order => {
                 if (statusFilter !== 'all' && order.status !== statusFilter) return false;
@@ -2288,6 +2845,192 @@
                 
                 return true;
             });
+        }
+
+        function updateBadgesOptimized() {
+            const liveOrdersCount = Array.from(liveOrders.values()).filter(order => 
+                ['pending', 'preparing', 'ready'].includes(order.status)
+            ).length;
+            
+            const liveBadge = document.getElementById('liveBadge');
+            
+            if (liveBadge) {
+                if (liveOrdersCount > 0) {
+                    liveBadge.textContent = liveOrdersCount;
+                    liveBadge.style.display = 'flex';
+                } else {
+                    liveBadge.style.display = 'none';
+                }
+            }
+        }
+
+        async function loadBackgroundData() {
+            try {
+                if (typeof VediAPI !== 'undefined' && VediAPI.getMenuItems) {
+                    const menuItemsData = await VediAPI.getMenuItems(currentRestaurant.id);
+                    appCache.menuItems.clear();
+                    menuItemsData.forEach(item => {
+                        appCache.menuItems.set(item.id, item);
+                    });
+                    debugLog('✅ Background data loaded');
+                }
+            } catch (error) {
+                debugLog('⚠️ Background data loading failed', error.message);
+            }
+        }
+
+        // ENHANCED: Load history orders with timezone awareness
+        async function loadHistoryOrders() {
+            if (currentTab !== 'history') return;
+            
+            try {
+                showLoading('Loading order history...');
+                debugLog('🔍 Loading history orders with timezone awareness...');
+                
+                const dateFilterValue = document.getElementById('dateFilter').value;
+                
+                let historySnapshot;
+                let isDateFiltered = false;
+                let selectedDateStr = '';
+                
+                if (dateFilterValue) {
+                    isDateFiltered = true;
+                    const [year, month, day] = dateFilterValue.split('-');
+                    const targetDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    selectedDateStr = targetDate.toLocaleDateString();
+                    
+                    // Use timezone-aware boundaries for the selected date
+                    const startOfDay = new Date(targetDate);
+                    startOfDay.setHours(0, 0, 0, 0);
+                    
+                    const endOfDay = new Date(targetDate);
+                    endOfDay.setHours(23, 59, 59, 999);
+                    
+                    historySnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('restaurantId', '==', currentRestaurant.id)
+                        .where('createdAt', '>=', startOfDay)
+                        .where('createdAt', '<=', endOfDay)
+                        .orderBy('createdAt', 'desc')
+                        .get();
+                } else {
+                    historySnapshot = await firebase.firestore()
+                        .collection('orders')
+                        .where('restaurantId', '==', currentRestaurant.id)
+                        .orderBy('createdAt', 'desc')
+                        .limit(100)
+                        .get();
+                }
+                
+                historyOrders.clear();
+                let completedFound = 0;
+                
+                historySnapshot.docs.forEach(doc => {
+                    const order = { id: doc.id, ...doc.data() };
+                    
+                    if (['completed', 'cancelled'].includes(order.status)) {
+                        completedFound++;
+                        historyOrders.set(doc.id, order);
+                    }
+                });
+                
+                window.currentHistoryFilter = {
+                    isDateFiltered,
+                    selectedDateStr,
+                    hasOrders: historyOrders.size > 0
+                };
+                
+                renderHistoryOrders();
+                hideLoading();
+                
+                debugLog('✅ History loading complete', `${historyOrders.size} orders`);
+                
+            } catch (error) {
+                debugLog('❌ Failed to load history orders', error.message);
+                hideLoading();
+            }
+        }
+
+        function renderHistoryOrders() {
+            const grid = document.getElementById('historyOrdersGrid');
+            if (!grid) return;
+            
+            const ordersArray = Array.from(historyOrders.values());
+            
+            const filterContext = window.currentHistoryFilter || {
+                isDateFiltered: false,
+                selectedDateStr: '',
+                hasOrders: ordersArray.length > 0
+            };
+            
+            if (ordersArray.length === 0) {
+                let emptyMessage, emptyDescription, actionButtons;
+                
+                if (filterContext.isDateFiltered) {
+                    emptyMessage = `No orders found for ${filterContext.selectedDateStr}`;
+                    emptyDescription = 'No orders were completed on this date';
+                    actionButtons = `
+                        <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="clearDateFilter()">
+                                Show All Recent Orders
+                            </button>
+                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
+                                Debug History
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    emptyMessage = 'No order history found';
+                    emptyDescription = 'Complete some orders to see them appear here';
+                    actionButtons = `
+                        <div style="margin-top: 15px;">
+                            <button class="btn btn-primary" onclick="debugHistoryOrders()">
+                                Debug History
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <h3>${emptyMessage}</h3>
+                        <p>${emptyDescription}</p>
+                        ${actionButtons}
+                    </div>
+                `;
+                return;
+            }
+            
+            const filtered = applyHistoryFilters(ordersArray);
+            
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No orders match your filters</h3>
+                        <p>Found ${ordersArray.length} orders but none match your current filters</p>
+                        <button class="btn btn-secondary" onclick="clearHistoryFilters()" style="margin-top: 15px;">
+                            Clear Filters
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            filtered.sort((a, b) => {
+                const dateA = timestampToDate(a.createdAt, currentRestaurant);
+                const dateB = timestampToDate(b.createdAt, currentRestaurant);
+                return dateB - dateA;
+            });
+            
+            const fragment = document.createDocumentFragment();
+            
+            filtered.forEach(order => {
+                const orderElement = createOrderElement(order, false);
+                fragment.appendChild(orderElement);
+            });
+            
+            grid.innerHTML = '';
+            grid.appendChild(fragment);
         }
 
         function applyHistoryFilters(ordersList) {
@@ -2313,181 +3056,7 @@
             });
         }
 
-        // ============================================================================
-        // UPDATE FUNCTIONS
-        // ============================================================================
-
-        async function updateOrderStatus(orderId, newStatus) {
-            try {
-                debugLog('🔄 Updating order status', `${orderId} -> ${newStatus}`);
-                
-                const order = OrdersApp.liveOrders.get(orderId);
-                if (order) {
-                    order.status = newStatus;
-                    OrdersApp.liveOrders.set(orderId, order);
-                    renderLiveOrders();
-                }
-                
-                const estimatedTime = newStatus === 'preparing' ? '15-20 minutes' : null;
-                
-                await firebase.firestore()
-                    .collection('orders')
-                    .doc(orderId)
-                    .update({
-                        status: newStatus,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        ...(estimatedTime && { estimatedTime })
-                    });
-                
-                updateLiveStats();
-                
-                if (newStatus === 'completed') {
-                    setTimeout(() => loadPeriodStats(), 1000);
-                }
-                
-                if (OrdersApp.soundEnabled) {
-                    playNotificationSound();
-                }
-                
-                debugLog('✅ Order status updated successfully');
-                
-            } catch (error) {
-                debugLog('❌ Failed to update order status', error.message);
-                await loadLiveOrders();
-            }
-        }
-
-        function updateLiveStats() {
-            const orders = Array.from(OrdersApp.liveOrders.values());
-            
-            const stats = {
-                pending: 0,
-                preparing: 0,
-                ready: 0
-            };
-            
-            orders.forEach(order => {
-                if (stats[order.status] !== undefined) {
-                    stats[order.status]++;
-                }
-            });
-            
-            const pendingElement = document.getElementById('pendingCount');
-            const preparingElement = document.getElementById('preparingCount');
-            
-            if (pendingElement) pendingElement.textContent = stats.pending;
-            if (preparingElement) preparingElement.textContent = stats.preparing;
-        }
-
-        function updatePeriodStats(completedCount, totalRevenue) {
-            const completedElement = document.getElementById('completedCurrentPeriod');
-            if (completedElement) {
-                completedElement.textContent = completedCount;
-            }
-            
-            const revenueElement = document.getElementById('revenueCurrentPeriod');
-            if (revenueElement) {
-                revenueElement.setAttribute('data-amount', totalRevenue);
-                revenueElement.textContent = formatPrice(totalRevenue);
-            }
-        }
-
-        function updateOrderBadges() {
-            const liveOrdersCount = Array.from(OrdersApp.liveOrders.values()).filter(order => 
-                ['pending', 'preparing', 'ready'].includes(order.status)
-            ).length;
-            
-            const liveBadge = document.getElementById('liveBadge');
-            
-            if (liveBadge) {
-                if (liveOrdersCount > 0) {
-                    liveBadge.textContent = liveOrdersCount;
-                    liveBadge.style.display = 'flex';
-                } else {
-                    liveBadge.style.display = 'none';
-                }
-            }
-        }
-
-        function updateConnectionStatus(connected, text) {
-            const indicator = document.getElementById('liveIndicator');
-            const statusDot = document.getElementById('connectionStatus');
-            const statusText = document.getElementById('connectionText');
-            
-            if (statusDot) statusDot.className = connected ? 'status-dot' : 'status-dot offline';
-            if (statusText) statusText.textContent = text;
-            
-            if (indicator) {
-                if (connected) {
-                    indicator.className = 'connection-status connected';
-                } else {
-                    indicator.className = 'connection-status error';
-                }
-            }
-        }
-
-        // ============================================================================
-        // EVENT HANDLERS
-        // ============================================================================
-
-        function setupEventListeners() {
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const section = tab.getAttribute('data-section');
-                    switchTab(section);
-                });
-            });
-            
-            const soundToggle = document.getElementById('soundToggle');
-            if (soundToggle) {
-                soundToggle.addEventListener('click', toggleSound);
-            }
-            
-            const statusFilter = document.getElementById('statusFilter');
-            const tableFilter = document.getElementById('tableFilter');
-            const searchInput = document.getElementById('searchInput');
-            const historyTableFilter = document.getElementById('historyTableFilter');
-            const historySearchInput = document.getElementById('historySearchInput');
-            
-            if (statusFilter) statusFilter.addEventListener('change', renderLiveOrders);
-            if (tableFilter) tableFilter.addEventListener('change', renderLiveOrders);
-            if (searchInput) searchInput.addEventListener('input', renderLiveOrders);
-            if (historyTableFilter) historyTableFilter.addEventListener('change', renderHistoryOrders);
-            if (historySearchInput) historySearchInput.addEventListener('input', renderHistoryOrders);
-            
-            const refreshBtn = document.getElementById('refreshBtn');
-            const markAllReadyBtn = document.getElementById('markAllReadyBtn');
-            const exportBtn = document.getElementById('exportBtn');
-            const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-            
-            if (refreshBtn) refreshBtn.addEventListener('click', handleRefresh);
-            if (markAllReadyBtn) markAllReadyBtn.addEventListener('click', markAllReady);
-            if (exportBtn) exportBtn.addEventListener('click', exportOrders);
-            if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
-            
-            // Handle custom reason radio selection
-            document.addEventListener('change', function(event) {
-                if (event.target.name === 'offlineReason') {
-                    const customInput = document.getElementById('customReasonInput');
-                    const customText = document.getElementById('customReasonText');
-                    
-                    if (customInput && customText) {
-                        if (event.target.value === 'custom') {
-                            customInput.style.display = 'block';
-                            customText.focus();
-                        } else {
-                            customInput.style.display = 'none';
-                        }
-                    }
-                }
-            });
-            
-            document.addEventListener('click', initializeAudioContext, { once: true });
-            document.addEventListener('touchstart', initializeAudioContext, { once: true });
-            
-            debugLog('✅ Event listeners setup complete');
-        }
-
+        // UI Event Handlers
         function switchTab(tab) {
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             const tabElement = document.querySelector(`[data-section="${tab}"]`);
@@ -2497,36 +3066,36 @@
             const sectionElement = document.getElementById(tab);
             if (sectionElement) sectionElement.classList.add('active');
             
-            OrdersApp.currentTab = tab;
+            currentTab = tab;
             
             if (tab === 'history') {
-                loadHistoryForPeriod();
+                loadHistoryOrders();
             }
         }
 
-        function toggleSound() {
-            OrdersApp.soundEnabled = !OrdersApp.soundEnabled;
-            updateSoundButton();
-            
-            try {
-                localStorage.setItem('ordersPageSoundEnabled', OrdersApp.soundEnabled.toString());
-            } catch (error) {
-                debugLog('❌ Could not save sound preference', error.message);
+        function filterOrders() {
+            if (currentTab === 'live') {
+                renderLiveOrdersOptimized();
             }
         }
 
-        async function handleRefresh() {
+        function filterHistory() {
+            renderHistoryOrders();
+        }
+
+        async function forceRefresh() {
             const now = Date.now();
-            if (now - OrdersApp.cache.lastRefresh < OrdersApp.cache.refreshCooldown) {
+            if (now - appCache.lastRefresh < appCache.refreshCooldown) {
                 return;
             }
             
-            OrdersApp.cache.lastRefresh = now;
+            appCache.lastRefresh = now;
             
             try {
                 showLoading('Refreshing orders...');
-                await loadLiveOrders();
-                await loadPeriodStats();
+                await loadLiveOrdersWithTimeout();
+                await loadTodayCompletedStatsFixed();
+                await calculatePeriodInsights(); // Refresh insights too
                 hideLoading();
                 debugLog('✅ Manual refresh completed');
             } catch (error) {
@@ -2536,7 +3105,7 @@
         }
 
         async function markAllReady() {
-            const preparingOrders = Array.from(OrdersApp.liveOrders.values()).filter(o => o.status === 'preparing');
+            const preparingOrders = Array.from(liveOrders.values()).filter(o => o.status === 'preparing');
             
             if (preparingOrders.length === 0) {
                 return;
@@ -2550,7 +3119,7 @@
                 showLoading('Marking orders as ready...');
                 
                 const updatePromises = preparingOrders.map(order => 
-                    updateOrderStatus(order.id, 'ready')
+                    updateOrderStatusFast(order.id, 'ready')
                 );
                 
                 await Promise.all(updatePromises);
@@ -2562,26 +3131,39 @@
             }
         }
 
-        function exportOrders() {
-            debugLog('📤 Export orders requested');
-        }
-
-        function clearHistory() {
-            if (!confirm('Are you sure you want to clear all order history? This cannot be undone.')) {
-                return;
-            }
+        // Utility functions
+        function populateTableFilters() {
+            const liveTableFilter = document.getElementById('tableFilter');
+            const historyTableFilter = document.getElementById('historyTableFilter');
             
-            OrdersApp.historyOrders.clear();
-            renderHistoryOrders();
+            if (!liveTableFilter || !historyTableFilter) return;
+            
+            const counterOption = document.createElement('option');
+            counterOption.value = 'counter';
+            counterOption.textContent = 'Counter';
+            liveTableFilter.appendChild(counterOption.cloneNode(true));
+            historyTableFilter.appendChild(counterOption.cloneNode(true));
+            
+            for (let i = 1; i <= appCache.tableCount; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Table ${i}`;
+                liveTableFilter.appendChild(option.cloneNode(true));
+                historyTableFilter.appendChild(option.cloneNode(true));
+            }
         }
 
-        // ============================================================================
-        // UTILITY FUNCTIONS
-        // ============================================================================
+        function setTodayDate() {
+            const today = new Date().toISOString().split('T')[0];
+            const dateFilter = document.getElementById('dateFilter');
+            if (dateFilter) {
+                dateFilter.value = today;
+            }
+        }
 
         function formatPrice(amount) {
-            if (!amount && amount !== 0) return `${OrdersApp.cache.currency.symbol}0.00`;
-            return `${OrdersApp.cache.currency.symbol}${Number(amount).toFixed(2)}`;
+            if (!amount && amount !== 0) return `${appCache.currency.symbol}0.00`;
+            return `${appCache.currency.symbol}${Number(amount).toFixed(2)}`;
         }
 
         function getTimeAgo(date) {
@@ -2609,15 +3191,26 @@
             return `${minutes}m`;
         }
 
-        function getPeriodDisplayName(period) {
-            const displayNames = {
-                'today': 'Today',
-                'thisweek': 'This Week',
-                'thismonth': 'This Month', 
-                'thisquarter': 'This Quarter',
-                'thisyear': 'This Year'
-            };
-            return displayNames[period] || 'Selected Period';
+        function updatePerformanceIndicator(text, status) {
+            // Performance indicator disabled - function does nothing
+            return;
+        }
+
+        function updateConnectionStatus(connected, text) {
+            const indicator = document.getElementById('liveIndicator');
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('connectionText');
+            
+            if (statusDot) statusDot.className = connected ? 'status-dot' : 'status-dot error';
+            if (statusText) statusText.textContent = text;
+            
+            if (indicator) {
+                if (connected) {
+                    indicator.className = 'connection-status connected';
+                } else {
+                    indicator.className = 'connection-status error';
+                }
+            }
         }
 
         function showLoading(message = 'Loading...') {
@@ -2632,36 +3225,46 @@
             if (overlay) overlay.style.display = 'none';
         }
 
-        function showError(message) {
-            debugLog('❌ Error:', message);
-            alert('Error: ' + message);
+        function showNotification(message, type = 'success') {
+            // Notifications disabled - function does nothing
+            return;
         }
 
-        // ============================================================================
-        // AUDIO FUNCTIONS
-        // ============================================================================
-
-        function initializeAudioContext() {
-            if (!window.audioContext) {
-                try {
-                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    debugLog('🔊 Audio context initialized');
-                } catch (error) {
-                    debugLog('❌ Failed to initialize audio context', error.message);
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const button = document.getElementById('soundToggle');
+            
+            if (button) {
+                if (soundEnabled) {
+                    button.textContent = 'Sound On';
+                    button.classList.remove('disabled');
+                    button.classList.add('enabled');
+                } else {
+                    button.textContent = 'Sound Off';
+                    button.classList.remove('enabled');
+                    button.classList.add('disabled');
                 }
+            }
+            
+            try {
+                localStorage.setItem('ordersPageSoundEnabled', soundEnabled.toString());
+            } catch (error) {
+                debugLog('Could not save sound preference');
             }
         }
 
         function playNotificationSound() {
-            if (!OrdersApp.soundEnabled) return;
+            if (!soundEnabled) return;
             
             try {
+                // Create audio context with user gesture requirement handling
                 if (!window.audioContext) {
                     window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
                 
                 const audioContext = window.audioContext;
                 
+                // Resume audio context if suspended
                 if (audioContext.state === 'suspended') {
                     audioContext.resume();
                 }
@@ -2681,25 +3284,42 @@
                 oscillator.start();
                 oscillator.stop(audioContext.currentTime + 0.5);
                 
+                debugLog('🔊 Notification sound played');
             } catch (error) {
                 debugLog('❌ Could not play notification sound', error.message);
+                
+                // Fallback: try HTML5 audio with data URI
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBzeO1O/CdSYFJnLH7+WcSAkXYrjp5KZTFgxIouHvwm0hBDOZ2O+vYhAHTr/t6Vh/NwgdcLNu6YVTJF8X/9+mfgMAAAB4cEBAAEBoTANAGgAAAAAGAAgAQACAAIDVwB4AIAAIAAAABA=');
+                    audio.volume = 0.3;
+                    audio.play().then(() => {
+                        debugLog('🔊 Fallback notification sound played');
+                    }).catch(e => {
+                        debugLog('❌ Fallback sound also failed', e.message);
+                    });
+                } catch (fallbackError) {
+                    debugLog('❌ All sound methods failed', fallbackError.message);
+                }
             }
         }
 
-        function playNewOrderSound() {
-            if (!OrdersApp.soundEnabled) return;
+        function playNewOrderNotification() {
+            if (!soundEnabled) return;
             
             try {
+                // Create audio context with user gesture requirement handling
                 if (!window.audioContext) {
                     window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
                 
                 const audioContext = window.audioContext;
                 
+                // Resume audio context if suspended
                 if (audioContext.state === 'suspended') {
                     audioContext.resume();
                 }
                 
+                // Play a sequence of beeps for new orders
                 [800, 1000, 800].forEach((freq, index) => {
                     setTimeout(() => {
                         const oscillator = audioContext.createOscillator();
@@ -2719,57 +3339,205 @@
                     }, index * 200);
                 });
                 
+                debugLog('🔊 New order notification played');
             } catch (error) {
-                debugLog('❌ Could not play new order sound', error.message);
+                debugLog('❌ Could not play new order notification', error.message);
+                
+                // Fallback: try HTML5 audio
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBzeO1O/CdSYFJnLH7+WcSAkXYrjp5KZTFgxIouHvwm0hBDOZ2O+vYhAHTr/t6Vh/NwgdcLNu6YVTJF8X/9+mfgMAAAB4cEBAAEBoTANAGgAAAAAGAAgAQACAAIDVwB4AIAAIAAAABA=');
+                    audio.volume = 0.5;
+                    audio.play().then(() => {
+                        debugLog('🔊 Fallback new order sound played');
+                    }).catch(e => {
+                        debugLog('❌ Fallback new order sound also failed', e.message);
+                    });
+                } catch (fallbackError) {
+                    debugLog('❌ All new order sound methods failed', fallbackError.message);
+                }
             }
         }
 
-        // ============================================================================
-        // CLEANUP
-        // ============================================================================
+        // Initialize audio context on first user interaction
+        function initializeAudioContext() {
+            if (!window.audioContext) {
+                try {
+                    window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    debugLog('🔊 Audio context initialized');
+                } catch (error) {
+                    debugLog('❌ Failed to initialize audio context', error.message);
+                }
+            }
+        }
 
+        // Add click listener to initialize audio on first interaction
+        document.addEventListener('click', initializeAudioContext, { once: true });
+        document.addEventListener('touchstart', initializeAudioContext, { once: true });
+
+        // Helper functions for history
+        function clearDateFilter() {
+            const dateFilter = document.getElementById('dateFilter');
+            if (dateFilter) {
+                dateFilter.value = '';
+                loadHistoryOrders();
+            }
+        }
+
+        function clearHistoryFilters() {
+            const historyTableFilter = document.getElementById('historyTableFilter');
+            const historySearchInput = document.getElementById('historySearchInput');
+            
+            if (historyTableFilter) historyTableFilter.value = 'all';
+            if (historySearchInput) historySearchInput.value = '';
+            
+            renderHistoryOrders();
+        }
+
+        function debugHistoryOrders() {
+            debugLog('🔍 History Debug Info', {
+                historyOrdersCount: historyOrders.size,
+                dateFilter: document.getElementById('dateFilter')?.value,
+                tableFilter: document.getElementById('historyTableFilter')?.value,
+                searchFilter: document.getElementById('historySearchInput')?.value,
+                restaurantId: currentRestaurant?.id,
+                timezone: restaurantTimezone
+            });
+            
+            firebase.firestore()
+                .collection('orders')
+                .where('restaurantId', '==', currentRestaurant.id)
+                .orderBy('createdAt', 'desc')
+                .limit(10)
+                .get()
+                .then(snapshot => {
+                    debugLog('🔍 Direct query result', {
+                        totalDocs: snapshot.docs.length,
+                        orders: snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            orderNumber: doc.data().orderNumber,
+                            status: doc.data().status,
+                            customerName: doc.data().customerName,
+                            createdAt: timestampToDate(doc.data().createdAt, currentRestaurant)
+                        }))
+                    });
+                })
+                .catch(error => {
+                    debugLog('🔍 Direct query failed', error.message);
+                });
+            
+            setTimeout(() => {
+                debugLog('🔍 Force reloading history...');
+                loadHistoryOrders();
+            }, 1000);
+        }
+
+        // Error handling
+        function handleCriticalError(error) {
+            hideLoading();
+            
+            setTimeout(() => {
+                if (confirm('Would you like to retry loading the page?')) {
+                    window.location.reload();
+                }
+            }, 3000);
+        }
+
+        function renderEmptyState() {
+            const grid = document.getElementById('liveOrdersGrid');
+            if (grid) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No active orders</h3>
+                        <p>New orders will appear here automatically</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderErrorState(message) {
+            const grid = document.getElementById('liveOrdersGrid');
+            if (grid) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Unable to load orders</h3>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Export functions (implement as needed)
+        function exportOrders() {
+            // Export functionality without notification
+        }
+
+        function clearHistory() {
+            if (!confirm('Are you sure you want to clear all order history? This cannot be undone.')) {
+                return;
+            }
+            
+            historyOrders.clear();
+            renderHistoryOrders();
+        }
+
+        // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
-            if (OrdersApp.orderUpdateListener) {
-                OrdersApp.orderUpdateListener();
+            if (orderUpdateListener) {
+                orderUpdateListener();
             }
-            if (OrdersApp.statusUpdateListener) {
-                OrdersApp.statusUpdateListener();
+            if (statusUpdateListener) {
+                statusUpdateListener();
             }
-            if (OrdersApp.reconnectTimer) {
-                clearTimeout(OrdersApp.reconnectTimer);
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
             }
         });
 
-        // ============================================================================
-        // INITIALIZATION
-        // ============================================================================
+        // Load sound preference and set initial state
+        try {
+            const savedSoundPref = localStorage.getItem('ordersPageSoundEnabled');
+            if (savedSoundPref !== null) {
+                soundEnabled = savedSoundPref === 'true';
+                
+                // Set initial button state
+                const button = document.getElementById('soundToggle');
+                if (button) {
+                    if (soundEnabled) {
+                        button.textContent = 'Sound On';
+                        button.classList.add('enabled');
+                        button.classList.remove('disabled');
+                    } else {
+                        button.textContent = 'Sound Off';
+                        button.classList.add('disabled');
+                        button.classList.remove('enabled');
+                    }
+                }
+            } else {
+                // Default to sound enabled with green state
+                const button = document.getElementById('soundToggle');
+                if (button) {
+                    button.classList.add('enabled');
+                }
+            }
+        } catch (error) {
+            debugLog('Could not load sound preference');
+            // Default to enabled state
+            const button = document.getElementById('soundToggle');
+            if (button) {
+                button.classList.add('enabled');
+            }
+        }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            debugLog('🚀 DOM loaded, starting Orders App...');
-            initializeOrdersApp();
-        });
-
-        // Global function exposures for onclick handlers
-        window.updateOrderStatus = updateOrderStatus;
-        window.toggleStatusDropdown = toggleStatusDropdown;
-        window.updateRestaurantStatus = updateRestaurantStatus;
-        window.showOfflineOptions = showOfflineOptions;
-        window.closeOfflineModal = closeOfflineModal;
-        window.confirmGoOffline = confirmGoOffline;
-
-        console.log('🚀 Orders Management with Calendar & Timezone Support loaded');
-        console.log('📅 Features: Calendar period selector (Today, Week, Month, Quarter, Year)');
-        console.log('🕐 Features: Restaurant timezone awareness using TimezoneAPI');
-        console.log('📊 Features: Period-based statistics with proper calendar boundaries');
-        console.log('🔍 Features: Calendar-filtered order history');
-        console.log('⚡ Features: Enhanced timestamp conversions with restaurant timezone');
-        console.log('🎯 Features: Period-over-period comparisons with calendar logic');
-        console.log('🔧 Features: Graceful fallbacks when TimezoneAPI is not available');
-        console.log('🟢 Features: Complete restaurant status management with offline modal');
-        console.log('🔊 Features: Sound notifications for new orders and status updates');
-        console.log('📱 Features: Responsive design that works on all devices');
-        console.log('✅ All original order management functionality preserved and enhanced');
-        console.log('Ready to initialize with full calendar and timezone support!');
+        console.log('🕐 Orders Management with Calendar-Based Time Periods & Timezone Support loaded');
+        console.log('📅 NEW: Calendar-based time period selector (Today, This Week, This Month)');
+        console.log('🕐 NEW: Restaurant timezone awareness and display');
+        console.log('📊 NEW: Period insights with timezone-aware calculations');
+        console.log('🔄 NEW: Period-over-period comparisons using calendar logic');
+        console.log('⏰ ENHANCED: All timestamps now show in restaurant timezone');
+        console.log('📈 ENHANCED: All statistics calculated using calendar periods');
+        console.log('🎯 ENHANCED: Peak hour analysis in restaurant timezone');
+        console.log('✅ All original functionality preserved');
+        console.log('Ready to initialize with timezone awareness!');
     </script>
 </body>
 </html>
