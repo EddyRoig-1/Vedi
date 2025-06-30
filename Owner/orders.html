@@ -1212,7 +1212,7 @@
             </div>
         </div>
 
-        <!-- Period Insights - ONLY SHOW ON HISTORY TAB -->
+        <!-- Period Insights - ONLY SHOW ON HISTORY TAB (now below controls) -->
         <div class="period-insights" id="periodInsights">
             <div class="insights-header">
                 <h3 class="insights-title" id="insightsTitle">Today's Performance</h3>
@@ -1275,6 +1275,7 @@
 
         <!-- Order History Section -->
         <div class="orders-section" id="history">
+            <!-- Controls moved to top of history section -->
             <div class="controls-section">
                 <div class="controls-row">
                     <div class="filter-group">
@@ -1457,13 +1458,23 @@
                 if (typeof TimezoneAPI !== 'undefined' && TimezoneAPI.timestampToDateInTimezone) {
                     return TimezoneAPI.timestampToDateInTimezone(timestamp, entity);
                 } else {
-                    // Fallback implementation
+                    // Enhanced fallback implementation
                     if (timestamp && timestamp.toDate) {
+                        // Firestore timestamp
                         return timestamp.toDate();
                     } else if (timestamp instanceof Date) {
                         return timestamp;
-                    } else {
+                    } else if (typeof timestamp === 'number') {
+                        // Unix timestamp
                         return new Date(timestamp);
+                    } else if (typeof timestamp === 'string') {
+                        // ISO string
+                        return new Date(timestamp);
+                    } else if (timestamp && timestamp.seconds) {
+                        // Firestore timestamp object format
+                        return new Date(timestamp.seconds * 1000 + (timestamp.nanoseconds || 0) / 1000000);
+                    } else {
+                        return new Date();
                     }
                 }
             } catch (error) {
@@ -1837,9 +1848,13 @@
         // Enhanced order timestamp display
         function formatOrderTimestamp(timestamp, entity = null) {
             try {
-                const date = timestampToDate(timestamp, entity);
+                const orderDate = timestampToDate(timestamp, entity);
+                
+                // Get current time in the same timezone as the order
                 const now = new Date();
-                const diff = now - date;
+                
+                // Calculate the actual time difference
+                const diff = now.getTime() - orderDate.getTime();
                 const minutes = Math.floor(diff / 60000);
                 const hours = Math.floor(diff / 3600000);
                 
@@ -1847,9 +1862,9 @@
                 if (minutes < 1) timeAgo = 'Just now';
                 else if (minutes < 60) timeAgo = `${minutes} min ago`;
                 else if (hours < 24) timeAgo = `${hours}h ${minutes % 60}m ago`;
-                else timeAgo = date.toLocaleDateString();
+                else timeAgo = orderDate.toLocaleDateString();
                 
-                const timeInTimezone = date.toLocaleTimeString('en-US', {
+                const timeInTimezone = orderDate.toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
                     hour12: true
@@ -3106,7 +3121,9 @@
 
         function getOrderDuration(orderTime) {
             const now = new Date();
-            const diff = now - orderTime;
+            
+            // Use getTime() to ensure we're comparing milliseconds consistently
+            const diff = now.getTime() - orderTime.getTime();
             const minutes = Math.floor(diff / 60000);
             const hours = Math.floor(diff / 3600000);
             
