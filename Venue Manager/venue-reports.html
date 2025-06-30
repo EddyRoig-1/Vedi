@@ -1273,14 +1273,17 @@
             
             Object.entries(revenueByRestaurant).forEach(([restaurantId, data]) => {
                 const restaurant = venueRestaurants.find(r => r.id === restaurantId);
+                const restaurantOrders = filteredOrders.filter(order => order.restaurantId === restaurantId);
                 const avgOrderValue = data.orders > 0 ? data.revenue / data.orders : 0;
+                const growthRate = calculateRestaurantGrowth({ id: restaurantId }, restaurantOrders, timePeriod);
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${restaurant ? restaurant.name : 'Unknown Restaurant'}</td>
                     <td>${data.orders}</td>
                     <td>${formatCurrency(data.revenue)}</td>
                     <td>${formatCurrency(avgOrderValue)}</td>
-                    <td>--</td>
+                    <td class="summary-change ${growthRate.startsWith('+') ? 'positive' : growthRate.startsWith('-') ? 'negative' : ''}">${growthRate}</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -1461,13 +1464,16 @@
             tableBody.innerHTML = '';
             
             restaurantPerformance.forEach(restaurant => {
+                const restaurantOrders = filteredOrders.filter(order => order.restaurantId === restaurant.id);
+                const growthRate = calculateRestaurantGrowth(restaurant, restaurantOrders, timePeriod);
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${restaurant.name}</td>
                     <td>${restaurant.orderCount}</td>
                     <td>${formatCurrency(restaurant.revenue)}</td>
                     <td>${formatCurrency(restaurant.avgOrder)}</td>
-                    <td>--</td>
+                    <td class="summary-change ${growthRate.startsWith('+') ? 'positive' : growthRate.startsWith('-') ? 'negative' : ''}">${growthRate}</td>
                     <td><span class="status-indicator ${restaurant.status === 'Online' ? 'status-completed' : 'status-cancelled'}"></span>${restaurant.status}</td>
                 `;
                 tableBody.appendChild(row);
@@ -1729,6 +1735,98 @@
         }
 
         // ============================================================================
+        // GROWTH CALCULATION HELPERS
+        // ============================================================================
+
+        function calculateGrowthPercentage(currentValue, previousValue) {
+            if (!previousValue || previousValue === 0) {
+                return currentValue > 0 ? '+100%' : '0%';
+            }
+            
+            const growth = ((currentValue - previousValue) / previousValue) * 100;
+            const sign = growth >= 0 ? '+' : '';
+            return `${sign}${growth.toFixed(1)}%`;
+        }
+
+        function getPreviousPeriodBoundaries(timePeriod) {
+            try {
+                const now = new Date();
+                const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: venueTimezone }));
+                
+                switch (timePeriod.toLowerCase()) {
+                    case 'today':
+                        const yesterdayStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate() - 1);
+                        const yesterdayEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), nowInTimezone.getDate() - 1, 23, 59, 59, 999);
+                        return { start: yesterdayStart, end: yesterdayEnd };
+                        
+                    case 'week':
+                        const dayOfWeek = nowInTimezone.getDay();
+                        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                        const thisWeekStart = new Date(nowInTimezone);
+                        thisWeekStart.setDate(nowInTimezone.getDate() + mondayOffset);
+                        
+                        const lastWeekStart = new Date(thisWeekStart);
+                        lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+                        lastWeekStart.setHours(0, 0, 0, 0);
+                        
+                        const lastWeekEnd = new Date(lastWeekStart);
+                        lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+                        lastWeekEnd.setHours(23, 59, 59, 999);
+                        return { start: lastWeekStart, end: lastWeekEnd };
+                        
+                    case 'month':
+                        const lastMonthStart = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth() - 1, 1);
+                        const lastMonthEnd = new Date(nowInTimezone.getFullYear(), nowInTimezone.getMonth(), 0, 23, 59, 59, 999);
+                        return { start: lastMonthStart, end: lastMonthEnd };
+                        
+                    case 'quarter':
+                        const currentQuarterStartMonth = Math.floor(nowInTimezone.getMonth() / 3) * 3;
+                        const lastQuarterStartMonth = currentQuarterStartMonth - 3;
+                        const lastQuarterYear = lastQuarterStartMonth < 0 ? nowInTimezone.getFullYear() - 1 : nowInTimezone.getFullYear();
+                        const adjustedStartMonth = lastQuarterStartMonth < 0 ? lastQuarterStartMonth + 12 : lastQuarterStartMonth;
+                        
+                        const lastQuarterStart = new Date(lastQuarterYear, adjustedStartMonth, 1);
+                        const lastQuarterEnd = new Date(lastQuarterYear, adjustedStartMonth + 3, 0, 23, 59, 59, 999);
+                        return { start: lastQuarterStart, end: lastQuarterEnd };
+                        
+                    case 'year':
+                        const lastYearStart = new Date(nowInTimezone.getFullYear() - 1, 0, 1);
+                        const lastYearEnd = new Date(nowInTimezone.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+                        return { start: lastYearStart, end: lastYearEnd };
+                        
+                    default:
+                        return null;
+                }
+            } catch (error) {
+                console.error('❌ Error getting previous period boundaries:', error);
+                return null;
+            }
+        }
+
+        function calculateRestaurantGrowth(restaurant, currentOrders, timePeriod) {
+            try {
+                const previousBoundaries = getPreviousPeriodBoundaries(timePeriod);
+                if (!previousBoundaries) return '--';
+                
+                // Filter orders for previous period
+                const previousOrders = venueOrders.filter(order => {
+                    if (order.restaurantId !== restaurant.id) return false;
+                    const orderDate = timestampToDate(order.createdAt);
+                    return orderDate >= previousBoundaries.start && orderDate <= previousBoundaries.end;
+                });
+                
+                // Calculate current and previous revenue
+                const currentRevenue = currentOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                const previousRevenue = previousOrders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
+                
+                return calculateGrowthPercentage(currentRevenue, previousRevenue);
+            } catch (error) {
+                console.error('❌ Error calculating restaurant growth:', error);
+                return '--';
+            }
+        }
+
+        // ============================================================================
         // CHART DATA GENERATION HELPERS
         // ============================================================================
 
@@ -1914,7 +2012,14 @@
             Object.entries(data.revenueByRestaurant || {}).forEach(([restaurantId, restaurantData]) => {
                 const restaurant = venueRestaurants.find(r => r.id === restaurantId);
                 const avgOrderValue = restaurantData.orders > 0 ? restaurantData.revenue / restaurantData.orders : 0;
-                csv += `"${restaurant ? restaurant.name : 'Unknown'}",${restaurantData.orders},${restaurantData.revenue.toFixed(2)},${avgOrderValue.toFixed(2)},--\n`;
+                
+                // Calculate growth for this restaurant
+                const restaurantOrders = venueOrders.filter(order => order.restaurantId === restaurantId);
+                const currentTimePeriod = document.getElementById('timePeriod').value;
+                const filteredCurrentOrders = filterDataByTimePeriod(restaurantOrders, currentTimePeriod);
+                const growthRate = calculateRestaurantGrowth({ id: restaurantId }, filteredCurrentOrders, currentTimePeriod);
+                
+                csv += `"${restaurant ? restaurant.name : 'Unknown'}",${restaurantData.orders},${restaurantData.revenue.toFixed(2)},${avgOrderValue.toFixed(2)},"${growthRate}"\n`;
             });
             
             return csv;
@@ -1946,7 +2051,12 @@
             let csv = 'Restaurant,Orders,Revenue,Average Order Value,Growth,Status\n';
             
             data.forEach(restaurant => {
-                csv += `"${restaurant.name}",${restaurant.orderCount},${restaurant.revenue.toFixed(2)},${restaurant.avgOrder.toFixed(2)},--,"${restaurant.status}"\n`;
+                const restaurantOrders = venueOrders.filter(order => order.restaurantId === restaurant.id);
+                const currentTimePeriod = document.getElementById('timePeriod').value;
+                const filteredCurrentOrders = filterDataByTimePeriod(restaurantOrders, currentTimePeriod);
+                const growthRate = calculateRestaurantGrowth(restaurant, filteredCurrentOrders, currentTimePeriod);
+                
+                csv += `"${restaurant.name}",${restaurant.orderCount},${restaurant.revenue.toFixed(2)},${restaurant.avgOrder.toFixed(2)},"${growthRate}","${restaurant.status}"\n`;
             });
             
             return csv;
