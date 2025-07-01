@@ -501,6 +501,125 @@
             box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
         }
 
+        /* Recent Orders Section */
+        .recent-orders-section {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .recent-orders-list {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .recent-orders-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .recent-orders-list::-webkit-scrollbar-track {
+            background: #F1F3F4;
+            border-radius: 3px;
+        }
+
+        .recent-orders-list::-webkit-scrollbar-thumb {
+            background: #C7C7CC;
+            border-radius: 3px;
+        }
+
+        .recent-order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            border: 1px solid #F1F3F4;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .recent-order-item:hover {
+            background: #F8F9FA;
+            border-color: #E5E5E7;
+        }
+
+        .recent-order-info {
+            flex: 1;
+        }
+
+        .recent-order-number {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1D1D1F;
+            margin-bottom: 4px;
+        }
+
+        .recent-order-customer {
+            color: #86868B;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .recent-order-time {
+            color: #8E8E93;
+            font-size: 12px;
+        }
+
+        .recent-order-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+
+        .recent-order-total {
+            font-weight: 600;
+            color: #007AFF;
+            font-size: 16px;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.pending {
+            background: #FFF3CD;
+            color: #856404;
+        }
+
+        .status-badge.confirmed {
+            background: #D1ECF1;
+            color: #0C5460;
+        }
+
+        .status-badge.preparing {
+            background: #E2E3FF;
+            color: #383D75;
+        }
+
+        .status-badge.ready {
+            background: #D4EDDA;
+            color: #155724;
+        }
+
+        .status-badge.completed {
+            background: #E6F3FF;
+            color: #004085;
+        }
+
+        .status-badge.cancelled {
+            background: #F8D7DA;
+            color: #721C24;
+        }
+
         /* Action Buttons */
         .action-buttons {
             display: flex;
@@ -526,16 +645,6 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-        }
-
-        .btn-secondary {
-            background: #F1F3F4;
-            color: #1D1D1F;
-            border: 1px solid #E5E5E7;
-        }
-
-        .btn-secondary:hover {
-            background: #E5E5E7;
         }
 
         .btn-primary {
@@ -625,7 +734,8 @@
             .customer-section,
             .menu-section,
             .order-summary-section,
-            .instructions-section {
+            .instructions-section,
+            .recent-orders-section {
                 padding: 16px;
                 margin-bottom: 16px;
             }
@@ -654,6 +764,19 @@
             }
 
             .btn {
+                width: 100%;
+            }
+
+            .recent-order-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .recent-order-details {
+                align-items: flex-start;
+                flex-direction: row;
+                justify-content: space-between;
                 width: 100%;
             }
         }
@@ -784,13 +907,25 @@
 
         <!-- Action Buttons -->
         <div class="action-buttons">
-            <button class="btn btn-secondary" onclick="clearOrder()">
-                <span>Clear Order</span>
-            </button>
             <button class="btn btn-primary" id="createOrderBtn" onclick="createOrder()" disabled>
                 <span id="createOrderText">Create Order</span>
                 <div class="loading-spinner" id="createOrderSpinner" style="display: none;"></div>
             </button>
+        </div>
+
+        <!-- Recent Orders Section -->
+        <div class="recent-orders-section">
+            <h2 class="section-title">
+                <span>🕒</span>
+                Recent Staff Orders
+            </h2>
+
+            <div class="recent-orders-list" id="recentOrdersList">
+                <div class="empty-state">
+                    <h3>No recent orders</h3>
+                    <p>Orders created from this page will appear here</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -805,6 +940,7 @@
         let customerType = 'walkin';
         let taxRate = 0.0875; // Default 8.75%
         let serviceFeeAmount = 2.00; // Default $2.00
+        let recentOrders = [];
 
         // Debug logging
         function debugLog(message, data = null) {
@@ -835,6 +971,10 @@
                 // Load menu data
                 showLoading('Loading menu...');
                 await loadMenuData();
+                
+                // Load recent orders
+                showLoading('Loading recent orders...');
+                await loadRecentOrders();
                 
                 // Setup event listeners
                 setupEventListeners();
@@ -1000,6 +1140,92 @@
                 console.error('❌ Failed to load menu:', error);
                 showError('Failed to load menu items');
             }
+        }
+
+        // Load recent orders
+        async function loadRecentOrders() {
+            try {
+                debugLog('📋 Loading recent staff orders...');
+                
+                // Query for recent orders created by this user (staff)
+                const ordersQuery = firebase.firestore()
+                    .collection('orders')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .where('createdBy', '==', currentUser.uid)
+                    .where('isStaffOrder', '==', true)
+                    .orderBy('createdAt', 'desc')
+                    .limit(10);
+                
+                const ordersSnapshot = await ordersQuery.get();
+                recentOrders = ordersSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                debugLog('✅ Recent orders loaded:', recentOrders.length);
+                renderRecentOrders();
+                
+                // Set up real-time listener for order status updates
+                ordersQuery.onSnapshot((snapshot) => {
+                    recentOrders = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    renderRecentOrders();
+                });
+                
+            } catch (error) {
+                console.error('❌ Failed to load recent orders:', error);
+                // Don't throw error - just log it
+            }
+        }
+
+        // Render recent orders
+        function renderRecentOrders() {
+            const recentOrdersList = document.getElementById('recentOrdersList');
+            
+            if (recentOrders.length === 0) {
+                recentOrdersList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No recent orders</h3>
+                        <p>Orders created from this page will appear here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            recentOrdersList.innerHTML = recentOrders.map(order => {
+                const createdAt = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                const timeAgo = getTimeAgo(createdAt);
+                
+                return `
+                    <div class="recent-order-item">
+                        <div class="recent-order-info">
+                            <div class="recent-order-number">Order #${order.orderNumber}</div>
+                            <div class="recent-order-customer">${order.customerName}</div>
+                            <div class="recent-order-time">${timeAgo}</div>
+                        </div>
+                        <div class="recent-order-details">
+                            <div class="recent-order-total">${formatPrice(order.total)}</div>
+                            <div class="status-badge ${order.status}">${order.status}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Get time ago string
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+            if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+            return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
         }
 
         // Render categories
@@ -1253,33 +1479,6 @@
             btn.disabled = !isValid;
         }
 
-        // Clear order
-        function clearOrder() {
-            if (Object.keys(orderItems).length > 0) {
-                if (!confirm('Are you sure you want to clear this order?')) {
-                    return;
-                }
-            }
-            
-            // Clear form
-            document.getElementById('customerName').value = '';
-            document.getElementById('customerContact').value = '';
-            document.getElementById('customerEmail').value = '';
-            document.getElementById('specialInstructions').value = '';
-            
-            // Clear order items
-            orderItems = {};
-            
-            // Re-render
-            if (selectedCategory) {
-                renderMenuItems(selectedCategory);
-            }
-            updateOrderSummary();
-            updateCreateOrderButton();
-            
-            showInfo('Order cleared');
-        }
-
         // Create order
         async function createOrder() {
             const btn = document.getElementById('createOrderBtn');
@@ -1395,10 +1594,8 @@
                 // Show success message
                 showSuccess(`Order #${orderNumber} created successfully!`);
                 
-                // Clear the form after a short delay
-                setTimeout(() => {
-                    clearOrder();
-                }, 2000);
+                // Clear the form
+                clearOrderForm();
                 
             } catch (error) {
                 console.error('❌ Failed to create order:', error);
@@ -1410,6 +1607,25 @@
                 btnSpinner.style.display = 'none';
                 updateCreateOrderButton();
             }
+        }
+
+        // Clear order form
+        function clearOrderForm() {
+            // Clear form inputs
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerContact').value = '';
+            document.getElementById('customerEmail').value = '';
+            document.getElementById('specialInstructions').value = '';
+            
+            // Clear order items
+            orderItems = {};
+            
+            // Re-render
+            if (selectedCategory) {
+                renderMenuItems(selectedCategory);
+            }
+            updateOrderSummary();
+            updateCreateOrderButton();
         }
 
         // Message display functions
