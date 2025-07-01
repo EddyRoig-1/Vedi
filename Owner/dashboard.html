@@ -377,13 +377,13 @@
         }
 
         /* Iframe Containers */
-        .settings-section, .qr-section, .orders-section, .incidents-section, .analytics-section, .menu-section {
+        .settings-section, .qr-section, .orders-section, .pos-orders-section, .incidents-section, .analytics-section, .menu-section {
             padding: 0;
             background: transparent;
             border: none;
         }
 
-        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container, .incidents-iframe-container, .analytics-iframe-container, .menu-iframe-container {
+        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container, .pos-orders-iframe-container, .incidents-iframe-container, .analytics-iframe-container, .menu-iframe-container {
             width: 100%;
             height: calc(100vh - 200px);
             border: none;
@@ -393,7 +393,7 @@
             position: relative;
         }
 
-        .settings-iframe, .qr-iframe, .orders-iframe, .incidents-iframe, .analytics-iframe, .menu-iframe {
+        .settings-iframe, .qr-iframe, .orders-iframe, .pos-orders-iframe, .incidents-iframe, .analytics-iframe, .menu-iframe {
             width: 100%;
             height: 100%;
             border: none;
@@ -778,6 +778,7 @@
             <div class="nav-tabs">
                 <div class="nav-tab active" data-section="overview">Overview</div>
                 <div class="nav-tab" data-section="menu">Menu</div>
+                <div class="nav-tab" data-section="pos-orders">POS Orders</div>
                 <div class="nav-tab" data-section="orders">Orders</div>
                 <div class="nav-tab" data-section="incidents">Loss Reports</div>
                 <div class="nav-tab" data-section="analytics">Analytics</div>
@@ -844,6 +845,17 @@
                     <p>Loading Menu Management...</p>
                 </div>
                 <iframe id="menuIframe" class="menu-iframe" style="display: none;"></iframe>
+            </div>
+        </div>
+
+        <!-- POS Orders Section with iframe -->
+        <div class="dashboard-section pos-orders-section" id="pos-orders">
+            <div class="pos-orders-iframe-container">
+                <div class="iframe-loading" id="posOrdersIframeLoading">
+                    <div class="spinner"></div>
+                    <p>Loading POS Orders...</p>
+                </div>
+                <iframe id="posOrdersIframe" class="pos-orders-iframe" style="display: none;"></iframe>
             </div>
         </div>
 
@@ -1392,6 +1404,8 @@
                         // Load iframes for specific sections
                         if (sectionId === 'menu') {
                             loadMenuIframe();
+                        } else if (sectionId === 'pos-orders') {
+                            loadPOSOrdersIframe();
                         } else if (sectionId === 'orders') {
                             loadOrdersIframe();
                         } else if (sectionId === 'incidents') {
@@ -1440,6 +1454,42 @@
                 
                 console.log('📋 Loading menu iframe from:', menuPath);
                 iframe.src = menuPath;
+            } else {
+                loading.style.display = 'none';
+                iframe.style.display = 'block';
+            }
+        }
+
+        // POS Orders iframe management
+        function loadPOSOrdersIframe() {
+            const iframe = document.getElementById('posOrdersIframe');
+            const loading = document.getElementById('posOrdersIframeLoading');
+            
+            loading.style.display = 'block';
+            iframe.style.display = 'none';
+            
+            if (!iframe.src || iframe.src === 'about:blank') {
+                iframe.onload = function() {
+                    loading.style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+                
+                iframe.onerror = function(error) {
+                    console.error('Error loading POS Orders iframe:', error);
+                    loading.innerHTML = '<p style="color: #FF3B30;">Error loading POS Orders page. Make sure pos-order.html exists in the Owner folder.</p>';
+                };
+                
+                const currentPath = window.location.pathname;
+                let posOrdersPath = 'pos-order.html';
+                
+                if (currentPath.includes('/Owner/')) {
+                    posOrdersPath = 'pos-order.html';
+                } else {
+                    posOrdersPath = './pos-order.html';
+                }
+                
+                console.log('🛒 Loading POS Orders iframe from:', posOrdersPath);
+                iframe.src = posOrdersPath;
             } else {
                 loading.style.display = 'none';
                 iframe.style.display = 'block';
