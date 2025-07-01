@@ -792,11 +792,7 @@
     </div>
 
     <div class="container">
-        <!-- Header -->
-        <div class="new-order-header">
-            <h1 class="header-title">New Order</h1>
-            <p class="header-subtitle">Create a new order for walk-in or phone customers</p>
-        </div>
+
 
         <!-- Messages -->
         <div class="error-message message" id="errorMessage"></div>
@@ -810,15 +806,6 @@
                 Customer Information
             </h2>
 
-            <div class="customer-type-toggle">
-                <div class="toggle-option active" data-type="walkin" onclick="toggleCustomerType('walkin')">
-                    Walk-in Customer
-                </div>
-                <div class="toggle-option" data-type="phone" onclick="toggleCustomerType('phone')">
-                    Phone Order
-                </div>
-            </div>
-
             <div class="form-grid">
                 <div class="form-group">
                     <label class="form-label required">Customer Name</label>
@@ -826,19 +813,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" id="contactLabel">Phone Number</label>
-                    <input type="tel" class="form-input" id="customerContact" placeholder="(555) 123-4567">
-                    <small style="color: #86868B; font-size: 12px;">Phone or email required for order notifications</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" id="emailLabel">Email Address</label>
-                    <input type="email" class="form-input" id="customerEmail" placeholder="customer@example.com">
+                    <label class="form-label required">Phone Number</label>
+                    <input type="tel" class="form-input" id="customerContact" placeholder="(555) 123-4567" required>
+                    <small style="color: #86868B; font-size: 12px;">Required for order notifications</small>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Order Type</label>
-                    <input type="text" class="form-input" value="Counter Pickup" disabled style="background: #F1F3F4; color: #48484A;">
+                    <input type="text" class="form-input" value="Walk-in" disabled style="background: #F1F3F4; color: #48484A;">
                 </div>
             </div>
         </div>
@@ -937,7 +919,6 @@
         let menuItems = {};
         let orderItems = {};
         let selectedCategory = null;
-        let customerType = 'walkin';
         let taxRate = 0.0875; // Default 8.75%
         let serviceFeeAmount = 2.00; // Default $2.00
         let recentOrders = [];
@@ -1426,26 +1407,13 @@
 
         // Toggle customer type
         function toggleCustomerType(type) {
-            customerType = type;
-            
-            document.querySelectorAll('.toggle-option').forEach(option => {
-                option.classList.toggle('active', option.dataset.type === type);
-            });
-            
-            // Update labels based on type
-            const contactLabel = document.getElementById('contactLabel');
-            
-            if (type === 'phone') {
-                contactLabel.classList.add('required');
-            } else {
-                contactLabel.classList.remove('required');
-            }
+            // Removed - only walk-in orders now
         }
 
         // Setup event listeners
         function setupEventListeners() {
             // Customer info validation
-            const inputs = ['customerName', 'customerContact', 'customerEmail'];
+            const inputs = ['customerName', 'customerContact'];
             inputs.forEach(id => {
                 document.getElementById(id).addEventListener('input', updateCreateOrderButton);
             });
@@ -1469,12 +1437,10 @@
             // Check if we have required fields
             const customerName = document.getElementById('customerName').value.trim();
             const customerContact = document.getElementById('customerContact').value.trim();
-            const customerEmail = document.getElementById('customerEmail').value.trim();
             const hasItems = Object.keys(orderItems).length > 0;
             
-            // Must have name, items, and either phone or email
-            const hasContactInfo = customerContact || customerEmail;
-            const isValid = customerName && hasItems && hasContactInfo;
+            // Must have name, phone, and items
+            const isValid = customerName && customerContact && hasItems;
             
             btn.disabled = !isValid;
         }
@@ -1488,18 +1454,11 @@
             // Get form values
             const customerName = document.getElementById('customerName').value.trim();
             const customerPhone = document.getElementById('customerContact').value.trim();
-            const customerEmail = document.getElementById('customerEmail').value.trim();
             const specialInstructions = document.getElementById('specialInstructions').value.trim();
             
             // Validate required fields
-            if (!customerName || Object.keys(orderItems).length === 0) {
+            if (!customerName || !customerPhone || Object.keys(orderItems).length === 0) {
                 showError('Please fill in all required fields');
-                return;
-            }
-            
-            // Must have either phone or email
-            if (!customerPhone && !customerEmail) {
-                showError('Please provide either a phone number or email address for order notifications');
                 return;
             }
             
@@ -1556,7 +1515,7 @@
                     restaurantName: currentRestaurant.name,
                     customerName: customerName,
                     customerPhone: formattedPhone,
-                    customerEmail: customerEmail || '',
+                    customerEmail: '',
                     customerUID: '', // Staff order - no customer UID
                     authProvider: 'staff',
                     tableNumber: 'counter',
@@ -1568,7 +1527,7 @@
                     serviceFee: serviceFeeAmount,
                     total: total,
                     taxRate: taxRate,
-                    orderType: customerType === 'phone' ? 'phone' : 'walkin',
+                    orderType: 'walkin',
                     status: 'pending',
                     paymentStatus: 'pending',
                     estimatedTime: '15-20 minutes',
@@ -1614,7 +1573,6 @@
             // Clear form inputs
             document.getElementById('customerName').value = '';
             document.getElementById('customerContact').value = '';
-            document.getElementById('customerEmail').value = '';
             document.getElementById('specialInstructions').value = '';
             
             // Clear order items
