@@ -1154,13 +1154,13 @@
         <div class="recent-orders-section">
             <h2 class="section-title">
                 <span>🕒</span>
-                Recent Staff Orders
+                Today's Staff Orders
             </h2>
 
             <div class="recent-orders-list" id="recentOrdersList">
                 <div class="empty-state">
-                    <h3>No recent orders</h3>
-                    <p>Orders created from this page will appear here</p>
+                    <h3>No orders today</h3>
+                    <p>Orders created today will appear here</p>
                 </div>
             </div>
         </div>
@@ -1447,16 +1447,28 @@
         // Load recent orders
         async function loadRecentOrders() {
             try {
-                debugLog('📋 Loading recent staff orders...');
+                debugLog('📋 Loading recent staff orders for today...');
                 
-                // Query for recent orders created by this user (staff)
+                // Calculate start and end of today in the restaurant's timezone
+                const now = new Date();
+                const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+                const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+                
+                debugLog('📅 Date range:', {
+                    startOfDay: startOfDay.toISOString(),
+                    endOfDay: endOfDay.toISOString()
+                });
+                
+                // Query for recent orders created by this user (staff) today only
                 const ordersQuery = firebase.firestore()
                     .collection('orders')
                     .where('restaurantId', '==', currentRestaurant.id)
                     .where('createdBy', '==', currentUser.uid)
                     .where('isStaffOrder', '==', true)
+                    .where('createdAt', '>=', firebase.firestore.Timestamp.fromDate(startOfDay))
+                    .where('createdAt', '<=', firebase.firestore.Timestamp.fromDate(endOfDay))
                     .orderBy('createdAt', 'desc')
-                    .limit(10);
+                    .limit(20); // Increased limit since we're only showing today's orders
                 
                 const ordersSnapshot = await ordersQuery.get();
                 recentOrders = ordersSnapshot.docs.map(doc => ({
@@ -1464,10 +1476,10 @@
                     ...doc.data()
                 }));
                 
-                debugLog('✅ Recent orders loaded:', recentOrders.length);
+                debugLog('✅ Recent orders loaded for today:', recentOrders.length);
                 renderRecentOrders();
                 
-                // Set up real-time listener for order status updates
+                // Set up real-time listener for order status updates (today only)
                 ordersQuery.onSnapshot((snapshot) => {
                     recentOrders = snapshot.docs.map(doc => ({
                         id: doc.id,
@@ -1489,8 +1501,8 @@
             if (recentOrders.length === 0) {
                 recentOrdersList.innerHTML = `
                     <div class="empty-state">
-                        <h3>No recent orders</h3>
-                        <p>Orders created from this page will appear here</p>
+                        <h3>No orders today</h3>
+                        <p>Orders created today will appear here</p>
                     </div>
                 `;
                 return;
@@ -1522,12 +1534,13 @@
             const diffMs = now - date;
             const diffMins = Math.floor(diffMs / 60000);
             const diffHours = Math.floor(diffMins / 60);
-            const diffDays = Math.floor(diffHours / 24);
             
             if (diffMins < 1) return 'Just now';
             if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
             if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-            return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+            
+            // For today's orders, show the time instead of "X days ago"
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
         // Render categories
