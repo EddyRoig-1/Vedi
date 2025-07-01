@@ -362,9 +362,15 @@
             min-width: 120px;
         }
 
-        .allergen-warning:hover .allergen-tooltip {
-            opacity: 1;
-            visibility: visible;
+        .allergen-edit-btn:hover {
+            background: #F1F3F4 !important;
+            border-color: #007AFF !important;
+        }
+
+        .allergen-edit-btn:focus {
+            outline: none;
+            border-color: #007AFF !important;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1) !important;
         }
 
         .section-title {
@@ -1064,6 +1070,13 @@
                     <label class="form-label">Order Type</label>
                     <input type="text" class="form-input" value="Walk-in" disabled style="background: #F1F3F4; color: #48484A;">
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label">Allergies & Restrictions</label>
+                    <button type="button" class="form-input allergen-edit-btn" id="allergenEditBtn" onclick="openAllergenModal()" style="text-align: left; cursor: pointer; background: #F8F9FA; border: 1px solid #E5E5E7;">
+                        <span id="allergenDisplayText">Click to set allergies</span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -1263,6 +1276,10 @@
                 
                 // Setup event listeners
                 setupEventListeners();
+                
+                // Initialize order session for allergen tracking
+                createNewOrderSession();
+                updateAllergenDisplayText();
                 
                 // Hide loading
                 hideLoading();
@@ -1733,13 +1750,17 @@
                 document.getElementById(id).addEventListener('input', updateCreateOrderButton);
             });
 
-            // Customer name input - trigger allergen modal when name is entered
-            document.getElementById('customerName').addEventListener('blur', function() {
+            // Customer name input - trigger allergen modal when name is entered and user moves away
+            document.getElementById('customerName').addEventListener('input', function() {
                 const customerName = this.value.trim();
-                if (customerName && !hasShownAllergenModal()) {
-                    setTimeout(() => {
-                        openAllergenModal();
-                    }, 500);
+                if (customerName && !hasShownAllergenModalForCurrentOrder()) {
+                    // Show modal after a short delay when they finish typing
+                    clearTimeout(window.allergenModalTimeout);
+                    window.allergenModalTimeout = setTimeout(() => {
+                        if (customerName && !hasShownAllergenModalForCurrentOrder()) {
+                            openAllergenModal();
+                        }
+                    }, 1500); // Show after 1.5 seconds of no typing
                 }
             });
             
@@ -1904,10 +1925,16 @@
             // Clear order items
             orderItems = {};
             
-            // Clear allergen selection and reset modal state for next order
+            // Clear allergen selection and create new order session
             customerAllergens = [];
             sessionStorage.removeItem('currentOrderAllergens');
-            sessionStorage.removeItem('currentOrderAllergenModalShown');
+            createNewOrderSession(); // This creates a fresh session for allergen prompting
+            updateAllergenDisplayText();
+            
+            // Clear any pending allergen modal timeout
+            if (window.allergenModalTimeout) {
+                clearTimeout(window.allergenModalTimeout);
+            }
             
             // Re-render
             if (selectedCategory) {
@@ -1918,9 +1945,23 @@
         }
 
         // Allergen Management Functions
-        function hasShownAllergenModal() {
-            // Check if we've shown the modal for the current order session
-            return sessionStorage.getItem('currentOrderAllergenModalShown') === 'true';
+        function hasShownAllergenModalForCurrentOrder() {
+            // Use a more specific key that gets reset with each new order
+            const orderSessionId = sessionStorage.getItem('currentOrderSessionId');
+            const modalShownKey = `allergenModalShown_${orderSessionId}`;
+            return sessionStorage.getItem(modalShownKey) === 'true';
+        }
+
+        function markAllergenModalAsShown() {
+            const orderSessionId = sessionStorage.getItem('currentOrderSessionId');
+            const modalShownKey = `allergenModalShown_${orderSessionId}`;
+            sessionStorage.setItem(modalShownKey, 'true');
+        }
+
+        function createNewOrderSession() {
+            const sessionId = Date.now().toString();
+            sessionStorage.setItem('currentOrderSessionId', sessionId);
+            debugLog('🆔 Created new order session:', sessionId);
         }
 
         function openAllergenModal() {
@@ -1928,12 +1969,28 @@
             populateAllergenGrid();
             showAllergenInitial();
             modal.classList.add('show');
-            sessionStorage.setItem('currentOrderAllergenModalShown', 'true');
+            markAllergenModalAsShown();
         }
 
         function closeAllergenModal() {
             const modal = document.getElementById('allergenModal');
             modal.classList.remove('show');
+            updateAllergenDisplayText();
+        }
+
+        function updateAllergenDisplayText() {
+            const displayText = document.getElementById('allergenDisplayText');
+            if (customerAllergens.length === 0) {
+                displayText.textContent = 'No allergies set';
+                displayText.style.color = '#86868B';
+            } else {
+                const allergenNames = customerAllergens.map(id => {
+                    const allergen = commonAllergens.find(a => a.id === id);
+                    return allergen ? allergen.name : id;
+                });
+                displayText.textContent = `${customerAllergens.length} allergen${customerAllergens.length > 1 ? 's' : ''}: ${allergenNames.join(', ')}`;
+                displayText.style.color = '#FF3B30';
+            }
         }
 
         function populateAllergenGrid() {
@@ -1994,6 +2051,7 @@
             if (selectedCategory) {
                 renderMenuItems(selectedCategory);
             }
+            updateAllergenDisplayText();
         }
 
         function getItemAllergenWarnings(item) {
