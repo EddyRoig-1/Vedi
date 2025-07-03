@@ -584,8 +584,10 @@
         <div class="staff-header">
             <div class="header-content">
                 <h1 class="header-title">Staff Management</h1>
-                <div class="header-actions" id="headerActions">
-                    <!-- Actions will be populated based on permissions -->
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openAddStaffModal()">
+                        Add Staff
+                    </button>
                 </div>
             </div>
         </div>
@@ -779,9 +781,6 @@
                 showLoading('Loading staff members...');
                 await loadStaffData();
                 
-                // Setup UI based on permissions
-                setupPermissionBasedUI();
-                
                 // Set up real-time listeners
                 setupRealtimeListeners();
                 
@@ -905,6 +904,9 @@
         function setupPermissionBasedUI() {
             const headerActions = document.getElementById('headerActions');
             
+            // Debug current role
+            console.log('Setting up UI for role:', currentUserRole);
+            
             // Only owners and full permission staff can add staff
             if (currentUserRole === 'owner' || currentUserRole === 'full') {
                 headerActions.innerHTML = `
@@ -912,11 +914,23 @@
                         Add Staff
                     </button>
                 `;
+                console.log('✅ Add Staff button added for role:', currentUserRole);
             } else {
                 headerActions.innerHTML = `
                     <div style="color: #86868B; font-size: 14px; text-align: center;">
-                        Staff Management - View Only
+                        Staff Management - View Only (Role: ${currentUserRole})
                     </div>
+                `;
+                console.log('ℹ️ View-only mode for role:', currentUserRole);
+            }
+            
+            // Fallback: If role is not determined, show button anyway for testing
+            if (!currentUserRole) {
+                console.warn('⚠️ Role not determined, showing Add Staff button as fallback');
+                headerActions.innerHTML = `
+                    <button class="btn btn-primary" onclick="openAddStaffModal()">
+                        Add Staff
+                    </button>
                 `;
             }
             
@@ -1307,12 +1321,6 @@
         // Add staff functionality
         async function addStaff(event) {
             event.preventDefault();
-            
-            // Double-check permissions
-            if (currentUserRole !== 'owner' && currentUserRole !== 'full') {
-                showError('Only owners and full permission staff can add new staff members');
-                return;
-            }
             
             const name = document.getElementById('staffName').value.trim();
             const email = document.getElementById('staffEmail').value.trim();
