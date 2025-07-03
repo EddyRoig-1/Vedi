@@ -19,7 +19,7 @@ class StaffAuth {
             level: 1,
             name: 'Full Permissions',
             pages: ['dashboard', 'orders', 'pos-order', 'loss-reports', 'staff-clock', 'menu-management', 'restaurant-settings'],
-            features: ['view_orders', 'create_orders', 'view_reports', 'manage_staff', 'manage_menu', 'view_settings', 'clock_in_out']
+            features: ['view_orders', 'create_orders', 'view_reports', 'manage_menu', 'view_settings', 'clock_in_out']
         },
         advanced: {
             level: 2,
@@ -476,6 +476,150 @@ class StaffAuth {
         } catch (error) {
             console.error('❌ Failed to get clock in record:', error);
             return null;
+        }
+    }
+
+    /**
+     * Check if user can manage staff (add, edit, delete staff members)
+     * @param {string} uid - User ID
+     * @returns {Promise<boolean>} True if user can manage staff
+     */
+    static async canManageStaff(uid) {
+        try {
+            const profile = await this.getStaffProfile(uid);
+            if (!profile) return false;
+            
+            // Check if user has custom staff management permission
+            if (profile.customPermissions && profile.customPermissions.manageStaff) {
+                return true;
+            }
+            
+            // Default: Only owners can manage staff
+            return profile.role === 'owner';
+            
+        } catch (error) {
+            console.error('❌ Failed to check staff management permission:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Check if user can view staff earnings and pay information
+     * @param {string} uid - User ID
+     * @returns {Promise<boolean>} True if user can view earnings
+     */
+    static async canViewStaffEarnings(uid) {
+        try {
+            const profile = await this.getStaffProfile(uid);
+            if (!profile) return false;
+            
+            // Check if user has custom earnings viewing permission
+            if (profile.customPermissions && profile.customPermissions.viewStaffEarnings) {
+                return true;
+            }
+            
+            // Default: Only owners can view staff earnings
+            return profile.role === 'owner';
+            
+        } catch (error) {
+            console.error('❌ Failed to check earnings viewing permission:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Check if user can edit staff pay rates
+     * @param {string} uid - User ID
+     * @returns {Promise<boolean>} True if user can edit pay
+     */
+    static async canEditStaffPay(uid) {
+        try {
+            const profile = await this.getStaffProfile(uid);
+            if (!profile) return false;
+            
+            // Check if user has custom pay editing permission
+            if (profile.customPermissions && profile.customPermissions.editStaffPay) {
+                return true;
+            }
+            
+            // Default: Only owners can edit staff pay
+            return profile.role === 'owner';
+            
+        } catch (error) {
+            console.error('❌ Failed to check pay editing permission:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Calculate staff member earnings for a date range
+     * @param {string} staffUID - Staff member UID
+     * @param {string} restaurantId - Restaurant ID
+     * @param {string} startDate - Start date (YYYY-MM-DD)
+     * @param {string} endDate - End date (YYYY-MM-DD)
+     * @returns {Promise<Object>} Earnings data
+     */
+    static async calculateStaffEarnings(staffUID, restaurantId, startDate, endDate) {
+        try {
+            // Get staff member details for hourly rate
+            const staffSnapshot = await firebase.firestore()
+                .collection('staff_members')
+                .where('uid', '==', staffUID)
+                .where('restaurantId', '==', restaurantId)
+                .limit(1)
+                .get();
+
+            if (staffSnapshot.empty) {
+                throw new Error('Staff member not found');
+            }
+
+            const staffData = staffSnapshot.docs[0].data();
+            const hourlyRate = staffData.hourlyRate || 0;
+
+            // Get time records for the date range
+            const timeRecordsSnapshot = await firebase.firestore()
+                .collection('staff_time_records')
+                .where('staffUID', '==', staffUID)
+                .where('restaurantId', '==', restaurantId)
+                .where('date', '>=', startDate)
+                .where('date', '<=', endDate)
+                .where('status', '==', 'clocked_out')
+                .get();
+
+            let totalHours = 0;
+            let totalShifts = 0;
+            const dailyHours = {};
+
+            timeRecordsSnapshot.forEach(doc => {
+                const record = doc.data();
+                if (record.totalHours) {
+                    totalHours += record.totalHours;
+                    totalShifts++;
+                    
+                    if (!dailyHours[record.date]) {
+                        dailyHours[record.date] = 0;
+                    }
+                    dailyHours[record.date] += record.totalHours;
+                }
+            });
+
+            const totalEarnings = totalHours * hourlyRate;
+
+            return {
+                staffUID,
+                staffName: staffData.name,
+                hourlyRate,
+                totalHours: Math.round(totalHours * 100) / 100,
+                totalShifts,
+                totalEarnings: Math.round(totalEarnings * 100) / 100,
+                dailyHours,
+                startDate,
+                endDate
+            };
+
+        } catch (error) {
+            console.error('❌ Failed to calculate staff earnings:', error);
+            throw error;
         }
     }
 
