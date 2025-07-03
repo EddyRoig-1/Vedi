@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Management - Restaurant Dashboard</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+   
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+
+    <!-- Core API Modules -->
+    <script src="../Api/core/firebase-init.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+
+    <!-- Business API Modules -->
+    <script src="../Api/business/restaurants.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+            background: #F8F9FA;
+            min-height: 100vh;
+            color: #1D1D1F;
+            line-height: 1.4;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(248, 249, 250, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+        }
+
+        .loading-card {
+            background: #FFFFFF;
+            padding: 32px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            border: 1px solid #E5E5E7;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid #F1F3F4;
+            border-top: 3px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Header */
+        .staff-header {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #000000;
+            letter-spacing: -0.02em;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Action Buttons */
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+        }
+
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056CC;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #34C759;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #28A745;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #F1F3F4;
+            color: #1D1D1F;
+            border: 1px solid #E5E5E7;
+        }
+
+        .btn-secondary:hover {
+            background: #E5E5E7;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: #FF3B30;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #E5392F;
+            transform: translateY(-1px);
+        }
+
+        /* Currently Clocked In Section */
+        .clocked-in-section {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .staff-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .staff-card {
+            background: #F8F9FA;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .staff-card:hover {
+            background: #F1F3F4;
+            border-color: #007AFF;
+            transform: translateY(-1px);
+        }
+
+        .staff-card.clocked-in {
+            border-color: #34C759;
+            background: #F0FFF4;
+        }
+
+        .staff-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .staff-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1D1D1F;
+        }
+
+        .staff-role {
+            background: #E5E5E7;
+            color: #48484A;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .staff-role.basic {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+
+        .staff-role.advanced {
+            background: #FFF3E0;
+            color: #F57C00;
+        }
+
+        .staff-role.full {
+            background: #E8F5E8;
+            color: #388E3C;
+        }
+
+        .staff-details {
+            font-size: 14px;
+            color: #86868B;
+            margin-bottom: 12px;
+        }
+
+        .clock-time {
+            font-weight: 600;
+            color: #34C759;
+        }
+
+        .clock-out-btn {
+            width: 100%;
+            background: #FF3B30;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clock-out-btn:hover {
+            background: #E5392F;
+        }
+
+        /* Clock In Section */
+        .clock-in-section {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .clock-in-form {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #48484A;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 15px;
+            background: #FFFFFF;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .forgot-password-link {
+            color: #007AFF;
+            text-decoration: none;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+
+        .forgot-password-link:hover {
+            text-decoration: underline;
+        }
+
+        /* All Staff Section */
+        .all-staff-section {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .staff-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .staff-table th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #E5E5E7;
+            font-weight: 600;
+            color: #1D1D1F;
+        }
+
+        .staff-table td {
+            padding: 12px;
+            border-bottom: 1px solid #F1F3F4;
+            color: #48484A;
+        }
+
+        .staff-table tr:hover {
+            background: #F8F9FA;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.active {
+            background: #E8F5E8;
+            color: #388E3C;
+        }
+
+        .status-badge.inactive {
+            background: #FFEBEE;
+            color: #D32F2F;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1D1D1F;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #86868B;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #1D1D1F;
+        }
+
+        .modal-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 15px;
+            background: #FFFFFF;
+            transition: all 0.2s ease;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        /* Messages */
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .error-message {
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #EF5350;
+        }
+
+        .success-message {
+            background: #E8F5E8;
+            color: #1B5E20;
+            border: 1px solid #4CAF50;
+        }
+
+        .info-message {
+            background: #E3F2FD;
+            color: #0D47A1;
+            border: 1px solid #2196F3;
+        }
+
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8E8E93;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: stretch;
+            }
+
+            .header-actions .btn {
+                flex: 1;
+            }
+
+            .clock-in-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .form-group {
+                min-width: auto;
+            }
+
+            .staff-table {
+                font-size: 14px;
+            }
+
+            .staff-table th,
+            .staff-table td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p id="loadingText">Loading staff data...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="staff-header">
+            <div class="header-content">
+                <h1 class="header-title">Staff Management</h1>
+                <div class="header-actions" id="headerActions">
+                    <!-- Actions will be populated based on permissions -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="error-message message" id="errorMessage"></div>
+        <div class="success-message message" id="successMessage"></div>
+        <div class="info-message message" id="infoMessage"></div>
+
+        <!-- Currently Clocked In -->
+        <div class="clocked-in-section">
+            <h2 class="section-title">Currently Clocked In</h2>
+            <div class="staff-list" id="clockedInList">
+                <div class="empty-state">
+                    <h3>No staff clocked in</h3>
+                    <p>Staff members will appear here when they clock in</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clock In -->
+        <div class="clock-in-section">
+            <h2 class="section-title">Staff Clock In</h2>
+            <form class="clock-in-form" onsubmit="clockIn(event)">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" id="clockInEmail" placeholder="staff@restaurant.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="clockInPassword" placeholder="Enter password" required>
+                    <a href="#" class="forgot-password-link" onclick="showForgotPassword()">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn btn-success">Clock In</button>
+            </form>
+        </div>
+
+        <!-- All Staff -->
+        <div class="all-staff-section">
+            <h2 class="section-title">All Staff Members</h2>
+            <div id="staffTableContainer">
+                <table class="staff-table" id="staffTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Position</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffTableBody">
+                        <!-- Staff members will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Staff Modal -->
+    <div class="modal" id="addStaffModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Staff Member</h2>
+                <button class="close-btn" onclick="closeAddStaffModal()">&times;</button>
+            </div>
+            <form class="modal-form" onsubmit="addStaff(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-input" id="staffName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-input" id="staffEmail" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" id="staffRole" required>
+                            <option value="">Select Permission Level</option>
+                            <option value="basic">Basic Permissions - Orders access only</option>
+                            <option value="advanced">Advanced Permissions - POS, Orders, Loss Reports</option>
+                            <option value="full">Full Permissions - Complete dashboard access</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Position</label>
+                        <input type="text" class="form-input" id="staffPosition" placeholder="e.g., Server, Cook, Manager">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-input" id="staffPhone" placeholder="(555) 123-4567">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Hourly Rate</label>
+                        <input type="number" class="form-input" id="staffRate" step="0.01" min="0" placeholder="15.00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Temporary Password</label>
+                    <input type="password" class="form-input" id="staffPassword" placeholder="Staff will change this on first login" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Staff Member</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Clock Out Modal -->
+    <div class="modal" id="clockOutModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Clock Out</h2>
+                <button class="close-btn" onclick="closeClockOutModal()">&times;</button>
+            </div>
+            <form class="modal-form" onsubmit="clockOut(event)">
+                <div class="form-group">
+                    <label class="form-label">Confirm Password</label>
+                    <input type="password" class="form-input" id="clockOutPassword" placeholder="Enter your password" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes (Optional)</label>
+                    <input type="text" class="form-input" id="clockOutNotes" placeholder="Any notes about your shift">
+                </div>
+                <button type="submit" class="btn btn-danger">Clock Out</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div class="modal" id="forgotPasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Reset Password</h2>
+                <button class="close-btn" onclick="closeForgotPasswordModal()">&times;</button>
+            </div>
+            <form class="modal-form" onsubmit="resetPassword(event)">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" id="resetEmail" placeholder="Enter your email address" required>
+                </div>
+                <p style="color: #86868B; font-size: 14px; margin-bottom: 16px;">
+                    We'll send you a link to reset your password.
+                </p>
+                <button type="submit" class="btn btn-primary">Send Reset Link</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentRestaurant = null;
+        let currentUserRole = null; // 'owner' or staff role
+        let allStaff = [];
+        let clockedInStaff = [];
+        let currentClockOutStaff = null;
+
+        // Debug logging
+        function debugLog(message, data = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`[${timestamp}] ${message}`, data || '');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            debugLog('🚀 Staff management page initialization started');
+            showLoading('Loading staff data...');
+            
+            try {
+                // Wait for Firebase to load
+                await waitForFirebase();
+                
+                // Check authentication
+                showLoading('Checking authentication...');
+                currentUser = await checkAuthentication();
+                
+                // Load restaurant data
+                showLoading('Loading restaurant...');
+                currentRestaurant = await loadRestaurantData();
+                
+                // Check user permissions
+                showLoading('Checking permissions...');
+                currentUserRole = await checkUserPermissions();
+                
+                // Load staff data
+                showLoading('Loading staff members...');
+                await loadStaffData();
+                
+                // Setup UI based on permissions
+                setupPermissionBasedUI();
+                
+                // Set up real-time listeners
+                setupRealtimeListeners();
+                
+                // Hide loading
+                hideLoading();
+                
+                debugLog('✅ Staff management page initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Failed to initialize staff page:', error);
+                hideLoading();
+                showError('Failed to initialize: ' + error.message);
+            }
+        });
+
+        // Wait for Firebase to load
+        async function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 100;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase failed to load'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Check authentication
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+                    unsubscribe();
+                    
+                    if (user) {
+                        debugLog('✅ User authenticated:', user.email);
+                        resolve(user);
+                    } else {
+                        debugLog('❌ User not authenticated');
+                        window.location.href = 'login.html';
+                        reject(new Error('User not authenticated'));
+                    }
+                });
+            });
+        }
+
+        // Load restaurant data
+        async function loadRestaurantData() {
+            try {
+                // Try to get restaurant by owner first
+                let restaurant = await VediAPI.getRestaurantByOwner(currentUser.uid);
+                
+                // If not found, user might be staff - get restaurant ID from staff record
+                if (!restaurant) {
+                    const staffSnapshot = await firebase.firestore()
+                        .collection('staff_members')
+                        .where('uid', '==', currentUser.uid)
+                        .where('isActive', '==', true)
+                        .get();
+                    
+                    if (!staffSnapshot.empty) {
+                        const staffData = staffSnapshot.docs[0].data();
+                        restaurant = await VediAPI.getRestaurant(staffData.restaurantId);
+                    }
+                }
+                
+                if (!restaurant) {
+                    throw new Error('No restaurant found for this user');
+                }
+                
+                debugLog('✅ Restaurant loaded:', restaurant.name);
+                return restaurant;
+            } catch (error) {
+                console.error('❌ Failed to load restaurant:', error);
+                throw error;
+            }
+        }
+
+        // Check user permissions
+        async function checkUserPermissions() {
+            try {
+                // First, check if user is restaurant owner
+                if (currentRestaurant.ownerId === currentUser.uid) {
+                    debugLog('✅ User is restaurant owner');
+                    return 'owner';
+                }
+                
+                // If not owner, check if user is staff member
+                const staffSnapshot = await firebase.firestore()
+                    .collection('staff_members')
+                    .where('uid', '==', currentUser.uid)
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .where('isActive', '==', true)
+                    .get();
+                
+                if (!staffSnapshot.empty) {
+                    const staffData = staffSnapshot.docs[0].data();
+                    debugLog('✅ User is staff member with role:', staffData.role);
+                    return staffData.role;
+                }
+                
+                // If neither owner nor staff, deny access
+                throw new Error('Access denied. You do not have permission to access this page.');
+                
+            } catch (error) {
+                console.error('❌ Permission check failed:', error);
+                throw error;
+            }
+        }
+
+        // Setup UI based on permissions
+        function setupPermissionBasedUI() {
+            const headerActions = document.getElementById('headerActions');
+            
+            // Only owners and full permission staff can add staff
+            if (currentUserRole === 'owner' || currentUserRole === 'full') {
+                headerActions.innerHTML = `
+                    <button class="btn btn-primary" onclick="openAddStaffModal()">
+                        Add Staff
+                    </button>
+                `;
+            } else {
+                headerActions.innerHTML = `
+                    <div style="color: #86868B; font-size: 14px; text-align: center;">
+                        Staff Management - View Only
+                    </div>
+                `;
+            }
+            
+            debugLog('UI setup completed for role:', currentUserRole);
+        }
+
+        // Load staff data
+        async function loadStaffData() {
+            try {
+                // Load all staff members
+                const staffSnapshot = await firebase.firestore()
+                    .collection('staff_members')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .orderBy('createdAt', 'desc')
+                    .get();
+                
+                allStaff = staffSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Load currently clocked in staff
+                const today = new Date().toISOString().split('T')[0];
+                const clockedInSnapshot = await firebase.firestore()
+                    .collection('staff_time_records')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .where('date', '==', today)
+                    .where('status', '==', 'clocked_in')
+                    .get();
+                
+                clockedInStaff = clockedInSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                debugLog('✅ Staff data loaded:', {
+                    total: allStaff.length,
+                    clockedIn: clockedInStaff.length
+                });
+                
+                renderStaffData();
+                
+            } catch (error) {
+                console.error('❌ Failed to load staff data:', error);
+                throw error;
+            }
+        }
+
+        // Setup real-time listeners
+        function setupRealtimeListeners() {
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Listen for clock in/out changes
+            firebase.firestore()
+                .collection('staff_time_records')
+                .where('restaurantId', '==', currentRestaurant.id)
+                .where('date', '==', today)
+                .onSnapshot(snapshot => {
+                    clockedInStaff = snapshot.docs
+                        .filter(doc => doc.data().status === 'clocked_in')
+                        .map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                    
+                    renderClockedInStaff();
+                });
+        }
+
+        // Render staff data
+        function renderStaffData() {
+            renderClockedInStaff();
+            renderAllStaff();
+        }
+
+        // Render all staff table
+        function renderAllStaff() {
+            const staffTableBody = document.getElementById('staffTableBody');
+            
+            if (allStaff.length === 0) {
+                staffTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px;">
+                            <div class="empty-state">
+                                <h3>No staff members</h3>
+                                <p>Add staff members to get started</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            staffTableBody.innerHTML = allStaff.map(staff => {
+                const isClockedIn = clockedInStaff.some(record => record.staffUID === staff.uid);
+                
+                return `
+                    <tr>
+                        <td>
+                            <strong>${staff.name}</strong>
+                            ${isClockedIn ? '<span style="color: #34C759; font-size: 12px;">● CLOCKED IN</span>' : ''}
+                        </td>
+                        <td>${staff.email}</td>
+                        <td><span class="staff-role ${staff.role}">${staff.role}</span></td>
+                        <td>${staff.position || 'Not specified'}</td>
+                        <td><span class="status-badge ${staff.isActive ? 'active' : 'inactive'}">${staff.isActive ? 'Active' : 'Inactive'}</span></td>
+                        <td>
+                            <button class="btn btn-secondary" onclick="editStaff('${staff.id}')" style="padding: 4px 8px; font-size: 12px;">
+                                Edit
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Clock in functionality
+        async function clockIn(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('clockInEmail').value.trim();
+            const password = document.getElementById('clockInPassword').value;
+            
+            if (!email || !password) {
+                showError('Please enter both email and password');
+                return;
+            }
+            
+            try {
+                showLoading('Clocking in...');
+                
+                // Find staff member by email
+                const staff = allStaff.find(s => s.email === email);
+                if (!staff) {
+                    throw new Error('Staff member not found');
+                }
+                
+                if (!staff.isActive) {
+                    throw new Error('Staff account is inactive');
+                }
+                
+                // Check if already clocked in today
+                const today = new Date().toISOString().split('T')[0];
+                const existingRecord = clockedInStaff.find(record => record.staffUID === staff.uid);
+                
+                if (existingRecord) {
+                    throw new Error('You are already clocked in');
+                }
+                
+                // Authenticate staff member
+                const tempUser = await firebase.auth().signInWithEmailAndPassword(email, password);
+                
+                // Create time record
+                await firebase.firestore().collection('staff_time_records').add({
+                    staffUID: staff.uid,
+                    restaurantId: currentRestaurant.id,
+                    clockInTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    clockOutTime: null,
+                    status: 'clocked_in',
+                    date: today,
+                    totalHours: null,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                // Sign back in as the original user
+                await firebase.auth().signOut();
+                await firebase.auth().signInWithEmailAndPassword(currentUser.email, currentUser.password);
+                
+                // Clear form
+                document.getElementById('clockInEmail').value = '';
+                document.getElementById('clockInPassword').value = '';
+                
+                hideLoading();
+                showSuccess(`${staff.name} clocked in successfully!`);
+                
+            } catch (error) {
+                console.error('❌ Clock in failed:', error);
+                hideLoading();
+                showError('Clock in failed: ' + error.message);
+            }
+        }
+
+        // Open clock out modal
+        function openClockOutModal(recordId, staffUID) {
+            const staff = allStaff.find(s => s.uid === staffUID);
+            if (!staff) return;
+            
+            currentClockOutStaff = { recordId, staffUID, staff };
+            document.getElementById('clockOutModal').classList.add('show');
+        }
+
+        // Close clock out modal
+        function closeClockOutModal() {
+            document.getElementById('clockOutModal').classList.remove('show');
+            document.getElementById('clockOutPassword').value = '';
+            document.getElementById('clockOutNotes').value = '';
+            currentClockOutStaff = null;
+        }
+
+        // Clock out functionality
+        async function clockOut(event) {
+            event.preventDefault();
+            
+            if (!currentClockOutStaff) return;
+            
+            const password = document.getElementById('clockOutPassword').value;
+            const notes = document.getElementById('clockOutNotes').value;
+            
+            if (!password) {
+                showError('Please enter your password');
+                return;
+            }
+            
+            try {
+                showLoading('Clocking out...');
+                
+                // Authenticate staff member
+                await firebase.auth().signInWithEmailAndPassword(currentClockOutStaff.staff.email, password);
+                
+                // Get the time record
+                const recordDoc = await firebase.firestore()
+                    .collection('staff_time_records')
+                    .doc(currentClockOutStaff.recordId)
+                    .get();
+                
+                const recordData = recordDoc.data();
+                const clockInTime = recordData.clockInTime.toDate();
+                const clockOutTime = new Date();
+                const totalHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
+                
+                // Update time record
+                await firebase.firestore()
+                    .collection('staff_time_records')
+                    .doc(currentClockOutStaff.recordId)
+                    .update({
+                        clockOutTime: firebase.firestore.FieldValue.serverTimestamp(),
+                        status: 'clocked_out',
+                        totalHours: totalHours,
+                        notes: notes || null
+                    });
+                
+                // Sign back in as the original user
+                await firebase.auth().signOut();
+                await firebase.auth().signInWithEmailAndPassword(currentUser.email, currentUser.password);
+                
+                closeClockOutModal();
+                hideLoading();
+                showSuccess(`${currentClockOutStaff.staff.name} clocked out successfully!`);
+                
+            } catch (error) {
+                console.error('❌ Clock out failed:', error);
+                hideLoading();
+                showError('Clock out failed: ' + error.message);
+            }
+        }
+
+        // Render currently clocked in staff
+        function renderClockedInStaff() {
+            const clockedInList = document.getElementById('clockedInList');
+            
+            if (clockedInStaff.length === 0) {
+                clockedInList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No staff clocked in</h3>
+                        <p>Staff members will appear here when they clock in</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            clockedInList.innerHTML = clockedInStaff.map(record => {
+                const staff = allStaff.find(s => s.uid === record.staffUID);
+                if (!staff) return '';
+                
+                const clockInTime = record.clockInTime.toDate();
+                const hoursWorked = (Date.now() - clockInTime.getTime()) / (1000 * 60 * 60);
+                
+                return `
+                    <div class="staff-card clocked-in">
+                        <div class="staff-info">
+                            <div class="staff-name">${staff.name}</div>
+                            <div class="staff-role ${staff.role}">${staff.role}</div>
+                        </div>
+                        <div class="staff-details">
+                            <div><strong>Position:</strong> ${staff.position || 'Not specified'}</div>
+                            <div><strong>Clocked in:</strong> <span class="clock-time">${clockInTime.toLocaleTimeString()}</span></div>
+                            <div><strong>Hours worked:</strong> ${hoursWorked.toFixed(1)} hours</div>
+                        </div>
+                        <button class="clock-out-btn" onclick="openClockOutModal('${record.id}', '${staff.uid}')">
+                            Clock Out
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Add staff modal functions
+        function openAddStaffModal() {
+            // Check permissions before opening modal
+            if (currentUserRole !== 'owner' && currentUserRole !== 'full') {
+                showError('Only owners and full permission staff can add new staff members');
+                return;
+            }
+            document.getElementById('addStaffModal').classList.add('show');
+        }
+
+        function closeAddStaffModal() {
+            document.getElementById('addStaffModal').classList.remove('show');
+            document.getElementById('addStaffModal').querySelector('form').reset();
+        }
+
+        // Forgot password functionality
+        function showForgotPassword() {
+            document.getElementById('forgotPasswordModal').classList.add('show');
+        }
+
+        function closeForgotPasswordModal() {
+            document.getElementById('forgotPasswordModal').classList.remove('show');
+            document.getElementById('resetEmail').value = '';
+        }
+
+        async function resetPassword(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('resetEmail').value.trim();
+            
+            if (!email) {
+                showError('Please enter your email address');
+                return;
+            }
+            
+            try {
+                showLoading('Sending reset email...');
+                
+                await firebase.auth().sendPasswordResetEmail(email);
+                
+                closeForgotPasswordModal();
+                hideLoading();
+                showSuccess('Password reset email sent successfully!');
+                
+            } catch (error) {
+                console.error('❌ Password reset failed:', error);
+                hideLoading();
+                showError('Password reset failed: ' + error.message);
+            }
+        }
+
+        // Utility functions
+        function showLoading(text = 'Loading...') {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('loadingText').textContent = text;
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showMessage(message, type) {
+            document.querySelectorAll('.message').forEach(msg => {
+                msg.classList.remove('show');
+            });
+            
+            const messageEl = document.getElementById(`${type}Message`);
+            if (messageEl) {
+                messageEl.textContent = message;
+                messageEl.classList.add('show');
+                
+                setTimeout(() => {
+                    messageEl.classList.remove('show');
+                }, 5000);
+            }
+        }
+
+        function showError(message) {
+            showMessage(message, 'error');
+        }
+
+        function showSuccess(message) {
+            showMessage(message, 'success');
+        }
+
+        function showInfo(message) {
+            showMessage(message, 'info');
+        }
+
+        console.log('Staff Management & Clock System loaded');
+
+        // Add staff functionality
+        async function addStaff(event) {
+            event.preventDefault();
+            
+            // Double-check permissions
+            if (currentUserRole !== 'owner' && currentUserRole !== 'full') {
+                showError('Only owners and full permission staff can add new staff members');
+                return;
+            }
+            
+            const name = document.getElementById('staffName').value.trim();
+            const email = document.getElementById('staffEmail').value.trim();
+            const role = document.getElementById('staffRole').value;
+            const position = document.getElementById('staffPosition').value.trim();
+            const phone = document.getElementById('staffPhone').value.trim();
+            const rate = document.getElementById('staffRate').value;
+            const password = document.getElementById('staffPassword').value;
+            
+            if (!name || !email || !role || !password) {
+                showError('Please fill in all required fields');
+                return;
+            }
+            
+            try {
+                showLoading('Creating staff account...');
+                
+                // Store current user credentials
+                const currentUserEmail = currentUser.email;
+                
+                // Create Firebase user
+                const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                const newUser = userCredential.user;
+                
+                // Create staff record
+                await firebase.firestore().collection('staff_members').add({
+                    uid: newUser.uid,
+                    restaurantId: currentRestaurant.id,
+                    name: name,
+                    email: email,
+                    role: role,
+                    position: position || null,
+                    phone: phone || null,
+                    hourlyRate: rate ? parseFloat(rate) : null,
+                    isActive: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    createdBy: currentUser.uid
+                });
+                
+                // Sign back in as the original user
+                await firebase.auth().signOut();
+                await firebase.auth().signInWithEmailAndPassword(currentUserEmail, '');
+                
+                closeAddStaffModal();
+                hideLoading();
+                showSuccess(`Staff member ${name} added successfully! Welcome email will be sent with login details.`);
+                
+                // Reload staff data
+                await loadStaffData();
+                
+            } catch (error) {
+                console.error('❌ Add staff failed:', error);
+                hideLoading();
+                showError('Failed to add staff: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
