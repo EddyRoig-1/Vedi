@@ -148,14 +148,14 @@ class StaffAuth {
         // Preserve current page for redirect after login
         params.set('redirect', currentUrl);
         
-        window.location.href = `login.html?${params.toString()}`;
+        window.location.href = `../login.html?${params.toString()}`;
     }
 
     /**
      * Redirect user to unauthorized page
      */
     static redirectToUnauthorized() {
-        window.location.href = 'unauthorized.html';
+        window.location.href = '../unauthorized.html';
     }
 
     /**
@@ -200,22 +200,48 @@ class StaffAuth {
 
             if (userDoc.exists) {
                 const userData = userDoc.data();
-                // If user exists in users collection, they're an owner
+                console.log('✅ User found in users collection:', userData);
                 
-                // Get their restaurant
-                const restaurantSnapshot = await firebase.firestore()
-                    .collection('restaurants')
-                    .where('ownerId', '==', uid)
-                    .limit(1)
-                    .get();
+                // Check if user is restaurant owner by accountType
+                if (userData.accountType === 'restaurant') {
+                    console.log('✅ User is restaurant owner (accountType: restaurant)');
+                    
+                    // Get their restaurant - try both field names
+                    let restaurantSnapshot = await firebase.firestore()
+                        .collection('restaurants')
+                        .where('ownerUserId', '==', uid)  // Try ownerUserId first
+                        .limit(1)
+                        .get();
 
-                if (!restaurantSnapshot.empty) {
-                    return {
-                        id: restaurantSnapshot.docs[0].id,
-                        ...restaurantSnapshot.docs[0].data(),
-                        ownerName: userData.name || userData.displayName || 'Restaurant Owner',
-                        ownerEmail: userData.email || ''
-                    };
+                    // If not found with ownerUserId, try ownerId as fallback
+                    if (restaurantSnapshot.empty) {
+                        console.log('🔍 Trying ownerId field as fallback...');
+                        restaurantSnapshot = await firebase.firestore()
+                            .collection('restaurants')
+                            .where('ownerId', '==', uid)
+                            .limit(1)
+                            .get();
+                    }
+
+                    if (!restaurantSnapshot.empty) {
+                        const restaurant = restaurantSnapshot.docs[0];
+                        console.log('✅ Restaurant found:', restaurant.data());
+                        return {
+                            id: restaurant.id,
+                            ...restaurant.data(),
+                            ownerName: userData.name || userData.displayName || 'Restaurant Owner',
+                            ownerEmail: userData.email || ''
+                        };
+                    } else {
+                        console.log('⚠️ Restaurant owner found but no restaurant document');
+                        // Return user data even if restaurant not found
+                        return {
+                            id: null,
+                            name: 'Restaurant (No Details)',
+                            ownerName: userData.name || userData.displayName || 'Restaurant Owner',
+                            ownerEmail: userData.email || ''
+                        };
+                    }
                 }
             }
 
