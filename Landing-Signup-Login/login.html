@@ -18,6 +18,7 @@
     <script src="../Api/core/firebase-init.js"></script>
     <script src="../Api/core/utilities.js"></script>
     <script src="../Api/core/tracking.js"></script>
+    <script src="../Api/core/staff-auth.js"></script>
     
     <!-- 3. Authentication APIs (required for login functionality) -->
     <script src="../Api/auth/email-auth.js"></script>
@@ -224,6 +225,45 @@
         .form-header p {
             color: #718096;
             font-size: 0.85rem;
+        }
+
+        /* User Type Selection */
+        .user-type-selection {
+            margin-bottom: 25px;
+        }
+
+        .user-type-tabs {
+            display: flex;
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .user-type-tab {
+            flex: 1;
+            padding: 10px 16px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            color: #718096;
+        }
+
+        .user-type-tab.active {
+            background: white;
+            color: #2d3748;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-type-description {
+            font-size: 0.8rem;
+            color: #718096;
+            text-align: center;
+            margin-bottom: 15px;
         }
 
         .form-group {
@@ -822,9 +862,6 @@
                 const user = await VediAPI.getCurrentUser();
                 if (user) {
                     console.log('User already authenticated:', user.email);
-                    // REMOVED: Auto-redirect on login page
-                    // Users should be able to stay on login page even if they have a session
-                    // They can manually navigate to dashboard if they want
                     console.log('Existing session found but staying on login page');
                 }
             } catch (error) {
@@ -892,7 +929,7 @@
             errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        // Form submission with Firebase
+        // Form submission with enhanced authentication
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -912,7 +949,7 @@
             loginBtn.disabled = true;
             
             try {
-                // Sign in with Firebase
+                // Sign in with Firebase (original VediAPI method)
                 const user = await VediAPI.signIn(email, password);
                 
                 console.log('✅ User signed in successfully:', user.email);
@@ -925,7 +962,7 @@
                     });
                 }
                 
-                // Handle successful login
+                // Handle successful login with auto-detection
                 await handleSuccessfulLogin(user);
                 
             } catch (error) {
@@ -956,49 +993,70 @@
             clearError();
             showNotification(`Welcome back, ${user.name}! Redirecting to your dashboard...`);
             
-            // Redirect based on account type
+            // Auto-detect user type and redirect
             setTimeout(() => {
-                redirectUserToDashboard(user.accountType);
+                redirectUserToDashboard(user);
             }, 1500);
         }
 
-        // FIXED: Dashboard redirect function (same approach as venue setup)
-        function redirectUserToDashboard(accountType) {
-            console.log('🚀 Redirecting user to dashboard, account type:', accountType);
+        // Enhanced redirect function with staff detection
+        async function redirectUserToDashboard(user) {
+            console.log('🚀 Auto-detecting user type and redirecting...');
             
             try {
-                if (accountType === 'venue') {
-                    // Use multiple redirect methods like in venue setup
-                    setTimeout(() => {
-                        window.location.href = '/Venue%20Manager/venue-overview.html';
-                    }, 100);
+                // Check if user is staff member first
+                const staffProfile = await StaffAuth.getStaffProfile(user.uid);
+                
+                if (staffProfile && !staffProfile.isOwner) {
+                    // User is a staff member - redirect to dashboard
+                    console.log('👤 Staff member detected:', staffProfile.role);
+                    redirectToUrl('/Owner/dashboard.html');
+                    return;
+                }
+                
+                // Use original VediAPI logic for owners and venue managers
+                if (user.accountType === 'venue') {
+                    console.log('🏢 Venue manager detected');
+                    redirectToUrl('/Venue%20Manager/venue-overview.html');
                     
-                    setTimeout(() => {
-                        window.location.replace('/Venue%20Manager/venue-overview.html');
-                    }, 500);
-                    
-                    setTimeout(() => {
-                        window.location = '/Venue%20Manager/venue-overview.html';
-                    }, 1000);
-                    
-                } else if (accountType === 'restaurant') {
-                    setTimeout(() => {
-                        window.location.href = '/Owner/dashboard.html';
-                    }, 100);
-                    
-                    setTimeout(() => {
-                        window.location.replace('/Owner/dashboard.html');
-                    }, 500);
-                    
-                    setTimeout(() => {
-                        window.location = '/Owner/dashboard.html';
-                    }, 1000);
+                } else if (user.accountType === 'restaurant') {
+                    console.log('🍽️ Restaurant owner detected');
+                    redirectToUrl('/Owner/dashboard.html');
                     
                 } else {
-                    console.error('Unknown account type:', accountType);
+                    console.error('Unknown account type:', user.accountType);
                     showError('Account type not recognized. Please contact support.');
                     return;
                 }
+                
+            } catch (error) {
+                console.error('❌ Auto-detection failed:', error);
+                // Fallback to original logic
+                if (user.accountType === 'venue') {
+                    redirectToUrl('/Venue%20Manager/venue-overview.html');
+                } else if (user.accountType === 'restaurant') {
+                    redirectToUrl('/Owner/dashboard.html');
+                } else {
+                    showError('Failed to determine account type. Please contact support.');
+                }
+            }
+        }
+
+        // Reliable redirect function
+        function redirectToUrl(url) {
+            try {
+                setTimeout(() => {
+                    window.location.href = url;
+                }, 100);
+                
+                setTimeout(() => {
+                    window.location.replace(url);
+                }, 500);
+                
+                setTimeout(() => {
+                    window.location = url;
+                }, 1000);
+                
             } catch (error) {
                 console.error('All redirect methods failed:', error);
                 showError('Redirect failed. Please manually navigate to your dashboard.');
@@ -1015,7 +1073,8 @@
                 <strong>💡 Demo Accounts Available:</strong><br>
                 • <strong>Restaurant:</strong> restaurant@demo.com / RestaurantDemo123<br>
                 • <strong>Venue:</strong> venue@demo.com / VenueDemo123<br>
-                <small>Or create a new account with the signup form.</small>
+                • <strong>Staff:</strong> staff@demo.com / StaffDemo123<br>
+                <small>System will automatically detect your account type.</small>
             `;
             document.getElementById('loginForm').appendChild(demoHint);
         }
@@ -1053,7 +1112,7 @@
             }, 5000);
         }
 
-        console.log('🍽️ Vedi Login Page with Firebase authentication loaded successfully');
+        console.log('🍽️ Vedi Login Page with Staff Authentication loaded successfully');
     </script>
 </body>
 </html>
