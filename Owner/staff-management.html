@@ -303,32 +303,47 @@
             font-weight: 500;
         }
 
-        /* Staff View Toggle */
+        /* iOS Style Staff View Toggle */
         .view-toggle {
             display: flex;
-            background: #F2F2F7;
-            border-radius: 8px;
-            padding: 4px;
+            gap: 8px;
             margin-bottom: 20px;
         }
 
         .view-toggle-btn {
-            flex: 1;
-            padding: 8px 16px;
+            padding: 8px 20px;
             border: none;
-            background: transparent;
-            color: #8E8E93;
-            font-weight: 500;
+            border-radius: 25px;
+            font-weight: 600;
             font-size: 14px;
-            border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .view-toggle-btn.active {
-            background: #FFFFFF;
-            color: #007AFF;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        .view-toggle-btn.active.active-btn {
+            background: #34C759;
+            color: white;
+            box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
+        }
+
+        .view-toggle-btn.active.inactive-btn {
+            background: #FF3B30;
+            color: white;
+            box-shadow: 0 2px 8px rgba(255, 59, 48, 0.3);
+        }
+
+        .view-toggle-btn:not(.active) {
+            background: #F2F2F7;
+            color: #8E8E93;
+        }
+
+        .view-toggle-btn:not(.active):hover {
+            background: #E5E5EA;
+            color: #636366;
         }
 
         /* Staff Table */
@@ -856,6 +871,15 @@
             .page-selection-grid {
                 grid-template-columns: 1fr;
             }
+
+            .view-toggle {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .view-toggle-btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -946,12 +970,12 @@
             <div class="table-controls">
                 <div>
                     <h2 class="section-title">All Staff Members</h2>
-                    <!-- View Toggle -->
+                    <!-- iOS Style View Toggle -->
                     <div class="view-toggle">
-                        <button class="view-toggle-btn active" id="activeViewBtn" onclick="switchView('active')">
+                        <button class="view-toggle-btn active active-btn" id="activeViewBtn" onclick="switchView('active')">
                             Active Staff
                         </button>
-                        <button class="view-toggle-btn" id="inactiveViewBtn" onclick="switchView('inactive')">
+                        <button class="view-toggle-btn inactive-btn" id="inactiveViewBtn" onclick="switchView('inactive')">
                             Inactive Staff
                         </button>
                     </div>
@@ -1558,8 +1582,19 @@
             currentView = view;
             
             // Update button states
-            document.getElementById('activeViewBtn').classList.toggle('active', view === 'active');
-            document.getElementById('inactiveViewBtn').classList.toggle('active', view === 'inactive');
+            const activeBtn = document.getElementById('activeViewBtn');
+            const inactiveBtn = document.getElementById('inactiveViewBtn');
+            
+            if (view === 'active') {
+                activeBtn.classList.add('active', 'active-btn');
+                activeBtn.classList.remove('inactive-btn');
+                inactiveBtn.classList.remove('active', 'active-btn');
+                inactiveBtn.classList.add('inactive-btn');
+            } else {
+                inactiveBtn.classList.add('active', 'inactive-btn');
+                inactiveBtn.classList.remove('active-btn');
+                activeBtn.classList.remove('active', 'active-btn', 'inactive-btn');
+            }
             
             // Clear filters and re-render
             filteredStaff = [];
@@ -2582,7 +2617,7 @@
             showMessage(message, 'info');
         }
 
-        console.log('Staff Management System with Active/Inactive Views loaded');
+        console.log('Staff Management System with iOS Style Toggle Buttons loaded');
     </script>
 </body>
 </html>
