@@ -1046,13 +1046,7 @@
                         <input type="number" class="form-input" id="editStaffRate" step="0.01" min="0">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Status</label>
-                    <select class="form-select" id="editStaffStatus">
-                        <option value="true">Active</option>
-                        <option value="false">Inactive</option>
-                    </select>
-                </div>
+
                 
                 <div class="form-group">
                     <label class="form-label">Change Password (Optional)</label>
@@ -1068,6 +1062,7 @@
 
                 
                 <button type="submit" class="btn btn-primary">Update Staff Member</button>
+                <button type="button" class="btn btn-danger" onclick="deleteStaffMember()" style="margin-top: 12px;">Delete Staff Member</button>
             </form>
         </div>
     </div>
@@ -1515,9 +1510,6 @@
                                 <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
                                     Earnings
                                 </button>
-                                <button class="btn btn-small btn-danger" onclick="toggleStaffStatus('${staff.id}')">
-                                    ${staff.isActive ? 'Deactivate' : 'Activate'}
-                                </button>
                             </div>
                         </td>
                     </tr>
@@ -1714,7 +1706,6 @@
             document.getElementById('editStaffPosition').value = staff.position || '';
             document.getElementById('editStaffPhone').value = staff.phone || '';
             document.getElementById('editStaffRate').value = staff.hourlyRate || '';
-            document.getElementById('editStaffStatus').value = staff.isActive.toString();
             
             // Clear password fields
             document.getElementById('editStaffNewPassword').value = '';
@@ -1741,7 +1732,6 @@
             const position = document.getElementById('editStaffPosition').value.trim();
             const phone = document.getElementById('editStaffPhone').value.trim();
             const rate = document.getElementById('editStaffRate').value;
-            const isActive = document.getElementById('editStaffStatus').value === 'true';
             const newPassword = document.getElementById('editStaffNewPassword').value.trim();
             const confirmPassword = document.getElementById('editStaffConfirmPassword').value.trim();
             
@@ -1768,7 +1758,6 @@
                     position: position || null,
                     phone: phone || null,
                     hourlyRate: rate ? parseFloat(rate) : null,
-                    isActive: isActive,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedBy: currentUser.uid
                 };
@@ -1861,40 +1850,41 @@
 
 
 
-        // Toggle staff status
-        async function toggleStaffStatus(staffId) {
-            const staff = allStaff.find(s => s.id === staffId);
-            if (!staff) return;
+        // Delete staff member function
+        async function deleteStaffMember() {
+            if (!currentEditingStaff) return;
             
-            const newStatus = !staff.isActive;
-            const action = newStatus ? 'activate' : 'deactivate';
+            const staffName = currentEditingStaff.name;
             
-            if (!confirm(`Are you sure you want to ${action} ${staff.name}?`)) {
+            if (!confirm(`Are you sure you want to delete ${staffName}? This will deactivate their account and they will no longer be able to access the system.`)) {
                 return;
             }
             
             try {
-                showLoading(`${action.charAt(0).toUpperCase() + action.slice(1)}ing staff member...`);
+                showLoading('Deleting staff member...');
                 
+                // Set staff as inactive instead of actually deleting
                 await firebase.firestore()
                     .collection('staff_members')
-                    .doc(staffId)
+                    .doc(currentEditingStaff.id)
                     .update({
-                        isActive: newStatus,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedBy: currentUser.uid
+                        isActive: false,
+                        deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        deletedBy: currentUser.uid,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 
+                closeEditStaffModal();
                 hideLoading();
-                showSuccess(`Staff member ${newStatus ? 'activated' : 'deactivated'} successfully!`);
+                showSuccess(`Staff member ${staffName} has been deleted and deactivated.`);
                 
                 // Reload staff data
                 await loadStaffData();
                 
             } catch (error) {
-                console.error('❌ Toggle staff status failed:', error);
+                console.error('❌ Delete staff failed:', error);
                 hideLoading();
-                showError('Failed to update staff status: ' + error.message);
+                showError('Failed to delete staff member: ' + error.message);
             }
         }
 
