@@ -437,9 +437,26 @@
             color: #388E3C;
         }
 
-        .status-badge.inactive {
-            background: #FFEBEE;
-            color: #D32F2F;
+        .status-badge.invited {
+            background: #FFF3E0;
+            color: #F57C00;
+        }
+
+        .status-badge.pending {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+
+        .status-badge.working {
+            background: #E8F5E8;
+            color: #2E7D32;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
         }
 
         .actions-cell {
@@ -1552,20 +1569,41 @@
             }
         }
 
-        // Update staff overview stats
+        // Update staff overview stats - ENHANCED VERSION
         function updateStaffOverview() {
             const activeStaff = allStaff.filter(staff => staff.isActive !== false).length;
+            const invitedStaff = allStaff.filter(staff => staff.status === 'invited').length;
             const currentlyWorking = clockedInStaff.length;
             
-            // Calculate average hourly rate
-            const activeStaffWithRates = allStaff.filter(staff => staff.isActive !== false && staff.hourlyRate > 0);
+            // Calculate average hourly rate - only for staff with valid rates
+            const activeStaffWithRates = allStaff.filter(staff => 
+                staff.isActive !== false && 
+                staff.hourlyRate && 
+                staff.hourlyRate > 0
+            );
             const avgRate = activeStaffWithRates.length > 0 
                 ? activeStaffWithRates.reduce((sum, staff) => sum + staff.hourlyRate, 0) / activeStaffWithRates.length 
                 : 0;
             
-            document.getElementById('activeStaff').textContent = activeStaff;
+            // Update active staff display with invitation info
+            let activeStaffText = activeStaff.toString();
+            if (invitedStaff > 0) {
+                activeStaffText += ` (${invitedStaff} invited)`;
+            }
+            
+            document.getElementById('activeStaff').innerHTML = activeStaffText;
             document.getElementById('currentlyWorking').textContent = currentlyWorking;
             document.getElementById('avgHourlyRate').textContent = formatCurrency(avgRate);
+        }
+
+        // Generate staff invitation code
+        function generateStaffInvitationCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 8; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
         }
 
         // Switch between active and inactive views
@@ -1595,7 +1633,7 @@
             renderStaffTable();
         }
 
-        // Render staff table
+        // Render staff table - ENHANCED WITH INVITATION STATUS
         function renderStaffTable() {
             const staffTableBody = document.getElementById('staffTableBody');
             
@@ -1646,17 +1684,53 @@
                 const roleName = role ? role.name : staff.role;
                 const isActive = staff.isActive !== false;
                 
-                // Different actions based on view
+                // Enhanced status display
+                let statusHtml = '';
+                let statusClass = '';
+                
+                if (staff.status === 'invited') {
+                    statusHtml = 'Invited';
+                    statusClass = 'status-invited';
+                } else if (staff.status === 'active' && isActive) {
+                    statusHtml = 'Active';
+                    statusClass = 'status-active';
+                    if (isClockedIn) {
+                        statusHtml += ' • Working';
+                        statusClass = 'status-working';
+                    }
+                } else if (!isActive) {
+                    statusHtml = 'Inactive';
+                    statusClass = 'status-inactive';
+                } else {
+                    statusHtml = 'Pending';
+                    statusClass = 'status-pending';
+                }
+                
+                // Different actions based on view and status
                 let actionsHtml = '';
                 if (currentView === 'active') {
-                    actionsHtml = `
-                        <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
-                            Edit
-                        </button>
-                        <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
-                            Earnings
-                        </button>
-                    `;
+                    if (staff.status === 'invited') {
+                        actionsHtml = `
+                            <button class="btn btn-small btn-secondary" onclick="resendInvitation('${staff.id}')">
+                                Resend Invite
+                            </button>
+                            <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
+                                Earnings
+                            </button>
+                            <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
+                                Edit
+                            </button>
+                        `;
+                    } else {
+                        actionsHtml = `
+                            <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
+                                Edit
+                            </button>
+                            <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
+                                Earnings
+                            </button>
+                        `;
+                    }
                 } else {
                     actionsHtml = `
                         <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
@@ -1665,17 +1739,21 @@
                     `;
                 }
                 
+                // Enhanced name display with invitation info
+                let nameDisplay = `<strong>${staff.name}</strong>`;
+                if (staff.status === 'invited') {
+                    const invitedDate = staff.invitedAt ? new Date(staff.invitedAt.seconds * 1000).toLocaleDateString() : 'Recently';
+                    nameDisplay += `<br><span style="color: #FF9500; font-size: 12px;">📧 Invited ${invitedDate}</span>`;
+                }
+                
                 return `
                     <tr>
-                        <td>
-                            <strong>${staff.name}</strong>
-                            ${isClockedIn && isActive ? '<span style="color: #34C759; font-size: 12px;">● WORKING</span>' : ''}
-                        </td>
+                        <td>${nameDisplay}</td>
                         <td>${staff.email}</td>
                         <td><span class="staff-role ${staff.role}">${roleName}</span></td>
                         <td>${staff.position || 'Not specified'}</td>
                         <td>${formatCurrency(staff.hourlyRate || 0)}/hr</td>
-                        <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span></td>
+                        <td><span class="status-badge ${statusClass}">${statusHtml}</span></td>
                         <td>
                             <div class="actions-cell">
                                 ${actionsHtml}
@@ -1785,7 +1863,7 @@
             }
         }
 
-        // Add staff functionality - EMAIL INTEGRATION
+        // Add staff functionality - INVITATION SYSTEM (like venue invitations)
         async function addStaff(event) {
             event.preventDefault();
             
@@ -1808,42 +1886,7 @@
             }
             
             try {
-                showLoading('Creating staff account...');
-                
-                // METHOD 1: Try Cloud Function first (preferred)
-                if (typeof firebase.functions === 'function') {
-                    try {
-                        const createStaffMember = firebase.functions().httpsCallable('createStaffMember');
-                        
-                        const result = await createStaffMember({
-                            name: name,
-                            email: email,
-                            role: role,
-                            position: position,
-                            phone: phone,
-                            hourlyRate: rate,
-                            restaurantId: currentRestaurant.id,
-                            password: password
-                        });
-                        
-                        if (result.data.success) {
-                            closeAddStaffModal();
-                            hideLoading();
-                            showSuccess(`Staff member ${name} added successfully! Welcome email sent to ${email}.`);
-                            
-                            // Reset form and reload data
-                            document.getElementById('addStaffModal').querySelector('form').reset();
-                            await loadStaffData();
-                            return;
-                        }
-                    } catch (cloudError) {
-                        console.log('Cloud Function failed, using email integration method...', cloudError);
-                        // Continue to email integration method
-                    }
-                }
-                
-                // METHOD 2: Email Integration (like venue invitations)
-                showLoading('Creating staff account and sending welcome email...');
+                showLoading('Creating staff invitation...');
                 
                 // Check if email already exists in staff_members
                 const existingStaffQuery = await firebase.firestore()
@@ -1857,19 +1900,11 @@
                     throw new Error('A staff member with this email already exists');
                 }
                 
-                // Check if email exists in Firebase Auth (global check)
-                try {
-                    const checkEmailExists = firebase.functions().httpsCallable('checkEmailExists');
-                    const emailCheck = await checkEmailExists({ email: email });
-                    
-                    if (emailCheck.data.exists) {
-                        throw new Error('An account with this email already exists. Please use a different email.');
-                    }
-                } catch (emailCheckError) {
-                    console.log('Email check function not available, proceeding...', emailCheckError);
-                }
+                // Generate invitation code
+                const invitationCode = generateStaffInvitationCode();
+                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
                 
-                // Create staff document with pending status
+                // Create staff document with invitation status
                 const staffData = {
                     name: name,
                     email: email,
@@ -1878,53 +1913,31 @@
                     phone: phone || null,
                     hourlyRate: rate ? parseFloat(rate) : null,
                     restaurantId: currentRestaurant.id,
+                    restaurantName: currentRestaurant.name,
                     isActive: true,
-                    status: 'pending_first_login',
+                    status: 'invited', // Invitation pending
+                    invitationCode: invitationCode,
                     tempPassword: password,
-                    requiresPasswordSetup: false, // They can use temp password
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    invitedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    expiresAt: expiresAt,
                     createdBy: currentUser.uid,
+                    requiresSignup: true,
                     welcomeEmailSent: false
                 };
                 
                 const staffDocRef = await firebase.firestore().collection('staff_members').add(staffData);
-                console.log('✅ Staff document created:', staffDocRef.id);
+                console.log('✅ Staff invitation created:', staffDocRef.id);
                 
-                // Create Firebase Auth account
-                try {
-                    const createUserAccount = firebase.functions().httpsCallable('createUserAccount');
-                    const authResult = await createUserAccount({
-                        email: email,
-                        password: password,
-                        displayName: name,
-                        accountType: 'staff',
-                        restaurantId: currentRestaurant.id,
-                        staffDocId: staffDocRef.id
-                    });
-                    
-                    if (authResult.data.success) {
-                        // Update staff document with UID
-                        await firebase.firestore().collection('staff_members').doc(staffDocRef.id).update({
-                            uid: authResult.data.uid,
-                            status: 'active'
-                        });
-                        
-                        console.log('✅ Firebase Auth account created for staff');
-                    }
-                } catch (authError) {
-                    console.warn('Auth account creation failed, staff can be created manually later:', authError);
-                }
-                
-                // Send welcome email using the same system as venue invitations
+                // Send invitation email
                 try {
                     const baseUrl = window.location.origin;
-                    const loginUrl = `${baseUrl}/Landing-Signup-Login/login.html`;
+                    const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?staff_invitation=${staffDocRef.id}&code=${invitationCode}&restaurant=${currentRestaurant.id}`;
                     
                     const sendEmail = firebase.functions().httpsCallable('sendEmail');
                     await sendEmail({
-                        template: 'staff-welcome',
+                        template: 'staff-invitation',
                         to: email,
-                        subject: `🍽️ Welcome to ${currentRestaurant.name} Team!`,
+                        subject: `🍽️ Join ${currentRestaurant.name} Team - Create Your Account`,
                         templateData: {
                             staffName: name,
                             restaurantName: currentRestaurant.name,
@@ -1932,8 +1945,10 @@
                             position: position || 'Team Member',
                             loginEmail: email,
                             tempPassword: password,
-                            loginLink: loginUrl,
-                            currentYear: new Date().getFullYear()
+                            signupLink: signupUrl,
+                            invitationCode: invitationCode,
+                            currentYear: new Date().getFullYear(),
+                            inviterName: currentUser.name || 'Restaurant Manager'
                         },
                         requireAuth: false
                     });
@@ -1944,16 +1959,44 @@
                         welcomeEmailSentAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     
-                    console.log('✅ Welcome email sent to:', email);
+                    console.log('✅ Staff invitation email sent to:', email);
+                    
+                    closeAddStaffModal();
+                    hideLoading();
+                    showSuccess(`Staff invitation sent to ${name}! They will receive an email to create their account.`);
                     
                 } catch (emailError) {
-                    console.error('❌ Welcome email failed:', emailError);
-                    // Continue anyway - staff account was created
+                    console.error('❌ Invitation email failed:', emailError);
+                    
+                    // Show manual instructions if email fails
+                    closeAddStaffModal();
+                    hideLoading();
+                    showSuccess(`Staff invitation created for ${name}!`);
+                    
+                    // Show manual signup instructions
+                    const baseUrl = window.location.origin;
+                    const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?staff_invitation=${staffDocRef.id}&code=${invitationCode}&restaurant=${currentRestaurant.id}`;
+                    
+                    const manualInstructions = `
+Staff Invitation Created Successfully!
+
+${name} has been invited to join your team. 
+
+SHARE THESE DETAILS WITH ${name.toUpperCase()}:
+
+📧 Email: ${email}
+🔑 Temporary Password: ${password}
+🔗 Signup Link: ${signupUrl}
+
+OR send them the invitation code: ${invitationCode}
+
+They can also go to your signup page and enter the invitation code manually.
+
+NOTE: The invitation expires in 7 days.
+                    `;
+                    
+                    alert(manualInstructions);
                 }
-                
-                closeAddStaffModal();
-                hideLoading();
-                showSuccess(`Staff member ${name} added successfully! Welcome email sent to ${email}.`);
                 
                 // Reset form and reload data
                 document.getElementById('addStaffModal').querySelector('form').reset();
@@ -1966,8 +2009,92 @@
                 if (error.message.includes('email already exists')) {
                     showError('A staff member with this email already exists.');
                 } else {
-                    showError('Failed to add staff member: ' + (error.message || 'Unknown error'));
+                    showError('Failed to create staff invitation: ' + (error.message || 'Unknown error'));
                 }
+            }
+        }
+
+        // Resend staff invitation
+        async function resendInvitation(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            if (!confirm(`Resend invitation to ${staff.name}?\n\nThis will generate a new invitation code and extend the expiration date.`)) {
+                return;
+            }
+            
+            try {
+                showLoading('Resending invitation...');
+                
+                // Generate new invitation code and extend expiration
+                const newInvitationCode = generateStaffInvitationCode();
+                const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                
+                // Update staff document with new code
+                await firebase.firestore()
+                    .collection('staff_members')
+                    .doc(staffId)
+                    .update({
+                        invitationCode: newInvitationCode,
+                        expiresAt: newExpiresAt,
+                        lastReminderSent: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                
+                // Send reminder email
+                try {
+                    const baseUrl = window.location.origin;
+                    const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?staff_invitation=${staffId}&code=${newInvitationCode}&restaurant=${currentRestaurant.id}`;
+                    
+                    const sendEmail = firebase.functions().httpsCallable('sendEmail');
+                    await sendEmail({
+                        template: 'staff-invitation-reminder',
+                        to: staff.email,
+                        subject: `🍽️ Reminder: Join ${currentRestaurant.name} Team`,
+                        templateData: {
+                            staffName: staff.name,
+                            restaurantName: currentRestaurant.name,
+                            role: getRoleDisplayName(staff.role),
+                            position: staff.position || 'Team Member',
+                            signupLink: signupUrl,
+                            invitationCode: newInvitationCode,
+                            currentYear: new Date().getFullYear()
+                        },
+                        requireAuth: false
+                    });
+                    
+                    hideLoading();
+                    showSuccess(`Invitation resent to ${staff.name}! New invitation code: ${newInvitationCode}`);
+                    
+                } catch (emailError) {
+                    console.error('❌ Reminder email failed:', emailError);
+                    hideLoading();
+                    
+                    // Show manual instructions if email fails
+                    const baseUrl = window.location.origin;
+                    const signupUrl = `${baseUrl}/Landing-Signup-Login/signup.html?staff_invitation=${staffId}&code=${newInvitationCode}&restaurant=${currentRestaurant.id}`;
+                    
+                    showSuccess(`Invitation updated for ${staff.name}!`);
+                    
+                    const manualInstructions = `
+Invitation Resent Successfully!
+
+New invitation details for ${staff.name}:
+
+🔗 Signup Link: ${signupUrl}
+🔑 Invitation Code: ${newInvitationCode}
+📧 Email: ${staff.email}
+
+Share these details with ${staff.name} to complete their signup.
+The invitation expires in 7 days.
+                    `;
+                    
+                    alert(manualInstructions);
+                }
+                
+            } catch (error) {
+                console.error('❌ Resend invitation failed:', error);
+                hideLoading();
+                showError('Failed to resend invitation: ' + error.message);
             }
         }
 
@@ -2173,9 +2300,19 @@
             }
         }
 
-        // Enhanced Staff Earnings Calculation - FIXED VERSION
+        // Enhanced Staff Earnings Calculation - FIXED VERSION WITH UID VALIDATION
         async function calculateStaffEarnings(staffUID, restaurantId, startDate, endDate) {
             try {
+                // Validate staffUID before making query
+                if (!staffUID || staffUID === undefined || staffUID === null) {
+                    console.warn('⚠️ Staff member has no UID, skipping earnings calculation');
+                    return {
+                        totalHours: 0,
+                        totalShifts: 0,
+                        totalEarnings: formatCurrency(0)
+                    };
+                }
+                
                 // Get time records for the staff member in the date range
                 const timeRecordsSnapshot = await firebase.firestore()
                     .collection('staff_time_records')
@@ -2194,6 +2331,7 @@
                     .get();
                 
                 if (staffDoc.empty) {
+                    console.warn('⚠️ Staff document not found for UID:', staffUID);
                     return {
                         totalHours: 0,
                         totalShifts: 0,
@@ -2324,7 +2462,7 @@
             document.getElementById('staffEarningsModal').classList.remove('show');
         }
 
-        // Update earnings summary - FIXED VERSION
+        // Update earnings summary - FIXED VERSION WITH UID VALIDATION
         async function updateEarningsSummary() {
             try {
                 const period = document.getElementById('earningsPeriod').value;
@@ -2359,11 +2497,19 @@
                 let totalEarnings = 0;
                 let breakdownHtml = '';
                 
-                // Only calculate for active staff
-                const activeStaff = allStaff.filter(staff => staff.isActive !== false);
+                // Only calculate for active staff with valid UIDs
+                const activeStaffWithUIDs = allStaff.filter(staff => 
+                    staff.isActive !== false && 
+                    staff.uid && 
+                    staff.uid !== undefined && 
+                    staff.uid !== null &&
+                    staff.hourlyRate > 0
+                );
                 
-                for (const staff of activeStaff) {
-                    if (staff.hourlyRate > 0) {
+                console.log('📊 Calculating earnings for', activeStaffWithUIDs.length, 'active staff with UIDs');
+                
+                for (const staff of activeStaffWithUIDs) {
+                    try {
                         const earnings = await calculateStaffEarnings(
                             staff.uid, 
                             currentRestaurant.id, 
@@ -2372,7 +2518,7 @@
                         );
                         
                         // Extract numeric value from earnings string
-                        const earningsValue = parseFloat(earnings.totalEarnings.replace(/[$,]/g, ''));
+                        const earningsValue = parseFloat(earnings.totalEarnings.replace(/[$,€]/g, ''));
                         totalEarnings += earningsValue;
                         
                         if (earningsValue > 0) {
@@ -2383,6 +2529,9 @@
                                 </div>
                             `;
                         }
+                    } catch (error) {
+                        console.error('❌ Failed to calculate earnings for staff:', staff.name, error);
+                        // Continue with other staff members
                     }
                 }
                 
