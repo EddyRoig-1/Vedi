@@ -354,7 +354,6 @@
             border-radius: 12px;
             font-size: 12px;
             font-weight: 500;
-            text-transform: uppercase;
         }
 
         .staff-role.basic {
@@ -424,6 +423,10 @@
             max-height: 90vh;
             overflow-y: auto;
             box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+        }
+
+        .modal-content.wide {
+            max-width: 900px;
         }
 
         .modal-header {
@@ -539,6 +542,122 @@
             margin-bottom: 0;
         }
 
+        /* Role Management Styles */
+        .roles-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .role-card {
+            background: #F8F9FA;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .role-card:hover {
+            border-color: #007AFF;
+            transform: translateY(-1px);
+        }
+
+        .role-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .role-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1D1D1F;
+        }
+
+        .role-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .role-badge.default {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+
+        .role-badge.custom {
+            background: #FFF3E0;
+            color: #F57C00;
+        }
+
+        .role-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .role-pages {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .page-tag {
+            background: #E8F5E8;
+            color: #388E3C;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Page Selection Grid */
+        .page-selection-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .page-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            background: #F8F9FA;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .page-checkbox:hover {
+            background: #E8F5E8;
+            border-color: #4CAF50;
+        }
+
+        .page-checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+        .page-checkbox label {
+            font-size: 14px;
+            color: #1D1D1F;
+            font-weight: 500;
+            cursor: pointer;
+            margin-bottom: 0;
+        }
+
+        .page-checkbox.checked {
+            background: #E8F5E8;
+            border-color: #4CAF50;
+        }
+
         /* Messages */
         .message {
             padding: 12px 16px;
@@ -640,6 +759,10 @@
             .form-row {
                 flex-direction: column;
             }
+
+            .page-selection-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -658,6 +781,9 @@
             <div class="header-content">
                 <h1 class="header-title">Staff Management</h1>
                 <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="openRoleManagementModal()">
+                        Edit Roles & Permissions
+                    </button>
                     <button class="btn btn-primary" onclick="openAddStaffModal()">
                         Add Staff Member
                     </button>
@@ -732,9 +858,7 @@
                     <input type="text" class="search-box" id="staffSearch" placeholder="Search staff members..." onkeyup="filterStaff()">
                     <select class="form-select" id="roleFilter" onchange="filterStaff()">
                         <option value="">All Roles</option>
-                        <option value="basic">Basic</option>
-                        <option value="advanced">Advanced</option>
-                        <option value="full">Full</option>
+                        <!-- Role options will be populated dynamically -->
                     </select>
                 </div>
             </div>
@@ -760,6 +884,56 @@
         </div>
     </div>
 
+    <!-- Role Management Modal -->
+    <div class="modal" id="roleManagementModal">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h2 class="modal-title">Manage Roles & Permissions</h2>
+                <button class="close-btn" onclick="closeRoleManagementModal()">&times;</button>
+            </div>
+            <div id="roleManagementContent">
+                <div class="roles-list" id="rolesList">
+                    <!-- Roles will be populated here -->
+                </div>
+                <button class="btn btn-success" onclick="openCreateRoleModal()">
+                    Create New Role
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Role Modal -->
+    <div class="modal" id="roleEditorModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="roleEditorTitle">Create New Role</h2>
+                <button class="close-btn" onclick="closeRoleEditorModal()">&times;</button>
+            </div>
+            <form class="modal-form" onsubmit="saveRole(event)">
+                <div class="form-group">
+                    <label class="form-label">Role Name</label>
+                    <input type="text" class="form-input" id="roleNameInput" required placeholder="e.g., Server, Manager, Cook">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role ID (Internal)</label>
+                    <input type="text" class="form-input" id="roleIdInput" required placeholder="e.g., server, manager, cook">
+                    <small style="color: #86868B; font-size: 12px;">This will be used internally to identify the role. Use lowercase letters and hyphens only.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Page Access</label>
+                    <p style="color: #86868B; font-size: 14px; margin-bottom: 12px;">Select which pages this role can access:</p>
+                    <div class="page-selection-grid" id="pageSelectionGrid">
+                        <!-- Page checkboxes will be populated here -->
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeRoleEditorModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveRoleBtn">Save Role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Add Staff Modal -->
     <div class="modal" id="addStaffModal">
         <div class="modal-content">
@@ -782,10 +956,8 @@
                     <div class="form-group">
                         <label class="form-label">Role</label>
                         <select class="form-select" id="staffRole" required>
-                            <option value="">Select Permission Level</option>
-                            <option value="basic">Basic Permissions - Orders access only</option>
-                            <option value="advanced">Advanced Permissions - POS, Orders, Loss Reports</option>
-                            <option value="full">Full Permissions - Complete dashboard access</option>
+                            <option value="">Select Role</option>
+                            <!-- Role options will be populated dynamically -->
                         </select>
                     </div>
                     <div class="form-group">
@@ -853,9 +1025,7 @@
                     <div class="form-group">
                         <label class="form-label">Role</label>
                         <select class="form-select" id="editStaffRole" required>
-                            <option value="basic">Basic Permissions</option>
-                            <option value="advanced">Advanced Permissions</option>
-                            <option value="full">Full Permissions</option>
+                            <!-- Role options will be populated dynamically -->
                         </select>
                     </div>
                     <div class="form-group">
@@ -923,9 +1093,12 @@
         let currentRestaurant = null;
         let currentUserRole = null;
         let allStaff = [];
+        let restaurantRoles = [];
         let clockedInStaff = [];
         let currentEditingStaff = null;
+        let currentEditingRole = null;
         let filteredStaff = [];
+        let availablePages = [];
 
         // Debug logging
         function debugLog(message, data = null) {
@@ -953,6 +1126,14 @@
                 // Check user permissions
                 showLoading('Checking permissions...');
                 currentUserRole = await checkUserPermissions();
+                
+                // Load available pages
+                showLoading('Loading available pages...');
+                availablePages = StaffAuth.getAvailablePages();
+                
+                // Load restaurant roles
+                showLoading('Loading roles...');
+                await loadRestaurantRoles();
                 
                 // Load staff data
                 showLoading('Loading staff data...');
@@ -1072,6 +1253,56 @@
             }
         }
 
+        // Load restaurant roles
+        async function loadRestaurantRoles() {
+            try {
+                // Initialize default roles if needed
+                await StaffAuth.initializeDefaultRoles(currentRestaurant.id);
+                
+                // Load all roles for this restaurant
+                restaurantRoles = await StaffAuth.getRestaurantRoles(currentRestaurant.id);
+                
+                debugLog('✅ Restaurant roles loaded:', restaurantRoles.length);
+                
+                // Update role dropdowns
+                updateRoleDropdowns();
+                
+            } catch (error) {
+                console.error('❌ Failed to load restaurant roles:', error);
+                throw error;
+            }
+        }
+
+        // Update role dropdowns
+        function updateRoleDropdowns() {
+            const roleSelects = [
+                document.getElementById('staffRole'),
+                document.getElementById('editStaffRole'),
+                document.getElementById('roleFilter')
+            ];
+            
+            roleSelects.forEach(select => {
+                if (!select) return;
+                
+                // Clear existing options (except first one for some selects)
+                const isFilter = select.id === 'roleFilter';
+                const firstOption = select.querySelector('option');
+                select.innerHTML = '';
+                
+                if (firstOption && (isFilter || firstOption.value === '')) {
+                    select.appendChild(firstOption);
+                }
+                
+                // Add role options
+                restaurantRoles.forEach(role => {
+                    const option = document.createElement('option');
+                    option.value = role.roleId;
+                    option.textContent = role.name;
+                    select.appendChild(option);
+                });
+            });
+        }
+
         // Load staff data
         async function loadStaffData() {
             try {
@@ -1154,6 +1385,8 @@
             
             staffTableBody.innerHTML = displayStaff.map(staff => {
                 const isClockedIn = clockedInStaff.some(record => record.staffUID === staff.uid);
+                const role = restaurantRoles.find(r => r.roleId === staff.role);
+                const roleName = role ? role.name : staff.role;
                 
                 return `
                     <tr>
@@ -1162,7 +1395,7 @@
                             ${isClockedIn ? '<span style="color: #34C759; font-size: 12px;">● WORKING</span>' : ''}
                         </td>
                         <td>${staff.email}</td>
-                        <td><span class="staff-role ${staff.role}">${staff.role}</span></td>
+                        <td><span class="staff-role ${staff.role}">${roleName}</span></td>
                         <td>${staff.position || 'Not specified'}</td>
                         <td>$${(staff.hourlyRate || 0).toFixed(2)}/hr</td>
                         <td><span class="status-badge ${staff.isActive ? 'active' : 'inactive'}">${staff.isActive ? 'Active' : 'Inactive'}</span></td>
@@ -1222,9 +1455,222 @@
                     updateStaffOverview();
                     renderStaffTable();
                 });
+            
+            // Listen for role changes
+            firebase.firestore()
+                .collection('restaurant_roles')
+                .where('restaurantId', '==', currentRestaurant.id)
+                .onSnapshot(snapshot => {
+                    restaurantRoles = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    
+                    updateRoleDropdowns();
+                    renderStaffTable();
+                    
+                    // Clear cache
+                    StaffAuth.clearRoleCache(currentRestaurant.id);
+                });
         }
 
-        // Add staff modal functions
+        // Role Management Functions
+        function openRoleManagementModal() {
+            renderRolesList();
+            document.getElementById('roleManagementModal').classList.add('show');
+        }
+
+        function closeRoleManagementModal() {
+            document.getElementById('roleManagementModal').classList.remove('show');
+        }
+
+        function renderRolesList() {
+            const rolesList = document.getElementById('rolesList');
+            
+            if (restaurantRoles.length === 0) {
+                rolesList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No roles found</h3>
+                        <p>Create your first custom role to get started</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            rolesList.innerHTML = restaurantRoles.map(role => {
+                const pageCount = role.pages.length;
+                const pageNames = role.pages.map(pageId => StaffAuth.getPageDisplayName(pageId));
+                
+                return `
+                    <div class="role-card">
+                        <div class="role-header">
+                            <div>
+                                <div class="role-name">${role.name}</div>
+                                <span class="role-badge ${role.isDefault ? 'default' : 'custom'}">
+                                    ${role.isDefault ? 'Default' : 'Custom'}
+                                </span>
+                            </div>
+                            <div class="role-actions">
+                                <button class="btn btn-small btn-secondary" onclick="editRole('${role.id}')">
+                                    Edit
+                                </button>
+                                ${!role.isDefault ? `
+                                    <button class="btn btn-small btn-danger" onclick="deleteRole('${role.id}')">
+                                        Delete
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div style="color: #86868B; font-size: 14px; margin-bottom: 8px;">
+                            ${pageCount} page${pageCount !== 1 ? 's' : ''} accessible
+                        </div>
+                        <div class="role-pages">
+                            ${pageNames.map(name => `<span class="page-tag">${name}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openCreateRoleModal() {
+            currentEditingRole = null;
+            document.getElementById('roleEditorTitle').textContent = 'Create New Role';
+            document.getElementById('saveRoleBtn').textContent = 'Create Role';
+            document.getElementById('roleNameInput').value = '';
+            document.getElementById('roleIdInput').value = '';
+            document.getElementById('roleIdInput').disabled = false;
+            
+            renderPageSelectionGrid();
+            document.getElementById('roleEditorModal').classList.add('show');
+        }
+
+        function editRole(roleId) {
+            const role = restaurantRoles.find(r => r.id === roleId);
+            if (!role) return;
+            
+            currentEditingRole = role;
+            document.getElementById('roleEditorTitle').textContent = 'Edit Role';
+            document.getElementById('saveRoleBtn').textContent = 'Update Role';
+            document.getElementById('roleNameInput').value = role.name;
+            document.getElementById('roleIdInput').value = role.roleId;
+            document.getElementById('roleIdInput').disabled = true; // Don't allow changing roleId
+            
+            renderPageSelectionGrid(role.pages);
+            document.getElementById('roleEditorModal').classList.add('show');
+        }
+
+        function closeRoleEditorModal() {
+            document.getElementById('roleEditorModal').classList.remove('show');
+            currentEditingRole = null;
+        }
+
+        function renderPageSelectionGrid(selectedPages = []) {
+            const grid = document.getElementById('pageSelectionGrid');
+            
+            grid.innerHTML = availablePages.map(pageId => {
+                const displayName = StaffAuth.getPageDisplayName(pageId);
+                const isSelected = selectedPages.includes(pageId);
+                
+                return `
+                    <div class="page-checkbox ${isSelected ? 'checked' : ''}" onclick="togglePageSelection('${pageId}', this)">
+                        <input type="checkbox" id="page_${pageId}" ${isSelected ? 'checked' : ''}>
+                        <label for="page_${pageId}">${displayName}</label>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function togglePageSelection(pageId, element) {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {
+                element.classList.add('checked');
+            } else {
+                element.classList.remove('checked');
+            }
+        }
+
+        async function saveRole(event) {
+            event.preventDefault();
+            
+            const roleName = document.getElementById('roleNameInput').value.trim();
+            const roleId = document.getElementById('roleIdInput').value.trim();
+            
+            // Get selected pages
+            const selectedPages = Array.from(document.querySelectorAll('#pageSelectionGrid input[type="checkbox"]:checked'))
+                .map(checkbox => checkbox.id.replace('page_', ''));
+            
+            if (!roleName || !roleId) {
+                showError('Please fill in all required fields');
+                return;
+            }
+            
+            if (selectedPages.length === 0) {
+                showError('Please select at least one page');
+                return;
+            }
+            
+            try {
+                showLoading(currentEditingRole ? 'Updating role...' : 'Creating role...');
+                
+                if (currentEditingRole) {
+                    // Update existing role
+                    await StaffAuth.updateRole(currentRestaurant.id, currentEditingRole.roleId, {
+                        name: roleName,
+                        pages: selectedPages
+                    });
+                    
+                    showSuccess('Role updated successfully!');
+                } else {
+                    // Create new role
+                    await StaffAuth.createRole(currentRestaurant.id, {
+                        roleId: roleId,
+                        name: roleName,
+                        pages: selectedPages
+                    });
+                    
+                    showSuccess('Role created successfully!');
+                }
+                
+                closeRoleEditorModal();
+                await loadRestaurantRoles();
+                renderRolesList();
+                hideLoading();
+                
+            } catch (error) {
+                console.error('❌ Save role failed:', error);
+                hideLoading();
+                showError('Failed to save role: ' + error.message);
+            }
+        }
+
+        async function deleteRole(roleId) {
+            const role = restaurantRoles.find(r => r.id === roleId);
+            if (!role) return;
+            
+            if (!confirm(`Are you sure you want to delete the role "${role.name}"?`)) {
+                return;
+            }
+            
+            try {
+                showLoading('Deleting role...');
+                
+                await StaffAuth.deleteRole(currentRestaurant.id, role.roleId);
+                
+                showSuccess('Role deleted successfully!');
+                await loadRestaurantRoles();
+                renderRolesList();
+                hideLoading();
+                
+            } catch (error) {
+                console.error('❌ Delete role failed:', error);
+                hideLoading();
+                showError('Failed to delete role: ' + error.message);
+            }
+        }
+
+        // Staff Management Functions (existing functions remain the same)
         function openAddStaffModal() {
             document.getElementById('addStaffModal').classList.add('show');
         }
@@ -1489,7 +1935,7 @@
                     <div style="margin-bottom: 20px;">
                         <h3>${staff.name} - Earnings Report</h3>
                         <p><strong>Position:</strong> ${staff.position || 'Not specified'}</p>
-                        <p><strong>Hourly Rate:</strong> $${(staff.hourlyRate || 0).toFixed(2)}/hour</p>
+                        <p><strong>Hourly Rate:</strong> ${(staff.hourlyRate || 0).toFixed(2)}/hour</p>
                     </div>
                 `;
                 
@@ -1508,7 +1954,7 @@
                                 </div>
                                 <div>
                                     <div style="font-size: 14px; color: #86868B;">Total Earnings</div>
-                                    <div style="font-size: 18px; font-weight: 600; color: #34C759;">$${data.totalEarnings}</div>
+                                    <div style="font-size: 18px; font-weight: 600; color: #34C759;">${data.totalEarnings}</div>
                                 </div>
                             </div>
                         </div>
@@ -1581,14 +2027,14 @@
                             breakdownHtml += `
                                 <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F1F3F4;">
                                     <span>${staff.name}</span>
-                                    <span style="font-weight: 600;">$${earnings.totalEarnings}</span>
+                                    <span style="font-weight: 600;">${earnings.totalEarnings}</span>
                                 </div>
                             `;
                         }
                     }
                 }
                 
-                document.getElementById('totalEarnings').textContent = `$${totalEarnings.toFixed(2)}`;
+                document.getElementById('totalEarnings').textContent = `${totalEarnings.toFixed(2)}`;
                 document.getElementById('earningsPeriodLabel').textContent = periodLabel;
                 document.getElementById('earningsBreakdown').innerHTML = breakdownHtml || '<p style="color: #86868B; text-align: center; padding: 20px;">No earnings data for this period</p>';
                 
@@ -1618,6 +2064,12 @@
                         hourlyRate: staff.hourlyRate,
                         isActive: staff.isActive,
                         createdAt: staff.createdAt
+                    })),
+                    roles: restaurantRoles.map(role => ({
+                        roleId: role.roleId,
+                        name: role.name,
+                        pages: role.pages,
+                        isDefault: role.isDefault
                     }))
                 };
                 
@@ -1674,7 +2126,7 @@
             showMessage(message, 'info');
         }
 
-        console.log('Staff Management System loaded');
+        console.log('Dynamic Staff Management System loaded');
     </script>
 </body>
 </html>
