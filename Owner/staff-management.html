@@ -19,6 +19,9 @@
     <script src="../Api/core/utilities.js"></script>
     <script src="../Api/core/tracking.js"></script>
     <script src="../Api/core/staff-auth.js"></script>
+    
+    <!-- Restaurant Timezone Support -->
+    <script src="../Api/business/timezone.js"></script>
 
     <!-- Business API Modules -->
     <script src="../Api/business/restaurants.js"></script>
@@ -1129,6 +1132,54 @@
         let currentPasswordChangeStaff = null;
         let filteredStaff = [];
         let availablePages = [];
+        
+        // Restaurant timezone and currency (same system as analytics page)
+        let restaurantTimezone = 'UTC';
+        let restaurantCurrency = { code: 'USD', symbol: '$', name: 'US Dollar' };
+
+        // ============================================================================
+        // RESTAURANT CURRENCY DETECTION (FROM ANALYTICS PAGE)
+        // ============================================================================
+
+        /**
+         * Get restaurant's effective currency (venue currency if associated, own currency if independent)
+         */
+        function getRestaurantCurrency() {
+            // First priority: Restaurant's own currency if it exists
+            if (currentRestaurant.currency) {
+                return currentRestaurant.currency;
+            }
+            
+            // Second priority: Venue currency if restaurant is associated with venue
+            if (currentRestaurant.venueId && currentRestaurant.venueCurrency) {
+                return currentRestaurant.venueCurrency;
+            }
+            
+            // Third priority: Check venue data if loaded
+            if (currentRestaurant.venue && currentRestaurant.venue.currency) {
+                return currentRestaurant.venue.currency;
+            }
+            
+            // Fallback to USD
+            return { code: 'USD', symbol: '$', name: 'US Dollar' };
+        }
+
+        /**
+         * Format currency using restaurant's effective currency
+         */
+        function formatCurrency(amount) {
+            if (!amount && amount !== 0) return `${restaurantCurrency.symbol}0.00`;
+            return `${restaurantCurrency.symbol}${Number(amount).toFixed(2)}`;
+        }
+
+        /**
+         * Format currency for display in earnings (same as analytics page)
+         */
+        function formatCurrencyForDisplay(amount) {
+            if (!amount && amount !== 0) return `${restaurantCurrency.symbol}0.00`;
+            const numAmount = typeof amount === 'string' ? parseFloat(amount.replace(/[$,]/g, '')) : Number(amount);
+            return `${restaurantCurrency.symbol}${numAmount.toFixed(2)}`;
+        }
 
         // Debug logging
         function debugLog(message, data = null) {
@@ -1152,6 +1203,10 @@
                 // Load restaurant data
                 showLoading('Loading restaurant...');
                 currentRestaurant = await loadRestaurantData();
+                
+                // Setup restaurant currency (same as analytics page)
+                restaurantCurrency = getRestaurantCurrency();
+                debugLog('💰 Restaurant currency:', restaurantCurrency);
                 
                 // Check user permissions
                 showLoading('Checking permissions...');
@@ -1446,7 +1501,7 @@
             document.getElementById('totalStaff').textContent = totalStaff;
             document.getElementById('activeStaff').textContent = activeStaff;
             document.getElementById('currentlyWorking').textContent = currentlyWorking;
-            document.getElementById('avgHourlyRate').textContent = `$${avgRate.toFixed(2)}`;
+            document.getElementById('avgHourlyRate').textContent = formatCurrency(avgRate);
         }
 
         // Render staff table
@@ -1482,7 +1537,7 @@
                         <td>${staff.email}</td>
                         <td><span class="staff-role ${staff.role}">${roleName}</span></td>
                         <td>${staff.position || 'Not specified'}</td>
-                        <td>$${(staff.hourlyRate || 0).toFixed(2)}/hr</td>
+                        <td>${formatCurrency(staff.hourlyRate || 0)}/hr</td>
                         <td><span class="status-badge ${staff.isActive ? 'active' : 'inactive'}">${staff.isActive ? 'Active' : 'Inactive'}</span></td>
                         <td>
                             <div class="actions-cell">
@@ -1941,7 +1996,7 @@
                     return {
                         totalHours: 0,
                         totalShifts: 0,
-                        totalEarnings: '$0.00'
+                        totalEarnings: formatCurrency(0)
                     };
                 }
                 
@@ -1973,7 +2028,7 @@
                 return {
                     totalHours: totalHours.toFixed(2),
                     totalShifts: totalShifts,
-                    totalEarnings: `${totalEarnings.toFixed(2)}`
+                    totalEarnings: formatCurrency(totalEarnings)
                 };
                 
             } catch (error) {
@@ -1981,7 +2036,7 @@
                 return {
                     totalHours: 0,
                     totalShifts: 0,
-                    totalEarnings: '$0.00'
+                    totalEarnings: formatCurrency(0)
                 };
             }
         }
@@ -2026,7 +2081,7 @@
                     <div style="margin-bottom: 20px;">
                         <h3>${staff.name} - Earnings Report</h3>
                         <p><strong>Position:</strong> ${staff.position || 'Not specified'}</p>
-                        <p><strong>Hourly Rate:</strong> ${(staff.hourlyRate || 0).toFixed(2)}/hour</p>
+                        <p><strong>Hourly Rate:</strong> ${formatCurrency(staff.hourlyRate || 0)}/hour</p>
                     </div>
                 `;
                 
@@ -2127,13 +2182,13 @@
                     }
                 }
                 
-                document.getElementById('totalEarnings').textContent = `${totalEarnings.toFixed(2)}`;
+                document.getElementById('totalEarnings').textContent = formatCurrencyForDisplay(totalEarnings);
                 document.getElementById('earningsPeriodLabel').textContent = periodLabel;
                 document.getElementById('earningsBreakdown').innerHTML = breakdownHtml || '<p style="color: #86868B; text-align: center; padding: 20px;">No earnings data for this period</p>';
                 
             } catch (error) {
                 console.error('❌ Failed to update earnings summary:', error);
-                document.getElementById('totalEarnings').textContent = '$0.00';
+                document.getElementById('totalEarnings').textContent = formatCurrencyForDisplay(0);
                 document.getElementById('earningsBreakdown').innerHTML = '<p style="color: #FF3B30;">Failed to load earnings data</p>';
             }
         }
@@ -2148,6 +2203,7 @@
             try {
                 const exportData = {
                     restaurant: currentRestaurant.name,
+                    currency: restaurantCurrency,
                     exportDate: new Date().toISOString(),
                     staff: allStaff.map(staff => ({
                         name: staff.name,
@@ -2431,7 +2487,7 @@
             showMessage(message, 'info');
         }
 
-        console.log('Dynamic Staff Management System loaded');
+        console.log('Staff Management System with Currency Detection loaded');
     </script>
 </body>
 </html>
