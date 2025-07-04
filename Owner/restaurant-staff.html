@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Staff Management - Restaurant Dashboard</title>
+    <title>Staff Clock In/Out - Restaurant Dashboard</title>
     
     <!-- Firebase Scripts -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -18,10 +18,10 @@
     <script src="../Api/core/firebase-init.js"></script>
     <script src="../Api/core/utilities.js"></script>
     <script src="../Api/core/tracking.js"></script>
+    <script src="../Api/core/staff-auth.js"></script>
 
     <!-- Business API Modules -->
     <script src="../Api/business/restaurants.js"></script>
-    <script src="../Api/core/staff-auth.js"></script>
 
     <style>
         * {
@@ -107,11 +107,6 @@
             font-weight: 700;
             color: #000000;
             letter-spacing: -0.02em;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 12px;
         }
 
         /* Action Buttons */
@@ -457,31 +452,6 @@
             gap: 16px;
         }
 
-        .form-row {
-            display: flex;
-            gap: 12px;
-        }
-
-        .form-row .form-group {
-            flex: 1;
-        }
-
-        .form-select {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #E5E5E7;
-            border-radius: 8px;
-            font-size: 15px;
-            background: #FFFFFF;
-            transition: all 0.2s ease;
-        }
-
-        .form-select:focus {
-            outline: none;
-            border-color: #007AFF;
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-        }
-
         /* Messages */
         .message {
             padding: 12px 16px;
@@ -531,6 +501,28 @@
             font-size: 14px;
         }
 
+        /* Info Box */
+        .info-box {
+            background: #E3F2FD;
+            border: 1px solid #2196F3;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-box h3 {
+            color: #0D47A1;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .info-box p {
+            color: #1565C0;
+            font-size: 14px;
+            margin: 0;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
@@ -540,15 +532,6 @@
             .header-content {
                 flex-direction: column;
                 align-items: flex-start;
-            }
-
-            .header-actions {
-                width: 100%;
-                justify-content: stretch;
-            }
-
-            .header-actions .btn {
-                flex: 1;
             }
 
             .clock-in-form {
@@ -576,7 +559,7 @@
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-card">
             <div class="loading-spinner"></div>
-            <p id="loadingText">Loading staff data...</p>
+            <p id="loadingText">Loading staff clock system...</p>
         </div>
     </div>
 
@@ -584,13 +567,14 @@
         <!-- Header -->
         <div class="staff-header">
             <div class="header-content">
-                <h1 class="header-title">Staff Management</h1>
-                <div class="header-actions">
-                    <button class="btn btn-primary" onclick="openAddStaffModal()">
-                        Add Staff
-                    </button>
-                </div>
+                <h1 class="header-title">Staff Clock In/Out</h1>
             </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <h3>Staff Clock System</h3>
+            <p>Clock in and out to track your work hours. For staff management features, contact your restaurant manager.</p>
         </div>
 
         <!-- Messages -->
@@ -634,11 +618,9 @@
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Email</th>
                             <th>Role</th>
                             <th>Position</th>
                             <th>Status</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="staffTableBody">
@@ -646,58 +628,6 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
-
-    <!-- Add Staff Modal -->
-    <div class="modal" id="addStaffModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Add New Staff Member</h2>
-                <button class="close-btn" onclick="closeAddStaffModal()">&times;</button>
-            </div>
-            <form class="modal-form" onsubmit="addStaff(event)">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Full Name</label>
-                        <input type="text" class="form-input" id="staffName" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Email Address</label>
-                        <input type="email" class="form-input" id="staffEmail" required>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Role</label>
-                        <select class="form-select" id="staffRole" required>
-                            <option value="">Select Permission Level</option>
-                            <option value="basic">Basic Permissions - Orders access only</option>
-                            <option value="advanced">Advanced Permissions - POS, Orders, Loss Reports</option>
-                            <option value="full">Full Permissions - Complete dashboard access</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Position</label>
-                        <input type="text" class="form-input" id="staffPosition" placeholder="e.g., Server, Cook, Manager">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Phone Number</label>
-                        <input type="tel" class="form-input" id="staffPhone" placeholder="(555) 123-4567">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Hourly Rate</label>
-                        <input type="number" class="form-input" id="staffRate" step="0.01" min="0" placeholder="15.00">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Temporary Password</label>
-                    <input type="password" class="form-input" id="staffPassword" placeholder="Staff will change this on first login" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Add Staff Member</button>
-            </form>
         </div>
     </div>
 
@@ -759,8 +689,8 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async function() {
-            debugLog('🚀 Staff management page initialization started');
-            showLoading('Loading staff data...');
+            debugLog('🚀 Staff clock system initialization started');
+            showLoading('Loading staff clock system...');
             
             try {
                 // Wait for Firebase to load
@@ -788,10 +718,10 @@
                 // Hide loading
                 hideLoading();
                 
-                debugLog('✅ Staff management page initialized successfully');
+                debugLog('✅ Staff clock system initialized successfully');
                 
             } catch (error) {
-                console.error('❌ Failed to initialize staff page:', error);
+                console.error('❌ Failed to initialize staff clock system:', error);
                 hideLoading();
                 showError('Failed to initialize: ' + error.message);
             }
@@ -849,6 +779,7 @@
                         .collection('staff_members')
                         .where('uid', '==', currentUser.uid)
                         .where('isActive', '==', true)
+                        .limit(1)
                         .get();
                     
                     if (!staffSnapshot.empty) {
@@ -872,70 +803,37 @@
         // Check user permissions
         async function checkUserPermissions() {
             try {
-                // First, check if user is restaurant owner
-                if (currentRestaurant.ownerUserId === currentUser.uid) {
-                    debugLog('✅ User is restaurant owner');
-                    return 'owner';
+                // Debug: Check if StaffAuth is available
+                if (typeof StaffAuth === 'undefined') {
+                    console.error('❌ StaffAuth is not loaded!');
+                    throw new Error('StaffAuth module not loaded');
                 }
                 
-                // If not owner, check if user is staff member
-                const staffSnapshot = await firebase.firestore()
-                    .collection('staff_members')
-                    .where('uid', '==', currentUser.uid)
-                    .where('restaurantId', '==', currentRestaurant.id)
-                    .where('isActive', '==', true)
-                    .get();
+                console.log('✅ StaffAuth is available:', StaffAuth);
                 
-                if (!staffSnapshot.empty) {
-                    const staffData = staffSnapshot.docs[0].data();
-                    debugLog('✅ User is staff member with role:', staffData.role);
-                    return staffData.role;
+                // Use StaffAuth to get user profile and role
+                const userProfile = await StaffAuth.getStaffProfile(currentUser.uid);
+                
+                if (!userProfile) {
+                    // If StaffAuth fails, try direct check as fallback
+                    console.log('⚠️ StaffAuth returned null, trying direct owner check...');
+                    
+                    // Check if user is restaurant owner directly
+                    if (currentRestaurant.ownerUserId === currentUser.uid || currentRestaurant.ownerId === currentUser.uid) {
+                        debugLog('✅ User is restaurant owner (direct check)');
+                        return 'owner';
+                    }
+                    
+                    throw new Error('Access denied. You do not have permission to access this page.');
                 }
                 
-                // If neither owner nor staff, deny access
-                throw new Error('Access denied. You do not have permission to access this page.');
+                debugLog('✅ User profile loaded:', userProfile);
+                return userProfile.role;
                 
             } catch (error) {
                 console.error('❌ Permission check failed:', error);
                 throw error;
             }
-        }
-
-        // Setup UI based on permissions
-        function setupPermissionBasedUI() {
-            const headerActions = document.getElementById('headerActions');
-            
-            // Debug current role
-            console.log('Setting up UI for role:', currentUserRole);
-            
-            // Only owners and full permission staff can add staff
-            if (currentUserRole === 'owner' || currentUserRole === 'full') {
-                headerActions.innerHTML = `
-                    <button class="btn btn-primary" onclick="openAddStaffModal()">
-                        Add Staff
-                    </button>
-                `;
-                console.log('✅ Add Staff button added for role:', currentUserRole);
-            } else {
-                headerActions.innerHTML = `
-                    <div style="color: #86868B; font-size: 14px; text-align: center;">
-                        Staff Management - View Only (Role: ${currentUserRole})
-                    </div>
-                `;
-                console.log('ℹ️ View-only mode for role:', currentUserRole);
-            }
-            
-            // Fallback: If role is not determined, show button anyway for testing
-            if (!currentUserRole) {
-                console.warn('⚠️ Role not determined, showing Add Staff button as fallback');
-                headerActions.innerHTML = `
-                    <button class="btn btn-primary" onclick="openAddStaffModal()">
-                        Add Staff
-                    </button>
-                `;
-            }
-            
-            debugLog('UI setup completed for role:', currentUserRole);
         }
 
         // Load staff data
@@ -952,7 +850,7 @@
                     id: doc.id,
                     ...doc.data()
                 }));
-                
+
                 // Load currently clocked in staff
                 const today = new Date().toISOString().split('T')[0];
                 const clockedInSnapshot = await firebase.firestore()
@@ -1007,17 +905,17 @@
             renderAllStaff();
         }
 
-        // Render all staff table
+        // Render all staff table (simplified - no edit actions)
         function renderAllStaff() {
             const staffTableBody = document.getElementById('staffTableBody');
             
             if (allStaff.length === 0) {
                 staffTableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 40px;">
+                        <td colspan="4" style="text-align: center; padding: 40px;">
                             <div class="empty-state">
-                                <h3>No staff members</h3>
-                                <p>Add staff members to get started</p>
+                                <h3>No staff members found</h3>
+                                <p>Contact your manager to add staff members</p>
                             </div>
                         </td>
                     </tr>
@@ -1034,15 +932,9 @@
                             <strong>${staff.name}</strong>
                             ${isClockedIn ? '<span style="color: #34C759; font-size: 12px;">● CLOCKED IN</span>' : ''}
                         </td>
-                        <td>${staff.email}</td>
                         <td><span class="staff-role ${staff.role}">${staff.role}</span></td>
                         <td>${staff.position || 'Not specified'}</td>
                         <td><span class="status-badge ${staff.isActive ? 'active' : 'inactive'}">${staff.isActive ? 'Active' : 'Inactive'}</span></td>
-                        <td>
-                            <button class="btn btn-secondary" onclick="editStaff('${staff.id}')" style="padding: 4px 8px; font-size: 12px;">
-                                Edit
-                            </button>
-                        </td>
                     </tr>
                 `;
             }).join('');
@@ -1081,6 +973,9 @@
                     throw new Error('You are already clocked in');
                 }
                 
+                // Store current user info to restore later
+                const originalUser = firebase.auth().currentUser;
+                
                 // Authenticate staff member
                 const tempUser = await firebase.auth().signInWithEmailAndPassword(email, password);
                 
@@ -1098,7 +993,16 @@
                 
                 // Sign back in as the original user
                 await firebase.auth().signOut();
-                await firebase.auth().signInWithEmailAndPassword(currentUser.email, currentUser.password);
+                
+                // Wait a moment then sign back in as original user
+                setTimeout(async () => {
+                    try {
+                        await firebase.auth().signInWithEmailAndPassword(originalUser.email, '');
+                    } catch (error) {
+                        console.warn('Could not restore original user session');
+                        // Page will reload anyway due to auth state change
+                    }
+                }, 1000);
                 
                 // Clear form
                 document.getElementById('clockInEmail').value = '';
@@ -1148,6 +1052,9 @@
             try {
                 showLoading('Clocking out...');
                 
+                // Store current user info to restore later
+                const originalUser = firebase.auth().currentUser;
+                
                 // Authenticate staff member
                 await firebase.auth().signInWithEmailAndPassword(currentClockOutStaff.staff.email, password);
                 
@@ -1175,7 +1082,16 @@
                 
                 // Sign back in as the original user
                 await firebase.auth().signOut();
-                await firebase.auth().signInWithEmailAndPassword(currentUser.email, currentUser.password);
+                
+                // Wait a moment then sign back in as original user
+                setTimeout(async () => {
+                    try {
+                        await firebase.auth().signInWithEmailAndPassword(originalUser.email, '');
+                    } catch (error) {
+                        console.warn('Could not restore original user session');
+                        // Page will reload anyway due to auth state change
+                    }
+                }, 1000);
                 
                 closeClockOutModal();
                 hideLoading();
@@ -1226,21 +1142,6 @@
                     </div>
                 `;
             }).join('');
-        }
-
-        // Add staff modal functions
-        function openAddStaffModal() {
-            // Check permissions before opening modal
-            if (currentUserRole !== 'owner' && currentUserRole !== 'full') {
-                showError('Only owners and full permission staff can add new staff members');
-                return;
-            }
-            document.getElementById('addStaffModal').classList.add('show');
-        }
-
-        function closeAddStaffModal() {
-            document.getElementById('addStaffModal').classList.remove('show');
-            document.getElementById('addStaffModal').querySelector('form').reset();
         }
 
         // Forgot password functionality
@@ -1317,67 +1218,7 @@
             showMessage(message, 'info');
         }
 
-        console.log('Staff Management & Clock System loaded');
-
-        // Add staff functionality
-        async function addStaff(event) {
-            event.preventDefault();
-            
-            const name = document.getElementById('staffName').value.trim();
-            const email = document.getElementById('staffEmail').value.trim();
-            const role = document.getElementById('staffRole').value;
-            const position = document.getElementById('staffPosition').value.trim();
-            const phone = document.getElementById('staffPhone').value.trim();
-            const rate = document.getElementById('staffRate').value;
-            const password = document.getElementById('staffPassword').value;
-            
-            if (!name || !email || !role || !password) {
-                showError('Please fill in all required fields');
-                return;
-            }
-            
-            try {
-                showLoading('Creating staff account...');
-                
-                // Store current user credentials
-                const currentUserEmail = currentUser.email;
-                
-                // Create Firebase user
-                const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
-                const newUser = userCredential.user;
-                
-                // Create staff record
-                await firebase.firestore().collection('staff_members').add({
-                    uid: newUser.uid,
-                    restaurantId: currentRestaurant.id,
-                    name: name,
-                    email: email,
-                    role: role,
-                    position: position || null,
-                    phone: phone || null,
-                    hourlyRate: rate ? parseFloat(rate) : null,
-                    isActive: true,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    createdBy: currentUser.uid
-                });
-                
-                // Sign back in as the original user
-                await firebase.auth().signOut();
-                await firebase.auth().signInWithEmailAndPassword(currentUserEmail, '');
-                
-                closeAddStaffModal();
-                hideLoading();
-                showSuccess(`Staff member ${name} added successfully! Welcome email will be sent with login details.`);
-                
-                // Reload staff data
-                await loadStaffData();
-                
-            } catch (error) {
-                console.error('❌ Add staff failed:', error);
-                hideLoading();
-                showError('Failed to add staff: ' + error.message);
-            }
-        }
+        console.log('Staff Clock In/Out System loaded');
     </script>
 </body>
 </html>
