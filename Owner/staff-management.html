@@ -393,6 +393,7 @@
             display: flex;
             gap: 8px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         /* Modals */
@@ -707,6 +708,28 @@
             font-size: 14px;
         }
 
+        /* Password Change Modal */
+        .password-modal-content {
+            max-width: 400px;
+        }
+
+        .password-strength {
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .password-strength.weak {
+            color: #FF3B30;
+        }
+
+        .password-strength.medium {
+            color: #FF9500;
+        }
+
+        .password-strength.strong {
+            color: #34C759;
+        }
+
         /* Responsive Design */
         @media (max-width: 1200px) {
             .management-grid {
@@ -972,7 +995,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Temporary Password</label>
-                    <input type="password" class="form-input" id="staffPassword" placeholder="Staff will change this on first login" required>
+                    <input type="password" class="form-input" id="staffPassword" placeholder="Staff will use this to log in" required>
                 </div>
                 
                 <button type="submit" class="btn btn-primary">Add Staff Member</button>
@@ -1051,6 +1074,35 @@
         </div>
     </div>
 
+    <!-- Change Password Modal -->
+    <div class="modal" id="changePasswordModal">
+        <div class="modal-content password-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Change Staff Password</h2>
+                <button class="close-btn" onclick="closeChangePasswordModal()">&times;</button>
+            </div>
+            <form class="modal-form" onsubmit="changeStaffPassword(event)">
+                <div class="form-group">
+                    <label class="form-label">Staff Member</label>
+                    <input type="text" class="form-input" id="changePasswordStaffName" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">New Password</label>
+                    <input type="password" class="form-input" id="newPassword" required minlength="6" placeholder="Minimum 6 characters">
+                    <div class="password-strength" id="passwordStrength"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" class="form-input" id="confirmPassword" required minlength="6" placeholder="Confirm new password">
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeChangePasswordModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Change Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Staff Earnings Modal -->
     <div class="modal" id="staffEarningsModal">
         <div class="modal-content">
@@ -1074,6 +1126,7 @@
         let clockedInStaff = [];
         let currentEditingStaff = null;
         let currentEditingRole = null;
+        let currentPasswordChangeStaff = null;
         let filteredStaff = [];
         let availablePages = [];
 
@@ -1436,6 +1489,9 @@
                                 <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
                                     Edit
                                 </button>
+                                <button class="btn btn-small btn-warning" onclick="openChangePasswordModal('${staff.id}')">
+                                    Change Password
+                                </button>
                                 <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
                                     Earnings
                                 </button>
@@ -1504,6 +1560,500 @@
                     // Clear cache
                     StaffAuth.clearRoleCache(currentRestaurant.id);
                 });
+        }
+
+        // Add staff functionality - USES CLOUD FUNCTION
+        async function addStaff(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('staffName').value.trim();
+            const email = document.getElementById('staffEmail').value.trim();
+            const role = document.getElementById('staffRole').value;
+            const position = document.getElementById('staffPosition').value.trim();
+            const phone = document.getElementById('staffPhone').value.trim();
+            const rate = document.getElementById('staffRate').value;
+            const password = document.getElementById('staffPassword').value;
+            
+            if (!name || !email || !role || !password) {
+                showError('Please fill in all required fields');
+                return;
+            }
+            
+            try {
+                showLoading('Creating staff account and sending welcome email...');
+                
+                // Use Cloud Function to create staff (no auto sign-in issue)
+                const createStaffMember = firebase.functions().httpsCallable('createStaffMember');
+                
+                const result = await createStaffMember({
+                    name: name,
+                    email: email,
+                    role: role,
+                    position: position,
+                    phone: phone,
+                    hourlyRate: rate,
+                    restaurantId: currentRestaurant.id,
+                    password: password
+                });
+                
+                if (result.data.success) {
+                    closeAddStaffModal();
+                    hideLoading();
+                    showSuccess(`Staff member ${name} added successfully! Welcome email sent to ${email}.`);
+                    
+                    // Reset form
+                    document.getElementById('addStaffModal').querySelector('form').reset();
+                    
+                    // Reload staff data
+                    await loadStaffData();
+                } else {
+                    throw new Error(result.data.message || 'Failed to create staff member');
+                }
+                
+            } catch (error) {
+                console.error('❌ Add staff failed:', error);
+                hideLoading();
+                
+                if (error.code === 'functions/already-exists') {
+                    showError('A user with this email already exists. Please use a different email.');
+                } else if (error.code === 'functions/invalid-argument') {
+                    showError('Please check all required fields and try again.');
+                } else if (error.code === 'functions/permission-denied') {
+                    showError('You do not have permission to add staff members.');
+                } else {
+                    showError('Failed to add staff member: ' + (error.message || 'Unknown error'));
+                }
+            }
+        }
+
+        // Edit staff functions
+        function editStaff(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            currentEditingStaff = staff;
+            
+            // Populate edit form
+            document.getElementById('editStaffName').value = staff.name;
+            document.getElementById('editStaffEmail').value = staff.email;
+            document.getElementById('editStaffRole').value = staff.role;
+            document.getElementById('editStaffPosition').value = staff.position || '';
+            document.getElementById('editStaffPhone').value = staff.phone || '';
+            document.getElementById('editStaffRate').value = staff.hourlyRate || '';
+            document.getElementById('editStaffStatus').value = staff.isActive.toString();
+            
+            // Set custom permissions
+            document.getElementById('editCustomManageStaff').checked = 
+                staff.customPermissions && staff.customPermissions.manageStaff;
+            document.getElementById('editCustomViewEarnings').checked = 
+                staff.customPermissions && staff.customPermissions.viewStaffEarnings;
+            document.getElementById('editCustomEditPay').checked = 
+                staff.customPermissions && staff.customPermissions.editStaffPay;
+            
+            document.getElementById('editStaffModal').classList.add('show');
+        }
+
+        function closeEditStaffModal() {
+            document.getElementById('editStaffModal').classList.remove('show');
+            currentEditingStaff = null;
+        }
+
+        // Update staff functionality
+        async function updateStaff(event) {
+            event.preventDefault();
+            
+            if (!currentEditingStaff) return;
+            
+            const name = document.getElementById('editStaffName').value.trim();
+            const email = document.getElementById('editStaffEmail').value.trim();
+            const role = document.getElementById('editStaffRole').value;
+            const position = document.getElementById('editStaffPosition').value.trim();
+            const phone = document.getElementById('editStaffPhone').value.trim();
+            const rate = document.getElementById('editStaffRate').value;
+            const isActive = document.getElementById('editStaffStatus').value === 'true';
+            
+            // Get custom permissions
+            const customPermissions = {};
+            if (document.getElementById('editCustomManageStaff').checked) {
+                customPermissions.manageStaff = true;
+            }
+            if (document.getElementById('editCustomViewEarnings').checked) {
+                customPermissions.viewStaffEarnings = true;
+            }
+            if (document.getElementById('editCustomEditPay').checked) {
+                customPermissions.editStaffPay = true;
+            }
+            
+            try {
+                showLoading('Updating staff member...');
+                
+                const updateData = {
+                    name: name,
+                    email: email,
+                    role: role,
+                    position: position || null,
+                    phone: phone || null,
+                    hourlyRate: rate ? parseFloat(rate) : null,
+                    isActive: isActive,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: currentUser.uid
+                };
+                
+                // Add custom permissions
+                if (Object.keys(customPermissions).length > 0) {
+                    updateData.customPermissions = customPermissions;
+                } else {
+                    updateData.customPermissions = firebase.firestore.FieldValue.delete();
+                }
+                
+                await firebase.firestore()
+                    .collection('staff_members')
+                    .doc(currentEditingStaff.id)
+                    .update(updateData);
+                
+                closeEditStaffModal();
+                hideLoading();
+                showSuccess(`Staff member ${name} updated successfully!`);
+                
+                // Reload staff data
+                await loadStaffData();
+                
+            } catch (error) {
+                console.error('❌ Update staff failed:', error);
+                hideLoading();
+                showError('Failed to update staff: ' + error.message);
+            }
+        }
+
+        // Change Password Functions
+        function openChangePasswordModal(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            currentPasswordChangeStaff = staff;
+            document.getElementById('changePasswordStaffName').value = staff.name;
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+            document.getElementById('passwordStrength').textContent = '';
+            
+            document.getElementById('changePasswordModal').classList.add('show');
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.remove('show');
+            currentPasswordChangeStaff = null;
+        }
+
+        // Password strength checker
+        document.addEventListener('DOMContentLoaded', function() {
+            const newPasswordInput = document.getElementById('newPassword');
+            const passwordStrengthDiv = document.getElementById('passwordStrength');
+            
+            if (newPasswordInput) {
+                newPasswordInput.addEventListener('input', function() {
+                    const password = this.value;
+                    const strength = checkPasswordStrength(password);
+                    
+                    passwordStrengthDiv.className = `password-strength ${strength.class}`;
+                    passwordStrengthDiv.textContent = strength.text;
+                });
+            }
+        });
+
+        function checkPasswordStrength(password) {
+            if (password.length < 6) {
+                return { class: 'weak', text: 'Password too short' };
+            }
+            
+            const hasUpper = /[A-Z]/.test(password);
+            const hasLower = /[a-z]/.test(password);
+            const hasNumbers = /\d/.test(password);
+            const hasNonalphas = /\W/.test(password);
+            
+            const score = hasUpper + hasLower + hasNumbers + hasNonalphas;
+            
+            if (score < 2) {
+                return { class: 'weak', text: 'Weak password' };
+            } else if (score < 4) {
+                return { class: 'medium', text: 'Medium strength' };
+            } else {
+                return { class: 'strong', text: 'Strong password' };
+            }
+        }
+
+        // Change staff password
+        async function changeStaffPassword(event) {
+            event.preventDefault();
+            
+            if (!currentPasswordChangeStaff) return;
+            
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (newPassword !== confirmPassword) {
+                showError('Passwords do not match');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                showError('Password must be at least 6 characters long');
+                return;
+            }
+            
+            try {
+                showLoading('Changing staff password...');
+                
+                const updateStaffPassword = firebase.functions().httpsCallable('updateStaffPassword');
+                
+                const result = await updateStaffPassword({
+                    staffUid: currentPasswordChangeStaff.uid,
+                    newPassword: newPassword,
+                    restaurantId: currentRestaurant.id
+                });
+                
+                if (result.data.success) {
+                    closeChangePasswordModal();
+                    hideLoading();
+                    showSuccess(`Password changed successfully for ${currentPasswordChangeStaff.name}`);
+                } else {
+                    throw new Error(result.data.message || 'Failed to change password');
+                }
+                
+            } catch (error) {
+                console.error('❌ Change password failed:', error);
+                hideLoading();
+                showError('Failed to change password: ' + (error.message || 'Unknown error'));
+            }
+        }
+
+        // Toggle staff status
+        async function toggleStaffStatus(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            const newStatus = !staff.isActive;
+            const action = newStatus ? 'activate' : 'deactivate';
+            
+            if (!confirm(`Are you sure you want to ${action} ${staff.name}?`)) {
+                return;
+            }
+            
+            try {
+                showLoading(`${action.charAt(0).toUpperCase() + action.slice(1)}ing staff member...`);
+                
+                await firebase.firestore()
+                    .collection('staff_members')
+                    .doc(staffId)
+                    .update({
+                        isActive: newStatus,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedBy: currentUser.uid
+                    });
+                
+                hideLoading();
+                showSuccess(`Staff member ${newStatus ? 'activated' : 'deactivated'} successfully!`);
+                
+                // Reload staff data
+                await loadStaffData();
+                
+            } catch (error) {
+                console.error('❌ Toggle staff status failed:', error);
+                hideLoading();
+                showError('Failed to update staff status: ' + error.message);
+            }
+        }
+
+        // View staff earnings
+        async function viewStaffEarnings(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            try {
+                showLoading('Loading earnings data...');
+                
+                // Calculate earnings for different periods
+                const periods = [
+                    { key: 'week', name: 'This Week', days: 7 },
+                    { key: 'month', name: 'This Month', days: 30 },
+                    { key: 'quarter', name: 'This Quarter', days: 90 },
+                    { key: 'year', name: 'This Year', days: 365 }
+                ];
+                
+                const earningsData = [];
+                
+                for (const period of periods) {
+                    const endDate = new Date().toISOString().split('T')[0];
+                    const startDate = new Date(Date.now() - (period.days * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+                    
+                    const earnings = await StaffAuth.calculateStaffEarnings(
+                        staff.uid, 
+                        currentRestaurant.id, 
+                        startDate, 
+                        endDate
+                    );
+                    
+                    earningsData.push({
+                        period: period.name,
+                        ...earnings
+                    });
+                }
+                
+                // Generate earnings content
+                let content = `
+                    <div style="margin-bottom: 20px;">
+                        <h3>${staff.name} - Earnings Report</h3>
+                        <p><strong>Position:</strong> ${staff.position || 'Not specified'}</p>
+                        <p><strong>Hourly Rate:</strong> ${(staff.hourlyRate || 0).toFixed(2)}/hour</p>
+                    </div>
+                `;
+                
+                earningsData.forEach(data => {
+                    content += `
+                        <div style="background: #F8F9FA; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                            <h4>${data.period}</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;">
+                                <div>
+                                    <div style="font-size: 14px; color: #86868B;">Total Hours</div>
+                                    <div style="font-size: 18px; font-weight: 600;">${data.totalHours}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 14px; color: #86868B;">Total Shifts</div>
+                                    <div style="font-size: 18px; font-weight: 600;">${data.totalShifts}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 14px; color: #86868B;">Total Earnings</div>
+                                    <div style="font-size: 18px; font-weight: 600; color: #34C759;">${data.totalEarnings}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('staffEarningsContent').innerHTML = content;
+                document.getElementById('staffEarningsModal').classList.add('show');
+                
+                hideLoading();
+                
+            } catch (error) {
+                console.error('❌ Failed to load earnings:', error);
+                hideLoading();
+                showError('Failed to load earnings data: ' + error.message);
+            }
+        }
+
+        function closeStaffEarningsModal() {
+            document.getElementById('staffEarningsModal').classList.remove('show');
+        }
+
+        // Update earnings summary
+        async function updateEarningsSummary() {
+            try {
+                const period = document.getElementById('earningsPeriod').value;
+                let days;
+                let periodLabel;
+                
+                switch(period) {
+                    case 'week':
+                        days = 7;
+                        periodLabel = 'This Week';
+                        break;
+                    case 'month':
+                        days = 30;
+                        periodLabel = 'This Month';
+                        break;
+                    case 'quarter':
+                        days = 90;
+                        periodLabel = 'This Quarter';
+                        break;
+                    case 'year':
+                        days = 365;
+                        periodLabel = 'This Year';
+                        break;
+                    default:
+                        days = 7;
+                        periodLabel = 'This Week';
+                }
+                
+                const endDate = new Date().toISOString().split('T')[0];
+                const startDate = new Date(Date.now() - (days * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+                
+                let totalEarnings = 0;
+                let breakdownHtml = '';
+                
+                for (const staff of allStaff) {
+                    if (staff.isActive && staff.hourlyRate > 0) {
+                        const earnings = await StaffAuth.calculateStaffEarnings(
+                            staff.uid, 
+                            currentRestaurant.id, 
+                            startDate, 
+                            endDate
+                        );
+                        
+                        totalEarnings += parseFloat(earnings.totalEarnings.replace(', ''));
+                        
+                        if (parseFloat(earnings.totalEarnings.replace(', '')) > 0) {
+                            breakdownHtml += `
+                                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F1F3F4;">
+                                    <span>${staff.name}</span>
+                                    <span style="font-weight: 600;">${earnings.totalEarnings}</span>
+                                </div>
+                            `;
+                        }
+                    }
+                }
+                
+                document.getElementById('totalEarnings').textContent = `${totalEarnings.toFixed(2)}`;
+                document.getElementById('earningsPeriodLabel').textContent = periodLabel;
+                document.getElementById('earningsBreakdown').innerHTML = breakdownHtml || '<p style="color: #86868B; text-align: center; padding: 20px;">No earnings data for this period</p>';
+                
+            } catch (error) {
+                console.error('❌ Failed to update earnings summary:', error);
+                document.getElementById('totalEarnings').textContent = '$0.00';
+                document.getElementById('earningsBreakdown').innerHTML = '<p style="color: #FF3B30;">Failed to load earnings data</p>';
+            }
+        }
+
+        // Generate payroll report
+        function generatePayrollReport() {
+            showInfo('Payroll report generation feature coming soon!');
+        }
+
+        // Export staff data
+        function exportStaffData() {
+            try {
+                const exportData = {
+                    restaurant: currentRestaurant.name,
+                    exportDate: new Date().toISOString(),
+                    staff: allStaff.map(staff => ({
+                        name: staff.name,
+                        email: staff.email,
+                        role: staff.role,
+                        position: staff.position,
+                        hourlyRate: staff.hourlyRate,
+                        isActive: staff.isActive,
+                        createdAt: staff.createdAt
+                    })),
+                    roles: restaurantRoles.map(role => ({
+                        roleId: role.roleId,
+                        name: role.name,
+                        pages: role.pages,
+                        isDefault: role.isDefault
+                    }))
+                };
+                
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(dataBlob);
+                link.download = `${currentRestaurant.name || 'restaurant'}-staff-export.json`;
+                link.click();
+                
+                showSuccess('Staff data exported successfully');
+            } catch (error) {
+                console.error('Error exporting staff data:', error);
+                showError('Failed to export staff data: ' + error.message);
+            }
         }
 
         // Role Management Functions
@@ -1708,7 +2258,7 @@
             }
         }
 
-        // Staff Management Functions (existing functions remain the same)
+        // Modal functions
         function openAddStaffModal() {
             document.getElementById('addStaffModal').classList.add('show');
         }
@@ -1716,397 +2266,6 @@
         function closeAddStaffModal() {
             document.getElementById('addStaffModal').classList.remove('show');
             document.getElementById('addStaffModal').querySelector('form').reset();
-        }
-
-        // Add staff functionality
-        async function addStaff(event) {
-            event.preventDefault();
-            
-            const name = document.getElementById('staffName').value.trim();
-            const email = document.getElementById('staffEmail').value.trim();
-            const role = document.getElementById('staffRole').value;
-            const position = document.getElementById('staffPosition').value.trim();
-            const phone = document.getElementById('staffPhone').value.trim();
-            const rate = document.getElementById('staffRate').value;
-            const password = document.getElementById('staffPassword').value;
-            
-            if (!name || !email || !role || !password) {
-                showError('Please fill in all required fields');
-                return;
-            }
-            
-            try {
-                showLoading('Creating staff account...');
-                
-                // Store current user credentials
-                const currentUserEmail = currentUser.email;
-                
-                // Create Firebase user
-                const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
-                const newUser = userCredential.user;
-                
-                // Create staff record
-                const staffData = {
-                    uid: newUser.uid,
-                    restaurantId: currentRestaurant.id,
-                    name: name,
-                    email: email,
-                    role: role,
-                    position: position || null,
-                    phone: phone || null,
-                    hourlyRate: rate ? parseFloat(rate) : null,
-                    isActive: true,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    createdBy: currentUser.uid
-                };
-                
-                await firebase.firestore().collection('staff_members').add(staffData);
-                
-                // Sign back in as the original user
-                await firebase.auth().signOut();
-                await firebase.auth().signInWithEmailAndPassword(currentUserEmail, '');
-                
-                closeAddStaffModal();
-                hideLoading();
-                showSuccess(`Staff member ${name} added successfully!`);
-                
-                // Reload staff data
-                await loadStaffData();
-                
-            } catch (error) {
-                console.error('❌ Add staff failed:', error);
-                hideLoading();
-                showError('Failed to add staff: ' + error.message);
-            }
-        }
-
-        // Edit staff functions
-        function editStaff(staffId) {
-            const staff = allStaff.find(s => s.id === staffId);
-            if (!staff) return;
-            
-            currentEditingStaff = staff;
-            
-            // Populate edit form
-            document.getElementById('editStaffName').value = staff.name;
-            document.getElementById('editStaffEmail').value = staff.email;
-            document.getElementById('editStaffRole').value = staff.role;
-            document.getElementById('editStaffPosition').value = staff.position || '';
-            document.getElementById('editStaffPhone').value = staff.phone || '';
-            document.getElementById('editStaffRate').value = staff.hourlyRate || '';
-            document.getElementById('editStaffStatus').value = staff.isActive.toString();
-            
-            // Set custom permissions
-            document.getElementById('editCustomManageStaff').checked = 
-                staff.customPermissions && staff.customPermissions.manageStaff;
-            document.getElementById('editCustomViewEarnings').checked = 
-                staff.customPermissions && staff.customPermissions.viewStaffEarnings;
-            document.getElementById('editCustomEditPay').checked = 
-                staff.customPermissions && staff.customPermissions.editStaffPay;
-            
-            document.getElementById('editStaffModal').classList.add('show');
-        }
-
-        function closeEditStaffModal() {
-            document.getElementById('editStaffModal').classList.remove('show');
-            currentEditingStaff = null;
-        }
-
-        // Update staff functionality
-        async function updateStaff(event) {
-            event.preventDefault();
-            
-            if (!currentEditingStaff) return;
-            
-            const name = document.getElementById('editStaffName').value.trim();
-            const email = document.getElementById('editStaffEmail').value.trim();
-            const role = document.getElementById('editStaffRole').value;
-            const position = document.getElementById('editStaffPosition').value.trim();
-            const phone = document.getElementById('editStaffPhone').value.trim();
-            const rate = document.getElementById('editStaffRate').value;
-            const isActive = document.getElementById('editStaffStatus').value === 'true';
-            
-            // Get custom permissions
-            const customPermissions = {};
-            if (document.getElementById('editCustomManageStaff').checked) {
-                customPermissions.manageStaff = true;
-            }
-            if (document.getElementById('editCustomViewEarnings').checked) {
-                customPermissions.viewStaffEarnings = true;
-            }
-            if (document.getElementById('editCustomEditPay').checked) {
-                customPermissions.editStaffPay = true;
-            }
-            
-            try {
-                showLoading('Updating staff member...');
-                
-                const updateData = {
-                    name: name,
-                    email: email,
-                    role: role,
-                    position: position || null,
-                    phone: phone || null,
-                    hourlyRate: rate ? parseFloat(rate) : null,
-                    isActive: isActive,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    updatedBy: currentUser.uid
-                };
-                
-                // Add custom permissions
-                if (Object.keys(customPermissions).length > 0) {
-                    updateData.customPermissions = customPermissions;
-                } else {
-                    updateData.customPermissions = firebase.firestore.FieldValue.delete();
-                }
-                
-                await firebase.firestore()
-                    .collection('staff_members')
-                    .doc(currentEditingStaff.id)
-                    .update(updateData);
-                
-                closeEditStaffModal();
-                hideLoading();
-                showSuccess(`Staff member ${name} updated successfully!`);
-                
-                // Reload staff data
-                await loadStaffData();
-                
-            } catch (error) {
-                console.error('❌ Update staff failed:', error);
-                hideLoading();
-                showError('Failed to update staff: ' + error.message);
-            }
-        }
-
-        // Toggle staff status
-        async function toggleStaffStatus(staffId) {
-            const staff = allStaff.find(s => s.id === staffId);
-            if (!staff) return;
-            
-            const newStatus = !staff.isActive;
-            const action = newStatus ? 'activate' : 'deactivate';
-            
-            if (!confirm(`Are you sure you want to ${action} ${staff.name}?`)) {
-                return;
-            }
-            
-            try {
-                showLoading(`${action.charAt(0).toUpperCase() + action.slice(1)}ing staff member...`);
-                
-                await firebase.firestore()
-                    .collection('staff_members')
-                    .doc(staffId)
-                    .update({
-                        isActive: newStatus,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedBy: currentUser.uid
-                    });
-                
-                hideLoading();
-                showSuccess(`Staff member ${newStatus ? 'activated' : 'deactivated'} successfully!`);
-                
-                // Reload staff data
-                await loadStaffData();
-                
-            } catch (error) {
-                console.error('❌ Toggle staff status failed:', error);
-                hideLoading();
-                showError('Failed to update staff status: ' + error.message);
-            }
-        }
-
-        // View staff earnings
-        async function viewStaffEarnings(staffId) {
-            const staff = allStaff.find(s => s.id === staffId);
-            if (!staff) return;
-            
-            try {
-                showLoading('Loading earnings data...');
-                
-                // Calculate earnings for different periods
-                const periods = [
-                    { key: 'week', name: 'This Week', days: 7 },
-                    { key: 'month', name: 'This Month', days: 30 },
-                    { key: 'quarter', name: 'This Quarter', days: 90 },
-                    { key: 'year', name: 'This Year', days: 365 }
-                ];
-                
-                const earningsData = [];
-                
-                for (const period of periods) {
-                    const endDate = new Date().toISOString().split('T')[0];
-                    const startDate = new Date(Date.now() - (period.days * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
-                    
-                    const earnings = await StaffAuth.calculateStaffEarnings(
-                        staff.uid, 
-                        currentRestaurant.id, 
-                        startDate, 
-                        endDate
-                    );
-                    
-                    earningsData.push({
-                        period: period.name,
-                        ...earnings
-                    });
-                }
-                
-                // Generate earnings content
-                let content = `
-                    <div style="margin-bottom: 20px;">
-                        <h3>${staff.name} - Earnings Report</h3>
-                        <p><strong>Position:</strong> ${staff.position || 'Not specified'}</p>
-                        <p><strong>Hourly Rate:</strong> ${(staff.hourlyRate || 0).toFixed(2)}/hour</p>
-                    </div>
-                `;
-                
-                earningsData.forEach(data => {
-                    content += `
-                        <div style="background: #F8F9FA; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                            <h4>${data.period}</h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;">
-                                <div>
-                                    <div style="font-size: 14px; color: #86868B;">Total Hours</div>
-                                    <div style="font-size: 18px; font-weight: 600;">${data.totalHours}</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 14px; color: #86868B;">Total Shifts</div>
-                                    <div style="font-size: 18px; font-weight: 600;">${data.totalShifts}</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 14px; color: #86868B;">Total Earnings</div>
-                                    <div style="font-size: 18px; font-weight: 600; color: #34C759;">${data.totalEarnings}</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                document.getElementById('staffEarningsContent').innerHTML = content;
-                document.getElementById('staffEarningsModal').classList.add('show');
-                
-                hideLoading();
-                
-            } catch (error) {
-                console.error('❌ Failed to load earnings:', error);
-                hideLoading();
-                showError('Failed to load earnings data: ' + error.message);
-            }
-        }
-
-        function closeStaffEarningsModal() {
-            document.getElementById('staffEarningsModal').classList.remove('show');
-        }
-
-        // Update earnings summary
-        async function updateEarningsSummary() {
-            try {
-                const period = document.getElementById('earningsPeriod').value;
-                let days;
-                let periodLabel;
-                
-                switch(period) {
-                    case 'week':
-                        days = 7;
-                        periodLabel = 'This Week';
-                        break;
-                    case 'month':
-                        days = 30;
-                        periodLabel = 'This Month';
-                        break;
-                    case 'quarter':
-                        days = 90;
-                        periodLabel = 'This Quarter';
-                        break;
-                    case 'year':
-                        days = 365;
-                        periodLabel = 'This Year';
-                        break;
-                    default:
-                        days = 7;
-                        periodLabel = 'This Week';
-                }
-                
-                const endDate = new Date().toISOString().split('T')[0];
-                const startDate = new Date(Date.now() - (days * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
-                
-                let totalEarnings = 0;
-                let breakdownHtml = '';
-                
-                for (const staff of allStaff) {
-                    if (staff.isActive && staff.hourlyRate > 0) {
-                        const earnings = await StaffAuth.calculateStaffEarnings(
-                            staff.uid, 
-                            currentRestaurant.id, 
-                            startDate, 
-                            endDate
-                        );
-                        
-                        totalEarnings += earnings.totalEarnings;
-                        
-                        if (earnings.totalEarnings > 0) {
-                            breakdownHtml += `
-                                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F1F3F4;">
-                                    <span>${staff.name}</span>
-                                    <span style="font-weight: 600;">${earnings.totalEarnings}</span>
-                                </div>
-                            `;
-                        }
-                    }
-                }
-                
-                document.getElementById('totalEarnings').textContent = `${totalEarnings.toFixed(2)}`;
-                document.getElementById('earningsPeriodLabel').textContent = periodLabel;
-                document.getElementById('earningsBreakdown').innerHTML = breakdownHtml || '<p style="color: #86868B; text-align: center; padding: 20px;">No earnings data for this period</p>';
-                
-            } catch (error) {
-                console.error('❌ Failed to update earnings summary:', error);
-                document.getElementById('totalEarnings').textContent = '$0.00';
-                document.getElementById('earningsBreakdown').innerHTML = '<p style="color: #FF3B30;">Failed to load earnings data</p>';
-            }
-        }
-
-        // Generate payroll report
-        function generatePayrollReport() {
-            showInfo('Payroll report generation feature coming soon!');
-        }
-
-        // Export staff data
-        function exportStaffData() {
-            try {
-                const exportData = {
-                    restaurant: currentRestaurant.name,
-                    exportDate: new Date().toISOString(),
-                    staff: allStaff.map(staff => ({
-                        name: staff.name,
-                        email: staff.email,
-                        role: staff.role,
-                        position: staff.position,
-                        hourlyRate: staff.hourlyRate,
-                        isActive: staff.isActive,
-                        createdAt: staff.createdAt
-                    })),
-                    roles: restaurantRoles.map(role => ({
-                        roleId: role.roleId,
-                        name: role.name,
-                        pages: role.pages,
-                        isDefault: role.isDefault
-                    }))
-                };
-                
-                const dataStr = JSON.stringify(exportData, null, 2);
-                const dataBlob = new Blob([dataStr], {type: 'application/json'});
-                
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(dataBlob);
-                link.download = `${currentRestaurant.name || 'restaurant'}-staff-export.json`;
-                link.click();
-                
-                showSuccess('Staff data exported successfully');
-            } catch (error) {
-                console.error('Error exporting staff data:', error);
-                showError('Failed to export staff data: ' + error.message);
-            }
         }
 
         // Utility functions
