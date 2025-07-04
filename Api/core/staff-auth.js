@@ -1,43 +1,319 @@
 /**
  * Staff Authentication and Permission System
- * Handles role-based access control for restaurant staff
+ * Handles role-based access control for restaurant staff with dynamic roles
  */
 
 class StaffAuth {
     
     /**
-     * Permission levels and their access rights
+     * Available pages in the system (hardcoded)
      */
-    static PERMISSION_LEVELS = {
-        owner: {
-            level: 0,
-            name: 'Owner',
-            pages: ['*'], // All pages
-            features: ['*'] // All features
-        },
-        full: {
-            level: 1,
-            name: 'Full Permissions',
-            pages: ['dashboard', 'orders', 'pos-order', 'loss-reports', 'staff-clock', 'menu-management', 'restaurant-settings'],
-            features: ['view_orders', 'create_orders', 'view_reports', 'manage_menu', 'view_settings', 'clock_in_out']
-        },
-        advanced: {
-            level: 2,
-            name: 'Advanced Permissions',
-            pages: ['orders', 'pos-order', 'loss-reports', 'staff-clock'],
-            features: ['view_orders', 'create_orders', 'view_reports', 'clock_in_out']
-        },
-        basic: {
-            level: 3,
+    static AVAILABLE_PAGES = [
+        'dashboard',
+        'incident-reports', 
+        'menu-management',
+        'orders',
+        'pos-order',
+        'qr-generator',
+        'restaurant-analytics',
+        'restaurant-settings',
+        'restaurant-staff',
+        'staff-management'
+    ];
+
+    /**
+     * Default roles that every restaurant starts with
+     */
+    static DEFAULT_ROLES = [
+        {
+            roleId: 'basic',
             name: 'Basic Permissions',
-            pages: ['orders', 'staff-clock'],
-            features: ['view_orders', 'clock_in_out']
+            pages: ['orders', 'restaurant-staff'],
+            isDefault: true
+        },
+        {
+            roleId: 'advanced',
+            name: 'Advanced Permissions', 
+            pages: ['orders', 'pos-order', 'incident-reports', 'restaurant-staff'],
+            isDefault: true
+        },
+        {
+            roleId: 'full',
+            name: 'Full Permissions',
+            pages: ['dashboard', 'orders', 'pos-order', 'incident-reports', 'restaurant-staff', 'menu-management', 'restaurant-settings'],
+            isDefault: true
         }
+    ];
+
+    /**
+     * Owner permissions (always hardcoded - full access)
+     */
+    static OWNER_PERMISSIONS = {
+        role: 'owner',
+        name: 'Owner',
+        pages: ['*'], // All pages
+        isDefault: false
     };
 
     /**
+     * Cache for restaurant roles to avoid repeated database calls
+     */
+    static roleCache = new Map();
+
+    /**
+     * Get all available pages in the system
+     * @returns {Array} Array of available page names
+     */
+    static getAvailablePages() {
+        return [...this.AVAILABLE_PAGES];
+    }
+
+    /**
+     * Initialize default roles for a restaurant
+     * @param {string} restaurantId - Restaurant ID
+     * @returns {Promise<void>}
+     */
+    static async initializeDefaultRoles(restaurantId) {
+        try {
+            console.log(`🔧 Initializing default roles for restaurant: ${restaurantId}`);
+            
+            // Check if roles already exist
+            const existingRoles = await this.getRestaurantRoles(restaurantId);
+            if (existingRoles.length > 0) {
+                console.log('✅ Restaurant already has roles initialized');
+                return;
+            }
+
+            // Create default roles
+            const batch = firebase.firestore().batch();
+            
+            this.DEFAULT_ROLES.forEach(role => {
+                const roleRef = firebase.firestore().collection('restaurant_roles').doc();
+                batch.set(roleRef, {
+                    ...role,
+                    restaurantId: restaurantId,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
+            await batch.commit();
+            console.log('✅ Default roles initialized successfully');
+            
+            // Clear cache for this restaurant
+            this.roleCache.delete(restaurantId);
+            
+        } catch (error) {
+            console.error('❌ Failed to initialize default roles:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all roles for a restaurant
+     * @param {string} restaurantId - Restaurant ID
+     * @param {boolean} useCache - Whether to use cached data
+     * @returns {Promise<Array>} Array of role objects
+     */
+    static async getRestaurantRoles(restaurantId, useCache = true) {
+        try {
+            // Check cache first
+            if (useCache && this.roleCache.has(restaurantId)) {
+                return this.roleCache.get(restaurantId);
+            }
+
+            console.log(`🔍 Loading roles for restaurant: ${restaurantId}`);
+            
+            const rolesSnapshot = await firebase.firestore()
+                .collection('restaurant_roles')
+                .where('restaurantId', '==', restaurantId)
+                .orderBy('createdAt', 'asc')
+                .get();
+
+            const roles = rolesSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // Cache the results
+            this.roleCache.set(restaurantId, roles);
+            
+            console.log(`✅ Loaded ${roles.length} roles for restaurant`);
+            return roles;
+            
+        } catch (error) {
+            console.error('❌ Failed to get restaurant roles:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get a specific role by ID
+     * @param {string} restaurantId - Restaurant ID
+     * @param {string} roleId - Role ID
+     * @returns {Promise<Object|null>} Role object or null
+     */
+    static async getRole(restaurantId, roleId) {
+        try {
+            const roles = await this.getRestaurantRoles(restaurantId);
+            return roles.find(role => role.roleId === roleId) || null;
+        } catch (error) {
+            console.error('❌ Failed to get role:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Create a new custom role
+     * @param {string} restaurantId - Restaurant ID
+     * @param {Object} roleData - Role data {roleId, name, pages}
+     * @returns {Promise<string>} Document ID of created role
+     */
+    static async createRole(restaurantId, roleData) {
+        try {
+            console.log(`🔧 Creating new role: ${roleData.name}`);
+            
+            // Validate pages
+            const invalidPages = roleData.pages.filter(page => !this.AVAILABLE_PAGES.includes(page));
+            if (invalidPages.length > 0) {
+                throw new Error(`Invalid pages: ${invalidPages.join(', ')}`);
+            }
+
+            // Check if roleId already exists
+            const existingRole = await this.getRole(restaurantId, roleData.roleId);
+            if (existingRole) {
+                throw new Error(`Role with ID '${roleData.roleId}' already exists`);
+            }
+
+            const roleRef = firebase.firestore().collection('restaurant_roles').doc();
+            await roleRef.set({
+                restaurantId: restaurantId,
+                roleId: roleData.roleId,
+                name: roleData.name,
+                pages: roleData.pages,
+                isDefault: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Clear cache
+            this.roleCache.delete(restaurantId);
+            
+            console.log('✅ Role created successfully');
+            return roleRef.id;
+            
+        } catch (error) {
+            console.error('❌ Failed to create role:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update an existing role
+     * @param {string} restaurantId - Restaurant ID
+     * @param {string} roleId - Role ID to update
+     * @param {Object} updateData - Data to update {name?, pages?}
+     * @returns {Promise<void>}
+     */
+    static async updateRole(restaurantId, roleId, updateData) {
+        try {
+            console.log(`🔧 Updating role: ${roleId}`);
+            
+            // Validate pages if provided
+            if (updateData.pages) {
+                const invalidPages = updateData.pages.filter(page => !this.AVAILABLE_PAGES.includes(page));
+                if (invalidPages.length > 0) {
+                    throw new Error(`Invalid pages: ${invalidPages.join(', ')}`);
+                }
+            }
+
+            // Find the role document
+            const rolesSnapshot = await firebase.firestore()
+                .collection('restaurant_roles')
+                .where('restaurantId', '==', restaurantId)
+                .where('roleId', '==', roleId)
+                .limit(1)
+                .get();
+
+            if (rolesSnapshot.empty) {
+                throw new Error(`Role '${roleId}' not found`);
+            }
+
+            const roleDoc = rolesSnapshot.docs[0];
+            await roleDoc.ref.update({
+                ...updateData,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Clear cache
+            this.roleCache.delete(restaurantId);
+            
+            console.log('✅ Role updated successfully');
+            
+        } catch (error) {
+            console.error('❌ Failed to update role:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete a role (only custom roles, not default ones)
+     * @param {string} restaurantId - Restaurant ID
+     * @param {string} roleId - Role ID to delete
+     * @returns {Promise<void>}
+     */
+    static async deleteRole(restaurantId, roleId) {
+        try {
+            console.log(`🔧 Deleting role: ${roleId}`);
+            
+            // Find the role document
+            const rolesSnapshot = await firebase.firestore()
+                .collection('restaurant_roles')
+                .where('restaurantId', '==', restaurantId)
+                .where('roleId', '==', roleId)
+                .limit(1)
+                .get();
+
+            if (rolesSnapshot.empty) {
+                throw new Error(`Role '${roleId}' not found`);
+            }
+
+            const roleData = rolesSnapshot.docs[0].data();
+            
+            // Prevent deletion of default roles
+            if (roleData.isDefault) {
+                throw new Error('Cannot delete default roles');
+            }
+
+            // Check if any staff members have this role
+            const staffSnapshot = await firebase.firestore()
+                .collection('staff_members')
+                .where('restaurantId', '==', restaurantId)
+                .where('role', '==', roleId)
+                .limit(1)
+                .get();
+
+            if (!staffSnapshot.empty) {
+                throw new Error('Cannot delete role that is assigned to staff members');
+            }
+
+            // Delete the role
+            await rolesSnapshot.docs[0].ref.delete();
+            
+            // Clear cache
+            this.roleCache.delete(restaurantId);
+            
+            console.log('✅ Role deleted successfully');
+            
+        } catch (error) {
+            console.error('❌ Failed to delete role:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Check if current user has required permission level
-     * @param {string} requiredRole - Required permission level (owner, full, advanced, basic)
+     * @param {string} requiredRole - Required permission level
      * @returns {Promise<boolean>} True if user has permission
      */
     static async checkStaffPermission(requiredRole) {
@@ -48,14 +324,14 @@ class StaffAuth {
                 return false;
             }
 
-            const userRole = await this.getUserRole(currentUser.uid);
-            if (!userRole) {
-                console.log('❌ User role not found');
+            const userProfile = await this.getStaffProfile(currentUser.uid);
+            if (!userProfile) {
+                console.log('❌ User profile not found');
                 return false;
             }
 
-            const hasPermission = this.hasRequiredPermission(userRole, requiredRole);
-            console.log(`🔒 Permission check: ${userRole} vs ${requiredRole} = ${hasPermission}`);
+            const hasPermission = await this.hasRequiredPermission(userProfile.role, requiredRole, userProfile.restaurantId);
+            console.log(`🔒 Permission check: ${userProfile.role} vs ${requiredRole} = ${hasPermission}`);
             
             return hasPermission;
             
@@ -82,17 +358,22 @@ class StaffAuth {
                     restaurantId: ownerRestaurant.id,
                     restaurantName: ownerRestaurant.name,
                     isOwner: true,
-                    uid: uid
+                    uid: uid,
+                    permissions: this.OWNER_PERMISSIONS
                 };
             }
 
             // Check if user is staff member (exists in staff_members collection)
             const staffProfile = await this.getStaffMemberProfile(uid);
             if (staffProfile) {
+                // Get role permissions from database
+                const rolePermissions = await this.getRole(staffProfile.restaurantId, staffProfile.role);
+                
                 return {
                     ...staffProfile,
                     isOwner: false,
-                    uid: uid
+                    uid: uid,
+                    permissions: rolePermissions
                 };
             }
 
@@ -108,81 +389,155 @@ class StaffAuth {
      * Check if user has access to a specific page
      * @param {string} staffRole - User's role
      * @param {string} pageName - Page name to check
-     * @returns {boolean} True if user has access
+     * @param {string} restaurantId - Restaurant ID
+     * @returns {Promise<boolean>} True if user has access
      */
-    static hasPageAccess(staffRole, pageName) {
-        const permissions = this.PERMISSION_LEVELS[staffRole];
-        if (!permissions) return false;
-
-        // Owner has access to everything
-        if (staffRole === 'owner') return true;
-
-        // Check if page is in allowed pages
-        return permissions.pages.includes(pageName) || permissions.pages.includes('*');
-    }
-
-    /**
-     * Check if user has access to a specific feature
-     * @param {string} staffRole - User's role
-     * @param {string} featureName - Feature name to check
-     * @returns {boolean} True if user has access
-     */
-    static hasFeatureAccess(staffRole, featureName) {
-        const permissions = this.PERMISSION_LEVELS[staffRole];
-        if (!permissions) return false;
-
-        // Owner has access to everything
-        if (staffRole === 'owner') return true;
-
-        // Check if feature is in allowed features
-        return permissions.features.includes(featureName) || permissions.features.includes('*');
-    }
-
-    /**
-     * Redirect user to appropriate login page
-     */
-    static redirectToStaffLogin() {
-        const currentUrl = window.location.pathname;
-        const params = new URLSearchParams(window.location.search);
-        
-        // Preserve current page for redirect after login
-        params.set('redirect', currentUrl);
-        
-        window.location.href = `../login.html?${params.toString()}`;
-    }
-
-    /**
-     * Redirect user to unauthorized page
-     */
-    static redirectToUnauthorized() {
-        window.location.href = '../unauthorized.html';
-    }
-
-    /**
-     * Get user's role from database
-     * @param {string} uid - User ID
-     * @returns {Promise<string|null>} User role or null
-     */
-    static async getUserRole(uid) {
+    static async hasPageAccess(staffRole, pageName, restaurantId) {
         try {
-            // Check if owner (exists in users collection)
-            const ownerRestaurant = await this.checkIfOwner(uid);
-            if (ownerRestaurant) {
-                return 'owner';
-            }
+            // Owner has access to everything
+            if (staffRole === 'owner') return true;
 
-            // Check if staff (exists in staff_members collection)
-            const staffProfile = await this.getStaffMemberProfile(uid);
-            if (staffProfile) {
-                return staffProfile.role;
-            }
+            // Get role permissions from database
+            const rolePermissions = await this.getRole(restaurantId, staffRole);
+            if (!rolePermissions) return false;
 
-            return null;
+            // Check if page is in allowed pages
+            return rolePermissions.pages.includes(pageName) || rolePermissions.pages.includes('*');
             
         } catch (error) {
-            console.error('❌ Failed to get user role:', error);
-            return null;
+            console.error('❌ Failed to check page access:', error);
+            return false;
         }
+    }
+
+    /**
+     * Check if user role has required permission level
+     * @param {string} userRole - User's current role
+     * @param {string} requiredRole - Required role
+     * @param {string} restaurantId - Restaurant ID
+     * @returns {Promise<boolean>} True if user has permission
+     */
+    static async hasRequiredPermission(userRole, requiredRole, restaurantId) {
+        try {
+            // Owner always has all permissions
+            if (userRole === 'owner') return true;
+
+            // Get role permissions from database
+            const userRoleData = await this.getRole(restaurantId, userRole);
+            const requiredRoleData = await this.getRole(restaurantId, requiredRole);
+
+            if (!userRoleData || !requiredRoleData) return false;
+
+            // For now, simple role matching - can be enhanced later
+            return userRole === requiredRole || userRole === 'owner';
+            
+        } catch (error) {
+            console.error('❌ Failed to check required permission:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Initialize page protection
+     * @param {string} requiredRole - Required role for this page
+     * @param {string} pageName - Current page name
+     * @returns {Promise<Object>} User profile if authorized
+     */
+    static async initializePageProtection(requiredRole, pageName) {
+        try {
+            console.log(`🔒 Initializing page protection for ${pageName} (requires: ${requiredRole})`);
+            
+            // Check if user is authenticated
+            const currentUser = firebase.auth().currentUser;
+            if (!currentUser) {
+                console.log('❌ User not authenticated');
+                this.redirectToStaffLogin();
+                throw new Error('User not authenticated');
+            }
+
+            // Get user profile
+            const userProfile = await this.getStaffProfile(currentUser.uid);
+            if (!userProfile) {
+                console.log('❌ User profile not found');
+                this.redirectToUnauthorized();
+                throw new Error('User profile not found');
+            }
+
+            // Initialize default roles if needed
+            if (userProfile.isOwner) {
+                await this.initializeDefaultRoles(userProfile.restaurantId);
+            }
+
+            // Check page access
+            const hasAccess = await this.hasPageAccess(userProfile.role, pageName, userProfile.restaurantId);
+            if (!hasAccess) {
+                console.log(`❌ User ${userProfile.role} denied access to ${pageName}`);
+                this.redirectToUnauthorized();
+                throw new Error('Access denied');
+            }
+
+            console.log(`✅ Access granted to ${pageName} for ${userProfile.role}`);
+            return userProfile;
+            
+        } catch (error) {
+            console.error('❌ Page protection failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate navigation menu based on user role
+     * @param {string} userRole - User's role
+     * @param {string} restaurantId - Restaurant ID
+     * @returns {Promise<Array>} Array of navigation items
+     */
+    static async getNavigationItems(userRole, restaurantId) {
+        try {
+            // Owner gets all pages
+            if (userRole === 'owner') {
+                return this.AVAILABLE_PAGES.map(page => ({
+                    name: this.getPageDisplayName(page),
+                    page: page,
+                    accessible: true
+                }));
+            }
+
+            // Get role permissions from database
+            const rolePermissions = await this.getRole(restaurantId, userRole);
+            if (!rolePermissions) return [];
+
+            return this.AVAILABLE_PAGES.map(page => ({
+                name: this.getPageDisplayName(page),
+                page: page,
+                accessible: rolePermissions.pages.includes(page)
+            }));
+            
+        } catch (error) {
+            console.error('❌ Failed to get navigation items:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get display name for a page
+     * @param {string} pageName - Internal page name
+     * @returns {string} Display name
+     */
+    static getPageDisplayName(pageName) {
+        const displayNames = {
+            'dashboard': 'Dashboard',
+            'incident-reports': 'Incident Reports',
+            'menu-management': 'Menu Management',
+            'orders': 'Orders',
+            'pos-order': 'POS System',
+            'qr-generator': 'QR Codes',
+            'restaurant-analytics': 'Analytics',
+            'restaurant-settings': 'Settings',
+            'restaurant-staff': 'Staff Clock',
+            'staff-management': 'Staff Management'
+        };
+        
+        return displayNames[pageName] || pageName;
     }
 
     /**
@@ -200,7 +555,6 @@ class StaffAuth {
 
             if (userDoc.exists) {
                 const userData = userDoc.data();
-                console.log('✅ User found in users collection:', userData);
                 
                 // Check if user is restaurant owner by accountType
                 if (userData.accountType === 'restaurant') {
@@ -209,13 +563,12 @@ class StaffAuth {
                     // Get their restaurant - try both field names
                     let restaurantSnapshot = await firebase.firestore()
                         .collection('restaurants')
-                        .where('ownerUserId', '==', uid)  // Try ownerUserId first
+                        .where('ownerUserId', '==', uid)
                         .limit(1)
                         .get();
 
                     // If not found with ownerUserId, try ownerId as fallback
                     if (restaurantSnapshot.empty) {
-                        console.log('🔍 Trying ownerId field as fallback...');
                         restaurantSnapshot = await firebase.firestore()
                             .collection('restaurants')
                             .where('ownerId', '==', uid)
@@ -225,7 +578,6 @@ class StaffAuth {
 
                     if (!restaurantSnapshot.empty) {
                         const restaurant = restaurantSnapshot.docs[0];
-                        console.log('✅ Restaurant found:', restaurant.data());
                         return {
                             id: restaurant.id,
                             ...restaurant.data(),
@@ -234,7 +586,6 @@ class StaffAuth {
                         };
                     } else {
                         console.log('⚠️ Restaurant owner found but no restaurant document');
-                        // Return user data even if restaurant not found
                         return {
                             id: null,
                             name: 'Restaurant (No Details)',
@@ -292,194 +643,6 @@ class StaffAuth {
     }
 
     /**
-     * Check if user role has required permission level
-     * @param {string} userRole - User's current role
-     * @param {string} requiredRole - Required role
-     * @returns {boolean} True if user has permission
-     */
-    static hasRequiredPermission(userRole, requiredRole) {
-        const userPermissions = this.PERMISSION_LEVELS[userRole];
-        const requiredPermissions = this.PERMISSION_LEVELS[requiredRole];
-
-        if (!userPermissions || !requiredPermissions) {
-            return false;
-        }
-
-        // Lower level number = higher permission
-        return userPermissions.level <= requiredPermissions.level;
-    }
-
-    /**
-     * Initialize page protection
-     * @param {string} requiredRole - Required role for this page
-     * @param {string} pageName - Current page name
-     * @returns {Promise<Object>} User profile if authorized
-     */
-    static async initializePageProtection(requiredRole, pageName) {
-        try {
-            console.log(`🔒 Initializing page protection for ${pageName} (requires: ${requiredRole})`);
-            
-            // Check if user is authenticated
-            const currentUser = firebase.auth().currentUser;
-            if (!currentUser) {
-                console.log('❌ User not authenticated');
-                this.redirectToStaffLogin();
-                throw new Error('User not authenticated');
-            }
-
-            // Get user profile
-            const userProfile = await this.getStaffProfile(currentUser.uid);
-            if (!userProfile) {
-                console.log('❌ User profile not found');
-                this.redirectToUnauthorized();
-                throw new Error('User profile not found');
-            }
-
-            // Check page access
-            if (!this.hasPageAccess(userProfile.role, pageName)) {
-                console.log(`❌ User ${userProfile.role} denied access to ${pageName}`);
-                this.redirectToUnauthorized();
-                throw new Error('Access denied');
-            }
-
-            // Check role permission
-            if (!this.hasRequiredPermission(userProfile.role, requiredRole)) {
-                console.log(`❌ User ${userProfile.role} lacks required permission ${requiredRole}`);
-                this.redirectToUnauthorized();
-                throw new Error('Insufficient permissions');
-            }
-
-            console.log(`✅ Access granted to ${pageName} for ${userProfile.role}`);
-            return userProfile;
-            
-        } catch (error) {
-            console.error('❌ Page protection failed:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Generate navigation menu based on user role
-     * @param {string} userRole - User's role
-     * @returns {Array} Array of navigation items
-     */
-    static getNavigationItems(userRole) {
-        const permissions = this.PERMISSION_LEVELS[userRole];
-        if (!permissions) return [];
-
-        const allNavItems = [
-            { name: 'Dashboard', page: 'dashboard', icon: 'dashboard', requiredRole: 'full' },
-            { name: 'Orders', page: 'orders', icon: 'orders', requiredRole: 'basic' },
-            { name: 'POS System', page: 'pos-order', icon: 'pos', requiredRole: 'advanced' },
-            { name: 'Loss Reports', page: 'loss-reports', icon: 'reports', requiredRole: 'advanced' },
-            { name: 'Staff Clock', page: 'staff-clock', icon: 'clock', requiredRole: 'basic' },
-            { name: 'Menu Management', page: 'menu-management', icon: 'menu', requiredRole: 'full' },
-            { name: 'Settings', page: 'restaurant-settings', icon: 'settings', requiredRole: 'full' }
-        ];
-
-        return allNavItems.filter(item => {
-            return this.hasRequiredPermission(userRole, item.requiredRole);
-        });
-    }
-
-    /**
-     * Check if user is currently clocked in
-     * @param {string} uid - User ID
-     * @param {string} restaurantId - Restaurant ID
-     * @returns {Promise<boolean>} True if clocked in
-     */
-    static async isUserClockedIn(uid, restaurantId) {
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            
-            const clockedInSnapshot = await firebase.firestore()
-                .collection('staff_time_records')
-                .where('staffUID', '==', uid)
-                .where('restaurantId', '==', restaurantId)
-                .where('date', '==', today)
-                .where('status', '==', 'clocked_in')
-                .limit(1)
-                .get();
-
-            return !clockedInSnapshot.empty;
-            
-        } catch (error) {
-            console.error('❌ Failed to check clock in status:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Clock in user
-     * @param {string} uid - User ID
-     * @param {string} restaurantId - Restaurant ID
-     * @returns {Promise<boolean>} True if successful
-     */
-    static async clockIn(uid, restaurantId) {
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            
-            // Check if already clocked in
-            const alreadyClockedIn = await this.isUserClockedIn(uid, restaurantId);
-            if (alreadyClockedIn) {
-                throw new Error('Already clocked in today');
-            }
-
-            // Create clock in record
-            await firebase.firestore().collection('staff_time_records').add({
-                staffUID: uid,
-                restaurantId: restaurantId,
-                clockInTime: firebase.firestore.FieldValue.serverTimestamp(),
-                clockOutTime: null,
-                status: 'clocked_in',
-                date: today,
-                totalHours: null,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            return true;
-            
-        } catch (error) {
-            console.error('❌ Clock in failed:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get user's current clock in record
-     * @param {string} uid - User ID
-     * @param {string} restaurantId - Restaurant ID
-     * @returns {Promise<Object|null>} Clock in record or null
-     */
-    static async getCurrentClockInRecord(uid, restaurantId) {
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            
-            const clockInSnapshot = await firebase.firestore()
-                .collection('staff_time_records')
-                .where('staffUID', '==', uid)
-                .where('restaurantId', '==', restaurantId)
-                .where('date', '==', today)
-                .where('status', '==', 'clocked_in')
-                .limit(1)
-                .get();
-
-            if (!clockInSnapshot.empty) {
-                return {
-                    id: clockInSnapshot.docs[0].id,
-                    ...clockInSnapshot.docs[0].data()
-                };
-            }
-
-            return null;
-            
-        } catch (error) {
-            console.error('❌ Failed to get clock in record:', error);
-            return null;
-        }
-    }
-
-    /**
      * Check if user can manage staff (add, edit, delete staff members)
      * @param {string} uid - User ID
      * @returns {Promise<boolean>} True if user can manage staff
@@ -499,54 +662,6 @@ class StaffAuth {
             
         } catch (error) {
             console.error('❌ Failed to check staff management permission:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Check if user can view staff earnings and pay information
-     * @param {string} uid - User ID
-     * @returns {Promise<boolean>} True if user can view earnings
-     */
-    static async canViewStaffEarnings(uid) {
-        try {
-            const profile = await this.getStaffProfile(uid);
-            if (!profile) return false;
-            
-            // Check if user has custom earnings viewing permission
-            if (profile.customPermissions && profile.customPermissions.viewStaffEarnings) {
-                return true;
-            }
-            
-            // Default: Only owners can view staff earnings
-            return profile.role === 'owner';
-            
-        } catch (error) {
-            console.error('❌ Failed to check earnings viewing permission:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Check if user can edit staff pay rates
-     * @param {string} uid - User ID
-     * @returns {Promise<boolean>} True if user can edit pay
-     */
-    static async canEditStaffPay(uid) {
-        try {
-            const profile = await this.getStaffProfile(uid);
-            if (!profile) return false;
-            
-            // Check if user has custom pay editing permission
-            if (profile.customPermissions && profile.customPermissions.editStaffPay) {
-                return true;
-            }
-            
-            // Default: Only owners can edit staff pay
-            return profile.role === 'owner';
-            
-        } catch (error) {
-            console.error('❌ Failed to check pay editing permission:', error);
             return false;
         }
     }
@@ -624,6 +739,41 @@ class StaffAuth {
     }
 
     /**
+     * Redirect user to appropriate login page
+     */
+    static redirectToStaffLogin() {
+        const currentUrl = window.location.pathname;
+        const params = new URLSearchParams(window.location.search);
+        
+        // Preserve current page for redirect after login
+        params.set('redirect', currentUrl);
+        
+        window.location.href = `../login.html?${params.toString()}`;
+    }
+
+    /**
+     * Redirect user to unauthorized page
+     */
+    static redirectToUnauthorized() {
+        window.location.href = '../unauthorized.html';
+    }
+
+    /**
+     * Clear role cache for a restaurant
+     * @param {string} restaurantId - Restaurant ID
+     */
+    static clearRoleCache(restaurantId) {
+        this.roleCache.delete(restaurantId);
+    }
+
+    /**
+     * Clear all role cache
+     */
+    static clearAllRoleCache() {
+        this.roleCache.clear();
+    }
+
+    /**
      * Utility function to wait for Firebase authentication
      * @returns {Promise<Object>} Current user or null
      */
@@ -635,29 +785,6 @@ class StaffAuth {
             });
         });
     }
-
-    /**
-     * Debug function to log user permissions
-     * @param {string} uid - User ID
-     */
-    static async debugUserPermissions(uid) {
-        try {
-            const profile = await this.getStaffProfile(uid);
-            if (profile) {
-                console.log('🔍 User Debug Info:', {
-                    role: profile.role,
-                    name: profile.name,
-                    restaurantId: profile.restaurantId,
-                    permissions: this.PERMISSION_LEVELS[profile.role],
-                    availablePages: this.getNavigationItems(profile.role)
-                });
-            } else {
-                console.log('🔍 User Debug Info: No profile found');
-            }
-        } catch (error) {
-            console.error('❌ Debug failed:', error);
-        }
-    }
 }
 
 // Export for use in other files
@@ -668,4 +795,4 @@ if (typeof module !== 'undefined' && module.exports) {
 // Make available globally
 window.StaffAuth = StaffAuth;
 
-console.log('✅ Staff Authentication System loaded');
+console.log('✅ Dynamic Staff Authentication System loaded');
