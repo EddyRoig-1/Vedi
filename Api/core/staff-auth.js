@@ -179,10 +179,20 @@ class StaffAuth {
                 throw new Error(`Invalid pages: ${invalidPages.join(', ')}`);
             }
 
-            // Check if roleId already exists
+            // Check if roleId already exists (to prevent duplicates)
             const existingRole = await this.getRole(restaurantId, roleData.roleId);
             if (existingRole) {
-                throw new Error(`Role with ID '${roleData.roleId}' already exists`);
+                // If role exists, generate a unique ID by appending a number
+                let counter = 1;
+                let uniqueRoleId = `${roleData.roleId}-${counter}`;
+                
+                while (await this.getRole(restaurantId, uniqueRoleId)) {
+                    counter++;
+                    uniqueRoleId = `${roleData.roleId}-${counter}`;
+                }
+                
+                roleData.roleId = uniqueRoleId;
+                console.log(`🔄 Role ID already exists, using: ${uniqueRoleId}`);
             }
 
             const roleRef = firebase.firestore().collection('restaurant_roles').doc();
@@ -199,7 +209,7 @@ class StaffAuth {
             // Clear cache
             this.roleCache.delete(restaurantId);
             
-            console.log('✅ Role created successfully');
+            console.log('✅ Role created successfully with ID:', roleData.roleId);
             return roleRef.id;
             
         } catch (error) {
@@ -771,6 +781,50 @@ class StaffAuth {
      */
     static clearAllRoleCache() {
         this.roleCache.clear();
+    }
+
+    /**
+     * Generate a unique role ID from role name
+     * @param {string} roleName - Role name
+     * @returns {string} Generated role ID
+     */
+    static generateRoleId(roleName) {
+        // Convert to lowercase, replace spaces with hyphens, remove special characters
+        return roleName.toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, '')
+            .substring(0, 50) // Limit length
+            .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+    }
+
+    /**
+     * Validate role data before creation/update
+     * @param {Object} roleData - Role data to validate
+     * @returns {Object} Validated and cleaned role data
+     */
+    static validateRoleData(roleData) {
+        const cleaned = {
+            name: roleData.name?.trim(),
+            pages: Array.isArray(roleData.pages) ? roleData.pages : [],
+            roleId: roleData.roleId || this.generateRoleId(roleData.name)
+        };
+
+        // Validate required fields
+        if (!cleaned.name) {
+            throw new Error('Role name is required');
+        }
+
+        if (cleaned.pages.length === 0) {
+            throw new Error('At least one page must be selected');
+        }
+
+        // Validate pages
+        const invalidPages = cleaned.pages.filter(page => !this.AVAILABLE_PAGES.includes(page));
+        if (invalidPages.length > 0) {
+            throw new Error(`Invalid pages: ${invalidPages.join(', ')}`);
+        }
+
+        return cleaned;
     }
 
     /**
