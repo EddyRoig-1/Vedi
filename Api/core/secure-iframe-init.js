@@ -90,6 +90,13 @@ class SecureIframeInitializer {
                 window.VediAPI = window.parent.VediAPI;
                 window.firebase = window.parent.firebase;
                 
+                // 🔥 NEW: Specifically inherit Firebase Functions if missing
+                if (!window.firebase.functions && window.parent.firebase?.functions) {
+                    console.log(`🔄 [${this.pageName}] Manually inheriting Firebase Functions...`);
+                    window.firebase.functions = window.parent.firebase.functions;
+                    console.log(`✅ [${this.pageName}] Firebase Functions inherited successfully`);
+                }
+                
                 console.log(`✅ [${this.pageName}] Firebase inherited from parent (attempt ${attempts + 1})`);
                 return;
                 
@@ -281,6 +288,13 @@ class SecureIframeInitializer {
             throw new Error('Firebase app not initialized in parent');
         }
         
+        // 🔥 NEW: Validate Firebase Functions specifically
+        if (firebase.functions) {
+            console.log(`✅ [${this.pageName}] Firebase Functions available and validated`);
+        } else {
+            console.warn(`⚠️ [${this.pageName}] Firebase Functions not available - email features may be limited`);
+        }
+        
         console.log(`✅ [${this.pageName}] Firebase integrity validated`);
     }
 
@@ -299,6 +313,13 @@ class SecureIframeInitializer {
             // Security: Basic user object validation
             if (!user.id || !user.email) {
                 throw new Error('Invalid user object structure');
+            }
+            
+            // 🔥 NEW: Ensure user has Firebase UID for permissions
+            if (!user.uid && firebase.auth().currentUser) {
+                console.log(`🔄 [${this.pageName}] Adding Firebase UID to user object...`);
+                user.uid = firebase.auth().currentUser.uid;
+                console.log(`✅ [${this.pageName}] User UID added:`, user.uid);
             }
             
             return user;
@@ -379,6 +400,17 @@ window.initializeRestaurantPage = async function(pageName) {
     const restaurant = await VediAPI.getRestaurantByOwner(user.id);
     if (!restaurant) {
         throw new Error('No restaurant found for user');
+    }
+    
+    // 🔥 NEW: Test Firebase Functions after initialization
+    if (firebase.functions) {
+        try {
+            console.log(`🔥 [${pageName}] Testing Firebase Functions...`);
+            const testFunc = firebase.functions().httpsCallable('sendEmail');
+            console.log(`✅ [${pageName}] sendEmail function available:`, typeof testFunc);
+        } catch (error) {
+            console.warn(`⚠️ [${pageName}] Firebase Functions test failed:`, error.message);
+        }
     }
     
     // Log available functions for debugging
@@ -532,6 +564,14 @@ window.getFirebaseStorage = function() {
     throw new Error('Firebase Storage not available');
 };
 
+// 🔥 NEW: Firebase Functions helper
+window.getFirebaseFunctions = function() {
+    if (window.firebase && window.firebase.functions) {
+        return window.firebase.functions();
+    }
+    throw new Error('Firebase Functions not available');
+};
+
 // Utility function to check if we're in an iframe
 window.isInIframe = function() {
     return window.self !== window.top;
@@ -586,13 +626,25 @@ window.debugVediAPI = function() {
     console.log(`📋 Order functions: ${orderFunctions.length}`, orderFunctions);
     console.log(`🍽️ Menu functions: ${menuFunctions.length}`, menuFunctions);
     
+    // 🔥 NEW: Firebase Functions debug
+    console.log(`🔥 Firebase Functions available: ${typeof firebase.functions}`);
+    if (firebase.functions) {
+        try {
+            const testFunc = firebase.functions().httpsCallable('sendEmail');
+            console.log(`📧 sendEmail function: ${typeof testFunc}`);
+        } catch (error) {
+            console.log(`❌ sendEmail test failed: ${error.message}`);
+        }
+    }
+    
     return {
         total: functions.length,
         venue: venueFunctions,
         restaurant: restaurantFunctions,
         order: orderFunctions,
         menu: menuFunctions,
-        all: functions
+        all: functions,
+        firebaseFunctions: typeof firebase.functions
     };
 };
 
@@ -603,3 +655,4 @@ console.log('✅ Available utilities: removeUndefinedValues, sanitizeInput, star
 console.log('✅ Available utilities: trackUserActivity, trackError (console-only versions)');
 console.log('🔄 NEW: Inherits ALL VediAPI functions from parent, including venue-sync functions');
 console.log('🎯 NEW: Added venue page, admin page, and enhanced debugging support');
+console.log('🔥 NEW: Enhanced Firebase Functions inheritance and validation');
