@@ -1785,7 +1785,7 @@
             }
         }
 
-        // Add staff functionality - WITH FALLBACK
+        // Add staff functionality - EMAIL INTEGRATION
         async function addStaff(event) {
             event.preventDefault();
             
@@ -1802,10 +1802,15 @@
                 return;
             }
             
+            if (!VediAPI.validateEmail(email)) {
+                showError('Please enter a valid email address');
+                return;
+            }
+            
             try {
                 showLoading('Creating staff account...');
                 
-                // TRY METHOD 1: Cloud Function (preferred)
+                // METHOD 1: Try Cloud Function first (preferred)
                 if (typeof firebase.functions === 'function') {
                     try {
                         const createStaffMember = firebase.functions().httpsCallable('createStaffMember');
@@ -1832,15 +1837,39 @@
                             return;
                         }
                     } catch (cloudError) {
-                        console.log('Cloud Function failed, trying manual method...', cloudError);
-                        // Fall through to manual method
+                        console.log('Cloud Function failed, using email integration method...', cloudError);
+                        // Continue to email integration method
                     }
                 }
                 
-                // METHOD 2: Manual creation (fallback)
-                showLoading('Creating staff account (manual method)...');
+                // METHOD 2: Email Integration (like venue invitations)
+                showLoading('Creating staff account and sending welcome email...');
                 
-                // Create staff document first
+                // Check if email already exists in staff_members
+                const existingStaffQuery = await firebase.firestore()
+                    .collection('staff_members')
+                    .where('email', '==', email)
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .limit(1)
+                    .get();
+                
+                if (!existingStaffQuery.empty) {
+                    throw new Error('A staff member with this email already exists');
+                }
+                
+                // Check if email exists in Firebase Auth (global check)
+                try {
+                    const checkEmailExists = firebase.functions().httpsCallable('checkEmailExists');
+                    const emailCheck = await checkEmailExists({ email: email });
+                    
+                    if (emailCheck.data.exists) {
+                        throw new Error('An account with this email already exists. Please use a different email.');
+                    }
+                } catch (emailCheckError) {
+                    console.log('Email check function not available, proceeding...', emailCheckError);
+                }
+                
+                // Create staff document with pending status
                 const staffData = {
                     name: name,
                     email: email,
@@ -1850,57 +1879,111 @@
                     hourlyRate: rate ? parseFloat(rate) : null,
                     restaurantId: currentRestaurant.id,
                     isActive: true,
-                    status: 'pending_auth',
+                    status: 'pending_first_login',
                     tempPassword: password,
+                    requiresPasswordSetup: false, // They can use temp password
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    createdBy: currentUser.uid
+                    createdBy: currentUser.uid,
+                    welcomeEmailSent: false
                 };
                 
                 const staffDocRef = await firebase.firestore().collection('staff_members').add(staffData);
+                console.log('✅ Staff document created:', staffDocRef.id);
                 
-                // Create Firebase Auth user (this will sign them in)
-                const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
-                const newUser = userCredential.user;
+                // Create Firebase Auth account
+                try {
+                    const createUserAccount = firebase.functions().httpsCallable('createUserAccount');
+                    const authResult = await createUserAccount({
+                        email: email,
+                        password: password,
+                        displayName: name,
+                        accountType: 'staff',
+                        restaurantId: currentRestaurant.id,
+                        staffDocId: staffDocRef.id
+                    });
+                    
+                    if (authResult.data.success) {
+                        // Update staff document with UID
+                        await firebase.firestore().collection('staff_members').doc(staffDocRef.id).update({
+                            uid: authResult.data.uid,
+                            status: 'active'
+                        });
+                        
+                        console.log('✅ Firebase Auth account created for staff');
+                    }
+                } catch (authError) {
+                    console.warn('Auth account creation failed, staff can be created manually later:', authError);
+                }
                 
-                // Update staff document with UID
-                await firebase.firestore().collection('staff_members').doc(staffDocRef.id).update({
-                    uid: newUser.uid,
-                    status: 'active',
-                    tempPassword: firebase.firestore.FieldValue.delete()
-                });
-                
-                // Sign out the new user
-                await firebase.auth().signOut();
+                // Send welcome email using the same system as venue invitations
+                try {
+                    const baseUrl = window.location.origin;
+                    const loginUrl = `${baseUrl}/Landing-Signup-Login/login.html`;
+                    
+                    const sendEmail = firebase.functions().httpsCallable('sendEmail');
+                    await sendEmail({
+                        template: 'staff-welcome',
+                        to: email,
+                        subject: `🍽️ Welcome to ${currentRestaurant.name} Team!`,
+                        templateData: {
+                            staffName: name,
+                            restaurantName: currentRestaurant.name,
+                            role: getRoleDisplayName(role),
+                            position: position || 'Team Member',
+                            loginEmail: email,
+                            tempPassword: password,
+                            loginLink: loginUrl,
+                            currentYear: new Date().getFullYear()
+                        },
+                        requireAuth: false
+                    });
+                    
+                    // Mark email as sent
+                    await firebase.firestore().collection('staff_members').doc(staffDocRef.id).update({
+                        welcomeEmailSent: true,
+                        welcomeEmailSentAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    
+                    console.log('✅ Welcome email sent to:', email);
+                    
+                } catch (emailError) {
+                    console.error('❌ Welcome email failed:', emailError);
+                    // Continue anyway - staff account was created
+                }
                 
                 closeAddStaffModal();
                 hideLoading();
-                showSuccess(`Staff member ${name} added successfully! NOTE: Welcome email could not be sent - please provide login credentials manually.`);
+                showSuccess(`Staff member ${name} added successfully! Welcome email sent to ${email}.`);
                 
                 // Reset form and reload data
                 document.getElementById('addStaffModal').querySelector('form').reset();
-                
-                // Show login credentials to owner
-                alert(`Staff Login Credentials:\nEmail: ${email}\nPassword: ${password}\n\nPlease share these credentials with ${name} manually.`);
-                
-                // Auto-refresh page after 3 seconds
-                setTimeout(() => {
-                    window.location.reload();
-                }, 3000);
+                await loadStaffData();
                 
             } catch (error) {
                 console.error('❌ Add staff failed:', error);
                 hideLoading();
                 
-                if (error.code === 'auth/email-already-in-use') {
-                    showError('A user with this email already exists. Please use a different email.');
-                } else if (error.code === 'auth/weak-password') {
-                    showError('Password is too weak. Please use a stronger password.');
-                } else if (error.code === 'auth/invalid-email') {
-                    showError('Please enter a valid email address.');
+                if (error.message.includes('email already exists')) {
+                    showError('A staff member with this email already exists.');
                 } else {
                     showError('Failed to add staff member: ' + (error.message || 'Unknown error'));
                 }
             }
+        }
+
+        // Helper function to get role display name
+        function getRoleDisplayName(roleId) {
+            const role = restaurantRoles.find(r => r.roleId === roleId);
+            return role ? role.name : roleId;
+        }
+
+        // Email validation function (if VediAPI not available)
+        if (!window.VediAPI) {
+            window.VediAPI = {
+                validateEmail: function(email) {
+                    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                }
+            };
         }
 
         // Edit staff functions
