@@ -1,6 +1,7 @@
 /**
  * Staff Authentication and Permission System
  * Handles role-based access control for restaurant staff with dynamic roles
+ * ENHANCED VERSION with Staff Invitation System
  */
 
 class StaffAuth {
@@ -320,6 +321,219 @@ class StaffAuth {
             throw error;
         }
     }
+
+    // ============================================================================
+    // STAFF INVITATION SYSTEM - NEW METHODS
+    // ============================================================================
+
+    /**
+     * Validate staff invitation code and check if it's still valid
+     * @param {string} invitationId - Staff invitation document ID
+     * @param {string} invitationCode - Invitation code
+     * @returns {Promise<boolean>} True if invitation is valid
+     */
+    static async validateStaffInvitation(invitationId, invitationCode) {
+        try {
+            console.log('🔍 Validating staff invitation:', invitationId);
+            
+            const invitationDoc = await firebase.firestore()
+                .collection('staff_members')
+                .doc(invitationId)
+                .get();
+            
+            if (!invitationDoc.exists) {
+                console.log('❌ Invitation document not found');
+                return false;
+            }
+            
+            const invitationData = invitationDoc.data();
+            
+            // Check if invitation code matches
+            if (invitationData.invitationCode !== invitationCode) {
+                console.log('❌ Invalid invitation code');
+                return false;
+            }
+            
+            // Check if invitation has expired
+            if (invitationData.expiresAt && invitationData.expiresAt.toDate() < new Date()) {
+                console.log('❌ Invitation has expired');
+                return false;
+            }
+            
+            // Check if invitation is still pending
+            if (invitationData.status !== 'invited') {
+                console.log('❌ Invitation is not in invited status:', invitationData.status);
+                return false;
+            }
+            
+            console.log('✅ Invitation is valid');
+            return true;
+            
+        } catch (error) {
+            console.error('❌ Failed to validate invitation:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get invitation details for pre-filling signup form
+     * @param {string} invitationId - Staff invitation document ID
+     * @param {string} invitationCode - Invitation code
+     * @returns {Promise<Object|null>} Invitation details or null
+     */
+    static async getInvitationDetails(invitationId, invitationCode) {
+        try {
+            console.log('📋 Getting invitation details:', invitationId);
+            
+            // First validate the invitation
+            const isValid = await this.validateStaffInvitation(invitationId, invitationCode);
+            if (!isValid) {
+                return null;
+            }
+            
+            const invitationDoc = await firebase.firestore()
+                .collection('staff_members')
+                .doc(invitationId)
+                .get();
+            
+            const invitationData = invitationDoc.data();
+            
+            // Get restaurant details
+            const restaurantDoc = await firebase.firestore()
+                .collection('restaurants')
+                .doc(invitationData.restaurantId)
+                .get();
+            
+            const restaurantData = restaurantDoc.exists ? restaurantDoc.data() : {};
+            
+            // Get role display name
+            const roleDisplayName = await this.getRoleDisplayName(invitationData.role, invitationData.restaurantId);
+            
+            return {
+                name: invitationData.name,
+                email: invitationData.email,
+                role: roleDisplayName,
+                position: invitationData.position,
+                restaurantId: invitationData.restaurantId,
+                restaurantName: restaurantData.name || 'Restaurant',
+                invitedAt: invitationData.invitedAt,
+                expiresAt: invitationData.expiresAt
+            };
+            
+        } catch (error) {
+            console.error('❌ Failed to get invitation details:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Complete staff signup process
+     * @param {string} invitationId - Staff invitation document ID
+     * @param {string} invitationCode - Invitation code
+     * @param {string} email - Staff email
+     * @param {string} password - Staff password
+     * @returns {Promise<Object>} Signup result
+     */
+    static async completeStaffSignup(invitationId, invitationCode, email, password) {
+        try {
+            console.log('🚀 Completing staff signup for:', email);
+            
+            // Validate invitation first
+            const isValid = await this.validateStaffInvitation(invitationId, invitationCode);
+            if (!isValid) {
+                throw new Error('Invalid or expired invitation');
+            }
+            
+            // Get invitation details
+            const invitationDetails = await this.getInvitationDetails(invitationId, invitationCode);
+            if (!invitationDetails) {
+                throw new Error('Could not load invitation details');
+            }
+            
+            // Create Firebase Auth account using cloud function
+            try {
+                const createStaffAccount = firebase.functions().httpsCallable('createStaffAccount');
+                const result = await createStaffAccount({
+                    email: email,
+                    password: password,
+                    name: invitationDetails.name,
+                    restaurantId: invitationDetails.restaurantId,
+                    userType: 'staff'
+                });
+                
+                if (!result.data.success) {
+                    throw new Error(result.data.message || 'Failed to create account');
+                }
+                
+                const newUID = result.data.uid;
+                console.log('✅ Firebase Auth account created with UID:', newUID);
+                
+                // Update staff document with new UID and activate account
+                await firebase.firestore()
+                    .collection('staff_members')
+                    .doc(invitationId)
+                    .update({
+                        uid: newUID,
+                        status: 'active',
+                        isActive: true,
+                        signupCompletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        passwordSetAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        requiresSignup: false
+                    });
+                
+                console.log('✅ Staff account activated successfully');
+                
+                // Sign in the new user
+                await firebase.auth().signInWithEmailAndPassword(email, password);
+                
+                return {
+                    success: true,
+                    uid: newUID,
+                    restaurantId: invitationDetails.restaurantId,
+                    restaurantName: invitationDetails.restaurantName
+                };
+                
+            } catch (authError) {
+                console.error('❌ Auth account creation failed:', authError);
+                
+                // Fallback: Update staff document without UID (owner can create account later)
+                await firebase.firestore()
+                    .collection('staff_members')
+                    .doc(invitationId)
+                    .update({
+                        status: 'pending_setup',
+                        signupAttemptedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        signupError: authError.message
+                    });
+                
+                throw new Error('Account creation failed: ' + authError.message);
+            }
+            
+        } catch (error) {
+            console.error('❌ Staff signup failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get role display name from role ID
+     * @param {string} roleId - Role ID
+     * @param {string} restaurantId - Restaurant ID
+     * @returns {Promise<string>} Role display name
+     */
+    static async getRoleDisplayName(roleId, restaurantId) {
+        try {
+            const role = await this.getRole(restaurantId, roleId);
+            return role ? role.name : roleId;
+        } catch (error) {
+            console.error('❌ Failed to get role display name:', error);
+            return roleId;
+        }
+    }
+
+    // ============================================================================
+    // EXISTING PERMISSION AND AUTH METHODS
+    // ============================================================================
 
     /**
      * Check if current user has required permission level
@@ -849,4 +1063,4 @@ if (typeof module !== 'undefined' && module.exports) {
 // Make available globally
 window.StaffAuth = StaffAuth;
 
-console.log('✅ Dynamic Staff Authentication System loaded');
+console.log('✅ Enhanced Staff Authentication System with Invitation Support loaded');
