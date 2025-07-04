@@ -3,259 +3,696 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to {{restaurantName}} Team!</title>
+    <title>Join Restaurant Team - Create Account</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+    
+    <!-- Staff Auth -->
+    <script src="../Api/core/firebase-init.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/staff-auth.js"></script>
+
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f8f9fa;
-            line-height: 1.6;
+            box-sizing: border-box;
         }
-        .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 12px;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .signup-container {
+            background: #FFFFFF;
+            border-radius: 16px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
             overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            position: relative;
         }
+
         .header {
             background: linear-gradient(135deg, #34C759 0%, #30A14E 100%);
             color: white;
             padding: 40px 30px;
             text-align: center;
         }
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
-        }
+
         .restaurant-icon {
             font-size: 48px;
             margin-bottom: 16px;
         }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
         .content {
             padding: 40px 30px;
         }
-        .greeting {
-            font-size: 18px;
-            color: #2c3e50;
-            margin-bottom: 24px;
-        }
-        .message {
-            color: #555;
-            font-size: 16px;
-            margin-bottom: 32px;
-        }
-        .credentials-box {
-            background: #f8f9fa;
-            border: 2px solid #34C759;
+
+        .invitation-info {
+            background: #F0F8FF;
+            border: 2px solid #007AFF;
             border-radius: 12px;
-            padding: 24px;
-            margin: 24px 0;
+            padding: 20px;
+            margin-bottom: 24px;
             text-align: center;
         }
-        .credentials-title {
+
+        .invitation-title {
             font-size: 18px;
             font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 16px;
+            color: #007AFF;
+            margin-bottom: 12px;
         }
-        .credential-item {
-            margin: 12px 0;
-            padding: 12px;
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-        }
-        .credential-label {
+
+        .invitation-details {
+            color: #0056CC;
             font-size: 14px;
-            color: #666;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 16px;
+            background: #FFFFFF;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .form-input:disabled {
+            background: #F8F9FA;
+            color: #86868B;
+        }
+
+        .password-requirements {
+            background: #F8F9FA;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #86868B;
+        }
+
+        .password-requirements h4 {
+            color: #1D1D1F;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .password-requirements ul {
+            margin-left: 16px;
+        }
+
+        .password-requirements li {
             margin-bottom: 4px;
         }
-        .credential-value {
-            font-size: 16px;
+
+        .password-strength {
+            margin-top: 8px;
+            font-size: 12px;
             font-weight: 600;
-            color: #2c3e50;
-            font-family: monospace;
         }
-        .cta-button {
-            display: inline-block;
+
+        .password-strength.weak {
+            color: #FF3B30;
+        }
+
+        .password-strength.medium {
+            color: #FF9500;
+        }
+
+        .password-strength.strong {
+            color: #34C759;
+        }
+
+        .signup-btn {
+            width: 100%;
             background: linear-gradient(135deg, #34C759 0%, #30A14E 100%);
             color: white;
-            text-decoration: none;
-            padding: 16px 32px;
+            border: none;
             border-radius: 8px;
-            font-weight: 600;
+            padding: 16px;
             font-size: 16px;
-            margin: 20px 0;
-            transition: transform 0.2s ease;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 20px;
         }
-        .cta-button:hover {
+
+        .signup-btn:hover {
             transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(52, 199, 89, 0.3);
         }
-        .role-info {
-            background: #e3f2fd;
-            border: 1px solid #2196f3;
+
+        .signup-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #EF5350;
             border-radius: 8px;
-            padding: 16px;
-            margin: 24px 0;
-        }
-        .role-title {
-            font-weight: 600;
-            color: #1976d2;
-            margin-bottom: 8px;
-        }
-        .role-description {
-            color: #555;
+            padding: 12px 16px;
+            margin-bottom: 16px;
             font-size: 14px;
+            display: none;
         }
-        .important-notice {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
+
+        .success-message {
+            background: #E8F5E8;
+            color: #1B5E20;
+            border: 1px solid #4CAF50;
             border-radius: 8px;
-            padding: 16px;
-            margin: 24px 0;
-        }
-        .important-notice-title {
-            font-weight: 600;
-            color: #856404;
-            margin-bottom: 8px;
-        }
-        .important-notice-text {
-            color: #856404;
+            padding: 12px 16px;
+            margin-bottom: 16px;
             font-size: 14px;
+            display: none;
         }
-        .footer {
-            background-color: #f8f9fa;
-            padding: 24px 30px;
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #E5E5E7;
+            border-top: 3px solid #34C759;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #1D1D1F;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .already-account {
             text-align: center;
-            border-top: 1px solid #e9ecef;
-        }
-        .footer-text {
-            color: #6c757d;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #E5E5E7;
             font-size: 14px;
-            margin: 8px 0;
+            color: #86868B;
         }
-        .signature {
-            background-color: #fff;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 24px 0;
-            text-align: left;
+
+        .already-account a {
+            color: #007AFF;
+            text-decoration: none;
+            font-weight: 500;
         }
-        .signature-name {
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 4px;
+
+        .already-account a:hover {
+            text-decoration: underline;
         }
-        .signature-restaurant {
-            color: #666;
-            font-size: 14px;
+
+        .invitation-expired {
+            background: #FFEBEE;
+            border: 2px solid #FF3B30;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            color: #C62828;
+        }
+
+        .invitation-expired h2 {
+            color: #D32F2F;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .signup-container {
+                margin: 10px;
+                max-width: calc(100% - 20px);
+            }
+
+            .header {
+                padding: 32px 24px;
+            }
+
+            .content {
+                padding: 32px 24px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="email-container">
+    <div class="signup-container">
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" id="loadingText">Loading invitation...</div>
+        </div>
+
         <!-- Header -->
         <div class="header">
             <div class="restaurant-icon">🍽️</div>
-            <h1>Welcome to {{restaurantName}}!</h1>
+            <h1 id="headerTitle">Join Restaurant Team</h1>
+            <p id="headerSubtitle">Create your account to get started</p>
         </div>
 
         <!-- Main Content -->
         <div class="content">
-            <div class="greeting">
-                Hello {{staffName}}! 👋
-            </div>
+            <!-- Error/Success Messages -->
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
 
-            <div class="message">
-                Congratulations! Your account has been created and you're now part of the <strong>{{restaurantName}}</strong> team. 
-                We're excited to have you on board!
-            </div>
-
-            <!-- Role Information -->
-            <div class="role-info">
-                <div class="role-title">Your Role: {{role}}</div>
-                <div class="role-description">
-                    Position: {{position}}<br>
-                    You now have access to the restaurant management system based on your role permissions.
+            <!-- Invitation Info -->
+            <div class="invitation-info" id="invitationInfo" style="display: none;">
+                <div class="invitation-title">📧 You're Invited!</div>
+                <div class="invitation-details" id="invitationDetails">
+                    Loading invitation details...
                 </div>
             </div>
 
-            <!-- Login Credentials -->
-            <div class="credentials-box">
-                <div class="credentials-title">🔑 Your Login Credentials</div>
-                
-                <div class="credential-item">
-                    <div class="credential-label">Email Address:</div>
-                    <div class="credential-value">{{loginEmail}}</div>
+            <!-- Invitation Expired -->
+            <div class="invitation-expired" id="invitationExpired" style="display: none;">
+                <h2>⚠️ Invitation Expired</h2>
+                <p>This invitation has expired or is no longer valid. Please contact your restaurant manager for a new invitation.</p>
+            </div>
+
+            <!-- Signup Form -->
+            <form id="signupForm" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" class="form-input" id="nameInput" required disabled>
                 </div>
-                
-                <div class="credential-item">
-                    <div class="credential-label">Password:</div>
-                    <div class="credential-value">{{tempPassword}}</div>
+
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" id="emailInput" required disabled>
                 </div>
-            </div>
 
-            <!-- Important Notice -->
-            <div class="important-notice">
-                <div class="important-notice-title">🔐 Important Security Notice</div>
-                <div class="important-notice-text">
-                    Keep your login credentials secure and don't share them with anyone. 
-                    If you need a password change, please contact your restaurant manager.
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <input type="text" class="form-input" id="roleInput" required disabled>
                 </div>
-            </div>
 
-            <!-- Call to Action -->
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="{{loginLink}}" class="cta-button">
-                    🚀 Login to Your Account
-                </a>
-            </div>
-
-            <!-- Additional Info -->
-            <div style="color: #666; font-size: 14px; margin-top: 24px; line-height: 1.5;">
-                <strong>What you can do:</strong><br>
-                • Access your work schedule and time tracking<br>
-                • View restaurant operations (based on your role)<br>
-                • Clock in and out for your shifts<br>
-                • Collaborate with your team members<br>
-                • Use mobile-friendly management tools
-            </div>
-
-            <!-- Next Steps -->
-            <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin: 24px 0;">
-                <strong style="color: #2c3e50;">Next Steps:</strong><br>
-                <div style="color: #555; font-size: 14px; margin-top: 8px;">
-                    1. Click the login button above<br>
-                    2. Enter your credentials<br>
-                    3. Complete your profile setup<br>
-                    4. Start using the restaurant management system!
+                <div class="form-group">
+                    <label class="form-label">Position</label>
+                    <input type="text" class="form-input" id="positionInput" disabled>
                 </div>
-            </div>
 
-            <!-- Signature -->
-            <div class="signature">
-                <div class="signature-name">{{restaurantName}} Management Team</div>
-                <div class="signature-restaurant">Restaurant Management System</div>
-            </div>
-        </div>
+                <div class="form-group">
+                    <label class="form-label">Create Password *</label>
+                    <input type="password" class="form-input" id="passwordInput" required placeholder="Choose a strong password">
+                    <div class="password-strength" id="passwordStrength"></div>
+                    <div class="password-requirements">
+                        <h4>Password Requirements:</h4>
+                        <ul>
+                            <li>At least 6 characters long</li>
+                            <li>Mix of uppercase and lowercase letters</li>
+                            <li>Include numbers and special characters</li>
+                        </ul>
+                    </div>
+                </div>
 
-        <!-- Footer -->
-        <div class="footer">
-            <div class="footer-text">
-                This account was created for you by {{restaurantName}} management
-            </div>
-            <div class="footer-text">
-                © {{currentYear}} Vedi Platform • Restaurant Management System
-            </div>
-            <div class="footer-text">
-                Need help? Contact your restaurant manager
+                <div class="form-group">
+                    <label class="form-label">Confirm Password *</label>
+                    <input type="password" class="form-input" id="confirmPasswordInput" required placeholder="Confirm your password">
+                </div>
+
+                <button type="submit" class="signup-btn" id="signupBtn">
+                    Create Account & Join Team
+                </button>
+            </form>
+
+            <!-- Already have account -->
+            <div class="already-account">
+                Already have an account? <a href="login.html">Sign in here</a>
             </div>
         </div>
     </div>
+
+    <script>
+        // Global variables
+        let invitationData = null;
+        let isLoading = false;
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                showLoading('Loading invitation...');
+                
+                // Wait for Firebase to load
+                await waitForFirebase();
+                
+                // Check for invitation parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const staffInvitationId = urlParams.get('staff_invitation');
+                const invitationCode = urlParams.get('code');
+                const restaurantId = urlParams.get('restaurant');
+                
+                if (!staffInvitationId || !invitationCode) {
+                    // No invitation parameters - show regular signup
+                    showRegularSignup();
+                    return;
+                }
+                
+                // Load and validate invitation
+                await loadInvitation(staffInvitationId, invitationCode);
+                
+            } catch (error) {
+                console.error('❌ Initialization error:', error);
+                showError('Failed to load page: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Wait for Firebase to load
+        async function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase failed to load'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Load and validate invitation
+        async function loadInvitation(invitationId, invitationCode) {
+            try {
+                // Wait for StaffAuth to be available
+                if (typeof StaffAuth === 'undefined') {
+                    throw new Error('Staff authentication system not loaded');
+                }
+                
+                // Validate invitation
+                const invitation = await StaffAuth.validateStaffInvitation(invitationId, invitationCode);
+                
+                if (!invitation) {
+                    showInvitationExpired();
+                    return;
+                }
+                
+                // Get invitation details
+                const details = await StaffAuth.getInvitationDetails(invitationId, invitationCode);
+                
+                if (details) {
+                    invitationData = { id: invitationId, code: invitationCode, ...details };
+                    showInvitationSignup(details);
+                } else {
+                    showInvitationExpired();
+                }
+                
+            } catch (error) {
+                console.error('❌ Failed to load invitation:', error);
+                showError('Failed to load invitation: ' + error.message);
+            }
+        }
+
+        // Show invitation-based signup
+        function showInvitationSignup(details) {
+            // Update header
+            document.getElementById('headerTitle').textContent = `Join ${details.restaurantName}`;
+            document.getElementById('headerSubtitle').textContent = 'Complete your account setup';
+            
+            // Show invitation info
+            const invitationInfo = document.getElementById('invitationInfo');
+            const invitationDetails = document.getElementById('invitationDetails');
+            
+            invitationDetails.innerHTML = `
+                <strong>Restaurant:</strong> ${details.restaurantName}<br>
+                <strong>Role:</strong> ${details.role}<br>
+                <strong>Position:</strong> ${details.position || 'Team Member'}<br>
+                <strong>Email:</strong> ${details.email}
+            `;
+            
+            invitationInfo.style.display = 'block';
+            
+            // Pre-fill form
+            document.getElementById('nameInput').value = details.name;
+            document.getElementById('emailInput').value = details.email;
+            document.getElementById('roleInput').value = details.role;
+            document.getElementById('positionInput').value = details.position || '';
+            
+            // Show form
+            document.getElementById('signupForm').style.display = 'block';
+            
+            // Setup password validation
+            setupPasswordValidation();
+            
+            console.log('✅ Invitation signup form ready');
+        }
+
+        // Show regular signup (no invitation)
+        function showRegularSignup() {
+            // Update header
+            document.getElementById('headerTitle').textContent = 'Create Account';
+            document.getElementById('headerSubtitle').textContent = 'Join our restaurant platform';
+            
+            // Enable all form fields
+            const formInputs = document.querySelectorAll('.form-input');
+            formInputs.forEach(input => input.disabled = false);
+            
+            // Show form
+            document.getElementById('signupForm').style.display = 'block';
+            
+            // Setup password validation
+            setupPasswordValidation();
+            
+            console.log('✅ Regular signup form ready');
+        }
+
+        // Show invitation expired message
+        function showInvitationExpired() {
+            document.getElementById('invitationExpired').style.display = 'block';
+            console.log('❌ Invitation expired or invalid');
+        }
+
+        // Setup password validation
+        function setupPasswordValidation() {
+            const passwordInput = document.getElementById('passwordInput');
+            const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+            const passwordStrength = document.getElementById('passwordStrength');
+            
+            passwordInput.addEventListener('input', function() {
+                const password = this.value;
+                const strength = checkPasswordStrength(password);
+                
+                passwordStrength.className = `password-strength ${strength.class}`;
+                passwordStrength.textContent = strength.text;
+                
+                validatePasswordMatch();
+            });
+            
+            confirmPasswordInput.addEventListener('input', validatePasswordMatch);
+            
+            // Setup form submission
+            document.getElementById('signupForm').addEventListener('submit', handleSignup);
+        }
+
+        // Check password strength
+        function checkPasswordStrength(password) {
+            if (password.length === 0) {
+                return { class: '', text: '' };
+            }
+            
+            if (password.length < 6) {
+                return { class: 'weak', text: 'Password too short' };
+            }
+            
+            const hasUpper = /[A-Z]/.test(password);
+            const hasLower = /[a-z]/.test(password);
+            const hasNumbers = /\d/.test(password);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+            
+            const score = hasUpper + hasLower + hasNumbers + hasSpecial;
+            
+            if (score < 2) {
+                return { class: 'weak', text: 'Weak password' };
+            } else if (score < 4) {
+                return { class: 'medium', text: 'Medium strength' };
+            } else {
+                return { class: 'strong', text: 'Strong password' };
+            }
+        }
+
+        // Validate password match
+        function validatePasswordMatch() {
+            const password = document.getElementById('passwordInput').value;
+            const confirmPassword = document.getElementById('confirmPasswordInput').value;
+            
+            if (confirmPassword.length > 0 && password !== confirmPassword) {
+                document.getElementById('confirmPasswordInput').style.borderColor = '#FF3B30';
+            } else {
+                document.getElementById('confirmPasswordInput').style.borderColor = '#E5E5E7';
+            }
+        }
+
+        // Handle signup form submission
+        async function handleSignup(event) {
+            event.preventDefault();
+            
+            if (isLoading) return;
+            
+            const email = document.getElementById('emailInput').value.trim();
+            const password = document.getElementById('passwordInput').value;
+            const confirmPassword = document.getElementById('confirmPasswordInput').value;
+            
+            // Validate form
+            if (password.length < 6) {
+                showError('Password must be at least 6 characters long');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showError('Passwords do not match');
+                return;
+            }
+            
+            try {
+                isLoading = true;
+                showLoading('Creating your account...');
+                
+                if (invitationData) {
+                    // Complete staff signup
+                    const result = await StaffAuth.completeStaffSignup(
+                        invitationData.id,
+                        invitationData.code,
+                        email,
+                        password
+                    );
+                    
+                    if (result.success) {
+                        showSuccess('Account created successfully! Redirecting to dashboard...');
+                        
+                        // Redirect to staff dashboard after 2 seconds
+                        setTimeout(() => {
+                            window.location.href = '/Owner/dashboard.html';
+                        }, 2000);
+                    }
+                } else {
+                    // Regular signup (implement if needed)
+                    showError('Regular signup not implemented yet');
+                }
+                
+            } catch (error) {
+                console.error('❌ Signup failed:', error);
+                showError(error.message || 'Failed to create account');
+            } finally {
+                isLoading = false;
+                hideLoading();
+            }
+        }
+
+        // Utility functions
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+        }
+
+        console.log('🚀 Staff invitation signup page loaded');
+    </script>
 </body>
 </html>
