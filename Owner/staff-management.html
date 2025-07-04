@@ -1353,8 +1353,8 @@
                     console.log('✅ Firebase Functions available!');
                     
                     // Test calling a function
-                    const testFunc = firebase.functions().httpsCallable('testFunction');
-                    console.log('✅ Test function callable created');
+                    const sendEmail = firebase.functions().httpsCallable('sendEmail');
+                    console.log('✅ sendEmail function callable created');
                     
                     return true;
                 } else {
@@ -1776,7 +1776,7 @@
             }
         }
 
-        // Add staff functionality - INVITATION SYSTEM (like venue invitations)
+        // 🎯 FIXED ADD STAFF FUNCTION - PROPER FIRESTORE TIMESTAMP CONVERSION
         async function addStaff(event) {
             event.preventDefault();
             
@@ -1815,9 +1815,11 @@
                 
                 // Generate invitation code
                 const invitationCode = generateStaffInvitationCode();
+                
+                // 🔥 FIX: Convert JavaScript Date to Firestore Timestamp
                 const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
                 
-                // Create staff document with invitation status
+                // Create staff document with invitation status - FIXED FIRESTORE TYPES
                 const staffData = {
                     name: name,
                     email: email,
@@ -1832,7 +1834,8 @@
                     invitationCode: invitationCode,
                     tempPassword: password,
                     invitedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    expiresAt: expiresAt,
+                    expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt), // 🔥 FIXED: Convert to Firestore Timestamp
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(), // 🔥 ADDED: Missing field
                     createdBy: currentUser.uid,
                     requiresSignup: true,
                     welcomeEmailSent: false
@@ -1943,13 +1946,13 @@ NOTE: The invitation expires in 7 days.
                 const newInvitationCode = generateStaffInvitationCode();
                 const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
                 
-                // Update staff document with new code
+                // Update staff document with new code - FIXED FIRESTORE TIMESTAMP
                 await firebase.firestore()
                     .collection('staff_members')
                     .doc(staffId)
                     .update({
                         invitationCode: newInvitationCode,
-                        expiresAt: newExpiresAt,
+                        expiresAt: firebase.firestore.Timestamp.fromDate(newExpiresAt), // 🔥 FIXED
                         lastReminderSent: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 
@@ -2753,7 +2756,7 @@ The invitation expires in 7 days.
             showMessage(message, 'info');
         }
 
-        console.log('Staff Management System with iOS Style Toggle Buttons loaded');
+        console.log('✅ Staff Management System with Fixed Email Invitations loaded');
     </script>
 </body>
 </html>
