@@ -1054,6 +1054,17 @@
                     </select>
                 </div>
                 
+                <div class="form-group">
+                    <label class="form-label">Change Password (Optional)</label>
+                    <input type="password" class="form-input" id="editStaffNewPassword" placeholder="Leave blank to keep current password">
+                    <div class="password-strength" id="editPasswordStrength"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" class="form-input" id="editStaffConfirmPassword" placeholder="Confirm new password if changing">
+                </div>
+                
 
                 
                 <button type="submit" class="btn btn-primary">Update Staff Member</button>
@@ -1061,34 +1072,7 @@
         </div>
     </div>
 
-    <!-- Change Password Modal -->
-    <div class="modal" id="changePasswordModal">
-        <div class="modal-content password-modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Change Staff Password</h2>
-                <button class="close-btn" onclick="closeChangePasswordModal()">&times;</button>
-            </div>
-            <form class="modal-form" onsubmit="changeStaffPassword(event)">
-                <div class="form-group">
-                    <label class="form-label">Staff Member</label>
-                    <input type="text" class="form-input" id="changePasswordStaffName" readonly>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">New Password</label>
-                    <input type="password" class="form-input" id="newPassword" required minlength="6" placeholder="Minimum 6 characters">
-                    <div class="password-strength" id="passwordStrength"></div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Confirm New Password</label>
-                    <input type="password" class="form-input" id="confirmPassword" required minlength="6" placeholder="Confirm new password">
-                </div>
-                <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="closeChangePasswordModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Change Password</button>
-                </div>
-            </form>
-        </div>
-    </div>
+
 
     <!-- Staff Earnings Modal -->
     <div class="modal" id="staffEarningsModal">
@@ -1528,9 +1512,6 @@
                                 <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
                                     Edit
                                 </button>
-                                <button class="btn btn-small btn-warning" onclick="openChangePasswordModal('${staff.id}')">
-                                    Change Password
-                                </button>
                                 <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
                                     Earnings
                                 </button>
@@ -1735,6 +1716,11 @@
             document.getElementById('editStaffRate').value = staff.hourlyRate || '';
             document.getElementById('editStaffStatus').value = staff.isActive.toString();
             
+            // Clear password fields
+            document.getElementById('editStaffNewPassword').value = '';
+            document.getElementById('editStaffConfirmPassword').value = '';
+            document.getElementById('editPasswordStrength').textContent = '';
+            
             document.getElementById('editStaffModal').classList.add('show');
         }
 
@@ -1756,6 +1742,21 @@
             const phone = document.getElementById('editStaffPhone').value.trim();
             const rate = document.getElementById('editStaffRate').value;
             const isActive = document.getElementById('editStaffStatus').value === 'true';
+            const newPassword = document.getElementById('editStaffNewPassword').value.trim();
+            const confirmPassword = document.getElementById('editStaffConfirmPassword').value.trim();
+            
+            // Validate password if provided
+            if (newPassword) {
+                if (newPassword.length < 6) {
+                    showError('Password must be at least 6 characters long');
+                    return;
+                }
+                
+                if (newPassword !== confirmPassword) {
+                    showError('Passwords do not match');
+                    return;
+                }
+            }
             
             try {
                 showLoading('Updating staff member...');
@@ -1777,9 +1778,34 @@
                     .doc(currentEditingStaff.id)
                     .update(updateData);
                 
+                // Update password if provided
+                if (newPassword) {
+                    try {
+                        const updateStaffPassword = firebase.functions().httpsCallable('updateStaffPassword');
+                        
+                        const passwordResult = await updateStaffPassword({
+                            staffUid: currentEditingStaff.uid,
+                            newPassword: newPassword,
+                            restaurantId: currentRestaurant.id
+                        });
+                        
+                        if (!passwordResult.data.success) {
+                            console.warn('Password update failed:', passwordResult.data.message);
+                            showSuccess(`Staff member ${name} updated successfully, but password change failed: ${passwordResult.data.message}`);
+                        } else {
+                            showSuccess(`Staff member ${name} updated successfully with new password!`);
+                        }
+                    } catch (passwordError) {
+                        console.error('Password update error:', passwordError);
+                        showSuccess(`Staff member ${name} updated successfully, but password change failed.`);
+                    }
+                } else {
+                    showSuccess(`Staff member ${name} updated successfully!`);
+                }
+                
+                closeEditStaffModal();
                 closeEditStaffModal();
                 hideLoading();
-                showSuccess(`Staff member ${name} updated successfully!`);
                 
                 // Reload staff data
                 await loadStaffData();
@@ -1791,37 +1817,23 @@
             }
         }
 
-        // Change Password Functions
-        function openChangePasswordModal(staffId) {
-            const staff = allStaff.find(s => s.id === staffId);
-            if (!staff) return;
-            
-            currentPasswordChangeStaff = staff;
-            document.getElementById('changePasswordStaffName').value = staff.name;
-            document.getElementById('newPassword').value = '';
-            document.getElementById('confirmPassword').value = '';
-            document.getElementById('passwordStrength').textContent = '';
-            
-            document.getElementById('changePasswordModal').classList.add('show');
-        }
-
-        function closeChangePasswordModal() {
-            document.getElementById('changePasswordModal').classList.remove('show');
-            currentPasswordChangeStaff = null;
-        }
-
-        // Password strength checker
+        // Password strength checker for edit modal
         document.addEventListener('DOMContentLoaded', function() {
-            const newPasswordInput = document.getElementById('newPassword');
-            const passwordStrengthDiv = document.getElementById('passwordStrength');
+            const editPasswordInput = document.getElementById('editStaffNewPassword');
+            const editPasswordStrengthDiv = document.getElementById('editPasswordStrength');
             
-            if (newPasswordInput) {
-                newPasswordInput.addEventListener('input', function() {
+            if (editPasswordInput) {
+                editPasswordInput.addEventListener('input', function() {
                     const password = this.value;
-                    const strength = checkPasswordStrength(password);
+                    if (password.length === 0) {
+                        editPasswordStrengthDiv.textContent = '';
+                        editPasswordStrengthDiv.className = 'password-strength';
+                        return;
+                    }
                     
-                    passwordStrengthDiv.className = `password-strength ${strength.class}`;
-                    passwordStrengthDiv.textContent = strength.text;
+                    const strength = checkPasswordStrength(password);
+                    editPasswordStrengthDiv.className = `password-strength ${strength.class}`;
+                    editPasswordStrengthDiv.textContent = strength.text;
                 });
             }
         });
@@ -1847,50 +1859,7 @@
             }
         }
 
-        // Change staff password
-        async function changeStaffPassword(event) {
-            event.preventDefault();
-            
-            if (!currentPasswordChangeStaff) return;
-            
-            const newPassword = document.getElementById('newPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            if (newPassword !== confirmPassword) {
-                showError('Passwords do not match');
-                return;
-            }
-            
-            if (newPassword.length < 6) {
-                showError('Password must be at least 6 characters long');
-                return;
-            }
-            
-            try {
-                showLoading('Changing staff password...');
-                
-                const updateStaffPassword = firebase.functions().httpsCallable('updateStaffPassword');
-                
-                const result = await updateStaffPassword({
-                    staffUid: currentPasswordChangeStaff.uid,
-                    newPassword: newPassword,
-                    restaurantId: currentRestaurant.id
-                });
-                
-                if (result.data.success) {
-                    closeChangePasswordModal();
-                    hideLoading();
-                    showSuccess(`Password changed successfully for ${currentPasswordChangeStaff.name}`);
-                } else {
-                    throw new Error(result.data.message || 'Failed to change password');
-                }
-                
-            } catch (error) {
-                console.error('❌ Change password failed:', error);
-                hideLoading();
-                showError('Failed to change password: ' + (error.message || 'Unknown error'));
-            }
-        }
+
 
         // Toggle staff status
         async function toggleStaffStatus(staffId) {
