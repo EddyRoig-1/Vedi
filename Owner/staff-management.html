@@ -174,6 +174,13 @@
             transform: translateY(-1px);
         }
 
+        .btn-danger:disabled {
+            background: #FFCDD2;
+            color: #FFFFFF;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .btn-warning {
             background: #FF9500;
             color: white;
@@ -296,6 +303,34 @@
             font-weight: 500;
         }
 
+        /* Staff View Toggle */
+        .view-toggle {
+            display: flex;
+            background: #F2F2F7;
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .view-toggle-btn {
+            flex: 1;
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: #8E8E93;
+            font-weight: 500;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .view-toggle-btn.active {
+            background: #FFFFFF;
+            color: #007AFF;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
         /* Staff Table */
         .staff-table-section {
             background: #FFFFFF;
@@ -397,6 +432,42 @@
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        /* Delete Confirmation */
+        .delete-confirmation {
+            background: #FFF0F0;
+            border: 1px solid #FFCDD2;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .delete-confirmation.show {
+            display: block;
+        }
+
+        .delete-confirmation-text {
+            color: #D32F2F;
+            font-size: 14px;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .delete-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #FFCDD2;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .delete-input:focus {
+            outline: none;
+            border-color: #FF3B30;
+            box-shadow: 0 0 0 2px rgba(255, 59, 48, 0.1);
         }
 
         /* Modals */
@@ -711,11 +782,7 @@
             font-size: 14px;
         }
 
-        /* Password Change Modal */
-        .password-modal-content {
-            max-width: 400px;
-        }
-
+        /* Password Strength */
         .password-strength {
             margin-top: 8px;
             font-size: 12px;
@@ -879,6 +946,15 @@
             <div class="table-controls">
                 <div>
                     <h2 class="section-title">All Staff Members</h2>
+                    <!-- View Toggle -->
+                    <div class="view-toggle">
+                        <button class="view-toggle-btn active" id="activeViewBtn" onclick="switchView('active')">
+                            Active Staff
+                        </button>
+                        <button class="view-toggle-btn" id="inactiveViewBtn" onclick="switchView('inactive')">
+                            Inactive Staff
+                        </button>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 12px; align-items: center;">
                     <input type="text" class="search-box" id="staffSearch" placeholder="Search staff members..." onkeyup="filterStaff()">
@@ -1046,7 +1122,6 @@
                         <input type="number" class="form-input" id="editStaffRate" step="0.01" min="0">
                     </div>
                 </div>
-
                 
                 <div class="form-group">
                     <label class="form-label">Change Password (Optional)</label>
@@ -1059,15 +1134,22 @@
                     <input type="password" class="form-input" id="editStaffConfirmPassword" placeholder="Confirm new password if changing">
                 </div>
                 
-
-                
                 <button type="submit" class="btn btn-primary">Update Staff Member</button>
-                <button type="button" class="btn btn-danger" onclick="deleteStaffMember()" style="margin-top: 12px;">Delete Staff Member</button>
+                <button type="button" class="btn btn-danger" id="deleteStaffBtn" onclick="toggleDeleteConfirmation()" style="margin-top: 12px;">Delete Staff Member</button>
+                
+                <!-- Delete Confirmation -->
+                <div class="delete-confirmation" id="deleteConfirmation">
+                    <div class="delete-confirmation-text">
+                        Type "Delete" to confirm removal of this staff member:
+                    </div>
+                    <input type="text" class="delete-input" id="deleteConfirmationInput" placeholder="Type Delete here..." onkeyup="validateDeleteInput()">
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDeleteStaff()" disabled>
+                        Confirm Delete
+                    </button>
+                </div>
             </form>
         </div>
     </div>
-
-
 
     <!-- Staff Earnings Modal -->
     <div class="modal" id="staffEarningsModal">
@@ -1092,9 +1174,10 @@
         let clockedInStaff = [];
         let currentEditingStaff = null;
         let currentEditingRole = null;
-        let currentPasswordChangeStaff = null;
         let filteredStaff = [];
         let availablePages = [];
+        let currentView = 'active'; // 'active' or 'inactive'
+        let showDeleteConfirmation = false;
         
         // Restaurant timezone and currency (same system as analytics page)
         let restaurantTimezone = 'UTC';
@@ -1193,6 +1276,9 @@
                 
                 // Set up real-time listeners
                 setupRealtimeListeners();
+                
+                // Setup password strength checker
+                setupPasswordStrengthChecker();
                 
                 // Hide loading
                 hideLoading();
@@ -1452,13 +1538,13 @@
         // Update staff overview stats
         function updateStaffOverview() {
             const totalStaff = allStaff.length;
-            const activeStaff = allStaff.filter(staff => staff.isActive).length;
+            const activeStaff = allStaff.filter(staff => staff.isActive !== false).length;
             const currentlyWorking = clockedInStaff.length;
             
             // Calculate average hourly rate
-            const staffWithRates = allStaff.filter(staff => staff.hourlyRate > 0);
-            const avgRate = staffWithRates.length > 0 
-                ? staffWithRates.reduce((sum, staff) => sum + staff.hourlyRate, 0) / staffWithRates.length 
+            const activeStaffWithRates = allStaff.filter(staff => staff.isActive !== false && staff.hourlyRate > 0);
+            const avgRate = activeStaffWithRates.length > 0 
+                ? activeStaffWithRates.reduce((sum, staff) => sum + staff.hourlyRate, 0) / activeStaffWithRates.length 
                 : 0;
             
             document.getElementById('totalStaff').textContent = totalStaff;
@@ -1467,18 +1553,60 @@
             document.getElementById('avgHourlyRate').textContent = formatCurrency(avgRate);
         }
 
+        // Switch between active and inactive views
+        function switchView(view) {
+            currentView = view;
+            
+            // Update button states
+            document.getElementById('activeViewBtn').classList.toggle('active', view === 'active');
+            document.getElementById('inactiveViewBtn').classList.toggle('active', view === 'inactive');
+            
+            // Clear filters and re-render
+            filteredStaff = [];
+            document.getElementById('staffSearch').value = '';
+            document.getElementById('roleFilter').value = '';
+            
+            renderStaffTable();
+        }
+
         // Render staff table
         function renderStaffTable() {
             const staffTableBody = document.getElementById('staffTableBody');
-            const displayStaff = filteredStaff.length > 0 ? filteredStaff : allStaff;
+            
+            // Filter staff based on current view (active/inactive)
+            const viewFilteredStaff = allStaff.filter(staff => {
+                if (currentView === 'active') {
+                    return staff.isActive !== false; // Show active staff (including undefined isActive)
+                } else {
+                    return staff.isActive === false; // Show only inactive staff
+                }
+            });
+            
+            // Apply search and role filters
+            let displayStaff = filteredStaff.length > 0 ? 
+                filteredStaff.filter(staff => {
+                    if (currentView === 'active') {
+                        return staff.isActive !== false;
+                    } else {
+                        return staff.isActive === false;
+                    }
+                }) : 
+                viewFilteredStaff;
             
             if (displayStaff.length === 0) {
+                const emptyMessage = currentView === 'active' ? 
+                    'No active staff members found' : 
+                    'No inactive staff members found';
+                const emptyDescription = currentView === 'active' ? 
+                    'Add staff members to get started' : 
+                    'Deleted staff members will appear here';
+                    
                 staffTableBody.innerHTML = `
                     <tr>
                         <td colspan="7" style="text-align: center; padding: 40px;">
                             <div class="empty-state">
-                                <h3>No staff members found</h3>
-                                <p>Add staff members to get started</p>
+                                <h3>${emptyMessage}</h3>
+                                <p>${emptyDescription}</p>
                             </div>
                         </td>
                     </tr>
@@ -1490,26 +1618,41 @@
                 const isClockedIn = clockedInStaff.some(record => record.staffUID === staff.uid);
                 const role = restaurantRoles.find(r => r.roleId === staff.role);
                 const roleName = role ? role.name : staff.role;
+                const isActive = staff.isActive !== false;
+                
+                // Different actions based on view
+                let actionsHtml = '';
+                if (currentView === 'active') {
+                    actionsHtml = `
+                        <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
+                            Edit
+                        </button>
+                        <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
+                            Earnings
+                        </button>
+                    `;
+                } else {
+                    actionsHtml = `
+                        <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
+                            Earnings
+                        </button>
+                    `;
+                }
                 
                 return `
                     <tr>
                         <td>
                             <strong>${staff.name}</strong>
-                            ${isClockedIn ? '<span style="color: #34C759; font-size: 12px;">● WORKING</span>' : ''}
+                            ${isClockedIn && isActive ? '<span style="color: #34C759; font-size: 12px;">● WORKING</span>' : ''}
                         </td>
                         <td>${staff.email}</td>
                         <td><span class="staff-role ${staff.role}">${roleName}</span></td>
                         <td>${staff.position || 'Not specified'}</td>
                         <td>${formatCurrency(staff.hourlyRate || 0)}/hr</td>
-                        <td><span class="status-badge ${staff.isActive ? 'active' : 'inactive'}">${staff.isActive ? 'Active' : 'Inactive'}</span></td>
+                        <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span></td>
                         <td>
                             <div class="actions-cell">
-                                <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
-                                    Edit
-                                </button>
-                                <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
-                                    Earnings
-                                </button>
+                                ${actionsHtml}
                             </div>
                         </td>
                     </tr>
@@ -1572,6 +1715,48 @@
                     // Clear cache
                     StaffAuth.clearRoleCache(currentRestaurant.id);
                 });
+        }
+
+        // Setup password strength checker for edit modal
+        function setupPasswordStrengthChecker() {
+            const editPasswordInput = document.getElementById('editStaffNewPassword');
+            const editPasswordStrengthDiv = document.getElementById('editPasswordStrength');
+            
+            if (editPasswordInput) {
+                editPasswordInput.addEventListener('input', function() {
+                    const password = this.value;
+                    if (password.length === 0) {
+                        editPasswordStrengthDiv.textContent = '';
+                        editPasswordStrengthDiv.className = 'password-strength';
+                        return;
+                    }
+                    
+                    const strength = checkPasswordStrength(password);
+                    editPasswordStrengthDiv.className = `password-strength ${strength.class}`;
+                    editPasswordStrengthDiv.textContent = strength.text;
+                });
+            }
+        }
+
+        function checkPasswordStrength(password) {
+            if (password.length < 6) {
+                return { class: 'weak', text: 'Password too short' };
+            }
+            
+            const hasUpper = /[A-Z]/.test(password);
+            const hasLower = /[a-z]/.test(password);
+            const hasNumbers = /\d/.test(password);
+            const hasNonalphas = /\W/.test(password);
+            
+            const score = hasUpper + hasLower + hasNumbers + hasNonalphas;
+            
+            if (score < 2) {
+                return { class: 'weak', text: 'Weak password' };
+            } else if (score < 4) {
+                return { class: 'medium', text: 'Medium strength' };
+            } else {
+                return { class: 'strong', text: 'Strong password' };
+            }
         }
 
         // Add staff functionality - WITH FALLBACK
@@ -1718,6 +1903,13 @@
         function closeEditStaffModal() {
             document.getElementById('editStaffModal').classList.remove('show');
             currentEditingStaff = null;
+            
+            // Reset delete confirmation state
+            showDeleteConfirmation = false;
+            document.getElementById('deleteConfirmation').classList.remove('show');
+            document.getElementById('deleteStaffBtn').textContent = 'Delete Staff Member';
+            document.getElementById('deleteConfirmationInput').value = '';
+            document.getElementById('confirmDeleteBtn').disabled = true;
         }
 
         // Update staff functionality
@@ -1793,7 +1985,6 @@
                 }
                 
                 closeEditStaffModal();
-                closeEditStaffModal();
                 hideLoading();
                 
                 // Reload staff data
@@ -1806,59 +1997,41 @@
             }
         }
 
-        // Password strength checker for edit modal
-        document.addEventListener('DOMContentLoaded', function() {
-            const editPasswordInput = document.getElementById('editStaffNewPassword');
-            const editPasswordStrengthDiv = document.getElementById('editPasswordStrength');
+        // Toggle delete confirmation
+        function toggleDeleteConfirmation() {
+            showDeleteConfirmation = !showDeleteConfirmation;
+            const confirmation = document.getElementById('deleteConfirmation');
+            const deleteBtn = document.getElementById('deleteStaffBtn');
             
-            if (editPasswordInput) {
-                editPasswordInput.addEventListener('input', function() {
-                    const password = this.value;
-                    if (password.length === 0) {
-                        editPasswordStrengthDiv.textContent = '';
-                        editPasswordStrengthDiv.className = 'password-strength';
-                        return;
-                    }
-                    
-                    const strength = checkPasswordStrength(password);
-                    editPasswordStrengthDiv.className = `password-strength ${strength.class}`;
-                    editPasswordStrengthDiv.textContent = strength.text;
-                });
-            }
-        });
-
-        function checkPasswordStrength(password) {
-            if (password.length < 6) {
-                return { class: 'weak', text: 'Password too short' };
-            }
-            
-            const hasUpper = /[A-Z]/.test(password);
-            const hasLower = /[a-z]/.test(password);
-            const hasNumbers = /\d/.test(password);
-            const hasNonalphas = /\W/.test(password);
-            
-            const score = hasUpper + hasLower + hasNumbers + hasNonalphas;
-            
-            if (score < 2) {
-                return { class: 'weak', text: 'Weak password' };
-            } else if (score < 4) {
-                return { class: 'medium', text: 'Medium strength' };
+            if (showDeleteConfirmation) {
+                confirmation.classList.add('show');
+                deleteBtn.textContent = 'Cancel Delete';
+                // Clear input
+                document.getElementById('deleteConfirmationInput').value = '';
+                document.getElementById('confirmDeleteBtn').disabled = true;
             } else {
-                return { class: 'strong', text: 'Strong password' };
+                confirmation.classList.remove('show');
+                deleteBtn.textContent = 'Delete Staff Member';
             }
         }
 
+        // Validate delete input
+        function validateDeleteInput() {
+            const input = document.getElementById('deleteConfirmationInput').value;
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            
+            if (input.toLowerCase() === 'delete') {
+                confirmBtn.disabled = false;
+            } else {
+                confirmBtn.disabled = true;
+            }
+        }
 
-
-        // Delete staff member function
-        async function deleteStaffMember() {
+        // Confirm delete staff
+        async function confirmDeleteStaff() {
             if (!currentEditingStaff) return;
             
             const staffName = currentEditingStaff.name;
-            
-            if (!confirm(`Are you sure you want to delete ${staffName}? This will deactivate their account and they will no longer be able to access the system.`)) {
-                return;
-            }
             
             try {
                 showLoading('Deleting staff member...');
@@ -1877,6 +2050,9 @@
                 closeEditStaffModal();
                 hideLoading();
                 showSuccess(`Staff member ${staffName} has been deleted and deactivated.`);
+                
+                // Reset delete confirmation state
+                showDeleteConfirmation = false;
                 
                 // Reload staff data
                 await loadStaffData();
@@ -2074,8 +2250,11 @@
                 let totalEarnings = 0;
                 let breakdownHtml = '';
                 
-                for (const staff of allStaff) {
-                    if (staff.isActive && staff.hourlyRate > 0) {
+                // Only calculate for active staff
+                const activeStaff = allStaff.filter(staff => staff.isActive !== false);
+                
+                for (const staff of activeStaff) {
+                    if (staff.hourlyRate > 0) {
                         const earnings = await calculateStaffEarnings(
                             staff.uid, 
                             currentRestaurant.id, 
@@ -2403,7 +2582,7 @@
             showMessage(message, 'info');
         }
 
-        console.log('Staff Management System with Currency Detection loaded');
+        console.log('Staff Management System with Active/Inactive Views loaded');
     </script>
 </body>
 </html>
