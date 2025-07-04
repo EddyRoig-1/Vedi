@@ -377,13 +377,13 @@
         }
 
         /* Iframe Containers */
-        .settings-section, .qr-section, .orders-section, .pos-orders-section, .incidents-section, .analytics-section, .menu-section {
+        .settings-section, .qr-section, .orders-section, .pos-orders-section, .incidents-section, .analytics-section, .menu-section, .staff-management-section, .staff-clock-section {
             padding: 0;
             background: transparent;
             border: none;
         }
 
-        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container, .pos-orders-iframe-container, .incidents-iframe-container, .analytics-iframe-container, .menu-iframe-container {
+        .settings-iframe-container, .qr-iframe-container, .orders-iframe-container, .pos-orders-iframe-container, .incidents-iframe-container, .analytics-iframe-container, .menu-iframe-container, .staff-management-iframe-container, .staff-clock-iframe-container {
             width: 100%;
             height: calc(100vh - 200px);
             border: none;
@@ -393,7 +393,7 @@
             position: relative;
         }
 
-        .settings-iframe, .qr-iframe, .orders-iframe, .pos-orders-iframe, .incidents-iframe, .analytics-iframe, .menu-iframe {
+        .settings-iframe, .qr-iframe, .orders-iframe, .pos-orders-iframe, .incidents-iframe, .analytics-iframe, .menu-iframe, .staff-management-iframe, .staff-clock-iframe {
             width: 100%;
             height: 100%;
             border: none;
@@ -782,6 +782,8 @@
                 <div class="nav-tab" data-section="orders">Orders</div>
                 <div class="nav-tab" data-section="incidents">Loss Reports</div>
                 <div class="nav-tab" data-section="analytics">Analytics</div>
+                <div class="nav-tab" data-section="staff-management">Staff Management</div>
+                <div class="nav-tab" data-section="staff-clock">Clock-In</div>
                 <div class="nav-tab" data-section="qr-code">QR Codes</div>
                 <div class="nav-tab" data-section="settings">Settings</div>
             </div>
@@ -889,6 +891,28 @@
                     <p>Loading Analytics Dashboard...</p>
                 </div>
                 <iframe id="analyticsIframe" class="analytics-iframe" style="display: none;"></iframe>
+            </div>
+        </div>
+
+        <!-- Staff Management Section with iframe -->
+        <div class="dashboard-section staff-management-section" id="staff-management">
+            <div class="staff-management-iframe-container">
+                <div class="iframe-loading" id="staffManagementIframeLoading">
+                    <div class="spinner"></div>
+                    <p>Loading Staff Management...</p>
+                </div>
+                <iframe id="staffManagementIframe" class="staff-management-iframe" style="display: none;"></iframe>
+            </div>
+        </div>
+
+        <!-- Staff Clock Section with iframe -->
+        <div class="dashboard-section staff-clock-section" id="staff-clock">
+            <div class="staff-clock-iframe-container">
+                <div class="iframe-loading" id="staffClockIframeLoading">
+                    <div class="spinner"></div>
+                    <p>Loading Staff Clock In/Out...</p>
+                </div>
+                <iframe id="staffClockIframe" class="staff-clock-iframe" style="display: none;"></iframe>
             </div>
         </div>
 
@@ -1412,6 +1436,10 @@
                             loadIncidentsIframe();
                         } else if (sectionId === 'analytics') {
                             loadAnalyticsIframe();
+                        } else if (sectionId === 'staff-management') {
+                            loadStaffManagementIframe();
+                        } else if (sectionId === 'staff-clock') {
+                            loadStaffClockIframe();
                         } else if (sectionId === 'settings') {
                             loadSettingsIframe();
                         } else if (sectionId === 'qr-code') {
@@ -1666,6 +1694,78 @@
             }
         }
 
+        // Staff Management iframe management
+        function loadStaffManagementIframe() {
+            const iframe = document.getElementById('staffManagementIframe');
+            const loading = document.getElementById('staffManagementIframeLoading');
+            
+            loading.style.display = 'block';
+            iframe.style.display = 'none';
+            
+            if (!iframe.src || iframe.src === 'about:blank') {
+                iframe.onload = function() {
+                    loading.style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+                
+                iframe.onerror = function(error) {
+                    console.error('Error loading Staff Management iframe:', error);
+                    loading.innerHTML = '<p style="color: #FF3B30;">Error loading staff management page. Make sure staff-management.html exists in the Owner folder.</p>';
+                };
+                
+                const currentPath = window.location.pathname;
+                let staffManagementPath = 'staff-management.html';
+                
+                if (currentPath.includes('/Owner/')) {
+                    staffManagementPath = 'staff-management.html';
+                } else {
+                    staffManagementPath = './staff-management.html';
+                }
+                
+                console.log('👥 Loading Staff Management iframe from:', staffManagementPath);
+                iframe.src = staffManagementPath;
+            } else {
+                loading.style.display = 'none';
+                iframe.style.display = 'block';
+            }
+        }
+
+        // Staff Clock iframe management
+        function loadStaffClockIframe() {
+            const iframe = document.getElementById('staffClockIframe');
+            const loading = document.getElementById('staffClockIframeLoading');
+            
+            loading.style.display = 'block';
+            iframe.style.display = 'none';
+            
+            if (!iframe.src || iframe.src === 'about:blank') {
+                iframe.onload = function() {
+                    loading.style.display = 'none';
+                    iframe.style.display = 'block';
+                };
+                
+                iframe.onerror = function(error) {
+                    console.error('Error loading Staff Clock iframe:', error);
+                    loading.innerHTML = '<p style="color: #FF3B30;">Error loading staff clock page. Make sure restaurant-staff.html exists in the Owner folder.</p>';
+                };
+                
+                const currentPath = window.location.pathname;
+                let staffClockPath = 'restaurant-staff.html';
+                
+                if (currentPath.includes('/Owner/')) {
+                    staffClockPath = 'restaurant-staff.html';
+                } else {
+                    staffClockPath = './restaurant-staff.html';
+                }
+                
+                console.log('⏰ Loading Staff Clock iframe from:', staffClockPath);
+                iframe.src = staffClockPath;
+            } else {
+                loading.style.display = 'none';
+                iframe.style.display = 'block';
+            }
+        }
+
         // Utility functions
         function updateStats() {
             const totalItems = menuItems.length;
@@ -1682,12 +1782,12 @@
         }
 
         // Currency utility functions
-        function getRestaurantCurrency() {
-            if (currentRestaurant && currentRestaurant.currency) {
-                return currentRestaurant.currency;
-            }
-            return { code: 'USD', symbol: '$', name: 'US Dollar' };
-        }
+       function getRestaurantCurrency() {
+    if (currentRestaurant && currentRestaurant.currency) {
+        return currentRestaurant.currency;
+    }
+    return { code: 'USD', symbol: '$', name: 'US Dollar' };
+}
 
         function formatPrice(amount, showCode = false) {
             const currency = getRestaurantCurrency();
@@ -1745,17 +1845,17 @@
         }
 
         function goToSettings() {
-    // Switch to settings tab
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.dashboard-section').forEach(s => s.classList.remove('active'));
-    
-    // Activate the settings tab and section
-    document.querySelector('[data-section="settings"]').classList.add('active');
-    document.getElementById('settings').classList.add('active');
-    
-    // Load the settings iframe
-    loadSettingsIframe();
-}
+            // Switch to settings tab
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.dashboard-section').forEach(s => s.classList.remove('active'));
+            
+            // Activate the settings tab and section
+            document.querySelector('[data-section="settings"]').classList.add('active');
+            document.getElementById('settings').classList.add('active');
+            
+            // Load the settings iframe
+            loadSettingsIframe();
+        }
 
         // DIRECT FIREBASE AUTH LOGOUT
         async function handleLogout() {
