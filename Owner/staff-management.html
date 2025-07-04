@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Management - Restaurant Dashboard</title>
+    
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+   
+    <!-- Firebase Configuration -->
+    <script src="../firebase-config.js"></script>
+
+    <!-- Core API Modules -->
+    <script src="../Api/core/firebase-init.js"></script>
+    <script src="../Api/core/utilities.js"></script>
+    <script src="../Api/core/tracking.js"></script>
+    <script src="../Api/core/staff-auth.js"></script>
+
+    <!-- Business API Modules -->
+    <script src="../Api/business/restaurants.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+            background: #F8F9FA;
+            min-height: 100vh;
+            color: #1D1D1F;
+            line-height: 1.4;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(248, 249, 250, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+        }
+
+        .loading-card {
+            background: #FFFFFF;
+            padding: 32px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            border: 1px solid #E5E5E7;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid #F1F3F4;
+            border-top: 3px solid #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Header */
+        .staff-header {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #000000;
+            letter-spacing: -0.02em;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Action Buttons */
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+        }
+
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056CC;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #34C759;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #28A745;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #F1F3F4;
+            color: #1D1D1F;
+            border: 1px solid #E5E5E7;
+        }
+
+        .btn-secondary:hover {
+            background: #E5E5E7;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: #FF3B30;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #E5392F;
+            transform: translateY(-1px);
+        }
+
+        .btn-warning {
+            background: #FF9500;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #CC7700;
+            transform: translateY(-1px);
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 13px;
+            min-height: 36px;
+        }
+
+        /* Main Grid Layout */
+        .management-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* Staff Overview Cards */
+        .overview-section {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #F8F9FA;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: #007AFF;
+            transform: translateY(-1px);
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #86868B;
+            font-weight: 500;
+        }
+
+        /* Earnings Summary */
+        .earnings-section {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .earnings-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .form-select {
+            padding: 8px 12px;
+            border: 1px solid #E5E5E7;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #FFFFFF;
+        }
+
+        .earnings-total {
+            background: #E8F5E8;
+            border: 1px solid #4CAF50;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .earnings-amount {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2E7D32;
+            margin-bottom: 4px;
+        }
+
+        .earnings-period {
+            font-size: 14px;
+            color: #388E3C;
+            font-weight: 500;
+        }
+
+        /* Staff Table */
+        .staff-table-section {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #E5E5E7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            grid-column: 1 / -1;
+        }
+
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .search-box {
+            padding: 10px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 15px;
+            background: #FFFFFF;
+            width: 300px;
+            max-width: 100%;
+        }
+
+        .staff-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .staff-table th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #E5E5E7;
+            font-weight: 600;
+            color: #1D1D1F;
+            background: #F8F9FA;
+        }
+
+        .staff-table td {
+            padding: 12px;
+            border-bottom: 1px solid #F1F3F4;
+            color: #48484A;
+        }
+
+        .staff-table tr:hover {
+            background: #F8F9FA;
+        }
+
+        .staff-role {
+            background: #E5E5E7;
+            color: #48484A;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .staff-role.basic {
+            background: #E3F2FD;
+            color: #1976D2;
+        }
+
+        .staff-role.advanced {
+            background: #FFF3E0;
+            color: #F57C00;
+        }
+
+        .staff-role.full {
+            background: #E8F5E8;
+            color: #388E3C;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.active {
+            background: #E8F5E8;
+            color: #388E3C;
+        }
+
+        .status-badge.inactive {
+            background: #FFEBEE;
+            color: #D32F2F;
+        }
+
+        .actions-cell {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1D1D1F;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #86868B;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #1D1D1F;
+        }
+
+        .modal-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #1D1D1F;
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 15px;
+            background: #FFFFFF;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #E5E5E7;
+            border-radius: 8px;
+            font-size: 15px;
+            background: #FFFFFF;
+            cursor: pointer;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+        .checkbox-item label {
+            font-size: 14px;
+            color: #1D1D1F;
+            margin-bottom: 0;
+        }
+
+        /* Messages */
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .error-message {
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #EF5350;
+        }
+
+        .success-message {
+            background: #E8F5E8;
+            color: #1B5E20;
+            border: 1px solid #4CAF50;
+        }
+
+        .info-message {
+            background: #E3F2FD;
+            color: #0D47A1;
+            border: 1px solid #2196F3;
+        }
+
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8E8E93;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1D1D1F;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .management-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: stretch;
+            }
+
+            .header-actions .btn {
+                flex: 1;
+            }
+
+            .table-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .staff-table {
+                font-size: 14px;
+            }
+
+            .staff-table th,
+            .staff-table td {
+                padding: 8px;
+            }
+
+            .actions-cell {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .form-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p id="loadingText">Loading staff management...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="staff-header">
+            <div class="header-content">
+                <h1 class="header-title">Staff Management</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openAddStaffModal()">
+                        Add Staff Member
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportStaffData()">
+                        Export Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="error-message message" id="errorMessage"></div>
+        <div class="success-message message" id="successMessage"></div>
+        <div class="info-message message" id="infoMessage"></div>
+
+        <!-- Management Grid -->
+        <div class="management-grid">
+            <!-- Staff Overview -->
+            <div class="overview-section">
+                <h2 class="section-title">Staff Overview</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalStaff">0</div>
+                        <div class="stat-label">Total Staff</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="activeStaff">0</div>
+                        <div class="stat-label">Active</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="currentlyWorking">0</div>
+                        <div class="stat-label">Clocked In</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="avgHourlyRate">$0.00</div>
+                        <div class="stat-label">Avg. Hourly Rate</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Earnings Summary -->
+            <div class="earnings-section">
+                <h2 class="section-title">Earnings Summary</h2>
+                <div class="earnings-controls">
+                    <select class="form-select" id="earningsPeriod" onchange="updateEarningsSummary()">
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                    </select>
+                    <button class="btn btn-small btn-secondary" onclick="generatePayrollReport()">
+                        Generate Report
+                    </button>
+                </div>
+                <div class="earnings-total">
+                    <div class="earnings-amount" id="totalEarnings">$0.00</div>
+                    <div class="earnings-period" id="earningsPeriodLabel">This Week</div>
+                </div>
+                <div id="earningsBreakdown">
+                    <!-- Earnings breakdown will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Table -->
+        <div class="staff-table-section">
+            <div class="table-controls">
+                <div>
+                    <h2 class="section-title">All Staff Members</h2>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <input type="text" class="search-box" id="staffSearch" placeholder="Search staff members..." onkeyup="filterStaff()">
+                    <select class="form-select" id="roleFilter" onchange="filterStaff()">
+                        <option value="">All Roles</option>
+                        <option value="basic">Basic</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="full">Full</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="staffTableContainer">
+                <table class="staff-table" id="staffTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Position</th>
+                            <th>Hourly Rate</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffTableBody">
+                        <!-- Staff members will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Staff Modal -->
+    <div class="modal" id="addStaffModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Staff Member</h2>
+                <button class="close-btn" onclick="closeAddStaffModal()">&times;</button>
+            </div>
+            <form class="modal-form" onsubmit="addStaff(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-input" id="staffName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-input" id="staffEmail" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" id="staffRole" required>
+                            <option value="">Select Permission Level</option>
+                            <option value="basic">Basic Permissions - Orders access only</option>
+                            <option value="advanced">Advanced Permissions - POS, Orders, Loss Reports</option>
+                            <option value="full">Full Permissions - Complete dashboard access</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Position</label>
+                        <input type="text" class="form-input" id="staffPosition" placeholder="e.g., Server, Cook, Manager">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-input" id="staffPhone" placeholder="(555) 123-4567">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Hourly Rate</label>
+                        <input type="number" class="form-input" id="staffRate" step="0.01" min="0" placeholder="15.00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Temporary Password</label>
+                    <input type="password" class="form-input" id="staffPassword" placeholder="Staff will change this on first login" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Custom Permissions (Optional)</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="customManageStaff">
+                            <label for="customManageStaff">Can manage other staff members</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="customViewEarnings">
+                            <label for="customViewEarnings">Can view staff earnings</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="customEditPay">
+                            <label for="customEditPay">Can edit staff pay rates</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Add Staff Member</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Staff Modal -->
+    <div class="modal" id="editStaffModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Staff Member</h2>
+                <button class="close-btn" onclick="closeEditStaffModal()">&times;</button>
+            </div>
+            <form class="modal-form" onsubmit="updateStaff(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-input" id="editStaffName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-input" id="editStaffEmail" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" id="editStaffRole" required>
+                            <option value="basic">Basic Permissions</option>
+                            <option value="advanced">Advanced Permissions</option>
+                            <option value="full">Full Permissions</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Position</label>
+                        <input type="text" class="form-input" id="editStaffPosition">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-input" id="editStaffPhone">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Hourly Rate</label>
+                        <input type="number" class="form-input" id="editStaffRate" step="0.01" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="editStaffStatus">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Custom Permissions</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="editCustomManageStaff">
+                            <label for="editCustomManageStaff">Can manage other staff members</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="editCustomViewEarnings">
+                            <label for="editCustomViewEarnings">Can view staff earnings</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="editCustomEditPay">
+                            <label for="editCustomEditPay">Can edit staff pay rates</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Update Staff Member</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Staff Earnings Modal -->
+    <div class="modal" id="staffEarningsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Staff Earnings</h2>
+                <button class="close-btn" onclick="closeStaffEarningsModal()">&times;</button>
+            </div>
+            <div id="staffEarningsContent">
+                <!-- Earnings details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let currentRestaurant = null;
+        let currentUserRole = null;
+        let allStaff = [];
+        let clockedInStaff = [];
+        let currentEditingStaff = null;
+        let filteredStaff = [];
+
+        // Debug logging
+        function debugLog(message, data = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`[${timestamp}] ${message}`, data || '');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            debugLog('🚀 Staff management initialization started');
+            showLoading('Loading staff management...');
+            
+            try {
+                // Wait for Firebase to load
+                await waitForFirebase();
+                
+                // Check authentication
+                showLoading('Checking authentication...');
+                currentUser = await checkAuthentication();
+                
+                // Load restaurant data
+                showLoading('Loading restaurant...');
+                currentRestaurant = await loadRestaurantData();
+                
+                // Check user permissions
+                showLoading('Checking permissions...');
+                currentUserRole = await checkUserPermissions();
+                
+                // Load staff data
+                showLoading('Loading staff data...');
+                await loadStaffData();
+                
+                // Load earnings data
+                showLoading('Loading earnings data...');
+                await updateEarningsSummary();
+                
+                // Set up real-time listeners
+                setupRealtimeListeners();
+                
+                // Hide loading
+                hideLoading();
+                
+                debugLog('✅ Staff management initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Failed to initialize staff management:', error);
+                hideLoading();
+                showError('Failed to initialize: ' + error.message);
+            }
+        });
+
+        // Wait for Firebase to load
+        async function waitForFirebase() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 100;
+                
+                const checkFirebase = () => {
+                    attempts++;
+                    
+                    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Firebase failed to load'));
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                
+                checkFirebase();
+            });
+        }
+
+        // Check authentication
+        async function checkAuthentication() {
+            return new Promise((resolve, reject) => {
+                const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+                    unsubscribe();
+                    
+                    if (user) {
+                        debugLog('✅ User authenticated:', user.email);
+                        resolve(user);
+                    } else {
+                        debugLog('❌ User not authenticated');
+                        window.location.href = 'login.html';
+                        reject(new Error('User not authenticated'));
+                    }
+                });
+            });
+        }
+
+        // Load restaurant data
+        async function loadRestaurantData() {
+            try {
+                // Try to get restaurant by owner first
+                let restaurant = await VediAPI.getRestaurantByOwner(currentUser.uid);
+                
+                // If not found, user might be staff - get restaurant ID from staff record
+                if (!restaurant) {
+                    const staffSnapshot = await firebase.firestore()
+                        .collection('staff_members')
+                        .where('uid', '==', currentUser.uid)
+                        .where('isActive', '==', true)
+                        .limit(1)
+                        .get();
+                    
+                    if (!staffSnapshot.empty) {
+                        const staffData = staffSnapshot.docs[0].data();
+                        restaurant = await VediAPI.getRestaurant(staffData.restaurantId);
+                    }
+                }
+                
+                if (!restaurant) {
+                    throw new Error('No restaurant found for this user');
+                }
+                
+                debugLog('✅ Restaurant loaded:', restaurant.name);
+                return restaurant;
+            } catch (error) {
+                console.error('❌ Failed to load restaurant:', error);
+                throw error;
+            }
+        }
+
+        // Check user permissions
+        async function checkUserPermissions() {
+            try {
+                // Use StaffAuth to check permissions
+                const canManage = await StaffAuth.canManageStaff(currentUser.uid);
+                
+                if (!canManage) {
+                    throw new Error('Access denied. You do not have permission to manage staff.');
+                }
+                
+                // Get user profile for role info
+                const userProfile = await StaffAuth.getStaffProfile(currentUser.uid);
+                debugLog('✅ User has staff management permissions:', userProfile.role);
+                
+                return userProfile.role;
+                
+            } catch (error) {
+                console.error('❌ Permission check failed:', error);
+                throw error;
+            }
+        }
+
+        // Load staff data
+        async function loadStaffData() {
+            try {
+                // Load all staff members
+                const staffSnapshot = await firebase.firestore()
+                    .collection('staff_members')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .orderBy('createdAt', 'desc')
+                    .get();
+                
+                allStaff = staffSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                // Load currently clocked in staff
+                const today = new Date().toISOString().split('T')[0];
+                const clockedInSnapshot = await firebase.firestore()
+                    .collection('staff_time_records')
+                    .where('restaurantId', '==', currentRestaurant.id)
+                    .where('date', '==', today)
+                    .where('status', '==', 'clocked_in')
+                    .get();
+                
+                clockedInStaff = clockedInSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                debugLog('✅ Staff data loaded:', {
+                    total: allStaff.length,
+                    clockedIn: clockedInStaff.length
+                });
+                
+                updateStaffOverview();
+                renderStaffTable();
+                
+            } catch (error) {
+                console.error('❌ Failed to load staff data:', error);
+                throw error;
+            }
+        }
+
+        // Update staff overview stats
+        function updateStaffOverview() {
+            const totalStaff = allStaff.length;
+            const activeStaff = allStaff.filter(staff => staff.isActive).length;
+            const currentlyWorking = clockedInStaff.length;
+            
+            // Calculate average hourly rate
+            const staffWithRates = allStaff.filter(staff => staff.hourlyRate > 0);
+            const avgRate = staffWithRates.length > 0 
+                ? staffWithRates.reduce((sum, staff) => sum + staff.hourlyRate, 0) / staffWithRates.length 
+                : 0;
+            
+            document.getElementById('totalStaff').textContent = totalStaff;
+            document.getElementById('activeStaff').textContent = activeStaff;
+            document.getElementById('currentlyWorking').textContent = currentlyWorking;
+            document.getElementById('avgHourlyRate').textContent = `$${avgRate.toFixed(2)}`;
+        }
+
+        // Render staff table
+        function renderStaffTable() {
+            const staffTableBody = document.getElementById('staffTableBody');
+            const displayStaff = filteredStaff.length > 0 ? filteredStaff : allStaff;
+            
+            if (displayStaff.length === 0) {
+                staffTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px;">
+                            <div class="empty-state">
+                                <h3>No staff members found</h3>
+                                <p>Add staff members to get started</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            staffTableBody.innerHTML = displayStaff.map(staff => {
+                const isClockedIn = clockedInStaff.some(record => record.staffUID === staff.uid);
+                
+                return `
+                    <tr>
+                        <td>
+                            <strong>${staff.name}</strong>
+                            ${isClockedIn ? '<span style="color: #34C759; font-size: 12px;">● WORKING</span>' : ''}
+                        </td>
+                        <td>${staff.email}</td>
+                        <td><span class="staff-role ${staff.role}">${staff.role}</span></td>
+                        <td>${staff.position || 'Not specified'}</td>
+                        <td>$${(staff.hourlyRate || 0).toFixed(2)}/hr</td>
+                        <td><span class="status-badge ${staff.isActive ? 'active' : 'inactive'}">${staff.isActive ? 'Active' : 'Inactive'}</span></td>
+                        <td>
+                            <div class="actions-cell">
+                                <button class="btn btn-small btn-secondary" onclick="editStaff('${staff.id}')">
+                                    Edit
+                                </button>
+                                <button class="btn btn-small btn-warning" onclick="viewStaffEarnings('${staff.id}')">
+                                    Earnings
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="toggleStaffStatus('${staff.id}')">
+                                    ${staff.isActive ? 'Deactivate' : 'Activate'}
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Filter staff based on search and role
+        function filterStaff() {
+            const searchTerm = document.getElementById('staffSearch').value.toLowerCase();
+            const roleFilter = document.getElementById('roleFilter').value;
+            
+            filteredStaff = allStaff.filter(staff => {
+                const matchesSearch = staff.name.toLowerCase().includes(searchTerm) ||
+                                    staff.email.toLowerCase().includes(searchTerm) ||
+                                    (staff.position && staff.position.toLowerCase().includes(searchTerm));
+                
+                const matchesRole = roleFilter === '' || staff.role === roleFilter;
+                
+                return matchesSearch && matchesRole;
+            });
+            
+            renderStaffTable();
+        }
+
+        // Setup real-time listeners
+        function setupRealtimeListeners() {
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Listen for clock in/out changes
+            firebase.firestore()
+                .collection('staff_time_records')
+                .where('restaurantId', '==', currentRestaurant.id)
+                .where('date', '==', today)
+                .onSnapshot(snapshot => {
+                    clockedInStaff = snapshot.docs
+                        .filter(doc => doc.data().status === 'clocked_in')
+                        .map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                    
+                    updateStaffOverview();
+                    renderStaffTable();
+                });
+        }
+
+        // Add staff modal functions
+        function openAddStaffModal() {
+            document.getElementById('addStaffModal').classList.add('show');
+        }
+
+        function closeAddStaffModal() {
+            document.getElementById('addStaffModal').classList.remove('show');
+            document.getElementById('addStaffModal').querySelector('form').reset();
+        }
+
+        // Add staff functionality
+        async function addStaff(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('staffName').value.trim();
+            const email = document.getElementById('staffEmail').value.trim();
+            const role = document.getElementById('staffRole').value;
+            const position = document.getElementById('staffPosition').value.trim();
+            const phone = document.getElementById('staffPhone').value.trim();
+            const rate = document.getElementById('staffRate').value;
+            const password = document.getElementById('staffPassword').value;
+            
+            // Get custom permissions
+            const customPermissions = {};
+            if (document.getElementById('customManageStaff').checked) {
+                customPermissions.manageStaff = true;
+            }
+            if (document.getElementById('customViewEarnings').checked) {
+                customPermissions.viewStaffEarnings = true;
+            }
+            if (document.getElementById('customEditPay').checked) {
+                customPermissions.editStaffPay = true;
+            }
+            
+            if (!name || !email || !role || !password) {
+                showError('Please fill in all required fields');
+                return;
+            }
+            
+            try {
+                showLoading('Creating staff account...');
+                
+                // Store current user credentials
+                const currentUserEmail = currentUser.email;
+                
+                // Create Firebase user
+                const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                const newUser = userCredential.user;
+                
+                // Create staff record
+                const staffData = {
+                    uid: newUser.uid,
+                    restaurantId: currentRestaurant.id,
+                    name: name,
+                    email: email,
+                    role: role,
+                    position: position || null,
+                    phone: phone || null,
+                    hourlyRate: rate ? parseFloat(rate) : null,
+                    isActive: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    createdBy: currentUser.uid
+                };
+                
+                // Add custom permissions if any
+                if (Object.keys(customPermissions).length > 0) {
+                    staffData.customPermissions = customPermissions;
+                }
+                
+                await firebase.firestore().collection('staff_members').add(staffData);
+                
+                // Sign back in as the original user
+                await firebase.auth().signOut();
+                await firebase.auth().signInWithEmailAndPassword(currentUserEmail, '');
+                
+                closeAddStaffModal();
+                hideLoading();
+                showSuccess(`Staff member ${name} added successfully!`);
+                
+                // Reload staff data
+                await loadStaffData();
+                
+            } catch (error) {
+                console.error('❌ Add staff failed:', error);
+                hideLoading();
+                showError('Failed to add staff: ' + error.message);
+            }
+        }
+
+        // Edit staff functions
+        function editStaff(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            currentEditingStaff = staff;
+            
+            // Populate edit form
+            document.getElementById('editStaffName').value = staff.name;
+            document.getElementById('editStaffEmail').value = staff.email;
+            document.getElementById('editStaffRole').value = staff.role;
+            document.getElementById('editStaffPosition').value = staff.position || '';
+            document.getElementById('editStaffPhone').value = staff.phone || '';
+            document.getElementById('editStaffRate').value = staff.hourlyRate || '';
+            document.getElementById('editStaffStatus').value = staff.isActive.toString();
+            
+            // Set custom permissions
+            document.getElementById('editCustomManageStaff').checked = 
+                staff.customPermissions && staff.customPermissions.manageStaff;
+            document.getElementById('editCustomViewEarnings').checked = 
+                staff.customPermissions && staff.customPermissions.viewStaffEarnings;
+            document.getElementById('editCustomEditPay').checked = 
+                staff.customPermissions && staff.customPermissions.editStaffPay;
+            
+            document.getElementById('editStaffModal').classList.add('show');
+        }
+
+        function closeEditStaffModal() {
+            document.getElementById('editStaffModal').classList.remove('show');
+            currentEditingStaff = null;
+        }
+
+        // Update staff functionality
+        async function updateStaff(event) {
+            event.preventDefault();
+            
+            if (!currentEditingStaff) return;
+            
+            const name = document.getElementById('editStaffName').value.trim();
+            const email = document.getElementById('editStaffEmail').value.trim();
+            const role = document.getElementById('editStaffRole').value;
+            const position = document.getElementById('editStaffPosition').value.trim();
+            const phone = document.getElementById('editStaffPhone').value.trim();
+            const rate = document.getElementById('editStaffRate').value;
+            const isActive = document.getElementById('editStaffStatus').value === 'true';
+            
+            // Get custom permissions
+            const customPermissions = {};
+            if (document.getElementById('editCustomManageStaff').checked) {
+                customPermissions.manageStaff = true;
+            }
+            if (document.getElementById('editCustomViewEarnings').checked) {
+                customPermissions.viewStaffEarnings = true;
+            }
+            if (document.getElementById('editCustomEditPay').checked) {
+                customPermissions.editStaffPay = true;
+            }
+            
+            try {
+                showLoading('Updating staff member...');
+                
+                const updateData = {
+                    name: name,
+                    email: email,
+                    role: role,
+                    position: position || null,
+                    phone: phone || null,
+                    hourlyRate: rate ? parseFloat(rate) : null,
+                    isActive: isActive,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: currentUser.uid
+                };
+                
+                // Add custom permissions
+                if (Object.keys(customPermissions).length > 0) {
+                    updateData.customPermissions = customPermissions;
+                } else {
+                    updateData.customPermissions = firebase.firestore.FieldValue.delete();
+                }
+                
+                await firebase.firestore()
+                    .collection('staff_members')
+                    .doc(currentEditingStaff.id)
+                    .update(updateData);
+                
+                closeEditStaffModal();
+                hideLoading();
+                showSuccess(`Staff member ${name} updated successfully!`);
+                
+                // Reload staff data
+                await loadStaffData();
+                
+            } catch (error) {
+                console.error('❌ Update staff failed:', error);
+                hideLoading();
+                showError('Failed to update staff: ' + error.message);
+            }
+        }
+
+        // Toggle staff status
+        async function toggleStaffStatus(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            const newStatus = !staff.isActive;
+            const action = newStatus ? 'activate' : 'deactivate';
+            
+            if (!confirm(`Are you sure you want to ${action} ${staff.name}?`)) {
+                return;
+            }
+            
+            try {
+                showLoading(`${action.charAt(0).toUpperCase() + action.slice(1)}ing staff member...`);
+                
+                await firebase.firestore()
+                    .collection('staff_members')
+                    .doc(staffId)
+                    .update({
+                        isActive: newStatus,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedBy: currentUser.uid
+                    });
+                
+                hideLoading();
+                showSuccess(`Staff member ${newStatus ? 'activated' : 'deactivated'} successfully!`);
+                
+                // Reload staff data
+                await loadStaffData();
+                
+            } catch (error) {
+                console.error('❌ Toggle staff status failed:', error);
+                hideLoading();
+                showError('Failed to update staff status: ' + error.message);
+            }
+        }
+
+        // View staff earnings
+        async function viewStaffEarnings(staffId) {
+            const staff = allStaff.find(s => s.id === staffId);
+            if (!staff) return;
+            
+            try {
+                showLoading('Loading earnings data...');
+                
+                // Calculate earnings for different periods
+                const periods = [
+                    { key: 'week', name: 'This Week', days: 7 },
+                    { key: 'month', name: 'This Month', days: 30 },
+                    { key: 'quarter', name: 'This Quarter', days: 90 },
+                    { key: 'year', name: 'This Year', days: 365 }
+                ];
+                
+                const earningsData = [];
+                
+                for (const period of periods) {
+                    const endDate = new Date().toISOString().split('T')[0];
+                    const startDate = new Date(Date.now() - (period.days * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+                    
+                    const earnings = await StaffAuth.calculateStaffEarnings(
+                        staff.uid, 
+                        currentRestaurant.id, 
+                        startDate, 
+                        endDate
+                    );
+                    
+                    earningsData.push({
+                        period: period.name,
+                        ...earnings
+                    });
+                }
+                
+                // Generate earnings content
+                let content = `
+                    <div style="margin-bottom: 20px;">
+                        <h3>${staff.name} - Earnings Report</h3>
+                        <p><strong>Position:</strong> ${staff.position || 'Not specified'}</p>
+                        <p><strong>Hourly Rate:</strong> $${(staff.hourlyRate || 0).toFixed(2)}/hour</p>
+                    </div>
+                `;
+                
+                earningsData.forEach(data => {
+                    content += `
+                        <div style="background: #F8F9FA; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                            <h4>${data.period}</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;">
+                                <div>
+                                    <div style="font-size: 14px; color: #86868B;">Total Hours</div>
+                                    <div style="font-size: 18px; font-weight: 600;">${data.totalHours}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 14px; color: #86868B;">Total Shifts</div>
+                                    <div style="font-size: 18px; font-weight: 600;">${data.totalShifts}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 14px; color: #86868B;">Total Earnings</div>
+                                    <div style="font-size: 18px; font-weight: 600; color: #34C759;">$${data.totalEarnings}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('staffEarningsContent').innerHTML = content;
+                document.getElementById('staffEarningsModal').classList.add('show');
+                
+                hideLoading();
+                
+            } catch (error) {
+                console.error('❌ Failed to load earnings:', error);
+                hideLoading();
+                showError('Failed to load earnings data: ' + error.message);
+            }
+        }
+
+        function closeStaffEarningsModal() {
+            document.getElementById('staffEarningsModal').classList.remove('show');
+        }
+
+        // Update earnings summary
+        async function updateEarningsSummary() {
+            try {
+                const period = document.getElementById('earningsPeriod').value;
+                let days;
+                let periodLabel;
+                
+                switch(period) {
+                    case 'week':
+                        days = 7;
+                        periodLabel = 'This Week';
+                        break;
+                    case 'month':
+                        days = 30;
+                        periodLabel = 'This Month';
+                        break;
+                    case 'quarter':
+                        days = 90;
+                        periodLabel = 'This Quarter';
+                        break;
+                    case 'year':
+                        days = 365;
+                        periodLabel = 'This Year';
+                        break;
+                    default:
+                        days = 7;
+                        periodLabel = 'This Week';
+                }
+                
+                const endDate = new Date().toISOString().split('T')[0];
+                const startDate = new Date(Date.now() - (days * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+                
+                let totalEarnings = 0;
+                let breakdownHtml = '';
+                
+                for (const staff of allStaff) {
+                    if (staff.isActive && staff.hourlyRate > 0) {
+                        const earnings = await StaffAuth.calculateStaffEarnings(
+                            staff.uid, 
+                            currentRestaurant.id, 
+                            startDate, 
+                            endDate
+                        );
+                        
+                        totalEarnings += earnings.totalEarnings;
+                        
+                        if (earnings.totalEarnings > 0) {
+                            breakdownHtml += `
+                                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F1F3F4;">
+                                    <span>${staff.name}</span>
+                                    <span style="font-weight: 600;">$${earnings.totalEarnings}</span>
+                                </div>
+                            `;
+                        }
+                    }
+                }
+                
+                document.getElementById('totalEarnings').textContent = `$${totalEarnings.toFixed(2)}`;
+                document.getElementById('earningsPeriodLabel').textContent = periodLabel;
+                document.getElementById('earningsBreakdown').innerHTML = breakdownHtml || '<p style="color: #86868B; text-align: center; padding: 20px;">No earnings data for this period</p>';
+                
+            } catch (error) {
+                console.error('❌ Failed to update earnings summary:', error);
+                document.getElementById('totalEarnings').textContent = '$0.00';
+                document.getElementById('earningsBreakdown').innerHTML = '<p style="color: #FF3B30;">Failed to load earnings data</p>';
+            }
+        }
+
+        // Generate payroll report
+        function generatePayrollReport() {
+            showInfo('Payroll report generation feature coming soon!');
+        }
+
+        // Export staff data
+        function exportStaffData() {
+            try {
+                const exportData = {
+                    restaurant: currentRestaurant.name,
+                    exportDate: new Date().toISOString(),
+                    staff: allStaff.map(staff => ({
+                        name: staff.name,
+                        email: staff.email,
+                        role: staff.role,
+                        position: staff.position,
+                        hourlyRate: staff.hourlyRate,
+                        isActive: staff.isActive,
+                        createdAt: staff.createdAt
+                    }))
+                };
+                
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(dataBlob);
+                link.download = `${currentRestaurant.name || 'restaurant'}-staff-export.json`;
+                link.click();
+                
+                showSuccess('Staff data exported successfully');
+            } catch (error) {
+                console.error('Error exporting staff data:', error);
+                showError('Failed to export staff data: ' + error.message);
+            }
+        }
+
+        // Utility functions
+        function showLoading(text = 'Loading...') {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('loadingText').textContent = text;
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showMessage(message, type) {
+            document.querySelectorAll('.message').forEach(msg => {
+                msg.classList.remove('show');
+            });
+            
+            const messageEl = document.getElementById(`${type}Message`);
+            if (messageEl) {
+                messageEl.textContent = message;
+                messageEl.classList.add('show');
+                
+                setTimeout(() => {
+                    messageEl.classList.remove('show');
+                }, 5000);
+            }
+        }
+
+        function showError(message) {
+            showMessage(message, 'error');
+        }
+
+        function showSuccess(message) {
+            showMessage(message, 'success');
+        }
+
+        function showInfo(message) {
+            showMessage(message, 'info');
+        }
+
+        console.log('Staff Management System loaded');
+    </script>
+</body>
+</html>
