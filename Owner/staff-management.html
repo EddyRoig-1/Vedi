@@ -1917,6 +1917,75 @@
             }
         }
 
+        // Enhanced Staff Earnings Calculation - FIXED VERSION
+        async function calculateStaffEarnings(staffUID, restaurantId, startDate, endDate) {
+            try {
+                // Get time records for the staff member in the date range
+                const timeRecordsSnapshot = await firebase.firestore()
+                    .collection('staff_time_records')
+                    .where('staffUID', '==', staffUID)
+                    .where('restaurantId', '==', restaurantId)
+                    .where('date', '>=', startDate)
+                    .where('date', '<=', endDate)
+                    .get();
+                
+                // Get staff hourly rate
+                const staffDoc = await firebase.firestore()
+                    .collection('staff_members')
+                    .where('uid', '==', staffUID)
+                    .where('restaurantId', '==', restaurantId)
+                    .limit(1)
+                    .get();
+                
+                if (staffDoc.empty) {
+                    return {
+                        totalHours: 0,
+                        totalShifts: 0,
+                        totalEarnings: '$0.00'
+                    };
+                }
+                
+                const staffData = staffDoc.docs[0].data();
+                const hourlyRate = staffData.hourlyRate || 0;
+                
+                let totalMinutes = 0;
+                let totalShifts = 0;
+                
+                timeRecordsSnapshot.docs.forEach(doc => {
+                    const record = doc.data();
+                    
+                    if (record.clockInTime && record.clockOutTime) {
+                        // Calculate worked minutes
+                        const clockIn = new Date(record.clockInTime.seconds * 1000);
+                        const clockOut = new Date(record.clockOutTime.seconds * 1000);
+                        const workedMinutes = (clockOut - clockIn) / (1000 * 60);
+                        
+                        if (workedMinutes > 0) {
+                            totalMinutes += workedMinutes;
+                            totalShifts++;
+                        }
+                    }
+                });
+                
+                const totalHours = Math.round((totalMinutes / 60) * 100) / 100; // Round to 2 decimal places
+                const totalEarnings = totalHours * hourlyRate;
+                
+                return {
+                    totalHours: totalHours.toFixed(2),
+                    totalShifts: totalShifts,
+                    totalEarnings: `${totalEarnings.toFixed(2)}`
+                };
+                
+            } catch (error) {
+                console.error('❌ Error calculating staff earnings:', error);
+                return {
+                    totalHours: 0,
+                    totalShifts: 0,
+                    totalEarnings: '$0.00'
+                };
+            }
+        }
+
         // View staff earnings
         async function viewStaffEarnings(staffId) {
             const staff = allStaff.find(s => s.id === staffId);
@@ -1939,7 +2008,7 @@
                     const endDate = new Date().toISOString().split('T')[0];
                     const startDate = new Date(Date.now() - (period.days * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
                     
-                    const earnings = await StaffAuth.calculateStaffEarnings(
+                    const earnings = await calculateStaffEarnings(
                         staff.uid, 
                         currentRestaurant.id, 
                         startDate, 
@@ -1999,7 +2068,7 @@
             document.getElementById('staffEarningsModal').classList.remove('show');
         }
 
-        // Update earnings summary
+        // Update earnings summary - FIXED VERSION
         async function updateEarningsSummary() {
             try {
                 const period = document.getElementById('earningsPeriod').value;
@@ -2036,16 +2105,18 @@
                 
                 for (const staff of allStaff) {
                     if (staff.isActive && staff.hourlyRate > 0) {
-                        const earnings = await StaffAuth.calculateStaffEarnings(
+                        const earnings = await calculateStaffEarnings(
                             staff.uid, 
                             currentRestaurant.id, 
                             startDate, 
                             endDate
                         );
                         
-                       totalEarnings += parseFloat(earnings.totalEarnings.replace(/,/g, ''));
+                        // Extract numeric value from earnings string
+                        const earningsValue = parseFloat(earnings.totalEarnings.replace(/[$,]/g, ''));
+                        totalEarnings += earningsValue;
                         
-                        if (parseFloat(earnings.totalEarnings.replace(/\$|,/g, '')) > 0) {
+                        if (earningsValue > 0) {
                             breakdownHtml += `
                                 <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F1F3F4;">
                                     <span>${staff.name}</span>
