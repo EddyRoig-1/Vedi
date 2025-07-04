@@ -12,6 +12,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
    
+    <!-- ADDED: Secure Iframe Initialization -->
+    <script src="../Api/core/secure-iframe-init.js"></script>
+
     <!-- Firebase Configuration -->
     <script src="../firebase-config.js"></script>
 
@@ -911,8 +914,6 @@
     </div>
 
     <div class="container">
-
-
         <!-- Messages -->
         <div class="error-message message" id="errorMessage"></div>
         <div class="success-message message" id="successMessage"></div>
@@ -1268,22 +1269,30 @@
             console.log(`[${timestamp}] ${message}`, data || '');
         }
 
-        // Initialize when page loads
+        // ============================================================================
+        // UPDATED INITIALIZATION WITH SECURE IFRAME
+        // ============================================================================
+
+        // Initialize when page loads - UPDATED FOR IFRAME
         document.addEventListener('DOMContentLoaded', async function() {
             debugLog('🚀 Staff management initialization started');
             showLoading('Loading staff management...');
             
             try {
-                // Wait for Firebase to load
-                await waitForFirebase();
+                // NEW: Use secure iframe initialization
+                showLoading('Initializing secure connection...');
+                const { user, restaurant } = await initializeRestaurantPage('Staff Management');
                 
-                // Check authentication
-                showLoading('Checking authentication...');
-                currentUser = await checkAuthentication();
+                currentUser = user;
+                currentRestaurant = restaurant;
                 
-                // Load restaurant data
-                showLoading('Loading restaurant...');
-                currentRestaurant = await loadRestaurantData();
+                debugLog('✅ Secure initialization complete:', {
+                    user: currentUser.email,
+                    restaurant: currentRestaurant.name
+                });
+                
+                // Test Firebase Functions availability
+                await testFirebaseFunctions();
                 
                 // Setup restaurant currency (same as analytics page)
                 restaurantCurrency = getRestaurantCurrency();
@@ -1323,139 +1332,42 @@
             } catch (error) {
                 console.error('❌ Failed to initialize staff management:', error);
                 hideLoading();
-                showError('Failed to initialize: ' + error.message);
+                
+                // Use the secure error handler
+                if (typeof window.showSecurityError === 'function') {
+                    window.showSecurityError(error);
+                } else {
+                    showError('Failed to initialize: ' + error.message);
+                }
             }
         });
 
-        // Wait for Firebase to load
-        async function waitForFirebase() {
-            return new Promise((resolve, reject) => {
-                let attempts = 0;
-                const maxAttempts = 100;
-                
-                const checkFirebase = () => {
-                    attempts++;
-                    
-                    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-                        resolve();
-                    } else if (attempts >= maxAttempts) {
-                        reject(new Error('Firebase failed to load'));
-                    } else {
-                        setTimeout(checkFirebase, 100);
-                    }
-                };
-                
-                checkFirebase();
-            });
-        }
-
-        // Check authentication
-        async function checkAuthentication() {
-            return new Promise((resolve, reject) => {
-                const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
-                    unsubscribe();
-                    
-                    if (user) {
-                        debugLog('✅ User authenticated:', user.email);
-                        resolve(user);
-                    } else {
-                        debugLog('❌ User not authenticated');
-                        window.location.href = 'login.html';
-                        reject(new Error('User not authenticated'));
-                    }
-                });
-            });
-        }
-
-        // Load restaurant data
-        async function loadRestaurantData() {
+        // Add Firebase Functions test
+        async function testFirebaseFunctions() {
             try {
-                debugLog('🔍 Loading restaurant data for user:', currentUser.uid);
+                console.log('🔥 Testing Firebase Functions availability...');
+                console.log('🔥 firebase object:', typeof firebase);
+                console.log('🔥 firebase.functions:', typeof firebase.functions);
                 
-                // First, let's check if user exists in users collection
-                const userDoc = await firebase.firestore()
-                    .collection('users')
-                    .doc(currentUser.uid)
-                    .get();
-                
-                if (userDoc.exists) {
-                    const userData = userDoc.data();
-                    debugLog('✅ User found in users collection:', userData);
+                if (firebase.functions) {
+                    console.log('✅ Firebase Functions available!');
                     
-                    // Check if user is restaurant owner
-                    if (userData.accountType === 'restaurant') {
-                        debugLog('✅ User is restaurant owner (accountType: restaurant)');
-                        
-                        // Try to find restaurant by ownerUserId
-                        const restaurantSnapshot = await firebase.firestore()
-                            .collection('restaurants')
-                            .where('ownerUserId', '==', currentUser.uid)
-                            .limit(1)
-                            .get();
-                        
-                        if (!restaurantSnapshot.empty) {
-                            const restaurantDoc = restaurantSnapshot.docs[0];
-                            const restaurant = {
-                                id: restaurantDoc.id,
-                                ...restaurantDoc.data()
-                            };
-                            
-                            debugLog('✅ Restaurant found by ownerUserId:', restaurant.name);
-                            return restaurant;
-                        } else {
-                            debugLog('❌ No restaurant found with ownerUserId:', currentUser.uid);
-                            throw new Error('Restaurant document not found for owner');
-                        }
-                    } else {
-                        debugLog('❌ User is not a restaurant owner. accountType:', userData.accountType);
-                    }
+                    // Test calling a function
+                    const testFunc = firebase.functions().httpsCallable('testFunction');
+                    console.log('✅ Test function callable created');
+                    
+                    return true;
                 } else {
-                    debugLog('❌ User not found in users collection');
+                    console.error('❌ Firebase Functions not available');
+                    return false;
                 }
-                
-                // If not owner, check if user is staff
-                debugLog('🔍 Checking if user is staff member...');
-                const staffSnapshot = await firebase.firestore()
-                    .collection('staff_members')
-                    .where('uid', '==', currentUser.uid)
-                    .where('isActive', '==', true)
-                    .limit(1)
-                    .get();
-                
-                if (!staffSnapshot.empty) {
-                    const staffData = staffSnapshot.docs[0].data();
-                    debugLog('✅ User found as staff member:', staffData);
-                    
-                    // Get restaurant document
-                    const restaurantDoc = await firebase.firestore()
-                        .collection('restaurants')
-                        .doc(staffData.restaurantId)
-                        .get();
-                    
-                    if (restaurantDoc.exists) {
-                        const restaurant = {
-                            id: restaurantDoc.id,
-                            ...restaurantDoc.data()
-                        };
-                        
-                        debugLog('✅ Restaurant loaded for staff:', restaurant.name);
-                        return restaurant;
-                    } else {
-                        debugLog('❌ Restaurant not found for staff member');
-                    }
-                } else {
-                    debugLog('❌ User not found as staff member');
-                }
-                
-                throw new Error('No restaurant found for this user');
-                
             } catch (error) {
-                console.error('❌ Failed to load restaurant:', error);
-                throw error;
+                console.error('❌ Firebase Functions test failed:', error);
+                return false;
             }
         }
 
-        // Check user permissions
+        // Updated checkUserPermissions to use inherited Firebase:
         async function checkUserPermissions() {
             try {
                 // Use StaffAuth to check permissions
