@@ -915,11 +915,6 @@
                     <input type="text" class="form-input" id="roleNameInput" required placeholder="e.g., Server, Manager, Cook">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Role ID (Internal)</label>
-                    <input type="text" class="form-input" id="roleIdInput" required placeholder="e.g., server, manager, cook">
-                    <small style="color: #86868B; font-size: 12px;">This will be used internally to identify the role. Use lowercase letters and hyphens only.</small>
-                </div>
-                <div class="form-group">
                     <label class="form-label">Page Access</label>
                     <p style="color: #86868B; font-size: 14px; margin-bottom: 12px;">Select which pages this role can access:</p>
                     <div class="page-selection-grid" id="pageSelectionGrid">
@@ -978,24 +973,6 @@
                 <div class="form-group">
                     <label class="form-label">Temporary Password</label>
                     <input type="password" class="form-input" id="staffPassword" placeholder="Staff will change this on first login" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Custom Permissions (Optional)</label>
-                    <div class="checkbox-group">
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="customManageStaff">
-                            <label for="customManageStaff">Can manage other staff members</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="customViewEarnings">
-                            <label for="customViewEarnings">Can view staff earnings</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="customEditPay">
-                            <label for="customEditPay">Can edit staff pay rates</label>
-                        </div>
-                    </div>
                 </div>
                 
                 <button type="submit" class="btn btn-primary">Add Staff Member</button>
@@ -1201,15 +1178,51 @@
         // Load restaurant data
         async function loadRestaurantData() {
             try {
-                // Use StaffAuth to check if user is owner
-                const ownerRestaurant = await StaffAuth.checkIfOwner(currentUser.uid);
+                debugLog('🔍 Loading restaurant data for user:', currentUser.uid);
                 
-                if (ownerRestaurant) {
-                    debugLog('✅ Restaurant loaded for owner:', ownerRestaurant.name);
-                    return ownerRestaurant;
+                // First, let's check if user exists in users collection
+                const userDoc = await firebase.firestore()
+                    .collection('users')
+                    .doc(currentUser.uid)
+                    .get();
+                
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    debugLog('✅ User found in users collection:', userData);
+                    
+                    // Check if user is restaurant owner
+                    if (userData.accountType === 'restaurant') {
+                        debugLog('✅ User is restaurant owner (accountType: restaurant)');
+                        
+                        // Try to find restaurant by ownerUserId
+                        const restaurantSnapshot = await firebase.firestore()
+                            .collection('restaurants')
+                            .where('ownerUserId', '==', currentUser.uid)
+                            .limit(1)
+                            .get();
+                        
+                        if (!restaurantSnapshot.empty) {
+                            const restaurantDoc = restaurantSnapshot.docs[0];
+                            const restaurant = {
+                                id: restaurantDoc.id,
+                                ...restaurantDoc.data()
+                            };
+                            
+                            debugLog('✅ Restaurant found by ownerUserId:', restaurant.name);
+                            return restaurant;
+                        } else {
+                            debugLog('❌ No restaurant found with ownerUserId:', currentUser.uid);
+                            throw new Error('Restaurant document not found for owner');
+                        }
+                    } else {
+                        debugLog('❌ User is not a restaurant owner. accountType:', userData.accountType);
+                    }
+                } else {
+                    debugLog('❌ User not found in users collection');
                 }
                 
                 // If not owner, check if user is staff
+                debugLog('🔍 Checking if user is staff member...');
                 const staffSnapshot = await firebase.firestore()
                     .collection('staff_members')
                     .where('uid', '==', currentUser.uid)
@@ -1219,6 +1232,7 @@
                 
                 if (!staffSnapshot.empty) {
                     const staffData = staffSnapshot.docs[0].data();
+                    debugLog('✅ User found as staff member:', staffData);
                     
                     // Get restaurant document
                     const restaurantDoc = await firebase.firestore()
@@ -1234,7 +1248,11 @@
                         
                         debugLog('✅ Restaurant loaded for staff:', restaurant.name);
                         return restaurant;
+                    } else {
+                        debugLog('❌ Restaurant not found for staff member');
                     }
+                } else {
+                    debugLog('❌ User not found as staff member');
                 }
                 
                 throw new Error('No restaurant found for this user');
@@ -1551,8 +1569,6 @@
             document.getElementById('roleEditorTitle').textContent = 'Create New Role';
             document.getElementById('saveRoleBtn').textContent = 'Create Role';
             document.getElementById('roleNameInput').value = '';
-            document.getElementById('roleIdInput').value = '';
-            document.getElementById('roleIdInput').disabled = false;
             
             renderPageSelectionGrid();
             document.getElementById('roleEditorModal').classList.add('show');
@@ -1566,8 +1582,6 @@
             document.getElementById('roleEditorTitle').textContent = 'Edit Role';
             document.getElementById('saveRoleBtn').textContent = 'Update Role';
             document.getElementById('roleNameInput').value = role.name;
-            document.getElementById('roleIdInput').value = role.roleId;
-            document.getElementById('roleIdInput').disabled = true; // Don't allow changing roleId
             
             renderPageSelectionGrid(role.pages);
             document.getElementById('roleEditorModal').classList.add('show');
@@ -1609,14 +1623,13 @@
             event.preventDefault();
             
             const roleName = document.getElementById('roleNameInput').value.trim();
-            const roleId = document.getElementById('roleIdInput').value.trim();
             
             // Get selected pages
             const selectedPages = Array.from(document.querySelectorAll('#pageSelectionGrid input[type="checkbox"]:checked'))
                 .map(checkbox => checkbox.id.replace('page_', ''));
             
-            if (!roleName || !roleId) {
-                showError('Please fill in all required fields');
+            if (!roleName) {
+                showError('Please fill in the role name');
                 return;
             }
             
@@ -1637,7 +1650,9 @@
                     
                     showSuccess('Role updated successfully!');
                 } else {
-                    // Create new role
+                    // Create new role - auto-generate roleId
+                    const roleId = generateRoleId(roleName);
+                    
                     await StaffAuth.createRole(currentRestaurant.id, {
                         roleId: roleId,
                         name: roleName,
@@ -1657,6 +1672,15 @@
                 hideLoading();
                 showError('Failed to save role: ' + error.message);
             }
+        }
+
+        // Generate role ID from role name
+        function generateRoleId(roleName) {
+            // Convert to lowercase, replace spaces with hyphens, remove special characters
+            return roleName.toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '')
+                .substring(0, 50); // Limit length
         }
 
         async function deleteRole(roleId) {
@@ -1706,18 +1730,6 @@
             const rate = document.getElementById('staffRate').value;
             const password = document.getElementById('staffPassword').value;
             
-            // Get custom permissions
-            const customPermissions = {};
-            if (document.getElementById('customManageStaff').checked) {
-                customPermissions.manageStaff = true;
-            }
-            if (document.getElementById('customViewEarnings').checked) {
-                customPermissions.viewStaffEarnings = true;
-            }
-            if (document.getElementById('customEditPay').checked) {
-                customPermissions.editStaffPay = true;
-            }
-            
             if (!name || !email || !role || !password) {
                 showError('Please fill in all required fields');
                 return;
@@ -1747,11 +1759,6 @@
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     createdBy: currentUser.uid
                 };
-                
-                // Add custom permissions if any
-                if (Object.keys(customPermissions).length > 0) {
-                    staffData.customPermissions = customPermissions;
-                }
                 
                 await firebase.firestore().collection('staff_members').add(staffData);
                 
