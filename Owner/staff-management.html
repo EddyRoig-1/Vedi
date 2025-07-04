@@ -1201,30 +1201,44 @@
         // Load restaurant data
         async function loadRestaurantData() {
             try {
-                // Try to get restaurant by owner first
-                let restaurant = await VediAPI.getRestaurantByOwner(currentUser.uid);
+                // Use StaffAuth to check if user is owner
+                const ownerRestaurant = await StaffAuth.checkIfOwner(currentUser.uid);
                 
-                // If not found, user might be staff - get restaurant ID from staff record
-                if (!restaurant) {
-                    const staffSnapshot = await firebase.firestore()
-                        .collection('staff_members')
-                        .where('uid', '==', currentUser.uid)
-                        .where('isActive', '==', true)
-                        .limit(1)
+                if (ownerRestaurant) {
+                    debugLog('✅ Restaurant loaded for owner:', ownerRestaurant.name);
+                    return ownerRestaurant;
+                }
+                
+                // If not owner, check if user is staff
+                const staffSnapshot = await firebase.firestore()
+                    .collection('staff_members')
+                    .where('uid', '==', currentUser.uid)
+                    .where('isActive', '==', true)
+                    .limit(1)
+                    .get();
+                
+                if (!staffSnapshot.empty) {
+                    const staffData = staffSnapshot.docs[0].data();
+                    
+                    // Get restaurant document
+                    const restaurantDoc = await firebase.firestore()
+                        .collection('restaurants')
+                        .doc(staffData.restaurantId)
                         .get();
                     
-                    if (!staffSnapshot.empty) {
-                        const staffData = staffSnapshot.docs[0].data();
-                        restaurant = await VediAPI.getRestaurant(staffData.restaurantId);
+                    if (restaurantDoc.exists) {
+                        const restaurant = {
+                            id: restaurantDoc.id,
+                            ...restaurantDoc.data()
+                        };
+                        
+                        debugLog('✅ Restaurant loaded for staff:', restaurant.name);
+                        return restaurant;
                     }
                 }
                 
-                if (!restaurant) {
-                    throw new Error('No restaurant found for this user');
-                }
+                throw new Error('No restaurant found for this user');
                 
-                debugLog('✅ Restaurant loaded:', restaurant.name);
-                return restaurant;
             } catch (error) {
                 console.error('❌ Failed to load restaurant:', error);
                 throw error;
