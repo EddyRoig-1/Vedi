@@ -1054,23 +1054,7 @@
                     </select>
                 </div>
                 
-                <div class="form-group">
-                    <label class="form-label">Custom Permissions</label>
-                    <div class="checkbox-group">
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="editCustomManageStaff">
-                            <label for="editCustomManageStaff">Can manage other staff members</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="editCustomViewEarnings">
-                            <label for="editCustomViewEarnings">Can view staff earnings</label>
-                        </div>
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="editCustomEditPay">
-                            <label for="editCustomEditPay">Can edit staff pay rates</label>
-                        </div>
-                    </div>
-                </div>
+
                 
                 <button type="submit" class="btn btn-primary">Update Staff Member</button>
             </form>
@@ -1751,14 +1735,6 @@
             document.getElementById('editStaffRate').value = staff.hourlyRate || '';
             document.getElementById('editStaffStatus').value = staff.isActive.toString();
             
-            // Set custom permissions
-            document.getElementById('editCustomManageStaff').checked = 
-                staff.customPermissions && staff.customPermissions.manageStaff;
-            document.getElementById('editCustomViewEarnings').checked = 
-                staff.customPermissions && staff.customPermissions.viewStaffEarnings;
-            document.getElementById('editCustomEditPay').checked = 
-                staff.customPermissions && staff.customPermissions.editStaffPay;
-            
             document.getElementById('editStaffModal').classList.add('show');
         }
 
@@ -1781,18 +1757,6 @@
             const rate = document.getElementById('editStaffRate').value;
             const isActive = document.getElementById('editStaffStatus').value === 'true';
             
-            // Get custom permissions
-            const customPermissions = {};
-            if (document.getElementById('editCustomManageStaff').checked) {
-                customPermissions.manageStaff = true;
-            }
-            if (document.getElementById('editCustomViewEarnings').checked) {
-                customPermissions.viewStaffEarnings = true;
-            }
-            if (document.getElementById('editCustomEditPay').checked) {
-                customPermissions.editStaffPay = true;
-            }
-            
             try {
                 showLoading('Updating staff member...');
                 
@@ -1807,13 +1771,6 @@
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedBy: currentUser.uid
                 };
-                
-                // Add custom permissions
-                if (Object.keys(customPermissions).length > 0) {
-                    updateData.customPermissions = customPermissions;
-                } else {
-                    updateData.customPermissions = firebase.firestore.FieldValue.delete();
-                }
                 
                 await firebase.firestore()
                     .collection('staff_members')
